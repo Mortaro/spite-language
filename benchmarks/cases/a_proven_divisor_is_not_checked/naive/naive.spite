@@ -1,0 +1,40 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var amounts = List<Integer>()
+    var index = 0
+    while index < 1000000 {
+        amounts.append(index % 9973)
+        index = index + 1
+    }
+    var total = rounds(amounts)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(amounts: List<Integer>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 20 {
+        var parts = round % 7 + 1
+        var shared = shares(amounts, parts)
+        total = total + shared
+        round = round + 1
+    }
+    return total
+}
+
+func shares(amounts: List<Integer>, parts: Integer): Long {
+    crash parts > 0
+    var total: Long = 0
+    var index = 0
+    while index < amounts.count() {
+        var amount = amounts[index]
+        total = total + amount / parts + amount % parts
+        index = index + 1
+    }
+    return total
+}

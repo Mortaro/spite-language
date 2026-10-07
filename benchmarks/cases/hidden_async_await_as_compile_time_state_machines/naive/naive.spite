@@ -1,0 +1,25 @@
+var console = Console()
+
+func Naive() {
+    var total = nap_all(8)
+    console.print("total", total)
+}
+
+func nap_all(count: Integer): Integer {
+    var nappings = List<Concurrent<Integer>>()
+    var index = 0
+    while index < count {
+        var napper = Napper(index)
+        var napping = Concurrent(napper.nap)
+        nappings.append(napping)
+        index = index + 1
+    }
+    var total = 0
+    var read = 0
+    while read < nappings.count() {
+        var napped: Integer = nappings[read]
+        total = total + napped
+        read = read + 1
+    }
+    return total
+}

@@ -1,0 +1,6 @@
+lines #define SPITE_TAGGED_
+spite_tagged_SpiteInteger
+spite_box_SpiteString
+Naive_add_value___held_0
+Console_Printable___call_to_string
+Naive_measure___held_0

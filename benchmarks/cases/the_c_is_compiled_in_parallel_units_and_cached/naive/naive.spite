@@ -1,0 +1,13 @@
+var console = Console()
+
+func Naive() {
+    var items = List<Item>()
+    var index = 0
+    while index < 500 {
+        var item = Item(index % 13, index % 4)
+        items.append(item)
+        index = index + 1
+    }
+    var worth = items.sum_worth()
+    console.print("worth", worth)
+}

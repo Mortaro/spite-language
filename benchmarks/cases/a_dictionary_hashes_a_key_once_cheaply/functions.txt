@@ -1,0 +1,5 @@
+Naive_look_up___held_0_1
+Dictionary_Integer_find_slot
+Dictionary_Integer_hash_of
+Dictionary_Integer_home_slot
+Dictionary_Integer_fragment_of

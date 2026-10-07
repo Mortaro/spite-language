@@ -1,0 +1,45 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var orders = make_orders(5000)
+    var total = copy_rounds(orders)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func make_orders(count: Integer): List<Order> {
+    var orders = List<Order>()
+    var index = 0
+    while index < count {
+        var customer = Customer("customer {index % 300}", index % 5)
+        var order = Order(index, customer)
+        add_lines(order, index)
+        orders.append(order)
+        index = index + 1
+    }
+    return orders
+}
+
+func add_lines(order: Order, index: Integer) {
+    var line_index = 0
+    while line_index < 4 {
+        var line = Line(line_index + 1, index % 97 + line_index)
+        order.lines.append(line)
+        line_index = line_index + 1
+    }
+}
+
+func copy_rounds(orders: List<Order>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 40 {
+        var copies = orders.deep_copy()
+        var value = copies.sum_value()
+        total = total + value
+        round = round + 1
+    }
+    return total
+}

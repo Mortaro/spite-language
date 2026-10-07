@@ -1,0 +1,5 @@
+var per_tick = 0
+
+func Regeneration(new_per_tick: Integer) {
+    per_tick = new_per_tick
+}

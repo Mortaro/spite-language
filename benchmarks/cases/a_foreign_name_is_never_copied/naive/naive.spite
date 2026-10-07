@@ -1,0 +1,18 @@
+var console = Console()
+var guard = Lock()
+var count = 0
+
+func Naive() {
+    var round = 0
+    while round < 1000 {
+        count_once()
+        round = round + 1
+    }
+    console.print("counted", count)
+}
+
+func count_once() {
+    guard.lock()
+    count = count + 1
+    guard.unlock()
+}

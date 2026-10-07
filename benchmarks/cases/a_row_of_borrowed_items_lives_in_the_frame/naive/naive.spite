@@ -1,0 +1,54 @@
+var console = Console()
+var clock = Clock()
+var mover = Mover()
+var healer = Healer()
+var positions = Vector<Position>()
+var velocities = Vector<Velocity>()
+var healths = Vector<Health>()
+var regenerations = Vector<Regeneration>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    spawn_all(100000)
+    run_ticks(100)
+    var places = positions.sum_place()
+    var amounts = healths.sum_amount()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("places", places, "health", amounts)
+    console.error("microseconds {microseconds}")
+}
+
+func spawn_all(count: Integer) {
+    var entity = 0
+    while entity < count {
+        var position = Position()
+        positions.append(position)
+        var velocity = Velocity(entity % 13 - 6, entity % 7 - 3)
+        velocities.append(velocity)
+        var health = Health()
+        healths.append(health)
+        var regeneration = Regeneration(entity % 4)
+        regenerations.append(regeneration)
+        entity = entity + 1
+    }
+}
+
+func run_ticks(count: Integer) {
+    var tick = 0
+    while tick < count {
+        tick_once()
+        tick = tick + 1
+    }
+}
+
+func tick_once() {
+    var entity = 0
+    while entity < positions.count() {
+        crash velocities[entity] and healths[entity] and regenerations[entity]
+        var moving = {position: positions[entity], velocity: velocities[entity]}
+        mover.update_each(moving)
+        var mending = {health: healths[entity], regeneration: regenerations[entity]}
+        healer.update_each(mending)
+        entity = entity + 1
+    }
+}

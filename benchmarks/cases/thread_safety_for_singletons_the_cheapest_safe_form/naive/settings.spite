@@ -1,0 +1,17 @@
+singleton
+
+var step = 0
+var label = ""
+
+func Settings() {
+    step = 2
+    label = "hits"
+}
+
+func step_size(): Integer {
+    return step
+}
+
+func name(): String {
+    return label
+}

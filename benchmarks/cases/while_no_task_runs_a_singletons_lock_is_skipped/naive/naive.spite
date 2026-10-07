@@ -1,0 +1,27 @@
+var console = Console()
+var clock = Clock()
+var tally = Tally()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var first = add_on_the_pool()
+    var reached = add_many(10000000)
+    var total = tally.sum()
+    var calls = tally.call_count()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("first", first, "reached", reached, "calls", calls, "total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func add_on_the_pool(): Integer {
+    var worker = Worker()
+    return Parallel(worker.run)
+}
+
+func add_many(count: Integer): Integer {
+    var index = 0
+    while index < count {
+        index = tally.add(index)
+    }
+    return index
+}

@@ -1,0 +1,11 @@
+var price = 0
+var count = 0
+
+func Item(new_price: Integer, new_count: Integer) {
+    price = new_price
+    count = new_count
+}
+
+func worth(): Integer {
+    return price * count
+}

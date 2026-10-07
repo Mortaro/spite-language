@@ -1,0 +1,18 @@
+var console = Console()
+
+func Naive() {
+    var monsters = List<Monster>()
+    var heroes = List<Hero>()
+    var index = 0
+    while index < 100 {
+        var monster = Monster(index % 40)
+        monsters.append(monster)
+        var hero = Hero(index % 7)
+        heroes.append(hero)
+        index = index + 1
+    }
+    var arena = Arena()
+    var rounds = arena.fight(monsters, heroes)
+    var alive = monsters.count_is_alive()
+    console.print("rounds", rounds, "alive", alive)
+}

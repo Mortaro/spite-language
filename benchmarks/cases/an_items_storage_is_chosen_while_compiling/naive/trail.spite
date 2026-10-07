@@ -1,0 +1,16 @@
+var across = 0
+var down = 0
+var marks = List<Integer>()
+
+func Trail(new_across: Integer, new_down: Integer) {
+    across = new_across
+    down = new_down
+}
+
+func integrate() {
+    across = across + down
+}
+
+func marked(): Integer {
+    return marks.count()
+}

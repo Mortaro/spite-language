@@ -1,0 +1,11 @@
+singleton
+
+var entries = List<Integer>()
+
+func record(entry: Integer) {
+    entries.append(entry)
+}
+
+func count(): Integer {
+    return entries.count()
+}

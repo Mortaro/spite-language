@@ -1,0 +1,45 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var by_number = make_table(100000)
+    var total = look_up(by_number, 100000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var entries = by_number.count()
+    console.print("total", total, "entries", entries)
+    console.error("microseconds {microseconds}")
+}
+
+func key_of(index: Integer): Integer {
+    return index * 7919 % 1000003
+}
+
+func make_table(count: Integer): Dictionary<Integer> {
+    var by_number = Dictionary<Integer>()
+    var index = 0
+    while index < count {
+        var key = key_of(index)
+        by_number[key] = index * 2
+        index = index + 1
+    }
+    return by_number
+}
+
+func look_up(by_number: Dictionary<Integer>, count: Integer): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 40 {
+        var index = 0
+        while index < count {
+            var key = key_of(index + round)
+            var found = by_number[key]
+            if found {
+                total = total + found
+            }
+            index = index + 1
+        }
+        round = round + 1
+    }
+    return total
+}

@@ -1,0 +1,11 @@
+singleton
+
+var boxes = List<Box>()
+
+func insert(box: Box) {
+    boxes.append(box)
+}
+
+func count(): Integer {
+    return boxes.count()
+}

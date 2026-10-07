@@ -1,0 +1,9 @@
+var strength = 0
+
+func Hero(starting_strength: Integer) {
+    strength = starting_strength
+}
+
+func damage(): Integer {
+    return strength + 1
+}

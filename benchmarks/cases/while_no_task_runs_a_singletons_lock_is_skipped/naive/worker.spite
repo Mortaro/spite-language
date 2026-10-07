@@ -1,0 +1,5 @@
+var tally = Tally()
+
+func run(): Integer {
+    return tally.add(1)
+}

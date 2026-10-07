@@ -1,0 +1,46 @@
+var console = Console()
+var clock = Clock()
+var mover = Mover()
+var runner = Runner<Mover.Moving>()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var entity_count = 100000
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    spawn_all()
+    run_ticks(50)
+    var places = positions.values.sum_place()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("places", places, "marked", mover.marked)
+    console.error("microseconds {microseconds}")
+}
+
+func spawn_all() {
+    var entity = 0
+    while entity < entity_count {
+        var position = Position()
+        positions.insert(entity, position)
+        entity = entity + 1
+    }
+    var backwards = entity_count - 1
+    while backwards >= 0 {
+        push(backwards)
+        backwards = backwards - 1
+    }
+}
+
+func push(entity: Integer) {
+    if entity % 3 != 0 {
+        var velocity = Velocity(entity % 13 - 6, entity % 7 - 3)
+        velocities.insert(entity, velocity)
+    }
+}
+
+func run_ticks(count: Integer) {
+    var tick = 0
+    while tick < count {
+        runner.run(mover, entity_count)
+        tick = tick + 1
+    }
+}

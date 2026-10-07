@@ -1,0 +1,7 @@
+singleton
+
+var base = 0
+
+func Rules() {
+    base = 3
+}

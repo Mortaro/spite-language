@@ -1,0 +1,3 @@
+struct Object_position_Position_velocity_Velocity
+Naive_tick_once
+Mover_update_each___lent_0

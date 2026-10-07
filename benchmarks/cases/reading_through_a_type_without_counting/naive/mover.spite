@@ -1,0 +1,9 @@
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+func advance(moving: Moving, steps: Integer) {
+    moving.position.left = moving.position.left + moving.velocity.across * steps
+    moving.position.top = moving.position.top + moving.velocity.down * steps
+}

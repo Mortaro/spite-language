@@ -1,0 +1,17 @@
+var target: Monster? = null
+var hits = 0
+
+func hunt(): Integer {
+    crash target
+    var rounds = 0
+    while target.health > 0 {
+        record_hit()
+        target.hurt(3)
+        rounds = rounds + 1
+    }
+    return rounds
+}
+
+func record_hit() {
+    hits = hits + 1
+}

@@ -1,0 +1,5 @@
+var bonus = 3
+
+func score(value: Integer): Integer {
+    return value * 2 + bonus
+}

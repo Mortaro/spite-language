@@ -1,0 +1,7 @@
+var name = ""
+var level = 0
+
+func Customer(new_name: String, new_level: Integer) {
+    name = new_name
+    level = new_level
+}

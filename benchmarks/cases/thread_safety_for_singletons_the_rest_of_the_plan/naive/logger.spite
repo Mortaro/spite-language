@@ -1,0 +1,22 @@
+var log = EventLog()
+var rounds = 0
+var source = 0
+
+func Logger(new_rounds: Integer, new_source: Integer) {
+    rounds = new_rounds
+    source = new_source
+}
+
+func log_all(): Integer {
+    var index = 0
+    while index < rounds {
+        var entry = entry_for(index)
+        log.record(entry)
+        index = index + 1
+    }
+    return rounds
+}
+
+func entry_for(index: Integer): Integer {
+    return source * 1000000 + index
+}

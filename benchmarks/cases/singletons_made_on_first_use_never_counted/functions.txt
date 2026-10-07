@@ -1,0 +1,4 @@
+spite_singleton_Rules
+Visit___init
+Fetcher_fetch_many
+Visit_weight

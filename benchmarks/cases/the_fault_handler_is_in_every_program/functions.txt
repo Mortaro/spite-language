@@ -1,0 +1,5 @@
+main
+spite_fault_install
+spite_fault_thread
+lines {(const void*)&Naive_
+lines {(const void*)&main

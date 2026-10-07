@@ -1,0 +1,53 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var names = make_names(5000)
+    var by_name = index_names(names)
+    var total = look_up(names, by_name)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var entries = by_name.count()
+    console.print("total", total, "entries", entries)
+    console.error("microseconds {microseconds}")
+}
+
+func make_names(count: Integer): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < count {
+        names.append("entity_{index}")
+        index = index + 1
+    }
+    return names
+}
+
+func index_names(names: List<String>): Dictionary<Integer> {
+    var by_name = Dictionary<Integer>()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        by_name[name] = index * 3
+        index = index + 1
+    }
+    return by_name
+}
+
+func look_up(names: List<String>, by_name: Dictionary<Integer>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 20 {
+        var index = 0
+        while index < 100000 {
+            var position = (index * 7 + round) % 5000
+            crash names[position]
+            var name = names[position]
+            if by_name[name] {
+                total = total + by_name[name]
+            }
+            index = index + 1
+        }
+        round = round + 1
+    }
+    return total
+}

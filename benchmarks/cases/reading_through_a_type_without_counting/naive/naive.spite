@@ -1,0 +1,40 @@
+var console = Console()
+var clock = Clock()
+var mover = Mover()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var positions = Vector<Position>()
+    var velocities = Vector<Velocity>()
+    fill(positions, velocities, 100000)
+    ticks(positions, velocities)
+    var total = positions.sum_place()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func fill(positions: Vector<Position>, velocities: Vector<Velocity>, count: Integer) {
+    var index = 0
+    while index < count {
+        var position = Position()
+        positions.append(position)
+        var velocity = Velocity(index % 13 - 6, index % 7 - 3)
+        velocities.append(velocity)
+        index = index + 1
+    }
+}
+
+func ticks(positions: Vector<Position>, velocities: Vector<Velocity>) {
+    var tick = 0
+    while tick < 200 {
+        var index = 0
+        while index < positions.count() {
+            crash velocities[index]
+            var moving = {position: positions[index], velocity: velocities[index]}
+            mover.advance(moving, tick % 3)
+            index = index + 1
+        }
+        tick = tick + 1
+    }
+}

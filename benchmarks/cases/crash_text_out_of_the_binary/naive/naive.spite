@@ -1,0 +1,32 @@
+var console = Console()
+
+func Naive() {
+    var prices = List<Integer>()
+    var index = 0
+    while index < 50 {
+        prices.append(index * 3)
+        index = index + 1
+    }
+    var picks = [4, 9, 16, 25, 36, 49]
+    var total = total_of(prices, picks)
+    var last = price_at(prices, 49)
+    crash last
+    console.print("total", total, "last", last)
+}
+
+func total_of(prices: List<Integer>, picks: List<Integer>): Integer {
+    var total = 0
+    var index = 0
+    while index < picks.count() {
+        var pick = picks[index]
+        crash prices[pick]
+        total = total + prices[pick]
+        index = index + 1
+    }
+    return total
+}
+
+func price_at(prices: List<Integer>, place: Integer): Integer? {
+    assert place < prices.count()
+    return prices[place]
+}

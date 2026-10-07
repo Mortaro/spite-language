@@ -1,0 +1,6 @@
+lines typedef struct SpiteGuard
+Recorder_record_all
+Registry_record
+Registry_record___unguarded
+spite_guard_enter
+spite_guard_leave

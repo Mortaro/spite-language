@@ -1,0 +1,20 @@
+func fight(monsters: List<Monster>, heroes: List<Hero>): Integer {
+    var rounds = 0
+    while monsters.any_is_alive() {
+        strike_all(monsters, heroes)
+        rounds = rounds + 1
+    }
+    return rounds
+}
+
+func strike_all(monsters: List<Monster>, heroes: List<Hero>) {
+    var index = 0
+    while index < monsters.count() {
+        var monster = monsters[index]
+        var hero = heroes[index]
+        crash hero
+        var amount = hero.damage()
+        monster.hurt(amount)
+        index = index + 1
+    }
+}

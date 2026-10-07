@@ -1,0 +1,16 @@
+var rounds = 0
+
+func Fetcher(new_rounds: Integer) {
+    rounds = new_rounds
+}
+
+func fetch_many(): Long {
+    var found: Long = 0
+    var index = 0
+    while index < rounds {
+        var visit = Visit(index)
+        found = found + visit.weight()
+        index = index + 1
+    }
+    return found
+}

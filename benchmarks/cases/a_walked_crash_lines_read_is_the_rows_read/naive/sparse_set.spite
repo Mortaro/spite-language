@@ -1,0 +1,17 @@
+var dense_of = List<Integer>()
+var entities = List<Integer>()
+
+func place(entity: Integer) {
+    while dense_of.count() <= entity {
+        dense_of.append(0)
+    }
+    entities.append(entity)
+    dense_of[entity] = entities.count()
+}
+
+func dense_index(entity: Integer): Integer {
+    if entity >= dense_of.count() {
+        return -1
+    }
+    return dense_of[entity] - 1
+}

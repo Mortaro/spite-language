@@ -1,0 +1,13 @@
+var id = 0
+var customer = Customer("", 0)
+var lines = List<Line>()
+
+func Order(new_id: Integer, new_customer: Customer) {
+    id = new_id
+    customer = new_customer
+}
+
+func get_value(): Integer {
+    var amount = lines.sum_amount()
+    return amount + customer.level + id % 3
+}

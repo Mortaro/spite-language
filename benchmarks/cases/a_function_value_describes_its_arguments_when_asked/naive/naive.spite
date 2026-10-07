@@ -1,0 +1,28 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var scorer = Scorer()
+    var applied = apply_all(scorer, 2000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var scoring = scorer.score
+    var argument_count = scoring.arguments.count()
+    console.print("applied", applied, "arguments", argument_count)
+    console.error("microseconds {microseconds}")
+}
+
+func apply_all(scorer: Scorer, count: Integer): Long {
+    var applied: Long = 0
+    var index = 0
+    while index < count {
+        var scored = apply(scorer.score, index % 100)
+        applied = applied + scored
+        index = index + 1
+    }
+    return applied
+}
+
+func apply(change: Spite.Function<Integer, Integer>, value: Integer): Integer {
+    return change(value)
+}

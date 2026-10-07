@@ -1,0 +1,14 @@
+var console = Console()
+
+func Naive() {
+    var velocities = Vector<Velocity>()
+    var index = 0
+    while index < 1000 {
+        var made = Velocity(index % 7, index % 5)
+        velocities.append(made)
+        index = index + 1
+    }
+    var across = velocities.sum_across()
+    var down = velocities.sum_down()
+    console.print("across", across, "down", down)
+}

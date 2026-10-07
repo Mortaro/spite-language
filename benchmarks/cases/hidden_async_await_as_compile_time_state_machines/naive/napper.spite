@@ -1,0 +1,13 @@
+var program = Program()
+var number = 0
+
+func Napper(new_number: Integer) {
+    number = new_number
+}
+
+func nap(): Integer {
+    program.sleep(2)
+    var doubled = number * 2
+    program.sleep(2)
+    return doubled + 1
+}

@@ -1,0 +1,24 @@
+var console = Console()
+var letters = 0
+
+func Naive() {
+    var monsters = List<Monster>()
+    var index = 0
+    while index < 300 {
+        var monster = Monster(index)
+        monsters.append(monster)
+        index = index + 1
+    }
+    monsters.each(count_letters)
+    var power = monsters.sum_power()
+    console.print("letters", letters, "power", power)
+}
+
+func count_letters(monster: Monster) {
+    monster.attributes.each(add_name_length)
+}
+
+func add_name_length(attribute: Spite.Attribute) {
+    var name = attribute.name
+    letters = letters + name.length()
+}

@@ -1,0 +1,26 @@
+var console = Console()
+var clock = Clock()
+var shelf = Shelf()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    fill_shelf(1000000)
+    var total = read_on_the_pool()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func fill_shelf(count: Integer) {
+    var index = 0
+    while index < count {
+        var box = Box(index % 100)
+        shelf.insert(box)
+        index = index + 1
+    }
+}
+
+func read_on_the_pool(): Long {
+    var reader = Reader(4)
+    return Parallel(reader.run)
+}

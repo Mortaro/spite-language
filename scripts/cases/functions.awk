@@ -1,7 +1,9 @@
 # Prints the definitions a case names in its functions.txt, taken from the C the compiler wrote for it:
 #   awk -f scripts/cases/functions.awk benchmarks/cases/<case>/functions.txt <generated C>
 # A line of functions.txt is a function's name, "struct <Name>" for a struct, or "lines <start>" for every line of the
-# C that starts with <start> (a declaration, a macro), in the order the C has them. Each definition is printed in the
+# C that starts with <start> (a declaration, a macro), in the order the C has them. A name ending in "*", such as
+# spite_failed_*, is every function the compiler numbered that way (spite_failed_110, ...), so a case never names a
+# number the compiler chose. Each definition is printed in the
 # order the file lists them, indented by its braces, and the compiler's own numbered names (spite_temp_9028,
 # spite_site_1128, ...) are numbered again from 1 in the order they appear, so a change elsewhere in the program or
 # the library that only shifts those numbers does not change the case. A name the C does not define is an error.
@@ -28,13 +30,16 @@ FNR == NR {
     if (index($0, "{") == 0) next
     for (index_ = 1; index_ <= wanted_count; index_++) {
         name = wanted[index_]
-        if (name in body || substr(name, 1, 6) == "lines ") continue
+        numbered = substr(name, length(name), 1) == "*"
+        if ((name in body && !numbered) || substr(name, 1, 6) == "lines ") continue
         if (substr(name, 1, 7) == "struct ") {
             if ($0 != name " {") continue
+        } else if (numbered) {
+            if (substr($0, 1, 1) !~ /[A-Za-z_]/ || !starts_numbered($0, substr(name, 1, length(name) - 1))) continue
         } else if (substr($0, 1, 1) !~ /[A-Za-z_]/ || !starts_definition($0, name)) {
             continue
         }
-        body[name] = $0
+        body[name] = (name in body) ? body[name] "\n\n" $0 : $0
         depth = braces($0)
         if (depth > 0) capturing = name   # a definition written on one line ends where it starts
         next
@@ -58,6 +63,12 @@ function braces(line,    total, position, character, quote) {
         }
     }
     return total
+}
+# whether the line starts the definition of a function named <prefix><digits>
+function starts_numbered(line, prefix) {
+    line = substr(line, 1, index(line, "{") - 1)
+    if (index(line, ";") > 0 || index(line, "=") > 0) return 0
+    return match(line, "(^|[^A-Za-z0-9_])" prefix "[0-9]+\\(") > 0
 }
 function starts_definition(line, name,    at, before) {
     line = substr(line, 1, index(line, "{") - 1)

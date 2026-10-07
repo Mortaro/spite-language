@@ -1,0 +1,2 @@
+Naive_total_of___held_0_1
+Naive_price_at___held_0

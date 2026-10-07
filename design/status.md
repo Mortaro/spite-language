@@ -932,27 +932,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### The optimisation cases (D521)
 
-- Built: [benchmarks/cases](../benchmarks/cases/README.md), its scripts (`scripts/cases/extract.sh`,
-  `scripts/cases/check.sh`, `benchmarks/cases/run.sh`) and its check in `check.sh`, with 37 of the page's 75 sections
-  as cases. Not built: a case for each of the other 38 sections: singletons_made_on_first_use_never_counted,
-  singletons_that_hold_nothing_are_static_objects, atomic_reference_counts_only_with_threads,
-  boxing_only_where_a_value_travels_as_a_shape, concurrency_machinery_only_where_it_is_used,
-  hidden_async_await_as_compile_time_state_machines, reads_in_a_row_overlap,
-  repl_live_reload_and_debug_machinery_only_in_those_builds, a_reload_compiles_only_the_classes_that_changed,
-  what_a_hot_reload_build_carries_so_its_objects_can_move, the_thread_pool_only_where_a_parallel_is_made,
-  singletons_a_parallel_reaches_take_a_lock, thread_safety_for_singletons_the_cheapest_safe_form,
-  while_no_task_runs_a_singletons_lock_is_skipped, an_argument_its_caller_holds_is_passed_without_counting,
-  a_singletons_attribute_that_never_changes_is_read_in_place, the_fault_handler_is_in_every_program,
-  short_symbols_are_inline_text, a_foreign_name_is_never_copied, crash_text_out_of_the_binary,
-  proofs_that_survive_a_call, a_function_value_describes_its_arguments_when_asked,
-  a_dictionary_hashes_a_key_once_cheaply, a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one,
-  a_dictionary_keyed_by_numbers_hashes_the_numbers, reading_through_a_type_without_counting,
-  a_row_of_borrowed_items_lives_in_the_frame, an_items_storage_is_chosen_while_compiling,
-  a_proven_divisor_is_not_checked, arithmetic_is_checked_in_every_build, short_text_lives_inside_the_string,
-  a_numbers_bits_are_read_in_place, a_decimal_literal_beside_a_float_is_a_float,
-  a_walked_crash_lines_read_is_the_rows_read, the_c_is_compiled_in_parallel_units_and_cached,
-  thread_safety_for_singletons_the_rest_of_the_plan, a_crashs_report_is_kept_out_of_the_way, other_optimisations. Not
-  measured yet: the timings of every case (`bash benchmarks/cases/run.sh`).
+- Every section of the page has its case in [benchmarks/cases](../benchmarks/cases/README.md), checked by
+  `check.sh`. Not measured yet: the timings of the cases (`bash benchmarks/cases/run.sh`), to be run while nothing
+  else is benchmarking on the machine.
 - Found by the cases, each written in the case's README: a frame object passed to an operator (`velocity +
   pulled`) is still counted, since the `___held_` copy is used only for a call by name
   (objects_that_never_leave_their_function_live_in_the_frame); a local passed only to a function taking a `type`,
@@ -970,7 +952,30 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   given back one by one when its list goes (an_allocator_set_after_construction_is_where_the_object_is_made); a
   `List`'s `drop` tests for an arena while the program runs even in a program that makes none, and base64's digit
   writer counts its alphabet text per digit (reading_an_address_is_one_machine_operation); a class seen only through
-  `BinaryWriter<T>` and `schema()` has its attributes reported as never read (a_binary_schema_is_a_constant).
+  `BinaryWriter<T>` and `schema()` has its attributes reported as never read (a_binary_schema_is_a_constant); the
+  optimisation report lists `library/allocation_table.spite:83` in builds whose C has no allocation table
+  (other_optimisations); a loop that proves `target` again after a call that may clear it, before every read, is
+  still refused as reading it unproven on the next pass (proofs_that_survive_a_call); the length of a reflection
+  name known while compiling is not folded (short_symbols_are_inline_text); a program's `.crashes` file lists some
+  sites twice (a_crashs_report_is_kept_out_of_the_way); reads in a row hand only `fread` to the helper thread, so on
+  cached files the overlapped reads are slower than reading in turn (reads_in_a_row_overlap); a singleton's lock is
+  a compare-and-swap spin with no pause and no wait in the system, and under four threads it loses to a plain
+  mutex (singletons_a_parallel_reaches_take_a_lock); a singleton that never changes is still read with atomic loads
+  (thread_safety_for_singletons_the_cheapest_safe_form); each sleep in a state machine counts `Program` twice
+  (hidden_async_await_as_compile_time_state_machines); an item read through a singleton's attribute that is read in
+  place is still counted (a_singletons_attribute_that_never_changes_is_read_in_place); a dictionary read narrowed
+  by `if d[k]` and read again hashes the key twice, and docs/optimizations.md says 32 bits of hash are kept where
+  the C keeps 31 (a_dictionary_hashes_a_key_once_cheaply); a number-keyed dictionary still writes hash bits nothing
+  reads (a_dictionary_keyed_by_numbers_hashes_the_numbers); a deep copy makes the defaults of each object and throws
+  them away, and copies a list by appending (a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one);
+  a function taking a `type` given an ordinary object is compiled per class, so the uncounted read through a `type`
+  only shows for a row of borrowed items, and a typed object literal of `List` items is allocated and dispatched
+  while the program runs (reading_through_a_type_without_counting); a component made and appended to a `Vector` or
+  `Items` is allocated, copied in and freed (a_row_of_borrowed_items_lives_in_the_frame); a function value passed in
+  a loop is made again on every pass (a_function_value_describes_its_arguments_when_asked); the lint that names
+  `bodies.each(mover.update_each)` for a `while` points at a line that is an error when the function takes a `type`
+  the element fits; and skills/spite/reference.md names `is_fixed_size` and says there are no `Symbol` walks while
+  `benchmarks/sparse_rows` and the conformance programs still use `fits_vector()` and `Symbol` walks.
 
 ## [proofs.md](../docs/proofs.md)
 

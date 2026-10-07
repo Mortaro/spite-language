@@ -1,0 +1,37 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var values = List<Integer>()
+    var index = 0
+    while index < 100000 {
+        values.append(index % 1000)
+        index = index + 1
+    }
+    var total = rounds(values)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(values: List<Integer>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 400 {
+        var sum = checksum(values, round)
+        total = total + sum
+        round = round + 1
+    }
+    return total
+}
+
+func checksum(values: List<Integer>, round: Integer): Integer {
+    var total = 0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index] * 3 + round
+        index = index + 1
+    }
+    return total
+}

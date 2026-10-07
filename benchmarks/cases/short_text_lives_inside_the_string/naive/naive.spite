@@ -1,0 +1,44 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = rounds(20)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(count: Integer): Long {
+    var total: Long = 0
+    var round = 0
+    while round < count {
+        var labels = make_labels(100000, round)
+        var sum = checksum(labels)
+        total = total + sum
+        round = round + 1
+    }
+    return total
+}
+
+func make_labels(count: Integer, round: Integer): List<String> {
+    var labels = List<String>()
+    var index = 0
+    while index < count {
+        labels.append("r{round} n{index}")
+        index = index + 1
+    }
+    return labels
+}
+
+func checksum(labels: List<String>): Integer {
+    var total = 0
+    var index = 0
+    while index < labels.count() {
+        var label = labels[index]
+        var last = label.length() - 1
+        total = total + label.length() + label.code_at(last)
+        index = index + 1
+    }
+    return total
+}

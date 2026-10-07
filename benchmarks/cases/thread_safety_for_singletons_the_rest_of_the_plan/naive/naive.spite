@@ -1,0 +1,24 @@
+var console = Console()
+var clock = Clock()
+var log = EventLog()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var logged = log_on_four(250000)
+    var count = log.count()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("logged", logged, "entries", count)
+    console.error("microseconds {microseconds}")
+}
+
+func log_on_four(rounds: Integer): Integer {
+    var first = Logger(rounds, 1)
+    var first_run = Parallel(first.log_all)
+    var second = Logger(rounds, 2)
+    var second_run = Parallel(second.log_all)
+    var third = Logger(rounds, 3)
+    var third_run = Parallel(third.log_all)
+    var fourth = Logger(rounds, 4)
+    var fourth_run = Parallel(fourth.log_all)
+    return first_run + second_run + third_run + fourth_run
+}

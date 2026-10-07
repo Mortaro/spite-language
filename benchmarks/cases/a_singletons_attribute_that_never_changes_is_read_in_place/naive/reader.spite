@@ -1,0 +1,30 @@
+var shelf = Shelf()
+var rounds = 0
+
+func Reader(new_rounds: Integer) {
+    rounds = new_rounds
+}
+
+func run(): Long {
+    var rows = shelf.count()
+    var total: Long = 0
+    var round = 0
+    while round < rounds {
+        var read = read_round(rows, round)
+        total = total + read
+        round = round + 1
+    }
+    return total
+}
+
+func read_round(rows: Integer, round: Integer): Long {
+    var total: Long = 0
+    var row = 0
+    while row < rows {
+        var place = (row * 7 + round) % rows
+        crash shelf.boxes[place]
+        total = total + shelf.boxes[place].weight
+        row = row + 1
+    }
+    return total
+}

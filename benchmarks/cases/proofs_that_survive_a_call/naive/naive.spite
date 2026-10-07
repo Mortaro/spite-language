@@ -1,0 +1,14 @@
+var console = Console()
+
+func Naive() {
+    var hunter = Hunter()
+    var rounds = 0
+    var index = 0
+    while index < 1000 {
+        var monster = Monster(index % 60)
+        hunter.target = monster
+        rounds = rounds + hunter.hunt()
+        index = index + 1
+    }
+    console.print("rounds", rounds, "hits", hunter.hits)
+}

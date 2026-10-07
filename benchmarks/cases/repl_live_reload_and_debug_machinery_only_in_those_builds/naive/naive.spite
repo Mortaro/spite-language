@@ -1,0 +1,23 @@
+var console = Console()
+
+func Naive() {
+    var monsters = List<Monster>()
+    var index = 0
+    while index < 1000 {
+        var monster = Monster(index % 50)
+        monsters.append(monster)
+        index = index + 1
+    }
+    var total = total_health(monsters)
+    console.print("health", total)
+}
+
+func total_health(monsters: List<Monster>): Integer {
+    var total = 0
+    var round = 0
+    while round < 10 {
+        total = total + monsters.sum_health()
+        round = round + 1
+    }
+    return total
+}

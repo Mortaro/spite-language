@@ -1,0 +1,11 @@
+singleton
+
+var hits = 0
+
+func record(amount: Integer) {
+    hits = hits + amount
+}
+
+func total(): Integer {
+    return hits
+}

@@ -1,0 +1,2 @@
+Hero_damage
+Arena_strike_all___held_0_1

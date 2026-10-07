@@ -1,0 +1,5 @@
+var weight = 0
+
+func Box(new_weight: Integer) {
+    weight = new_weight
+}

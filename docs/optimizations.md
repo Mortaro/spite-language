@@ -508,6 +508,8 @@ never given one answers `Memory.Heap` with no hidden pointers: reading it is one
 
 ### Singletons: made on first use, never counted
 
+**The case:** [benchmarks/cases/singletons_made_on_first_use_never_counted](../benchmarks/cases/singletons_made_on_first_use_never_counted/).
+
 **What it does.** A singleton is made the first time something asks for it, not when the program starts, so a
 program pays only for the singletons it reaches. It is never reference counted:
 fetching one is a load from a static slot, with no count to raise or lower, so threads sharing it never contend on
@@ -578,6 +580,8 @@ names an object a program leaked, even one that points at a singleton.
 
 ### Singletons that hold nothing are static objects
 
+**The case:** [benchmarks/cases/singletons_that_hold_nothing_are_static_objects](../benchmarks/cases/singletons_that_hold_nothing_are_static_objects/).
+
 **What it does.** A singleton with no attributes and no `drop()` (`Memory.Heap`, `TypedMemory<T>`, one per element
 type, and `Build`, whose attributes are all settings folded into the program) is one static object: never
 allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
@@ -625,6 +629,8 @@ counts of one program differ between the two kinds of build. Reading `Build`'s a
 answers the folded settings in both.
 
 ### Atomic reference counts only with threads
+
+**The case:** [benchmarks/cases/atomic_reference_counts_only_with_threads](../benchmarks/cases/atomic_reference_counts_only_with_threads/).
 
 **What it does.** Retaining and releasing a reference is plain arithmetic, except in a program that can share an
 object between threads: one that makes a `Concurrent` or a `Parallel` (reads in a row included), runs a
@@ -754,6 +760,8 @@ program only tests for is not in the C at all.
 
 ### Boxing only where a value travels as a shape
 
+**The case:** [benchmarks/cases/boxing_only_where_a_value_travels_as_a_shape](../benchmarks/cases/boxing_only_where_a_value_travels_as_a_shape/).
+
 **What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler can
 see its type, including where it is passed to a function that takes a `type`
 ([above](#a-function-taking-a-type-is-compiled-per-class)). A `type` that requires no attributes (`Anything`,
@@ -790,6 +798,8 @@ returns, grows or passes on its list anywhere else gets a list on the heap as be
 
 ### Concurrency machinery only where it is used
 
+**The case:** [benchmarks/cases/concurrency_machinery_only_where_it_is_used](../benchmarks/cases/concurrency_machinery_only_where_it_is_used/).
+
 **What it does.** The scheduler, the state machines, the helper threads and the wrappers around every call that can
 wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`,
 `Socket.accept_client`/`read_line`/`read_bytes`) exist only in a program that makes a `Concurrent` (itself, or through
@@ -802,6 +812,8 @@ and you never see which one ran.
 machines ([below](#hidden-asyncawait-as-compile-time-state-machines)). [concurrency.md](concurrency.md).
 
 ### Hidden async/await as compile-time state machines
+
+**The case:** [benchmarks/cases/hidden_async_await_as_compile_time_state_machines](../benchmarks/cases/hidden_async_await_as_compile_time_state_machines/).
 
 **What it does.** Waiting on IO is written as an ordinary call and the compiler turns it into a point where other
 work runs. It is done at compile time, with no stacks to switch: every function that can reach a wait from inside
@@ -865,6 +877,8 @@ functions, no event loop and no helper threads; its waits are the plain system c
 
 ### Reads in a row overlap
 
+**The case:** [benchmarks/cases/reads_in_a_row_overlap](../benchmarks/cases/reads_in_a_row_overlap/).
+
 **What it does.** Two or more `var name = file.read()` (or `socket.read_line()`) written one after another, none
 naming a variable an earlier one declared, are started together: every read but the last becomes a `Concurrent`,
 and all of them are joined before the next statement
@@ -882,6 +896,8 @@ under `--debug-memory` and compile to 2 865 lines of C; the same reads with a `c
 allocate 19 times in 1 511 lines.
 
 ### REPL, live reload and debug machinery only in those builds
+
+**The case:** [benchmarks/cases/repl_live_reload_and_debug_machinery_only_in_those_builds](../benchmarks/cases/repl_live_reload_and_debug_machinery_only_in_those_builds/).
 
 **What it does.** Everything that exists to look inside a running program is compiled only into the builds that
 ask for it:
@@ -913,6 +929,8 @@ points.
 
 ### A reload compiles only the classes that changed
 
+**The case:** [benchmarks/cases/a_reload_compiles_only_the_classes_that_changed](../benchmarks/cases/a_reload_compiles_only_the_classes_that_changed/).
+
 **What it does.** `spite reload` (the running program's `reload`, and its file watcher) compiles the functions of
 the classes the changed files declare and nothing else of the program: every class is still read and checked,
 but every function the running program already has with the same prototype is left out, and the library reaches
@@ -933,6 +951,8 @@ each class's `functions` list is written once more at the end of compiling when 
 ([reflection.md](reflection.md)).
 
 ### What a `--hot-reload` build carries so its objects can move
+
+**The case:** [benchmarks/cases/what_a_hot_reload_build_carries_so_its_objects_can_move](../benchmarks/cases/what_a_hot_reload_build_carries_so_its_objects_can_move/).
 
 **What it does.** Nothing faster: this is the price of [moving live objects to new
 attributes](repl.md#changing-a-classs-attributes), paid only in a `--hot-reload` build. Each object
@@ -958,6 +978,8 @@ own.
 
 ### The thread pool only where a `Parallel` is made
 
+**The case:** [benchmarks/cases/the_thread_pool_only_where_a_parallel_is_made](../benchmarks/cases/the_thread_pool_only_where_a_parallel_is_made/).
+
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
 it, and it starts its worker threads then, once.
 A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
@@ -969,6 +991,8 @@ its `get()` never locks, and only a thread's `set` does
 [concurrency.md](concurrency.md#the-thread-pool).
 
 ### Singletons a `Parallel` reaches take a lock
+
+**The case:** [benchmarks/cases/singletons_a_parallel_reaches_take_a_lock](../benchmarks/cases/singletons_a_parallel_reaches_take_a_lock/).
 
 **What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after it
 is made gets a lock of its own, taken around every one of its functions that touches what can change (which functions,
@@ -1020,6 +1044,8 @@ calls itself unlocked and locks the write `registry.last = ...` and the read of 
 class, and `Rules` takes no lock.
 
 ### Thread safety for singletons, the cheapest safe form
+
+**The case:** [benchmarks/cases/thread_safety_for_singletons_the_cheapest_safe_form](../benchmarks/cases/thread_safety_for_singletons_the_cheapest_safe_form/).
 
 **What it does.** For each singleton of the program's own that can change after it is made, the compiler picks
 the cheapest form that is as safe as the lock, from what that singleton's functions actually do. You write
@@ -1091,6 +1117,8 @@ and a singleton that never changes is read plainly. `counter.hits = counter.hits
 a write, two steps.
 
 ### While no task runs, a singleton's lock is skipped
+
+**The case:** [benchmarks/cases/while_no_task_runs_a_singletons_lock_is_skipped](../benchmarks/cases/while_no_task_runs_a_singletons_lock_is_skipped/).
 
 **What it does.** Every function a singleton's lock wraps first asks whether any work is on the thread pool: the pool
 counts every task from the moment it is handed out until it has run (`spite_tasks_in_flight`, one add and one
@@ -1197,6 +1225,8 @@ threads that want the singleton waiting for all of it. In the C, the loop is bet
 
 ### An argument its caller holds is passed without counting
 
+**The case:** [benchmarks/cases/an_argument_its_caller_holds_is_passed_without_counting](../benchmarks/cases/an_argument_its_caller_holds_is_passed_without_counting/).
+
 **What it does.** Passing an object to a function counts it once more for the callee's own name and lets that
 count go when the callee returns: two atomic operations on the object's header in a program with threads. When
 the argument is a name the caller already holds for the whole call (one of its own parameters, or a local it
@@ -1220,6 +1250,8 @@ compiling itself), and the ordinary one is shaken out when nothing else calls it
 same (`conformance/stage6/held_arguments`: a bag passed on, kept, returned and assigned over).
 
 ### A singleton's attribute that never changes is read in place
+
+**The case:** [benchmarks/cases/a_singletons_attribute_that_never_changes_is_read_in_place](../benchmarks/cases/a_singletons_attribute_that_never_changes_is_read_in_place/).
 
 **What it does.** Reading an attribute of a singleton from another class (`Column<Heat>().values[place]`,
 `column.values.count()`) would count the attribute's object for the expression and, in a program where a `Parallel`
@@ -1249,6 +1281,8 @@ that holds a plain value in every class of the program (`moving.position.left = 
 system writing its components' numbers does not count as letting go of objects.
 
 ### The fault handler is in every program
+
+**The case:** [benchmarks/cases/the_fault_handler_is_in_every_program](../benchmarks/cases/the_fault_handler_is_in_every_program/).
 
 **What it is.** The one piece of C nothing tree-shakes: a program can meet a native fault (a null read inside a
 foreign library, a stack overflow) whatever it uses, and a silent end is a bug, so every
@@ -1286,6 +1320,8 @@ kilobytes larger.
 
 ### Short symbols are inline text
 
+**The case:** [benchmarks/cases/short_symbols_are_inline_text](../benchmarks/cases/short_symbols_are_inline_text/).
+
 **What it is.** A symbol whose text is 15 bytes or fewer is written into the symbol table as an inline `String`
 (its bytes inside the 16-byte value, the form any short text built at run time takes) rather than as a pointer
 to constant text. Reading its bytes follows no pointer, and the executable holds no separate
@@ -1298,6 +1334,8 @@ ones stay constant text; both forms release and retain as nothing.
 shows it: `static SpiteString spite_symbol_4 = { (int64_t)0x00000065756c6176ULL, ... }` for `'value'`.
 
 ### A foreign name is never copied
+
+**The case:** [benchmarks/cases/a_foreign_name_is_never_copied](../benchmarks/cases/a_foreign_name_is_never_copied/).
 
 **What it does.** The first call into a foreign library opens it and looks up every function the program calls in
 it, all at once. The library's file name and each function's name, and the name of the Spite function that calls it
@@ -1331,6 +1369,8 @@ allocation table itself opens before it counts, so there the counts are as they 
 `((SpiteString)SPITE_STATIC_STRING("AcquireSRWLockExclusive", 23))`.
 
 ### Crash text out of the binary
+
+**The case:** [benchmarks/cases/crash_text_out_of_the_binary](../benchmarks/cases/crash_text_out_of_the_binary/).
 
 **What it is.** A `crash` or `assert` site's condition text lives only in the `<output>.crashes` map written
 beside the executable: no build writes it into the program. An
@@ -1374,6 +1414,8 @@ None of these needs anything from you:
   is made, since it binds its `DynamicLibrary` as an attribute: a program that only prints opens it too.
 
 ### Proofs that survive a call
+
+**The case:** [benchmarks/cases/proofs_that_survive_a_call](../benchmarks/cases/proofs_that_survive_a_call/).
 
 A proof (`assert target`, `crash list[index]`, a bound in a `while`) lets the reads after it skip the null test and
 the narrowing. A call between the proof and the read keeps it unless the compiler, following the called function and
@@ -1434,6 +1476,8 @@ for objects made by their constructor; an object given an allocator on the next 
 10 620 024 to 7 620 024. Nothing else: the discarded default was never reachable.
 
 ### A function value describes its arguments when asked
+
+**The case:** [benchmarks/cases/a_function_value_describes_its_arguments_when_asked](../benchmarks/cases/a_function_value_describes_its_arguments_when_asked/).
 
 **What it does.** A function value is its own reflection object, with `.arguments`, a list of
 `Spite.Argument`s. Filling that list when the value is made would cost two objects per argument, and each
@@ -1834,6 +1878,8 @@ of one class, lets them all go and then makes a million of another holds room fo
 
 ### A dictionary hashes a key once, cheaply
 
+**The case:** [benchmarks/cases/a_dictionary_hashes_a_key_once_cheaply](../benchmarks/cases/a_dictionary_hashes_a_key_once_cheaply/).
+
 **What it does.** A dictionary hashes a key with a multiply and an exclusive or per character on an
 `UnsignedLong` (FNV-1a), keeps 32 bits of that hash in the slot beside the key's position, and
 compares key texts only when those bits match, where hashing with a multiply and a division by a prime for every
@@ -1844,6 +1890,8 @@ against 413 ms with the slower hash. Keys, values and their order are the same, 
 table is one block, twice as large.
 
 ### A deep copy is written per class, with a table only where a graph needs one
+
+**The case:** [benchmarks/cases/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](../benchmarks/cases/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/).
 
 **What it does.** The compiler writes one deep copy function per class it is used on. A class whose attributes can
 lead back to itself, lead to a `Weak`, or that some `Weak` holds, gets a copy that looks each object up in a table
@@ -1891,6 +1939,8 @@ the dictionary would.
 
 ### A dictionary keyed by numbers hashes the numbers
 
+**The case:** [benchmarks/cases/a_dictionary_keyed_by_numbers_hashes_the_numbers](../benchmarks/cases/a_dictionary_keyed_by_numbers_hashes_the_numbers/).
+
 **What it does.** A `Dictionary` the program gives whole-number keys
 ([collections.md](collections.md#keyed-by-numbers)) is compiled as its own form of `library/dictionary.spite`, whose
 bodies fold on the key's type as `Items` folds on `is_fixed_size`: its keys are a `List` of the numbers, a key is
@@ -1916,6 +1966,8 @@ costs the second pass: `benchmarks/number_keys` compiles to C in about 300 ms ag
 
 ### Reading through a `type` without counting
 
+**The case:** [benchmarks/cases/reading_through_a_type_without_counting](../benchmarks/cases/reading_through_a_type_without_counting/).
+
 **What it does.** A system's `moving.position.left = moving.position.left + moving.velocity.across` reads `position`
 through the `type` `Moving`, which answers the component retained (or, when the value's class has no such attribute, a
 fresh default), and the component is released as soon as the number is read. When that component only has a number,
@@ -1933,6 +1985,8 @@ component is itself held for the whole statement.
 `update_each` functions no longer count anything. Allocations and results are the same.
 
 ### A row of borrowed items lives in the frame
+
+**The case:** [benchmarks/cases/a_row_of_borrowed_items_lives_in_the_frame](../benchmarks/cases/a_row_of_borrowed_items_lives_in_the_frame/).
 
 **What it does.** An object literal of borrowed `Vector` items (a row,
 [memory.md](memory.md#a-row-of-borrowed-items-for-one-call)) is not allocated: it is a struct in the frame of the
@@ -2019,6 +2073,8 @@ when no caller passes it a counted object.
 
 ### An `Items`' storage is chosen while compiling
 
+**The case:** [benchmarks/cases/an_items_storage_is_chosen_while_compiling](../benchmarks/cases/an_items_storage_is_chosen_while_compiling/).
+
 **What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you)) is one
 class in `library/items.spite` whose every body that touches an item folds on `$element_type.is_fixed_size`.
 For a `T` that fits, only the inline branches are compiled (the item functions of `InlineMemory<T>`, borrowed
@@ -2043,6 +2099,8 @@ attributes); nothing is added per item. A crash out of range is reported from `I
 
 ### A proven divisor is not checked
 
+**The case:** [benchmarks/cases/a_proven_divisor_is_not_checked](../benchmarks/cases/a_proven_divisor_is_not_checked/).
+
 A whole-number `/` or `%` checks its divisor for zero ([values_and_types.md](values_and_types.md)),
 unless the divisor is a constant other than zero, or a proof in scope says it is not zero: `assert parts != 0`,
 `crash parts != 0`, `if parts != 0 { }` or `parts > 0` in a condition, the same proofs that survive a call that
@@ -2051,6 +2109,8 @@ branch the CPU predicts. What you can observe: nothing but speed; in `conformanc
 proven `whole / pieces` carries no check in its C.
 
 ### Arithmetic is checked in every build
+
+**The case:** [benchmarks/cases/arithmetic_is_checked_in_every_build](../benchmarks/cases/arithmetic_is_checked_in_every_build/).
 
 Every `+`, `-` and `*` done in a whole number, signed or unsigned, is the C compiler's overflow builtin in that type,
 and an answer that does not fit halts ([values_and_types.md](../specs/values_and_types.md#numeric-types)); so is a `-` in
@@ -2072,6 +2132,8 @@ four-processor Linux machine other work was loading, so a few percent either way
 worse; with clang it is 103 to 104 ms.
 
 ### Short text lives inside the `String`
+
+**The case:** [benchmarks/cases/short_text_lives_inside_the_string](../benchmarks/cases/short_text_lives_inside_the_string/).
 
 **What it does.** A `String` is sixteen bytes wherever it is kept (a local, an attribute, a list's element, a
 parameter), and text of up to 15 bytes of UTF-8 is kept in those sixteen bytes themselves: no allocation, no
@@ -2146,6 +2208,8 @@ reader is made for and whose `schema()` is called; nothing is emitted otherwise.
 runs and nothing is allocated when a program asks.
 
 ### A number's bits are read in place
+
+**The case:** [benchmarks/cases/a_numbers_bits_are_read_in_place](../benchmarks/cases/a_numbers_bits_are_read_in_place/).
 
 **What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()`,
 `UnsignedLong.bits_as_double()`, and every whole number's `bits_as_unsigned()` or `bits_as_signed()`, are C macros over a union of the two types
@@ -2262,6 +2326,8 @@ and the `Float` sum 727-739 to 137-150, with the same printed checks.
 
 ### A decimal literal beside a `Float` is a `Float`
 
+**The case:** [benchmarks/cases/a_decimal_literal_beside_a_float_is_a_float](../benchmarks/cases/a_decimal_literal_beside_a_float_is_a_float/).
+
 **What it does.** `value * 1.5 + 0.25` with a `Float` `value` is written `value * 1.5f + 0.25f` in the C, so the
 arithmetic stays in `Float` precision instead of being widened to `Double` and back, which would halve how many
 values a vector instruction holds. A literal beside a `Double`, and two literals together, are written as before.
@@ -2295,6 +2361,8 @@ unwrapped by a range proof (its `count()` is not known to mean anything).
 the same halt, named by the read (`conformance/stage6/proven_read_outside`).
 
 ### A walked `crash` line's read is the row's read
+
+**The case:** [benchmarks/cases/a_walked_crash_lines_read_is_the_rows_read](../benchmarks/cases/a_walked_crash_lines_read_is_the_rows_read/).
 
 **What it does.** Every `[]` answers a `T?`, so a walked row's template states each read with
 a `crash` line before the fill ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)): `var stored_row =
@@ -2402,6 +2470,8 @@ in a program that starts threads), and the count is never read.
 
 ### The C is compiled in parallel units, and cached
 
+**The case:** [benchmarks/cases/the_c_is_compiled_in_parallel_units_and_cached](../benchmarks/cases/the_c_is_compiled_in_parallel_units_and_cached/).
+
 In a default build and an `--optimized` one alike, the C of a program bigger than 1.5 MB is split into a header and up to 64 translation
 units, compiled as many at once as the machine has processors and linked, and each unit's object is kept under the
 hash of what it was compiled from, so a build that changed nothing only links and a build that changed one function's
@@ -2492,6 +2562,8 @@ through a pointer. **What you notice.** Speed, and only in a build of several un
 went from 73 ms a tick to 66 ms, and its physics step from 11.5 to 10.1 ms.
 
 ### Thread safety for singletons, the rest of the plan
+
+**The case:** [benchmarks/cases/thread_safety_for_singletons_the_rest_of_the_plan](../benchmarks/cases/thread_safety_for_singletons_the_rest_of_the_plan/).
 
 A singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword, and the compiler picks
 the cheapest form that is safe for what that singleton's functions actually do. The forms above are nothing for
@@ -2613,6 +2685,8 @@ overlapped calls count, as every program with threads does
 
 ### A crash's report is kept out of the way
 
+**The case:** [benchmarks/cases/a_crashs_report_is_kept_out_of_the_way](../benchmarks/cases/a_crashs_report_is_kept_out_of_the_way/).
+
 **What it does.** Every `crash`, failed `assert`, read outside a list and overflow has code that writes its report:
 the place, the values that failed, the attributes of the object it ran on. That code runs at most once, so the
 compiler moves each report out of the function that holds it, into a function of its own that is marked cold and
@@ -2652,6 +2726,8 @@ caller. An engine's row lookup, three `crash` lines and a few reads, went from 5
 naive entity system took 14% fewer instructions per tick. A report reads exactly as before.
 
 ### Other optimisations
+
+**The case:** [benchmarks/cases/other_optimisations](../benchmarks/cases/other_optimisations/).
 
 - **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` writes the
   constructor's attributes straight into the vector's block, when the object is used for nothing else, so filling

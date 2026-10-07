@@ -1,0 +1,18 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var fetched = fetch_on_two(10000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("fetched", fetched)
+    console.error("microseconds {microseconds}")
+}
+
+func fetch_on_two(rounds: Integer): Long {
+    var first = Fetcher(rounds)
+    var first_run = Parallel(first.fetch_many)
+    var second = Fetcher(rounds)
+    var second_run = Parallel(second.fetch_many)
+    return first_run + second_run
+}

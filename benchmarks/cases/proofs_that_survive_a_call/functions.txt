@@ -1,0 +1,3 @@
+Hunter_hunt
+Hunter_record_hit
+Monster_hurt

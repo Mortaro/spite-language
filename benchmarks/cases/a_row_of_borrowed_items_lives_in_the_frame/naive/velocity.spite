@@ -1,0 +1,7 @@
+var across = 0
+var down = 0
+
+func Velocity(new_across: Integer, new_down: Integer) {
+    across = new_across
+    down = new_down
+}

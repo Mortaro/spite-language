@@ -1,0 +1,38 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var velocities = Column<Velocity>()
+    var trails = Column<Trail>()
+    fill(velocities, trails, 100000)
+    var total = ticks(velocities, trails)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func fill(velocities: Column<Velocity>, trails: Column<Trail>, count: Integer) {
+    var index = 0
+    while index < count {
+        var velocity = Velocity(index % 100, index % 7)
+        velocities.add(velocity)
+        var trail = Trail(index % 50, index % 5)
+        trails.add(trail)
+        index = index + 1
+    }
+}
+
+func ticks(velocities: Column<Velocity>, trails: Column<Trail>): Long {
+    var total: Long = 0
+    var tick = 0
+    while tick < 100 {
+        velocities.items.each_integrate()
+        trails.items.each_integrate()
+        var moved = velocities.items.sum_across()
+        var trailed = trails.items.sum_across()
+        total = total + moved + trailed
+        tick = tick + 1
+    }
+    return total
+}

@@ -1,0 +1,9 @@
+var health = 0
+
+func Monster(starting_health: Integer) {
+    health = starting_health
+}
+
+func hurt(amount: Integer) {
+    health = health - amount
+}

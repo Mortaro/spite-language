@@ -1,0 +1,3 @@
+lines static SpiteString spite_symbol_
+Naive_add_name_length_for_health___held_0
+Naive_add_name_length_for_experience_points_gained___held_0

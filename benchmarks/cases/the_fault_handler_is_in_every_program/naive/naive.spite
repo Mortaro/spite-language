@@ -1,0 +1,23 @@
+var console = Console()
+
+func Naive() {
+    var numbers = List<Integer>()
+    var index = 0
+    while index < 100 {
+        numbers.append(index % 9)
+        index = index + 1
+    }
+    var total = weighted_sum(numbers)
+    console.print("weighted", total)
+}
+
+func weighted_sum(numbers: List<Integer>): Integer {
+    var total = 0
+    var index = 0
+    while index < numbers.count() {
+        var number = numbers[index]
+        total = total + number * index
+        index = index + 1
+    }
+    return total
+}

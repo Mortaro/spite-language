@@ -1,0 +1,18 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = sum_on_two(20000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func sum_on_two(limit: Integer): Long {
+    var evens = Summer(limit, 0)
+    var even_sum = Parallel(evens.total)
+    var odds = Summer(limit, 1)
+    var odd_sum = odds.total()
+    return even_sum + odd_sum
+}

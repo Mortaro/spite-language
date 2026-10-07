@@ -1,0 +1,5 @@
+lines #define SpiteFloat_bits(
+lines #define SpiteUnsignedInteger_bits_as_float(
+Naive_round_trips
+SpiteFloat_to_half_precision
+SpiteUnsignedShort_half_precision_to_float

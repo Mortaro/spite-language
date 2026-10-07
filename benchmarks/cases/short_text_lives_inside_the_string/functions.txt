@@ -1,0 +1,7 @@
+struct SpiteString
+lines #define SPITE_STRING_
+spite_string_length
+spite_string_join
+SpiteString___release
+Naive_make_labels
+Naive_checksum___held_0

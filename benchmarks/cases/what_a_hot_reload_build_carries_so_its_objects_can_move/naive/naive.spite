@@ -1,0 +1,22 @@
+var console = Console()
+
+func Naive() {
+    var particles = List<Particle>()
+    var index = 0
+    while index < 1000 {
+        var particle = Particle(index % 10, index % 3)
+        particles.append(particle)
+        index = index + 1
+    }
+    move_all(particles)
+    var total = particles.sum_position()
+    console.print("position", total)
+}
+
+func move_all(particles: List<Particle>) {
+    var round = 0
+    while round < 20 {
+        particles.each_step()
+        round = round + 1
+    }
+}

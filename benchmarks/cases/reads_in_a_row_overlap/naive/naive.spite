@@ -1,0 +1,47 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var first_file = File(".spite/reads_in_a_row_first.txt")
+    var second_file = File(".spite/reads_in_a_row_second.txt")
+    var first_text = make_text("first", 4000)
+    var second_text = make_text("second", 4000)
+    first_file.write(first_text)
+    second_file.write(second_text)
+    var start = clock.elapsed_nanoseconds()
+    var characters = read_rounds(first_file, second_file, 40)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var first_removed = first_file.remove()
+    var second_removed = second_file.remove()
+    console.print("characters", characters, "removed", first_removed, second_removed)
+    console.error("microseconds {microseconds}")
+}
+
+func make_text(word: String, count: Integer): String {
+    var lines = List<String>()
+    var index = 0
+    while index < count {
+        lines.append("{word} line number {index}")
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func read_rounds(first_file: File, second_file: File, rounds: Integer): Long {
+    var characters: Long = 0
+    var round = 0
+    while round < rounds {
+        var read = read_both(first_file, second_file)
+        characters = characters + read
+        round = round + 1
+    }
+    return characters
+}
+
+func read_both(first_file: File, second_file: File): Integer {
+    var first = first_file.read()
+    var second = second_file.read()
+    crash first
+    crash second
+    return first.length() + second.length()
+}

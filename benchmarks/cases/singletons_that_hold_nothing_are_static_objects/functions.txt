@@ -1,0 +1,5 @@
+spite_singleton_Memory_Heap
+spite_singleton_TypedMemory__Long
+spite_singleton_Build
+List_Long___init
+Memory_Heap___release

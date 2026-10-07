@@ -1,0 +1,11 @@
+var quantity = 0
+var price = 0
+
+func Line(new_quantity: Integer, new_price: Integer) {
+    quantity = new_quantity
+    price = new_price
+}
+
+func get_amount(): Integer {
+    return quantity * price
+}

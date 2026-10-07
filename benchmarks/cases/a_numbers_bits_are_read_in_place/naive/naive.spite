@@ -1,0 +1,25 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = round_trips(30000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func round_trips(count: Integer): Long {
+    var total: Long = 0
+    var index = 0
+    while index < count {
+        var value: Float = index % 160000 - 20000
+        value = value * 0.5
+        var half = value.to_half_precision()
+        var back = half.half_precision_to_float()
+        var back_bits = back.bits()
+        total = total + half + back_bits
+        index = index + 1
+    }
+    return total
+}

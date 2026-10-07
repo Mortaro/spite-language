@@ -1,0 +1,10 @@
+var health = 10
+var experience_points_gained = 0
+
+func Monster(starting_experience: Integer) {
+    experience_points_gained = starting_experience
+}
+
+func get_power(): Integer {
+    return health + experience_points_gained
+}

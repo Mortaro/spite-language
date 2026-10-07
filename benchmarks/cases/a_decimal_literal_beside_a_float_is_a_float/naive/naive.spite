@@ -1,0 +1,39 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var values = List<Float>()
+    var index = 0
+    while index < 50000 {
+        var quarters: Float = index % 64
+        values.append(quarters * 0.25)
+        index = index + 1
+    }
+    var total = rounds(values)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(values: List<Float>): Double {
+    var total: Double = 0.0
+    var round = 0
+    while round < 4000 {
+        var shift: Float = round % 8
+        var sum = scaled_sum(values, shift)
+        total = total + sum
+        round = round + 1
+    }
+    return total
+}
+
+func scaled_sum(values: List<Float>, shift: Float): Float {
+    var total: Float = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + (values[index] + shift) * 1.5 + 0.25
+        index = index + 1
+    }
+    return total
+}

@@ -1,0 +1,10 @@
+var rules = Rules()
+var number = 0
+
+func Visit(new_number: Integer) {
+    number = new_number
+}
+
+func weight(): Integer {
+    return number % 7 + rules.base
+}

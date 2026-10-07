@@ -1,0 +1,2 @@
+spite_foreign_library_*
+DynamicLibrary_find_symbol

@@ -1,0 +1,7 @@
+var left = 0
+var top = 0
+
+func get_place(): Long {
+    var wide: Long = left
+    return wide + top
+}

@@ -1,0 +1,41 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var points = make_points(200000)
+    var near = count_near(points)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("near", near)
+    console.error("microseconds {microseconds}")
+}
+
+func make_points(count: Integer): List<Point> {
+    var points = List<Point>()
+    var index = 0
+    while index < count {
+        var point = Point(index % 1000, index % 700)
+        points.append(point)
+        index = index + 1
+    }
+    return points
+}
+
+func count_near(points: List<Point>): Long {
+    var near: Long = 0
+    var round = 0
+    while round < 20 {
+        var kept = List<Point>()
+        var index = 0
+        while index < points.count() {
+            var point = points[index]
+            if point.across + point.down > round * 80 {
+                kept.append(point)
+            }
+            index = index + 1
+        }
+        near = near + kept.count()
+        round = round + 1
+    }
+    return near
+}

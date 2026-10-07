@@ -1,0 +1,46 @@
+# Concurrency machinery only where it is used
+
+The scheduler, the state machines, the helper threads and the wrappers around every call that can wait exist only
+in a program that makes a `Concurrent` (or overlaps reads in a row) or is built for the REPL or live reload. Every
+other program's waits are the plain system calls, so a program that reads and writes files without a `Concurrent`
+carries and runs none of it.
+
+- The optimisation: [docs/optimizations.md](../../../docs/optimizations.md#concurrency-machinery-only-where-it-is-used).
+- The proof: none of its own; it stands on
+  [Which calls suspend a `Concurrent`](../../../docs/proofs.md#which-calls-suspend-a-concurrent), which finds no
+  function to make resumable in a program with no `Concurrent`, and on
+  [Tree shaking](../../../docs/proofs.md#tree-shaking-what-main-can-reach), which then drops the scheduler.
+
+## The four forms
+
+- [`naive/`](naive/): 50 rounds that each write a line to a file and read it back, adding up the characters read,
+  then the file is removed.
+- [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: each write and each read opens
+  the file with `fopen`, and the read measures it and reads it into a new buffer, with the C library's blocking
+  calls.
+- [`expert.c`](expert.c): the same work tuned by hand: the file opened once with the system's own calls, and each
+  round written from the start, cut to its length and read back into a buffer on the stack.
+- [`generated.c`](generated.c): the loop, and the `File` functions it reaches for a read.
+
+## What to look at in generated.c
+
+`Naive_write_and_read___held_0` calls `File_read(notes_)` as an ordinary function, and `File_read` calls
+`File_open_file`, `File_read_into` and the rest straight through to `fopen` and `fread`: no frame, no step function,
+no helper thread and no event loop, the plain blocking calls in the order `naive.c` makes them. The whole C has no
+`Scheduler` and no state machine: the word appears once, in a leftover `SPITE_ALLOCATOR_List_SchedulerLoop` macro
+that nothing uses, against 438 lines that name it in the variant below. `naive.c` makes the same calls; `expert.c` keeps the file open, which saves the
+opens and closes that are most of a round's time on Windows.
+
+The same program with `var reading = Concurrent(notes.read)` in place of `var read = notes.read()` carries all of
+it. Both written with `--check --c-source --optimized` and counted with `grep -c` and `wc -c`, and their allocations
+counted by `--debug-memory`:
+
+| Program | Lines of C | Bytes of C | Allocations |
+|---|---|---|---|
+| this program | 2 094 | 108 753 | 156 |
+| the same with the read in a `Concurrent` | 5 053 | 285 969 | 528 |
+
+## Timings
+
+<!-- timings -->
+<!-- /timings -->

@@ -1,0 +1,5 @@
+struct Dictionary_Integer_by_Integer
+Naive_look_up___held_0
+Dictionary_Integer_by_Integer_find_slot
+Dictionary_Integer_by_Integer_hash_of
+Dictionary_Integer_by_Integer_home_slot

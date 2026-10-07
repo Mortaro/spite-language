@@ -1,0 +1,6 @@
+lines #define HitCounter___atomic
+lines #define Settings___atomic
+Worker_run
+HitCounter_record
+Settings_step_size
+Journal_note

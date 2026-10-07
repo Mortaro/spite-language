@@ -1,0 +1,17 @@
+singleton
+
+var weights = List<Integer>()
+var total: Long = 0
+
+func record(weight: Integer) {
+    weights.append(weight)
+    total = total + weight
+}
+
+func recorded(): Integer {
+    return weights.count()
+}
+
+func sum(): Long {
+    return total
+}

@@ -1,0 +1,55 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var values = make_values(90000)
+    var total = measure_rounds(values)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func make_values(count: Integer): List<Printable> {
+    var values = List<Printable>()
+    var index = 0
+    while index < count {
+        add_value(values, index)
+        index = index + 1
+    }
+    return values
+}
+
+func add_value(values: List<Printable>, index: Integer) {
+    var kind = index % 3
+    if kind == 0 {
+        values.append(index)
+    } else if kind == 1 {
+        values.append(index % 2 == 0)
+    } else {
+        values.append("item {index}")
+    }
+}
+
+func measure_rounds(values: List<Printable>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 20 {
+        var length = measure(values)
+        total = total + length
+        round = round + 1
+    }
+    return total
+}
+
+func measure(values: List<Printable>): Integer {
+    var total = 0
+    var index = 0
+    while index < values.count() {
+        var value = values[index]
+        var text = value.to_string()
+        total = total + text.length()
+        index = index + 1
+    }
+    return total
+}
