@@ -15,9 +15,11 @@ Rust has Rustaceans; Spite has morons. A moron is anyone who writes Spite (peopl
 own author), said with affection, and the language is built so a moron's code still comes out right and fast. In
 practice:
 
-- **You say what you want, not how to do it.** Chains of list operations become one loop, singletons get the
-  cheapest safe form of thread safety, and anything a program does not use is not in it, all decided from what
-  the whole program does.
+- **You write the plain program; the compiler decides how it runs.** Lists, loops and classes say what you
+  mean. Threads, waiting, memory layout, alignment and where every value lives are the compiler's choice, proven
+  while compiling, with no runtime shipped beside the program, so the same language reaches from an operating
+  system to a web page. A plain program slower than the same program tuned by hand is a compiler bug:
+  [Write it plainly](docs/write_it_plainly.md).
 - **The compiler refuses mistakes instead of guessing.** An error names the problem and the fix (a race, a
   value that may be null, a borrowed item kept too long, a misspelt or abbreviated name), and there is no
   warning to ignore: it compiles or it tells you why not.
@@ -84,34 +86,36 @@ ends with its rules in full, and every titled program on it is compiled and run 
 this order, from a first program to what the compiler proves; each page ends with a link to the next:
 
 1. [Getting started](docs/getting_started.md): build the compiler, run hello world, a program of two classes.
-2. [Classes and files](docs/classes_and_files.md): a file is a class; what it holds and in what order;
+2. [Write it plainly](docs/write_it_plainly.md): why you write the plain program and the compiler decides
+   threads, layout and memory, and how to write code it can make fast.
+3. [Classes and files](docs/classes_and_files.md): a file is a class; what it holds and in what order;
    constructors and singletons.
-3. [Programs](docs/programs.md): the entry file, the launcher, `Arguments`, `Environment` and `Build`.
-4. [Values and types](docs/values_and_types.md): numbers and the casting rule, `String`, enums, unions, `type`
+4. [Programs](docs/programs.md): the entry file, the launcher, `Arguments`, `Environment` and `Build`.
+5. [Values and types](docs/values_and_types.md): numbers and the casting rule, `String`, enums, unions, `type`
    shapes.
-5. [Nullable values and failure](docs/failure.md): `T?` and narrowing, `assert`, `crash`, and nothing else.
-6. [Functions and operators](docs/functions_and_operators.md): function values, variadic arguments, operators
+6. [Nullable values and failure](docs/failure.md): `T?` and narrowing, `assert`, `crash`, and nothing else.
+7. [Functions and operators](docs/functions_and_operators.md): function values, variadic arguments, operators
    as functions.
-7. [Control flow](docs/control_flow.md): `if`, `while` (the only loop), `switch`.
-8. [Style](docs/style.md): the compiler is the formatter and the linter (names, comments, nothing unused).
-9. [Memory](docs/memory.md): reference counting, `copy`, `drop`, `Memory.Address`, `Memory.Heap` and choosing
+8. [Control flow](docs/control_flow.md): `if`, `while` (the only loop), `switch`.
+9. [Style](docs/style.md): the compiler is the formatter and the linter (names, comments, nothing unused).
+10. [Memory](docs/memory.md): reference counting, `copy`, `drop`, `Memory.Address`, `Memory.Heap` and choosing
    an allocator.
-10. [Metaprogramming](docs/metaprogramming.md): Symbol codegen, generics and codegen values, tree shaking.
-11. [Reflection](docs/reflection.md): `Spite.Class`, `Spite.Function`, namespaces, instances.
-12. [Packages](docs/packages.md): `load`, namespaces, reopening classes (mods).
-13. [Concurrency](docs/concurrency.md): `Concurrent` and `Parallel`, without `async`/`await`.
-14. [Standard library](docs/standard_library.md): `String`, files, folders, processes, the console, sockets.
-15. [Collections](docs/collections.md): `List`, `Dictionary` and member templates.
-16. [JSON and binary](docs/json.md): any value to JSON text or compact bytes and back.
-17. [Time](docs/time.md): instants, durations, the calendar and time zones.
-18. [Game maths](docs/game_maths.md): `Vector2` to `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`.
-19. [Foreign libraries](docs/foreign_libraries.md): `DynamicLibrary`, libraries in C, C++, Rust, Zig and Go, bindings that speak Spite, and one folder per operating system.
-20. [Targets](docs/targets.md): the web and isomorphic classes.
-21. [The compiler](docs/compiler.md): every command and flag, and where the outputs go.
-22. [The REPL and live reload](docs/repl.md): inspect and change a running program.
-23. [Testing](docs/testing.md): a test is a function that crashes.
-24. [Optimizations](docs/optimizations.md): everything the compiler optimises without being asked.
-25. [Proofs](docs/proofs.md): every fact the compiler proves while compiling, and when it does not apply.
+11. [Metaprogramming](docs/metaprogramming.md): Symbol codegen, generics and codegen values, tree shaking.
+12. [Reflection](docs/reflection.md): `Spite.Class`, `Spite.Function`, namespaces, instances.
+13. [Packages](docs/packages.md): `load`, namespaces, reopening classes (mods).
+14. [Concurrency](docs/concurrency.md): `Concurrent` and `Parallel`, without `async`/`await`.
+15. [Standard library](docs/standard_library.md): `String`, files, folders, processes, the console, sockets.
+16. [Collections](docs/collections.md): `List`, `Dictionary` and member templates.
+17. [JSON and binary](docs/json.md): any value to JSON text or compact bytes and back.
+18. [Time](docs/time.md): instants, durations, the calendar and time zones.
+19. [Game maths](docs/game_maths.md): `Vector2` to `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`.
+20. [Foreign libraries](docs/foreign_libraries.md): `DynamicLibrary`, libraries in C, C++, Rust, Zig and Go, bindings that speak Spite, and one folder per operating system.
+21. [Targets](docs/targets.md): the web and isomorphic classes.
+22. [The compiler](docs/compiler.md): every command and flag, and where the outputs go.
+23. [The REPL and live reload](docs/repl.md): inspect and change a running program.
+24. [Testing](docs/testing.md): a test is a function that crashes.
+25. [Optimizations](docs/optimizations.md): everything the compiler optimises without being asked.
+26. [Proofs](docs/proofs.md): every fact the compiler proves while compiling, and when it does not apply.
 
 Writing Spite with an AI? Give it the skill in [skills/spite/](skills/spite/SKILL.md), the whole language on one
 dense page: copy that folder into your project's `.claude/skills/spite/` (or paste `reference.md` into any model's
