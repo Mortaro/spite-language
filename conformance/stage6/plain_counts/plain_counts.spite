@@ -1,0 +1,23 @@
+var console = Console()
+
+func PlainCounts() {
+    var summer = Summer(1000000)
+    var sum = Parallel(summer.total)
+    var points = List<Point>()
+    var index = 0
+    while index < 1000 {
+        var point = Point(index, index * 2)
+        points.append(point)
+        index = index + 1
+    }
+    var far = 0
+    var position = 0
+    while position < points.count() {
+        var point = points[position]
+        if point.across + point.down > 1500 {
+            far = far + 1
+        }
+        position = position + 1
+    }
+    console.print(sum, far)
+}

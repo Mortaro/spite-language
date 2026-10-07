@@ -20,9 +20,11 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   does nothing, and it is destroyed at exit ([classes_and_files.md](../docs/classes_and_files.md#singletons)).
 - **Run-time cost.** A count in every object's header and one addition or subtraction per retain and
   release. The counts are atomic only in a program that can share an object between threads (one that makes a
-  `Concurrent` or a `Parallel`, runs a `parallel_each_` pass, or is built with `--repl-port` or `--hot-reload`);
-  every other program counts with plain arithmetic
-  ([optimizations.md](../docs/optimizations.md#atomic-reference-counts-only-with-threads)).
+  `Concurrent` or a `Parallel`, runs a `parallel_each_` pass, or is built with `--repl-port` or `--hot-reload`),
+  and in a production build only for the classes whose objects code on another thread can retain or release;
+  every other program, and every other class, counts with plain arithmetic
+  ([optimizations.md](../docs/optimizations.md#atomic-reference-counts-only-with-threads),
+  [plain counts](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)).
 - **`drop()`.** A class may define `func drop() { ... }` to run cleanup the moment its last reference goes (closing
   a file handle, logging, clearing a back-reference to help break a cycle by hand, see below). It takes no
   parameters and returns nothing; the compiler calls it automatically, never by name.

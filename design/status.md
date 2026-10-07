@@ -843,6 +843,15 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Built: a local of a class holding text, lists or other objects in the frame, its attributes let go where its scope ends (the readings in the D??? row "frame objects holding text, lists or objects" are proposed by Claude, unconfirmed). Not built: such a class as a result written into the caller's slot, a temporary or a copy used as a value; an attribute object laid inline in a frame-held object where the attribute is never shared.
 - Not built as general rules: a copy used only once passed by value instead of allocated; a copy that is never changed sharing the original when cheaper; every object that never escapes laid inline or in registers; reference counting left out wherever ownership is provable (only the frame-object and held-argument cases above exist).
 
+### Plain reference counts where no thread reaches a class
+
+- Built (pair C5 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).
+  Not built: telling apart the objects of one class that only the program's thread sees from the ones threaded
+  work makes for itself (a class is atomic for all of its objects or for none, so the naive engine's asset loading
+  keeps every `List<Integer>` atomic); text, and a box made for a value travelling as a shape, keep atomic counts in
+  every program with threads; a function value is matched to the calls that may run it by its number of arguments
+  only, not by its types; an inspectable build counts every class atomically.
+
 ### Identical functions are folded into one
 
 - Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.

@@ -866,6 +866,17 @@ if grep -q "^float Column__Velocity_total_across(.*) {" "$folded" || ! grep -q "
    || ! grep -q "^float Column__Label_total_across(Column__Label\* self) {" "$folded"; then
   echo "FAILED: folded_functions should fold Column<Velocity>.total_across into Column<Position>'s and keep Column<Label>'s"; exit 1
 fi
+# Plain counts where no thread reaches a class (pair C5): plain_counts's Parallel lets go of its Summer on a worker,
+# so Summer is counted atomically, and only the program's thread counts a Point or the List<Point>.
+plain_counts="$work/plain_counts.c"
+"$work/generation_two.exe" conformance/stage6/plain_counts --check --c-source --c-path="$plain_counts" > /dev/null 2>&1 || {
+  echo "FAILED: plain_counts does not write its C"; exit 1; }
+if ! grep -q "^if (SPITE_PLAIN_COUNT_DOWN(self->header.ref_count) > 0) return;$" "$plain_counts" \
+   || ! grep -A 2 "Point\* Point___retain(Point\* self) {" "$plain_counts" | grep -q "SPITE_PLAIN_COUNT_UP(self->header.ref_count)" \
+   || ! grep -A 2 "void List_Point___release(List_Point\* self) {" "$plain_counts" | grep -q "SPITE_PLAIN_COUNT_DOWN(self->header.ref_count)" \
+   || ! grep -A 2 "Summer\* Summer___retain(Summer\* self) {" "$plain_counts" | grep -q " SPITE_COUNT_UP(self->header.ref_count)"; then
+  echo "FAILED: plain_counts should count Point and List<Point> plainly, Summer atomically"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
@@ -964,7 +975,7 @@ if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) 
    || ! grep -q "Registry___outside_read_enter(); Board\* " "$attribute_reads"; then
   echo "FAILED: singleton_attribute_reads should read names in place and current under the lock"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place"
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no zero check for it (it keeps
 # the check that the smallest Integer divided by -1 does not fit, D359).

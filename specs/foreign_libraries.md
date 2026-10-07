@@ -308,7 +308,7 @@ What [Calling back into Spite](../docs/foreign_libraries.md#calling-back-into-sp
   `conformance/stage6/foreign_callback_dropped`). A table of functions (COM-style) is memory the program allocates
   with `Memory.Heap` and fills with `TypedMemory<Long>`, one `'no_context'` `ForeignCallback` per entry.
 - **Threads**: C may call a `ForeignCallback` from any thread, so a program that makes one is compiled as a
-  program that makes a `Parallel`: atomic reference counts (`SPITE_THREADS`), and every singleton the handed-over
+  program that makes a `Parallel`: atomic reference counts (`SPITE_THREADS`) for the classes another thread can count, and every singleton the handed-over
   function reaches made safe for threads in its cheapest form (a `'no_context'` function's own singleton included,
   whose wrapper takes its lock). A function of an ordinary object is checked with the rule for a `Parallel`'s work,
   through every function of its class it calls: `'ForeignCallback(marked, 'context_first')' may be called by C on a

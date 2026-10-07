@@ -21,6 +21,7 @@ say.
 | A function taking a `type` is compiled per class | [optimizations](../docs/optimizations.md#a-function-taking-a-type-is-compiled-per-class) |
 | Singleton locks: skipped with no task in flight, shared by readers, taken once per counted loop, atomic counters | [optimizations](../docs/optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form) |
 | Crash reports in cold functions | [optimizations](../docs/optimizations.md#a-crashs-report-is-kept-out-of-the-way) |
+| C5: plain counts for every class no other thread can count | [optimizations](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class), [proofs](../docs/proofs.md#no-other-thread-counts-a-class) |
 
 ## Threads
 
@@ -65,7 +66,6 @@ say.
 |---|---|---|---|---|---|---|
 | B1 | `var row = list[index]` then reads of `row` | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | |
 | B2 | `var row = list[i]`, change it, `list[i] = row` | nothing else touches the slot between the copy and the write-back | the slot itself is changed, no copy | copy and write back | the runner's `Stream` | |
-| C5 | any class in a program with threads | no task can reach an object of the class | plain counts, not atomic | atomic counts | | |
 
 ## Waiting
 

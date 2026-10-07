@@ -55,6 +55,7 @@ emit nothing.
 | [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | every | the constructor runs at first use |
 | [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | production | one allocation fewer each; not in `.instances` |
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | every, decided per program | nothing |
+| [Plain reference counts where no thread reaches a class](#plain-reference-counts-where-no-thread-reaches-a-class) | production, decided per class | nothing but speed |
 | [A function taking a `type` is compiled per class](#a-function-taking-a-type-is-compiled-per-class) | every but `--repl`, `--repl-port`, `--hot-reload` | no box for a value passed to it; direct calls; a copy per class |
 | [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | every | numbers, `Boolean` and enum values are never boxed; one allocation per boxed text |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | every, decided per program | nothing |
@@ -612,7 +613,95 @@ object between threads: one that makes a `Concurrent` or a `Parallel` (reads in 
 (and a lock around the `--debug-memory` table).
 
 **When.** Decided per program, from what it uses. **What you notice.** Nothing: the program that never starts a
-thread never pays for atomics.
+thread never pays for atomics. In a program that does, only the classes another thread can reach pay for them:
+[below](#plain-reference-counts-where-no-thread-reaches-a-class).
+
+### Plain reference counts where no thread reaches a class
+
+**What it does.** An atomic count costs a locked instruction at every retain and release, and most classes of a
+program with threads never need one: an engine's components are moved by the program's own thread while a worker
+reads a file. So the compiler decides it class by class. Once every generic class is made for its values and the
+program is tree shaken, it finds the code that can run on another thread and every call that code can make, and a
+class whose objects that code never retains or releases is counted with plain arithmetic, in the whole program.
+
+```gdscript title=plain_counts/summer.spite
+var limit = 0
+
+func Summer(starting_limit: Integer) {
+    limit = starting_limit
+}
+
+func total(): Long {
+    var sum: Long = 0
+    var index = 0
+    while index < limit {
+        sum = sum + index
+        index = index + 1
+    }
+    return sum
+}
+```
+```gdscript title=plain_counts/point.spite
+var across = 0
+var down = 0
+
+func Point(starting_across: Integer, starting_down: Integer) {
+    across = starting_across
+    down = starting_down
+}
+```
+```gdscript title=plain_counts/plain_counts.spite entry
+var console = Console()
+
+func PlainCounts() {
+    var summer = Summer(1000000)
+    var sum = Parallel(summer.total)
+    var points = List<Point>()
+    var index = 0
+    while index < 1000 {
+        var point = Point(index, index * 2)
+        points.append(point)
+        index = index + 1
+    }
+    var far = 0
+    var position = 0
+    while position < points.count() {
+        var point = points[position]
+        if point.across + point.down > 1500 {
+            far = far + 1
+        }
+        position = position + 1
+    }
+    console.print(sum, far)
+}
+```
+```output
+499999500000 499
+```
+
+`summer.total` runs on a worker, and the worker lets go of `summer` when it is done, so `Summer` is counted
+atomically. Only the program's own thread ever counts a `Point` or the `List<Point>`, so a thousand appends and
+reads count them with a plain addition and subtraction, while the worker sums.
+
+Code that can run on another thread is everything a thread the program starts runs (the thread pool's workers and the
+scheduler's), every function a foreign library may call (a `ForeignCallback`), every function
+whose address the program keeps anywhere else (the release a function value calls for its owner, say), and every
+function made into a value that such code may call. A function value is called only by a call with as many
+arguments, so a value is counted as run on another thread when code that runs there calls some value of that many
+arguments: a `Parallel`'s function, a `parallel_each_` pass and a row of calls run at once are, and a filter of one
+argument that only the program's thread calls is not. A class is atomic when that code retains or releases an object
+of it, or releases anything that may hold one (an object with an attribute of the class, a list of it, a shape or
+union that can be it). A count the compiler cannot place on a class makes every class atomic, as before.
+
+**When.** Every production build of a program with threads, ordinary or `--optimized`. An inspectable build
+(`--repl`, `--repl-port`, `--hot-reload`, `--development`) counts every class atomically, since a reload or the
+REPL can add code that runs anywhere. **What you notice.** Speed. A class used by work on another thread is atomic
+everywhere, also for the objects only the program's thread ever sees: a `List<Integer>` a `Parallel` builds while
+reading a file makes every `List<Integer>` of the program atomic. In a game engine's stress test (200 000 entities
+moved by two systems, while one `Parallel` loads assets) a tick went from 105 ms to 73 ms, and a physics
+step of 5 000 characters from 13.3 to 11.5 ms.
+[Proofs](proofs.md#no-other-thread-counts-a-class) states the proof; `conformance/stage6/plain_counts` is the program
+above, whose C `check.sh` reads.
 
 ### A function taking a `type` is compiled per class
 
@@ -2083,8 +2172,9 @@ both. `console.print` is not part of the row: it prints, so it keeps its place.
 whose rows all stay in order never starts the thread pool for them.
 
 **What you notice.** Speed, when the calls are big enough: an entity system written with no `Parallel`, two systems
-over 200 000 entities, runs both at once. A program in which some row overlaps counts references atomically, as
-every program with threads does. Nothing a program prints changes.
+over 200 000 entities, runs both at once. A program in which some row overlaps counts atomically the classes the
+overlapped calls count, as every program with threads does
+([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)). Nothing a program prints changes.
 
 ### A crash's report is kept out of the way
 

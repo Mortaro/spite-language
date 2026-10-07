@@ -110,6 +110,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Held arguments](#an-argument-its-caller-holds-is-passed-uncounted) | no count on the argument | the counted call |
 | [A singleton attribute that never changes](#a-singleton-attribute-that-never-changes-is-read-in-place) | no count, no lock | the counted, locked read |
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
+| [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
 | [A function that touches no changing state](#a-function-that-touches-no-changing-state-takes-no-lock) | no lock for it | the lock |
@@ -843,6 +844,26 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 - **Falls back.** Calls that touch the same thing, print, wait or call through a function value run in order, as
   written. To overlap two calls, give each its own class and its own lists.
 - **Shows it.** [optimizations.md](optimizations.md#calls-in-a-row-run-at-once).
+
+### No other thread counts a class
+
+- **Proves.** No code that can run on a thread other than the program's own retains or releases an object of a
+  class.
+- **Rule.** Read from the program after every generic class is made and the program is tree shaken. The code that
+  can run on another thread starts at every function whose address the program keeps (a thread's entry, a
+  `ForeignCallback`, the release a function value calls for its owner), except a singleton's teardown, which the
+  program's own thread runs at exit, and except a function value's target while nothing that runs on another thread
+  calls a function value with as many arguments. From there the compiler follows every call. A class is shared when
+  that code retains or releases an object of it, releases something that may hold one, or counts a shape or union
+  that may be one; a count it cannot place on a class makes every class shared.
+- **Buys.** Every class that is not shared is counted with plain arithmetic: no locked instruction per retain and
+  release.
+- **Falls back.** A shared class is counted atomically everywhere, also for the objects only the program's thread
+  sees, and an inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`) counts every class
+  atomically. A class the work on another thread uses for objects of its own makes all of that class atomic: give
+  that work classes of its own where the count matters.
+- **See.** [optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class);
+  `conformance/stage6/plain_counts`.
 
 ### Which singletons a `Parallel` reaches
 

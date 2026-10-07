@@ -1056,6 +1056,7 @@ func generate(
     builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
     builder.folds = not hot_reload and not read_evaluate_print_loop and not reload_host
+    builder.counts_by_class = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.debug_memory = debug_memory
     builder.constant_texts = constant_texts
     var rendered = ""

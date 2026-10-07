@@ -18,6 +18,8 @@ var threads = false
 var hot_reload = false
 var debug_memory = false
 var folds = false
+var counts_by_class = false
+var count_sharing: CountSharing? = null
 var folded_functions = 0
 var host = HotReloadLibrary()
 var constant_texts = Dictionary<String>()
@@ -308,6 +310,11 @@ func render(): String {
         bodies = guarded(bodies, unused_shaker, true)
         main_function = guarded(main_function, unused_shaker, true)
         typedef_text = guarded_types(typedef_text, unused_shaker, true)
+    }
+    if threads and shakes and counts_by_class {
+        var sharing = CountSharing()
+        bodies = sharing.plain_counts(typedef_text, bodies, main_function)
+        count_sharing = sharing
     }
     if folds {
         var folder = FunctionFolder()

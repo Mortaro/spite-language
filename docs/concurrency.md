@@ -638,7 +638,8 @@ func finish_jobs(): Integer {
 A program that makes a `Parallel` (or a `Concurrent`, or a `ForeignCallback` C may call from a thread of its own
 ([foreign_libraries.md](foreign_libraries.md#calling-back-into-spite)), or is built with `--repl-port` or
 `--hot-reload`) counts references with atomic operations, because an object can now be shared between threads; every other program keeps
-the plain, cheaper counts. `Parallel(work)` is checked while compiling: the function it
+the plain, cheaper counts, and so does every class whose objects no other thread can count
+([optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)). `Parallel(work)` is checked while compiling: the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values (numbers, `Boolean`, enums, text), its locals and parameters, singletons (which
 the compiler makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
@@ -863,8 +864,8 @@ carries none of it; the compiler's side of each is on
 | The program | Carries at run time |
 |---|---|
 | uses none of it | nothing: no scheduler, no state machine, no helper thread, no pool, no lock, plain reference counts; every wait is the plain blocking call |
-| makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts everywhere; one count the scheduler adds to at each read of `finished` that answers `false` and clears at each step |
-| makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts everywhere; for each program singleton a `Parallel` can reach and that changes, atomics or a lock per call (about 2 ns when one thread takes it, far more when several contend: [what it costs](#what-a-singletons-lock-costs)), or one per counted loop of calls |
+| makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts for the classes another thread can count; one count the scheduler adds to at each read of `finished` that answers `false` and clears at each step |
+| makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts for the classes another thread can count; for each program singleton a `Parallel` can reach and that changes, atomics or a lock per call (about 2 ns when one thread takes it, far more when several contend: [what it costs](#what-a-singletons-lock-costs)), or one per counted loop of calls |
 | calls `Scheduler().resume_only_when_asked()` or `run_ready()` | one `Boolean` the scheduler reads at each wait, and each function it calls; neither is there otherwise |
 | makes a `ThreadLocal` or a `Lock` | one system per-thread slot or lock each, freed with it |
 | is built with `--repl-port` or `--hot-reload` | the scheduler, and one check-point call at the end of every pass of every loop of its own code; nothing of either in any other build |

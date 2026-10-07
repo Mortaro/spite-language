@@ -143,7 +143,8 @@ loop over the matched rows, and each column a plain `List<T>`. Behaviour is the 
 Stress is now 16x the hand form. That is the honest size of what the compiler must do. Measured on hand-edited C:
 
 - **C5** (plain counts where no task reaches the class) alone takes the one-file plain-lists build from 101.2 to
-  65.6 ms, the largest single cost.
+  65.6 ms, the largest single cost. Built: the compiler's own per-class proof takes the split build's tick from
+  105 to 73 ms (`List<Integer>` stays atomic, since the asset loader's `Parallel` uses it too).
 - **C6** (a release inlined in every C unit): the "unexplained 4 ms" was one function placed in another C unit,
   where link-time inlining refused the release. Regenerate and Move are the same C; one file gives both 11.5 ms.
 - **B2** (a copy written back to its own slot is the slot): the plain loop copies each component out and back,

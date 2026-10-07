@@ -41,6 +41,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **Engine, the waiting-system write rule**: with plain `List<T>` columns, the engine's rule refusing a waiting
   (IO) system that writes `Vector`-fitting components of its rows has lost its reason. Kept for now (it refuses,
   never silently drops); it goes when the compiler arranges waiting itself (D512).
+- **D513, plain counts per class**: in a program with threads, a class no other thread can count is counted with
+  plain arithmetic; one used by threaded work stays atomic for all of its objects. Why: atomic counts were the
+  largest single cost of the naive engine's stress test (105 ms a tick to 73), and the fallback is always atomic.
 
 ## Open
 
