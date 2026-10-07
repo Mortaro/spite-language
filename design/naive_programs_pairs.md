@@ -23,6 +23,7 @@ say.
 | Crash reports in cold functions | [optimizations](../docs/optimizations.md#a-crashs-report-is-kept-out-of-the-way) |
 | C5: plain counts for every class no other thread can count | [optimizations](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class), [proofs](../docs/proofs.md#no-other-thread-counts-a-class) |
 | C6: a release is a `static inline` count-down in every unit, its freeing out of line | [optimizations](../docs/optimizations.md#a-release-is-inlined-in-every-unit) |
+| B2: an item written back to its own slot is not written, and B1's uncounted read where the same proof holds to the end of the block (same block only; the engine's runner reads and stores in different functions) | [optimizations](../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written), [proofs](../docs/proofs.md#an-item-written-back-to-its-own-slot-is-the-slot) |
 
 ## Threads
 
@@ -65,8 +66,9 @@ say.
 
 | # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
 |---|---|---|---|---|---|---|
-| B1 | `var row = list[index]` then reads of `row` | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | |
-| B2 | `var row = list[i]`, change it, `list[i] = row` | nothing else touches the slot between the copy and the write-back | the slot itself is changed, no copy | copy and write back | the runner's `Stream` | |
+| B1 | `var row = list[index]` then `row` passed to calls, compared or kept (reading and writing its attributes is built, above) | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | |
+| B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | |
+| B2c | `var row = list[i].copy()`, changed, `list[i] = row` | no other name holds the stored object (L1's proof) | the slot changed in place, no copy | copy and write back | | |
 
 ## Waiting
 

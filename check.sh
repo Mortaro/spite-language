@@ -880,6 +880,26 @@ if ! grep -q "^if (SPITE_PLAIN_COUNT_DOWN(self->header.ref_count) > 0) return;$"
    || ! grep -q "^void Point___free(Point\* self) {$" "$plain_counts"; then
   echo "FAILED: plain_counts should count Point and List<Point> plainly, Summer atomically, and inline every release"; exit 1
 fi
+# An item written back to its own slot is not written, and its read is not counted (pair B2): slot_write_backs's
+# moved() and bump_third() write nothing back, while replaced(), reversed() and the others keep the counted write.
+write_backs="$work/slot_write_backs.c"
+"$work/generation_two.exe" conformance/stage6/slot_write_backs --check --c-source --c-path="$write_backs" > /dev/null 2>&1 || {
+  echo "FAILED: slot_write_backs does not write its C"; exit 1; }
+function_body() {
+  awk -v wanted="void SlotWriteBacks_$1(SlotWriteBacks* self) {" '
+    $0 == wanted { inside = 1; print; next }
+    inside && /^[A-Za-z_][A-Za-z_0-9]*[*]? [A-Za-z_][A-Za-z_0-9]*[(].*[)] [{]$/ { exit }
+    inside { print }' "$write_backs"
+}
+moved_body=$(function_body moved)
+third_body=$(function_body bump_third)
+reversed_body=$(function_body reversed)
+if [ -z "$moved_body" ] || echo "$moved_body" | grep -qE "List_Point_set_at|List_Point_get_at|Point___release\(point_\)" \
+   || ! echo "$moved_body" | grep -q "((Point\*\*)(intptr_t)" \
+   || [ -z "$third_body" ] || echo "$third_body" | grep -qE "List_Point_set_at|Point___release\(maybe_\)" \
+   || ! echo "$reversed_body" | grep -q "List_Point_set_at(self->points_, 0, Point___retain(first_));"; then
+  echo "FAILED: slot_write_backs should drop moved()'s and bump_third()'s write-backs and counts, and keep reversed()'s"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1

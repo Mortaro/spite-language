@@ -149,7 +149,11 @@ Stress is now 16x the hand form. That is the honest size of what the compiler mu
   where link-time inlining refused the release. Regenerate and Move are the same C; one file gives both 11.5 ms.
   Built: 73 to 66 ms a tick on the split build.
 - **B2** (a copy written back to its own slot is the slot): the plain loop copies each component out and back,
-  800,000 allocations and frees a tick.
+  800,000 allocations and frees a tick. Built (D515) for a read and its write-back in one block, with B1's
+  uncounted read: a plain loop changing each item runs 2.5 times faster. It does not move stress: since the plain
+  lists the runner holds the stored objects (a tick allocates about 47 objects, not 800,000), and its read and
+  store are in different functions with the system between, which is pair B2b. Eliding just the store by hand in
+  the C saves about 3 ms of the 59 ms one-file tick, so the rest of stress is the runner's own machinery.
 - **L8** (a list built by one loop and read once in order by the next is one loop): each entity is matched twice
   and a 200,000-entry list is built every tick.
 - **L1** for `List<T>` columns: despawn is 2.4x slower from freeing 800,000 component objects.

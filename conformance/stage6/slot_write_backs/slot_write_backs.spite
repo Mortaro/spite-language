@@ -1,0 +1,129 @@
+var console = Console()
+var points = List<Point>()
+var numbers = List<Integer>()
+
+func SlotWriteBacks() {
+    moved()
+    replaced()
+    reversed()
+    shifted()
+    narrowed()
+    counted()
+    removed()
+    overwritten()
+}
+
+func reset() {
+    points.clear()
+    var index = 0
+    while index < 4 {
+        var made = Point(index)
+        points.append(made)
+        index = index + 1
+    }
+}
+
+func print_points(label: String) {
+    var text = label
+    var index = 0
+    while index < points.count() {
+        var point = points[index]
+        text = "{text} {point.x},{point.y}"
+        index = index + 1
+    }
+    console.print(text)
+}
+
+func moved() {
+    reset()
+    var pass = 0
+    while pass < 3 {
+        var index = 0
+        while index < points.count() {
+            var point = points[index]
+            point.x = point.x + index
+            point.bump()
+            points[index] = point
+            index = index + 1
+        }
+        pass = pass + 1
+    }
+    print_points("moved")
+}
+
+func replace_first() {
+    var fresh = Point(99)
+    points[0] = fresh
+}
+
+func replaced() {
+    reset()
+    crash points[0]
+    var point = points[0]
+    replace_first()
+    points[0] = point
+    print_points("replaced")
+}
+
+func reversed() {
+    reset()
+    crash points[0]
+    var first = points[0]
+    points.reverse()
+    points[0] = first
+    print_points("reversed")
+}
+
+func shifted() {
+    reset()
+    var index = 0
+    crash points[index]
+    var point = points[index]
+    index = index + 1
+    points[index] = point
+    print_points("shifted")
+}
+
+func bump_third() {
+    var maybe = points[2]
+    crash maybe
+    maybe.bump()
+    points[2] = maybe
+}
+
+func narrowed() {
+    reset()
+    bump_third()
+    print_points("narrowed")
+}
+
+func counted() {
+    numbers.clear()
+    numbers.append(1)
+    numbers.append(2)
+    crash numbers[1]
+    var number = numbers[1]
+    number = number + 5
+    numbers[1] = number
+    crash numbers[0]
+    console.print("counted", numbers[0], numbers[1])
+}
+
+func removed() {
+    reset()
+    crash points[0]
+    var point = points[0]
+    points.remove_at(0)
+    points[0] = point
+    print_points("removed")
+}
+
+func overwritten() {
+    reset()
+    crash points[1]
+    var point = points[1]
+    var other = Point(7)
+    points[1] = other
+    points[1] = point
+    print_points("overwritten")
+}

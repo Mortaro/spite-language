@@ -1,0 +1,48 @@
+var console = Console()
+var layouts = [Layout()]
+var counts = Dictionary<Integer>()
+var lookup = Lookup()
+
+func ReplacedItems() {
+    crash layouts[0]
+    var layout = layouts[0]
+    console.print(layout.width)
+    var made = Layout()
+    layout = made
+    counts["first"] = 1
+    var count = counts["first"]
+    crash count
+    count = count + 1
+    var found = lookup.of(0)
+    crash found
+    console.print(found.width)
+    var wider = Layout()
+    found = wider
+    replace_when(true)
+    kept_reads()
+}
+
+func replace_when(wide: Boolean) {
+    crash layouts[0]
+    var layout = layouts[0]
+    if wide {
+        var made = Layout()
+        layout = made
+    }
+}
+
+func kept_reads() {
+    crash layouts[0]
+    var layout = layouts[0]
+    var made = Layout()
+    layout = made
+    console.print(layout.width)
+    var index = 0
+    var current = layouts[index]
+    while index < 3 {
+        crash current
+        console.print(current.height)
+        current = layouts[index]
+        index = index + 1
+    }
+}

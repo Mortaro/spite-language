@@ -1,0 +1,6 @@
+var column = Column()
+
+func of(row: Integer): Layout? {
+    assert row >= 0
+    return column.value_at(row)
+}

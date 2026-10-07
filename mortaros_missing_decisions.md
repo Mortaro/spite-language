@@ -46,6 +46,15 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   largest single cost of the naive engine's stress test (105 ms a tick to 73), and the fallback is always atomic.
 - **D514, inline releases**: every class's release is a `static inline` count-down with its freeing out of line,
   in every build but the reloadable ones. Why: a release in another C unit was not inlined (73 ms a tick to 66).
+- **D515, an item written back to its own slot**: `var item = list[index]`, changed, then `list[index] = item` in
+  the same block writes nothing back when nothing between can change the slot, and the read takes no count when
+  the same holds to the end of the block. Why: the write-back puts back the object already there; a plain loop
+  changing each item of a list runs 2.5 times faster. The engine's runner does not get it (its read and store are
+  in different functions), so its numbers do not move.
+- **D516, a name read from a list and assigned is an error when nothing reads it after**: the assignment can only
+  be a write meant for the list, so it is refused naming `list[index] = value`, or the function of the class
+  holding the list that writes it. Why: it compiled and stored nothing (D244); the general dead store ("any
+  assignment nothing reads") is a wider rule left for you, since it would refuse code that is merely redundant.
 
 ## Open
 

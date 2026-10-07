@@ -110,6 +110,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Held arguments](#an-argument-its-caller-holds-is-passed-uncounted) | no count on the argument | the counted call |
 | [A singleton attribute that never changes](#a-singleton-attribute-that-never-changes-is-read-in-place) | no count, no lock | the counted, locked read |
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
+| [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back; no count on the read | the counted read and the write |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
@@ -120,6 +121,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [A poll that nothing steps](#a-poll-that-nothing-steps-is-an-error) | refuses a hang | the run-time halt |
 | [A write to an object only this function holds](#a-write-to-an-object-only-this-function-holds-must-be-read) | refuses a lost write | none |
+| [A name read from a list, assigned and never read](#a-name-read-from-a-list-assigned-and-never-read-is-an-error) | refuses a write meant for the list | none |
 | [What a `Parallel` may reach](#what-a-parallel-may-reach) | refuses a data race | none |
 | [Which calls suspend](#which-calls-suspend-a-concurrent) | state machines, no fibers; temporaries only where a value could change | the wait runs in place |
 | [Other refusals](#other-refusals-built-on-an-analysis) | refuses dead code and leaks | none |
@@ -829,6 +831,27 @@ have moved.
   them](optimizations.md#a-lists-templates-read-its-elements-without-counting-them);
   `conformance/stage6/fused_chain_allocations`, `conformance/stage6/template_lend_drop`.
 
+### An item written back to its own slot is the slot
+
+- **Proves.** Between `var item = list[index]` and `list[index] = item`, the slot still holds the object `item`
+  names, and while `item` is in use nothing can let that object go.
+- **Rule.** `list` is a `List` named by a path of attributes or locals, `index` a local, a parameter or a number,
+  and the read and the write are in the same block. Nothing between them assigns `item`, `index` or any name of
+  the path, writes into a list with `[]` (but the same write-back), or calls anything that may let go of an object,
+  remove from or reorder a list (`remove_*`, `clear`, `truncate`, `swap`, `reverse`), write the attributes along
+  the path, change a list passed to it, call through a function value, or wait; every call is one the compiler can
+  name. In a program where a `drop()` may let go of an object, nothing between them makes an object or calls
+  anything. For the uncounted read, the same holds from the read to the end of the block, and `item` is used only
+  to read and write its attributes, call its functions, narrow it or write it back.
+- **Buys.** The write-back is not written: no bounds check, no count up and down, no release of the slot. The read
+  is the item's address with its bounds check and no count, so a loop that changes each item of a list in place
+  touches only the items.
+- **Falls back.** The ordinary counted read and the write; nothing is an error. Write the change through the item
+  itself (`list[index].x = ...` or a `var` you change and leave), which needs no write-back at all.
+- **See.** [optimizations.md: An item written back to its own slot is not
+  written](optimizations.md#an-item-written-back-to-its-own-slot-is-not-written);
+  `conformance/stage6/slot_write_backs`.
+
 ## Threads and locks
 
 These apply only in a program that uses threads: one that makes a `Parallel`, runs a `parallel_each_` pass or makes a `ForeignCallback`, or in which a row of calls runs at once; any other program has no lock at all.
@@ -985,6 +1008,21 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
 - **Falls back.** An object that has escaped, or one the compiler cannot prove is only held here, is not refused.
 - **See.** [failure.md: Nothing fails silently](../specs/failure.md#nothing-fails-silently-the-rule);
   `diagnostics/lost_writes`.
+
+### A name read from a list, assigned and never read, is an error
+
+- **Proves.** A local declared from an item of a `List` or a `Dictionary` (or from a function whose every
+  `return` answers one) is assigned a new value that nothing reads.
+- **Rule.** The assignment is the last place the local is named in the block that declares it, or in a branch of
+  an `if` or `switch` that is the last statement naming it, and no earlier statement assigns it. A loop that may
+  read it again, and a local made any other way, are left alone.
+- **Buys.** A write meant for the list, which would leave the list holding the old item, is a build error naming
+  the write to use: `list[index] = value`, or the function of the class holding the list that writes it.
+- **Falls back.** Not refused where the compiler cannot see the item's source (a list held in a local, a function
+  that may answer something else).
+- **See.** [memory.md: Assigning a name read from a list changes only the
+  name](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name);
+  `diagnostics/replaced_items`.
 
 ### What a `Parallel` may reach
 

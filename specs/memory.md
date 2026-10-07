@@ -89,6 +89,33 @@ parses as a `.member`/`.index` expression (an intercepted attribute read, `argum
 `attributes[attribute]` template form), tells every caller whether it is independently owned regardless of what
 the plain AST shape alone would suggest).
 
+### Assigning a name read from a list changes only the name
+
+A local declared from an item of a `List` or a `Dictionary` names that item: `var layout = layouts[index]` and
+`layout.width = 3` write the item the list holds. **Assigning the local names something else**: `layout = made`
+changes `layout` and leaves the list holding the old item. When nothing reads the local after that assignment, the
+assignment can only be a write meant for the list that never reaches it, so it is a compile error at the
+assignment:
+
+- **Read directly**: `'layout' was read from 'layouts[index]', so assigning it here changes only 'layout', and
+  nothing reads 'layout' after: 'layouts' still holds the old item. Write 'layouts[index] = made' to replace the
+  item, or give the new value a 'var' of its own` (`diagnostics/replaced_items`).
+- **Answered by a function**: a call to a function of the program whose every `return` answers an item of a `List`
+  or `Dictionary` attribute (or `null`), directly or through another such function, up to four calls deep. The
+  error names the item and its class, and the function of that class that writes the list when it has one:
+  `'layout' holds 'values[row]' of 'Column', answered by 'lookup.of(entity)', so assigning it here changes only
+  'layout', and nothing reads 'layout' after: 'Column' still holds the old item. Replace it through
+  'Column.write_at', which writes 'values', or give the new value a 'var' of its own`; with no such function, `Replace it through a
+  function of 'Column' that writes 'values[row]'`.
+
+The rule is judged in the block that declares the local, and in the branches of an `if` or a `switch` that is the
+last statement naming it: the assignment must be the last place the local is named, and no earlier statement may
+assign it (an earlier assignment means the old value is no longer the item). An assignment inside a `while` loop
+whose local is declared outside it may be read by the next pass and is left alone, as is a local declared from
+anything that is not an item read: a constructor, a `copy()`, a library function such as `first()`, or a function
+that may answer something else or reads its list through a local, a getter, a function value or a `type`. A
+library class is not checked.
+
 ### `--debug-memory`
 
 `--debug-memory` reports total allocations and frees right before the program exits (`allocations: N frees: N`),

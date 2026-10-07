@@ -1,0 +1,10 @@
+var x = 0
+var y = 0
+
+func Point(starting_x: Integer) {
+    x = starting_x
+}
+
+func bump() {
+    y = y + 10
+}

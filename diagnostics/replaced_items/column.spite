@@ -1,0 +1,11 @@
+var values = List<Layout>()
+
+func value_at(row: Integer): Layout {
+    crash values[row]
+    return values[row]
+}
+
+func write_at(row: Integer, value: Layout) {
+    crash row < values.count()
+    values[row] = value
+}

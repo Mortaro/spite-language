@@ -201,6 +201,9 @@ func is_alive(): Boolean {
   the same object. `copy()` copies one level, `deep_copy()` all the way down (through unions and `type` shapes by
   the class each value holds; a union value has `deep_copy()` too; never on a cycle). `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
+- `var item = list[index]` names the stored item: `item.x = 1` writes it, but `item = made` only renames the local,
+  and an assignment nothing reads after is an error; replace an item with `list[index] = made`. Writing back
+  `list[index] = item` after changing it costs nothing when nothing between can change the slot.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last` (both a `T?`, `null` on an empty list, like `[]`: `var first = names.first()` then `crash first`), `count`, `contains` (elements that are numbers, `Boolean`, `String`
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `index_of` (an `Integer?`, the same

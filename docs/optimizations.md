@@ -1447,6 +1447,80 @@ A function called on the element is looked up on the element's own class, not by
 particles, in a program whose counts are atomic, takes 211-252 µs a pass, against 833-896 µs when the name alone
 decided.
 
+### An item written back to its own slot is not written
+
+**What it does.** A plain loop over a list often reads an item into a name, changes it, and puts it back:
+
+```gdscript title=slot_write_back/particle.spite
+var left = 0
+var speed = 1
+
+func Particle(starting_speed: Integer) {
+    speed = starting_speed
+}
+```
+```gdscript title=slot_write_back/slot_write_back.spite entry
+var console = Console()
+var particles = List<Particle>()
+
+func SlotWriteBack() {
+    var index = 0
+    while index < 3 {
+        var made = Particle(index + 1)
+        particles.append(made)
+        index = index + 1
+    }
+    var tick = 0
+    while tick < 10 {
+        step()
+        tick = tick + 1
+    }
+    crash particles[2]
+    console.print(particles[2].left)
+}
+
+func step() {
+    var index = 0
+    while index < particles.count() {
+        var particle = particles[index]
+        particle.left = particle.left + particle.speed
+        particles[index] = particle
+        index = index + 1
+    }
+}
+```
+```output
+30
+```
+
+`particle` names the object the list holds, so `particle.left = ...` already changed the item, and
+`particles[index] = particle` puts back the object that is already there. When nothing between the read and the
+write can change that slot, the compiler writes no code for the write-back: no bounds check, no count up for the
+new value and down for the old one. And when nothing from the read to the end of the block can let the item go,
+the read takes no count either: `particle` is the item's address, read after the same bounds check, and is not
+released when the block ends. The loop above becomes:
+
+```c
+Particle* particle_ = ({ List_Particle* list = self->particles_; int32_t at = index_;
+    if (__builtin_expect(at < 0 || at >= list->item_count_, 0)) spite_outside_list("particles[index]", ...);
+    ((Particle**)(intptr_t)list->items_)[at]; });
+(particle_)->left_ = /* particle.left + particle.speed, overflow checked */;
+index_ = (index_ + 1);
+```
+
+What may come between, and what stops it, is [the proof](proofs.md#an-item-written-back-to-its-own-slot-is-the-slot):
+in short, nothing there may assign the name, the index or the path of the list, write into a list with `[]`, let go
+of an object, remove from or reorder a list, call through a function value or wait. When one of those is there,
+the write-back and the counted read are kept exactly as written, so the program means the same either way: a
+`points.reverse()` between the read and the write still puts the read object back at its index.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, in the program's own
+classes, for a `List` item read with `[]` into a `var` in the same block as the write-back. An item of a
+`Vector` or an `Items` is borrowed already and needs no write-back.
+
+**What you notice.** Speed. The loop above over 200,000 particles, 200 passes, goes from 112 ms to 44 ms (about
+2.8 ns an item to 1.1). Allocations, the order of everything a program can see and what it prints are the same.
+
 ### A number joined into text is written in place
 
 **What it does.** `"line {index} of {round};"` would turn `index` and `round` into texts of their own (two

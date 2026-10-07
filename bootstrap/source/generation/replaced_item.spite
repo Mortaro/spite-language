@@ -1,0 +1,10 @@
+var slot = ""
+var container = ""
+var owner = ""
+var writer = ""
+var call = ""
+
+func ReplacedItem(read_slot: String, read_container: String) {
+    slot = read_slot
+    container = read_container
+}

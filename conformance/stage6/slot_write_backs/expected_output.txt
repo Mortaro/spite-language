@@ -1,0 +1,8 @@
+moved 0,30 4,30 8,30 12,30
+replaced 0,0 1,0 2,0 3,0
+reversed 0,0 2,0 1,0 0,0
+shifted 0,0 0,0 2,0 3,0
+narrowed 0,0 1,0 2,10 3,0
+counted 1 7
+removed 0,0 2,0 3,0
+overwritten 0,0 1,0 2,0 3,0

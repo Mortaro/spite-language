@@ -1,0 +1,16 @@
+var name = ""
+var slot_text = ""
+var list_text = ""
+var guarded = List<String>()
+var locals = List<String>()
+var keys = List<String>()
+var uncounted = false
+var write_back_allowed = false
+var constructs = false
+var object_locals = false
+
+func SlotWatch(watched_name: String, watched_slot: String, watched_list: String) {
+    name = watched_name
+    slot_text = watched_slot
+    list_text = watched_list
+}

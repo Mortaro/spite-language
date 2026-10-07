@@ -131,9 +131,11 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
-- (found 2026-10-07 by the naive engine) A component read out of a plain `List<T>` column into a local
-  (`var x = lookup.of(entity)`) and then assigned (`x = made`) compiles and stores nothing in the list. Must be a
-  compile error naming the list write to use, as the borrowed-items rule did for `Items<T>`.
+- (found 2026-10-07 by the naive engine; the common forms are refused since D515) A local read from a list and
+  assigned a value nothing reads is a compile error ([specs/memory.md](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name)),
+  but two forms still compile without a word: the assignment inside a `while` loop whose local is declared outside
+  it, when nothing in or after the loop reads it; and an item answered by a function the rule cannot follow (one
+  reading the list through a local, a getter, a function value, a `type`, or a library function such as `first()`).
 
 Moved whole from the old "Still open" list under the rule (each is a bug under D244, recorded so it is not mistaken
 for a design):
@@ -859,6 +861,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   inlines them across units, but [folding](#identical-functions-are-folded-into-one) can call one through a
   pointer kept in another unit, which is not measured yet (`spite_folded_List_Integer_count` in the naive engine's runner); a shape's or
   union's retain and release stay ordinary functions.
+
+### An item written back to its own slot is not written
+
+- Built (pair B2 of [naive_programs_pairs.md](naive_programs_pairs.md), and B1 where the same proof holds; decided
+  by Claude under D509, to confirm). Not built: the write-back and the read in different blocks or different
+  functions (the naive engine's runner fills a row in one function and stores it in another, with the system
+  called between, so its stress test does not change); a copy written back (`var row = list[index].copy()`, changed,
+  then `list[index] = row`), which is the slot only when no other name can hold the stored object (pair L1's proof);
+  a `Dictionary` slot; an uncounted read whose name is passed, kept, compared or returned; the optimisation report
+  does not yet say why a write-back was kept.
 
 ### Identical functions are folded into one
 

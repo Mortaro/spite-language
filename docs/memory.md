@@ -43,6 +43,33 @@ original label b
 ([functions_and_operators.md](functions_and_operators.md#every-operator-is-a-function)); otherwise it asks
 whether they are the same object. A `String` always compares by content.
 
+### A name read from a list names the item, until you assign it
+
+`var box = boxes[0]` names the box the list holds, so `box.label = "b"` changes the box in the list. Assigning
+`box` is different: `box = Box("c")` makes the name hold another box and leaves the list holding the first one.
+When nothing reads `box` after that, the assignment was meant for the list, and the compiler says so:
+
+```gdscript
+var boxes = List<Box>()
+
+func relabel(replacement: Box) {
+    crash boxes[0]
+    var box = boxes[0]
+    box.label = "b"
+    box = replacement
+}
+```
+
+```
+'box' was read from 'boxes[0]', so assigning it here changes only 'box', and nothing reads 'box' after:
+'boxes' still holds the old item. Write 'boxes[0] = replacement' to replace the item, or give the new value a
+'var' of its own
+```
+
+The same holds for a name answered by a function that returns an item of a list, such as a lookup that answers
+`values[row]`: the error names the class holding the list and its function that writes it
+([the rules](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name)).
+
 ## Do: call `copy()`/`deep_copy()` for an independent object
 
 `copy()` makes a fresh object with the same attributes (still shared references for any attribute that is

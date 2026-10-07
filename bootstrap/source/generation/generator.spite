@@ -25011,6 +25011,7 @@ func generate_variable_declaration(
 ) {
     scope.forget_room(declaration.name)
     assert declaration.value
+    report_replaced_item(declaration, scope, class_information)
     assert not constant_local(declaration, scope, class_information)
     assert not folds_dictionary_local(declaration, scope, class_information)
     folded_dictionaries.remove(declaration.name)
@@ -25036,6 +25037,16 @@ func generate_variable_declaration(
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
         borrowed_names.append(declaration.name)
+        return
+    }
+    var uncounted = uncounted_slot_read(declaration, scope, class_information)
+    if not uncounted.is_empty() {
+        var read_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+        mark_names_used_in(declaration.value, scope)
+        builder.add_user("{c_type_name(read_type)} {c_value_name(declaration.name)} = {uncounted};")
+        scope.declare(declaration.name, read_type)
+        scope.check_last(current_line)
+        check_value_name(declaration.name, "variable")
         return
     }
     assert not lends_to_local(declaration, scope, class_information)
@@ -28706,6 +28717,884 @@ func element_may_be_source(resized: String, links: List<String>, local_root: Boo
     return element_class == source_class
 }
 
+# ../../../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written
+func elides_slot_write_back(
+    assignment: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash assignment.target
+    crash assignment.value
+    var target = shape.as_index(assignment.target)
+    var written = shape.as_identifier(assignment.value)
+    if not target or not written or not slot_proofs_allowed(class_information) {
+        return false
+    }
+    var here = borrow_index
+    if here >= borrow_statements.count() {
+        return false
+    }
+    var at_write = shape.as_assignment_statement(borrow_statements[here])
+    if not at_write {
+        return false
+    }
+    if at_write.line != assignment.line {
+        return false
+    }
+    var watch = slot_watch_for(written.name, target, assignment.target, scope, class_information)
+    if not watch {
+        return false
+    }
+    var read_at = slot_read_before(watch, borrow_statements, here)
+    if read_at < 0 {
+        return false
+    }
+    var written_type = scope.written_type(written.name)
+    if not written_type or type_shape.as_nullable(written_type) {
+        return false
+    }
+    var element = slot_element_type(target, scope, class_information)
+    if not element or not types_equal(written_type, element) {
+        return false
+    }
+    watch.write_back_allowed = true
+    var lookahead = Scope(scope)
+    if not slot_window_holds(watch, borrow_statements, read_at + 1, here, lookahead, class_information) {
+        return false
+    }
+    return slot_watch_settles(watch)
+}
+
+# ../../../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written
+func uncounted_slot_read(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if declaration.type_reference or not slot_proofs_allowed(class_information) {
+        return ""
+    }
+    if scope.entry_names.contains(declaration.name) or not declares_here(declaration) {
+        return ""
+    }
+    crash declaration.value
+    var read = shape.as_index(declaration.value)
+    if not read {
+        return ""
+    }
+    crash read.object
+    crash read.index
+    var holder = shape.as_identifier(read.object)
+    if not holder {
+        return ""
+    }
+    var watch = slot_watch_for(declaration.name, read, declaration.value, scope, class_information)
+    if not watch {
+        return ""
+    }
+    var element = slot_element_type(read, scope, class_information)
+    if not element {
+        return ""
+    }
+    var class_reference = type_shape.as_class_ref(element)
+    if not class_reference or class_reference.has_signature {
+        return ""
+    }
+    watch.uncounted = true
+    watch.write_back_allowed = true
+    watch.guarded = watch.list_text.split(".")
+    var declared_type = infer_declared_type(null, declaration.value, scope, class_information)
+    var lookahead = Scope(scope)
+    lookahead.declare(declaration.name, declared_type)
+    var statements = borrow_statements
+    var start = borrow_index + 1
+    var end = statements.count()
+    if not slot_window_holds(watch, statements, start, end, lookahead, class_information) {
+        return ""
+    }
+    if not slot_watch_settles(watch) {
+        return ""
+    }
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    crash list_type
+    var list_code = generate_expression(read.object, scope, class_information)
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(read.index, integer_spite_type, scope, class_information)
+    var list_temporary = next_temporary()
+    var index_temporary = next_temporary()
+    var item = list_item_code(element, list_temporary, index_temporary)
+    var outside = "{index_temporary} < 0 || {index_temporary} >= ({list_temporary})->item_count_"
+    var opening = "(\{ {c_type_name(list_type)} {list_temporary} = {list_code.code}; int32_t {index_temporary} = {index_code};"
+    if type_shape.as_nullable(declared_type) {
+        return "{opening} ({outside}) ? 0 : {item}; })"
+    }
+    ensure_index_check()
+    var printer = Syntax.SourcePrinter()
+    var read_source = printer.source_expression(declaration.value)
+    var read_text = escape_c_string(read_source)
+    var where = located(current_path, current_line, current_owner, current_function)
+    return "{opening} if (__builtin_expect({outside}, 0)) spite_outside_list(\"{read_text}\", {where}); {item}; })"
+}
+
+func slot_proofs_allowed(class_information: Analysis.ClassInfo): Boolean {
+    if hot_reload or read_evaluate_print_loop or remote_loop_port != 0 or keeps_internals or resumable_mode {
+        return false
+    }
+    return not is_library_class(class_information)
+}
+
+func slot_watch_for(
+    name: String,
+    read: Syntax.Expressions.IndexExpression,
+    slot: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): SlotWatch? {
+    crash read.object
+    crash read.index
+    var list_text = operand_text(read.object)
+    var slot_text = operand_text(slot)
+    assert not list_text.is_empty() and not slot_text.is_empty() and plain_path(read.object)
+    var element = slot_element_type(read, scope, class_information)
+    assert element
+    assert not type_shape.as_nullable(element)
+    var index_name = shape.as_identifier(read.index)
+    assert index_name or shape.as_integer_literal(read.index)
+    var watch = SlotWatch(name, slot_text, list_text)
+    watch.guarded = list_text.split(".")
+    if index_name {
+        watch.guarded.append(index_name.name)
+    }
+    assert not watch.guarded.contains(name)
+    return watch
+}
+
+func plain_path(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_identifier(expression) {
+        return true
+    }
+    var member = shape.as_member(expression)
+    if not member {
+        return false
+    }
+    crash member.object
+    return plain_path(member.object)
+}
+
+func slot_element_type(
+    read: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    crash read.object
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    assert list_type
+    var listed = type_shape.as_list(list_type)
+    assert listed
+    return listed.element
+}
+
+func slot_read_before(watch: SlotWatch, statements: List<Syntax.Statements.Statement>, here: Integer): Integer {
+    var index = here - 1
+    while index >= 0 {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            if declared.name == watch.name {
+                crash declared.value
+                if declared.type_reference or not shape.as_index(declared.value) {
+                    return -1
+                }
+                if operand_text(declared.value) != watch.slot_text {
+                    return -1
+                }
+                return index
+            }
+        }
+        index = index - 1
+    }
+    return -1
+}
+
+func slot_window_holds(
+    watch: SlotWatch,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    end: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < end {
+        if not slot_statement_holds(watch, statements[index], scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func slot_block_holds(
+    watch: SlotWatch,
+    statements: List<Syntax.Statements.Statement>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var inner = Scope(scope)
+    var end = statements.count()
+    return slot_window_holds(watch, statements, 0, end, inner, class_information)
+}
+
+func slot_statement_holds(
+    watch: SlotWatch,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            if statement.name == watch.name or watch.guarded.contains(statement.name) {
+                return false
+            }
+            crash statement.value
+            if not slot_expression_holds(watch, statement.value, scope, class_information) {
+                return false
+            }
+            watch.locals.append(statement.name)
+            declare_ahead(statement, scope, class_information)
+            var declared_type = scope.written_type(statement.name)
+            if not declared_type or type_needs_drop(declared_type) {
+                watch.object_locals = true
+            }
+            return true
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            if not slot_target_holds(watch, statement.target, statement.value, scope, class_information) {
+                return false
+            }
+            if shape.as_index(statement.target) {
+                return true
+            }
+            return slot_expression_holds(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            if not is_identifier_named(statement.condition, watch.name) {
+                if not slot_expression_holds(watch, statement.condition, scope, class_information) {
+                    return false
+                }
+            }
+            if not slot_block_holds(watch, statement.then_branch, scope, class_information) {
+                return false
+            }
+            return slot_block_holds(watch, statement.else_branch, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            if not slot_expression_holds(watch, statement.condition, scope, class_information) {
+                return false
+            }
+            return slot_block_holds(watch, statement.body, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            if is_identifier_named(statement.value, watch.name) {
+                var guarded_type = scope.written_type(watch.name)
+                if not guarded_type {
+                    return false
+                }
+                var maybe = type_shape.as_nullable(guarded_type)
+                if maybe {
+                    var present_type = maybe.inner
+                    scope.declare(watch.name, present_type)
+                }
+                return true
+            }
+            return slot_expression_holds(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                return slot_expression_holds(watch, statement.value, scope, class_information)
+            }
+            return true
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return slot_expression_holds(watch, statement.value, scope, class_information)
+        }
+        _: return false
+    }
+}
+
+func slot_target_holds(
+    watch: SlotWatch,
+    target: Syntax.Expressions.Expression,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var identifier = shape.as_identifier(target)
+    if identifier {
+        if identifier.name == watch.name or watch.guarded.contains(identifier.name) {
+            return false
+        }
+        var local_type = scope.written_type(identifier.name)
+        if local_type {
+            if type_needs_drop(local_type) {
+                watch.object_locals = true
+            }
+            return true
+        }
+        var field = class_information.find_field(identifier.name)
+        if not field or class_information.find_function("set_{identifier.name}") {
+            return false
+        }
+        var field_type = field.type
+        if type_needs_drop(field_type) {
+            watch.object_locals = true
+        }
+        return true
+    }
+    if shape.as_index(target) {
+        watch.object_locals = true
+        return watch.write_back_allowed and operand_text(target) == watch.slot_text and is_identifier_named(value, watch.name)
+    }
+    var member = shape.as_member(target)
+    if not member {
+        return false
+    }
+    crash member.object
+    if watch.guarded.contains(member.name) {
+        return false
+    }
+    if not is_identifier_named(member.object, watch.name) {
+        if not slot_expression_holds(watch, member.object, scope, class_information) {
+            return false
+        }
+    }
+    var holder_type = receiver_type_of(member.object, scope, class_information)
+    if not holder_type {
+        return false
+    }
+    var holder_class = class_behind(holder_type)
+    if not holder_class or holder_class.find_function("set_{member.name}") {
+        return false
+    }
+    var written_field = holder_class.find_field(member.name)
+    if not written_field {
+        return false
+    }
+    var written_type = written_field.type
+    if type_needs_drop(written_type) {
+        watch.object_locals = true
+    }
+    return true
+}
+
+func slot_expressions_hold(
+    watch: SlotWatch,
+    expressions: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        var expression = expressions[index]
+        var passed = operand_text(expression)
+        if passed.is_empty() and not shape.as_identifier(expression) and not shape.as_member(expression) {
+            if not slot_expression_holds(watch, expression, scope, class_information) {
+                return false
+            }
+        } else {
+            if passed == watch.list_text or watch.list_text.starts_with("{passed}.") {
+                return false
+            }
+            if not slot_expression_holds(watch, expression, scope, class_information) {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func slot_expression_holds(
+    watch: SlotWatch,
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            if not slot_expressions_hold(watch, expression.arguments, scope, class_information) {
+                return false
+            }
+            return slot_call_holds(watch, expression.callee, scope, class_information)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            if not slot_expressions_hold(watch, expression.arguments, scope, class_information) {
+                return false
+            }
+            var constructed_class = effects_class_of(expression.callee, class_information)
+            var constructed = called_name_of(expression.callee)
+            var key = call_effects.effects_key(constructed_class, constructed)
+            watch.constructs = true
+            return slot_key_holds(watch, key)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if operators_release() {
+                return false
+            }
+            if not slot_expression_holds(watch, expression.left, scope, class_information) {
+                return false
+            }
+            return slot_expression_holds(watch, expression.right, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return slot_expression_holds(watch, expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if any_releases("get_{expression.name}") {
+                return false
+            }
+            if is_identifier_named(expression.object, watch.name) {
+                return true
+            }
+            return slot_expression_holds(watch, expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var indexed_type = receiver_type_of(expression.object, scope, class_information)
+            if not indexed_type {
+                return false
+            }
+            if not type_shape.as_list(indexed_type) and not type_shape.as_dictionary(indexed_type) {
+                return false
+            }
+            if not slot_expression_holds(watch, expression.object, scope, class_information) {
+                return false
+            }
+            return slot_expression_holds(watch, expression.index, scope, class_information)
+        }
+        Syntax.Expressions.IdentifierExpression: return not watch.uncounted or expression.name != watch.name
+        Syntax.Expressions.StringLiteralExpression: return not expression.value.contains("\{")
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        _: return false
+    }
+}
+
+func slot_call_holds(
+    watch: SlotWatch,
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(callee)
+    if member {
+        crash member.object
+        if operand_text(member.object) == watch.list_text {
+            var reads = ["count", "is_empty", "get_at", "contains", "index_of", "first", "last"]
+            return reads.contains(member.name)
+        }
+        if member.name == "call_function" {
+            return false
+        }
+        if not is_identifier_named(member.object, watch.name) {
+            if not slot_expression_holds(watch, member.object, scope, class_information) {
+                return false
+            }
+        }
+    } else if not shape.as_identifier(callee) {
+        return false
+    }
+    var key = called_effects_key(callee, scope, class_information)
+    return slot_key_holds(watch, key)
+}
+
+func slot_key_holds(watch: SlotWatch, key: String): Boolean {
+    if key.is_empty() {
+        return false
+    }
+    var effects = call_effects.by_function[key]
+    if not effects {
+        return false
+    }
+    var index = 0
+    while index < effects.keys.count() {
+        var effect = effects.keys[index]
+        if effect == "release" or effect == "field:*" or effect == "grow:*" {
+            return false
+        }
+        if effect.starts_with("shrink:") or effect.starts_with("parameter:") or effect.starts_with("grow:parameter:") {
+            return false
+        }
+        if effect.starts_with("field:") {
+            var parts = effect.split("#")
+            var written = parts.last()
+            if not written or watch.guarded.contains(written) {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    watch.keys.append(key)
+    return true
+}
+
+func slot_watch_settles(watch: SlotWatch): Boolean {
+    var reached_classes = call_effects.reached_classes(watch.keys)
+    var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
+    var index = 0
+    while index < blocking.count() {
+        if reached_classes.has(blocking[index]) {
+            return false
+        }
+        index = index + 1
+    }
+    var reached = call_effects.reached_functions(watch.keys)
+    var reached_names = reached.keys()
+    index = 0
+    while index < reached_names.count() {
+        var reached_name = reached_names[index]
+        if moves_items(reached_name) {
+            return false
+        }
+        index = index + 1
+    }
+    if drops_may_release() and (watch.constructs or watch.object_locals or not watch.keys.is_empty()) {
+        return false
+    }
+    return true
+}
+
+# ../../../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name
+func report_replaced_item(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert not is_library_class(class_information) and declares_here(declaration)
+    assert not scope.entry_names.contains(declaration.name)
+    crash declaration.value
+    var source = item_read_of(declaration.value, scope, class_information)
+    assert source
+    var replaced = List<Syntax.Statements.AssignmentStatement>()
+    replaced_assignments(declaration.name, borrow_statements, borrow_index + 1, replaced)
+    var printer = Syntax.SourcePrinter()
+    var saved_line = current_line
+    var index = 0
+    while index < replaced.count() {
+        var assignment = replaced[index]
+        crash assignment.value
+        current_line = assignment.line
+        var value_text = printer.source_expression(assignment.value)
+        var name = declaration.name
+        if source.owner.is_empty() {
+            report(
+                "'{name}' was read from '{source.slot}', so assigning it here changes only '{name}', and nothing reads '{name}' after: '{source.container}' still holds the old item. Write '{source.slot} = {value_text}' to replace the item, or give the new value a 'var' of its own",
+            )
+        } else if source.writer.is_empty() {
+            report(
+                "'{name}' holds '{source.slot}' of '{source.owner}', answered by '{source.call}', so assigning it here changes only '{name}', and nothing reads '{name}' after: '{source.owner}' still holds the old item. Replace it through a function of '{source.owner}' that writes '{source.slot}', or give the new value a 'var' of its own",
+            )
+        } else {
+            report(
+                "'{name}' holds '{source.slot}' of '{source.owner}', answered by '{source.call}', so assigning it here changes only '{name}', and nothing reads '{name}' after: '{source.owner}' still holds the old item. Replace it through '{source.owner}.{source.writer}', which writes '{source.container}', or give the new value a 'var' of its own",
+            )
+        }
+        index = index + 1
+    }
+    current_line = saved_line
+}
+
+func item_read_of(
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ReplacedItem? {
+    var printer = Syntax.SourcePrinter()
+    var read = shape.as_index(value)
+    if read {
+        crash read.object
+        var holder_type = receiver_type_of(read.object, scope, class_information)
+        assert holder_type and holds_list_items(holder_type)
+        var slot_text = printer.source_expression(value)
+        var container_text = printer.source_expression(read.object)
+        return ReplacedItem(slot_text, container_text)
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var answering: Analysis.ClassInfo? = null
+    var answered: Analysis.FunctionInfo? = null
+    var named = shape.as_identifier(call.callee)
+    if named {
+        assert not scope.written_type(named.name) and not class_information.find_field(named.name)
+        answering = class_information
+        answered = class_information.find_function(named.name)
+    }
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        var receiver_type = receiver_type_of(member.object, scope, class_information)
+        assert receiver_type and type_shape.as_class_ref(receiver_type)
+        answering = class_behind(receiver_type)
+        assert answering
+        answered = answering.find_function(member.name)
+    }
+    assert answering and answered
+    var found = answered_item(answering, answered, 0)
+    assert found
+    found.call = printer.source_expression(value)
+    return found
+}
+
+func holds_list_items(holder_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_nullable(holder_type) {
+        return false
+    }
+    return type_shape.as_list(holder_type) or type_shape.as_dictionary(holder_type)
+}
+
+func answered_item(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, depth: Integer): ReplacedItem? {
+    assert depth < 4 and function.has_body and not function.is_constructor and not is_library_class(owner)
+    var returned = List<Syntax.Expressions.Expression>()
+    collect_item_returns(function.body, returned)
+    assert not returned.is_empty()
+    var found: ReplacedItem? = null
+    var index = 0
+    while index < returned.count() {
+        var value = returned[index]
+        var item = returned_item(owner, function, value, depth)
+        assert item
+        if not found {
+            found = item
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func collect_item_returns(
+    statements: List<Syntax.Statements.Statement>,
+    returned: List<Syntax.Expressions.Expression>,
+) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        switch statement {
+            Syntax.Statements.ReturnStatement: {
+                if statement.value {
+                    if not shape.is_null_literal(statement.value) {
+                        returned.append(statement.value)
+                    }
+                }
+            }
+            Syntax.Statements.IfStatement: {
+                collect_item_returns(statement.then_branch, returned)
+                collect_item_returns(statement.else_branch, returned)
+            }
+            Syntax.Statements.WhileStatement: collect_item_returns(statement.body, returned)
+            Syntax.Statements.SwitchStatement: {
+                var case_index = 0
+                while case_index < statement.cases.count() {
+                    collect_item_returns(statement.cases[case_index].body, returned)
+                    case_index = case_index + 1
+                }
+            }
+            _: {}
+        }
+        index = index + 1
+    }
+}
+
+func returned_item(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    value: Syntax.Expressions.Expression,
+    depth: Integer,
+): ReplacedItem? {
+    var printer = Syntax.SourcePrinter()
+    var read = shape.as_index(value)
+    if read {
+        crash read.object
+        var holder_type = item_holder_type(owner, function, read.object)
+        assert holder_type and holds_list_items(holder_type)
+        var slot_text = printer.source_expression(value)
+        var container_text = printer.source_expression(read.object)
+        var item = ReplacedItem(slot_text, container_text)
+        item.owner = owner.simple_name
+        item.writer = item_writer(owner, container_text)
+        return item
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var named = shape.as_identifier(call.callee)
+    if named {
+        assert not item_holder_type(owner, function, call.callee)
+        var own = owner.find_function(named.name)
+        assert own
+        return answered_item(owner, own, depth + 1)
+    }
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver_type = item_holder_type(owner, function, member.object)
+    assert receiver_type and type_shape.as_class_ref(receiver_type)
+    var receiver_class = class_behind(receiver_type)
+    assert receiver_class
+    var called = receiver_class.find_function(member.name)
+    assert called
+    return answered_item(receiver_class, called, depth + 1)
+}
+
+func item_holder_type(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    expression: Syntax.Expressions.Expression,
+): Analysis.SpiteType? {
+    var named = shape.as_identifier(expression)
+    if named {
+        var index = 0
+        while index < function.parameters.count() {
+            var parameter = function.parameters[index]
+            if parameter.name == named.name {
+                return parameter.type
+            }
+            index = index + 1
+        }
+        var field = owner.find_field(named.name)
+        assert field and not owner.find_function("get_{named.name}")
+        return field.type
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    var holder_type = item_holder_type(owner, function, member.object)
+    assert holder_type and type_shape.as_class_ref(holder_type)
+    var holder_class = class_behind(holder_type)
+    assert holder_class and not holder_class.find_function("get_{member.name}")
+    var member_field = holder_class.find_field(member.name)
+    assert member_field
+    return member_field.type
+}
+
+func item_writer(owner: Analysis.ClassInfo, container_text: String): String {
+    var index = 0
+    while index < owner.declared_functions.count() {
+        var function = owner.declared_functions[index]
+        if not function.is_constructor and writes_container(function.body, container_text) {
+            return function.name
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func writes_container(statements: List<Syntax.Statements.Statement>, container_text: String): Boolean {
+    var printer = Syntax.SourcePrinter()
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var assignment = shape.as_assignment_statement(statement)
+        if assignment {
+            crash assignment.target
+            var written = shape.as_index(assignment.target)
+            if written {
+                crash written.object
+                if printer.source_expression(written.object) == container_text {
+                    return true
+                }
+            }
+        }
+        var branched = shape.as_if_statement(statement)
+        if branched {
+            if writes_container(branched.then_branch, container_text) or writes_container(branched.else_branch, container_text) {
+                return true
+            }
+        }
+        var looped = shape.as_while_statement(statement)
+        if looped {
+            if writes_container(looped.body, container_text) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func replaced_assignments(
+    name: String,
+    statements: List<Syntax.Statements.Statement>,
+    from: Integer,
+    replaced: List<Syntax.Statements.AssignmentStatement>,
+) {
+    var last = -1
+    var index = from
+    while index < statements.count() {
+        var mentioned = List<String>()
+        collect_statement_names(statements[index], mentioned)
+        if mentioned.contains(name) {
+            last = index
+        }
+        index = index + 1
+    }
+    assert last >= 0
+    index = from
+    while index < last {
+        assert not statement_assigns(name, statements[index])
+        index = index + 1
+    }
+    crash statements[last]
+    var statement = statements[last]
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            if is_identifier_named(statement.target, name) {
+                replaced.append(statement)
+            }
+        }
+        Syntax.Statements.IfStatement: {
+            replaced_assignments(name, statement.then_branch, 0, replaced)
+            replaced_assignments(name, statement.else_branch, 0, replaced)
+        }
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                replaced_assignments(name, statement.cases[case_index].body, 0, replaced)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func moves_items(key: String): Boolean {
+    var moving = ["#reverse", "#move_items", "#swap", "#_swap", "#swap_values"]
+    var index = 0
+    while index < moving.count() {
+        if key.ends_with(moving[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func borrowed_element(
     declaration: Syntax.Statements.VariableDeclaration,
     scope: Scope,
@@ -29966,7 +30855,10 @@ func generate_assignment(
             return
         }
     }
-    if not stores_framed_object(assignment, scope, class_information) {
+    if elides_slot_write_back(assignment, scope, class_information) {
+        mark_names_used_in(assignment.target, scope)
+        mark_names_used_in(assignment.value, scope)
+    } else if not stores_framed_object(assignment, scope, class_information) {
         generate_store(assignment, scope, class_information)
     }
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
