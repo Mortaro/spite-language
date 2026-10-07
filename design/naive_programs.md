@@ -164,5 +164,5 @@ pair, what the backend can do that C cannot express (no-alias facts per field, p
 
 ## Still open
 
-- **Q4.** D505's conditions beyond the decision itself (only bare calls, only calls that reach a loop, only
-  objects told apart by class) are proposed by Claude, unconfirmed. Confirm, or say what to change.
+Nothing. D505's limits and the run-time branch were decided by Claude under D509 (D510) and wait in
+`mortaros_missing_decisions.md` under "To confirm".

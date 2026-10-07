@@ -247,6 +247,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [control_flow.md](../docs/control_flow.md)
 
+- D510 (item 281): a loop that can never leave and whose calls can neither end the program nor wait is a compile
+  error. Not documented on the page and not built.
+
 ### Control flow in full
 - No implementation status was stated on this page beyond `[implemented]` tags (all removed); nothing is unbuilt.
 - Unconfirmed proposals by Claude, removed from the page and still awaiting Mortaro: the "statement ends with its line" messages (D244), the value-`switch` case syntax, other kinds and messages (D239), the threshold and message of the `if`-chain-to-`switch` error (D239), the exact shape of the "while a member template already says" check and which callees count for `f(item)` forms (D171), and the choice that a local `--repl` build gets no check point in `while` (D174 names `--repl` builds; D147 argues none).
@@ -576,6 +579,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [collections.md](../docs/collections.md)
 
+- D510 (item 280): `each_<member>(...)` passing extra arguments to the member on every element. Not documented on the
+  page and not built; `BinaryFormat`'s plural walk and backlog J1's binary half wait on it.
+
 ### Standard library metaprogramming
 - Names still provisional (proposed by Claude, unconfirmed by Mortaro): `Items`, `remove_swapping`, `remove_where`,
   `truncate`, `swap`, `first()`/`last()` answering `T?`, `reserve`. The page used to say "name provisional".
@@ -656,6 +662,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Section was tagged implemented on Windows; the shape is proposed by Claude and unconfirmed (see the first bullet for the open items). Only the model (D127) and the type names are decided.
 
 ## [game_maths.md](../docs/game_maths.md)
+
+- D510 (item 300): `Fraction<$number_type>` in signatures, so `normalized()` and friends answer the fractional
+  class (D486). Not documented on the page and not built.
 
 ### Game maths
 - The whole section was tagged implemented; nothing is missing. Open point only: the names and conventions (layout,

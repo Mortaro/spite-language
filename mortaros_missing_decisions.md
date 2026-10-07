@@ -11,58 +11,27 @@ thing; prevent mistakes rather than offer options; storage owns its items and ot
 
 Every other item is answered: the 14 principle answers by D369, and every confirmation of what agents decided by
 D370, 76 by D371, 235 by D372, 161 by D373 and 105 by
-D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500, 299 by D501 (2026-10-03); 275 by D503, 302 by D504, 304 by D505 (2026-10-04). Earlier answers are listed in each row of `design/decisions.md`.
+D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by D383, 257 by D382, 258 by D384, 261 by D385, 253 by D386, 255 by D387, 259 by D388, 260 by D389, 262 by D390, 251 by D391, 263 by D394 (2026-10-02); 266 to 296 by D468 to D488, and 268, 269, 271 and 276 to 279 by D493 to D497, 298 by D498, 301 by D499, 291 by D500, 299 by D501 (2026-10-03); 275 by D503, 302 by D504, 304 by D505 (2026-10-04); 280, 281, 284, 297, 300 and 303 by D510, decided by Claude under D509 and listed under To confirm (2026-10-07). Earlier answers are listed in each row of `design/decisions.md`.
+
+## To confirm
+
+Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
+"confirmed" or give the other answer, and the agent changes it.
+
+- **D510, item 280**: a walk's extra values are extra arguments to `each_<member>(...)`. Why: keeps the binary
+  format's walker a stateless singleton, no allocation and no state shared between threads.
+- **D510, item 281**: a loop that can never leave, and whose calls can neither end the program nor wait, is a
+  compile error. No time-based halt, since it would misfire on long computations.
+- **D510, item 284**: the callback ticket table stays C until the backend primitives get a home.
+- **D510, item 297**: strings, numbers and generic classes stay refused as union members; wrap them in a class.
+- **D510, item 300**: `Fraction<$number_type>` names a number's fractional class (`Double` stays `Double`). Why:
+  making everything `Float` would silently lose precision for `Double` programs.
+- **D510, item 303**: `move_to` never replaces an existing file; delete it first if you mean to.
+- **D510, D505's limits**: calls in a row overlap only as bare calls without arguments that reach a loop, with
+  objects told apart by class. Widening them is planned work, not a question.
+- **D510, D508's run-time branch**: an optimisation may leave one branch between two forms compiled in advance,
+  on a fact only the run knows (a list's length). Never a scheduler.
 
 ## Open
 
-280. **How a walk passes values beyond the element.** `each` hands only the element; a walk that needs more (a
-     value, a writer) keeps it in attributes of the walking object today. Options: (a) that is the way (one
-     argument, state in the walker, as D384's serializers do); (b) `each` with extra arguments. Recommend (a).
-     Found building backlog J1 (D244): (a) is fine where the walker is made per call (`JsonWriter`, `JsonReader`),
-     but `BinaryFormat<T>` and `Spite.DebugInstance<T>` are singletons every thread shares, so state in them
-     corrupts memory when two `Parallel`s write or show a value at once (tried), and a walker made per value would
-     cost an allocation per nested object and per enum value that the binary format does not make today. With (a),
-     the binary walk needs a walker made per call, or a reentrant per-call lock from the compiler; with (b), it stays
-     a stateless singleton at no cost. `BinaryFormat` keeps its plural walk until this is answered; now recommend
-     (b), the only form that keeps the binary format at zero allocations without shared state. Blocks backlog J1's
-     binary half and R7.
-281. **When a waiting loop counts as a hang** (backlog B6 and B15; failure.md's open list). The polling half is
-     settled by D475: a loop that reads `finished` and calls nothing is a compile error, and the million-poll halt
-     stays as the backstop. Left: a `while true` that can never leave but calls something hangs without a word
-     outside `Parallel` work and locked singletons. Options: (a) a compile error wherever no exit is reachable and
-     no called function can end the program or wait; (b) a run-time halt after a long time with no wait and no
-     output; (c) both. Recommend (a): what the compiler can see is refused while compiling (D474), and a halt
-     guessed from time would misfire on long computations.
-284. **A dropped `ForeignCallback`'s ticket table is C** (D361; backlog F3, built). A context callback now hands C
-     a ticket (a table slot and a reuse count), so a call through a dropped context halts naming the function. The
-     table is C the generator writes, carried only by programs that make context callbacks. Options: (a) keep it C
-     until C9 gives the backend primitives a home; (b) write it now as a library singleton the emitted C calls.
-     Recommend (a): it is a few lines beside the callback C that already exists, and C9 moves both together.
-297. **Values and generic classes as union members** (D459, D244; values_and_types.md "Unions in full"). A union
-     with `String`, a number, `Boolean` or `List<Byte>` among its members was accepted and then failed later with
-     an error that did not name the cause. It is now refused where the union is declared, saying to wrap the value
-     in a class of the program's own. Options: (a) **refuse them**, as built: a union is a set of classes a `switch`
-     tests by the header's class, which a value does not have; (b) make them work: a value member boxed with a tag
-     (as `String?` already is), and a generic member tested with its codegen values (`List<Byte>`, as
-     `found == Storage<$component_type>` is). Recommend (a): one representation of a union, and wrapping costs one
-     small class. Blocks nothing; (b) can be built later without breaking a program written for (a).
-300. **How a signature names a number's fractional class** (D486, answering item 290). D486 makes
-     `Vector3(3, 4, 12).normalized()` a `Vector3<Float>`, but a generic class can only name `$number_type` itself
-     in a signature, so `Vector3<$number_type>.normalized()` has no way to say "the fractional class of
-     `$number_type`". Options: (a) a type the compiler works out, `Fraction<$number_type>` (`Float` for every whole
-     number up to 32 bits, `Double` for `Long` and `UnsignedLong`, the class itself for `Float` and `Double`), so
-     the library writes `func normalized(): Vector3<Fraction<$number_type>>`; (b) a codegen value with a default
-     worked out from another, `generic $fraction_type = $number_type.fraction`; (c) (asked by Mortaro, 2026-10-04)
-     every number's fractional class is `Float`, `Double` included, so the signature is just
-     `func normalized(): Vector3<Float>` and nothing new is needed. Against (c): a `Float` keeps about 7 significant
-     digits whatever its size, so being under 1 does not make it safe. Two `Double` directions less than about
-     0.014 degrees apart get a `Float` dot product of exactly 1, so the angle between them reads 0 (240 m off at
-     1000 km). That is a silent wrong value (D244), and a program that chose `Double` chose it for that precision.
-     Recommend (a): one type, readable where it is used, and nothing a program writes changes. Blocks building
-     D486.
-303. **Does `move_to(path)` replace what is already there?** (D476, D244, D205; standard_library.md "Rename or move
-     a file or folder".) Built so that it never does: when a file or folder is at `path` it answers `false` and
-     changes nothing, since the system calls (`rename`, `MoveFileExA`) would silently replace a file. Options: (a)
-     never replace (built); (b) replace, as the system calls do; (c) a second function that replaces. Recommend
-     (a): a move that drops a file the program did not know was there is a lost write; a program that means to
-     replace removes the old one first, in one more line that says so.
+None.

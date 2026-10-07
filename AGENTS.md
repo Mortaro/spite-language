@@ -128,9 +128,10 @@ when it is made, into the rules of the docs page that teaches that part of the l
 section, and its teaching too where that changes) **and** into the decision log,
 [`design/decisions.md`](design/decisions.md), as a new row: a decision that exists only in a conversation will be
 re-litigated. The page states the rule without its decision number. A rule belongs to exactly one page; a decision
-that fits no page yet goes into [`design/open_questions.md`](design/open_questions.md) until its page exists. Mark
-your own proposals "(proposed by Claude, unconfirmed)" and never record one as decided. Mortaro decides language
-semantics; an agent proposes.
+that fits no page yet goes into [`design/open_questions.md`](design/open_questions.md) until its page exists. Mortaro decides
+what cannot be undone cheaply; an agent decides anything that can be changed later without losing work (D509),
+records it as "decided by Claude under D509", and lists it under "To confirm" in `mortaros_missing_decisions.md`.
+A proposal not yet decided is marked "(proposed by Claude, unconfirmed)".
 
 `mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the docs (the page and a
 decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
