@@ -10,8 +10,8 @@ func outlined_call(body: List<String>, function_lines: List<String>): String {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        if declared_type(body, name).is_empty() {
-            var found = declared_type(function_lines, name)
+        if declared_type(body, name, false).is_empty() {
+            var found = declared_type(function_lines, name, true)
             if not found.is_empty() {
                 parameters.append("{found} {name}")
                 arguments.append(name)
@@ -134,11 +134,11 @@ func before_call(line: String, end: Integer): Boolean {
     return position < length and line.code_at(position) == 40
 }
 
-func declared_type(lines: List<String>, name: String): String {
+func declared_type(lines: List<String>, name: String, with_header: Boolean): String {
     var index = lines.count() - 1
     while index >= 0 {
         crash lines[index]
-        var found = type_on_line(lines[index], name)
+        var found = type_on_line(lines[index], name, with_header and index == 0)
         if not found.is_empty() {
             return found
         }
@@ -147,7 +147,7 @@ func declared_type(lines: List<String>, name: String): String {
     return ""
 }
 
-func type_on_line(line: String, name: String): String {
+func type_on_line(line: String, name: String, header: Boolean): String {
     var length = line.length()
     var name_length = name.length()
     var start = 0
@@ -161,7 +161,7 @@ func type_on_line(line: String, name: String): String {
         var position = start + offset
         var end = position + name_length
         if whole_name(line, position, end) {
-            var found = type_before(line, position, end)
+            var found = type_before(line, position, end, header)
             if not found.is_empty() {
                 answer = found
             }
@@ -187,8 +187,8 @@ func whole_name(line: String, position: Integer, end: Integer): Boolean {
     return true
 }
 
-func type_before(line: String, position: Integer, end: Integer): String {
-    if not ends_declaration(line, end) {
+func type_before(line: String, position: Integer, end: Integer, header: Boolean): String {
+    if not ends_declaration(line, end, header) {
         return ""
     }
     var back = type_start(line, position)
@@ -213,7 +213,7 @@ func type_before(line: String, position: Integer, end: Integer): String {
     return written
 }
 
-func ends_declaration(line: String, end: Integer): Boolean {
+func ends_declaration(line: String, end: Integer, header: Boolean): Boolean {
     var length = line.length()
     var after = end
     while after < length and line.code_at(after) == 32 {
@@ -226,7 +226,7 @@ func ends_declaration(line: String, end: Integer): Boolean {
     if next == 61 {
         return not (after + 1 < length and line.code_at(after + 1) == 61)
     }
-    return next == 59 or next == 44 or next == 41
+    return next == 59 or header and (next == 44 or next == 41)
 }
 
 func type_start(line: String, position: Integer): Integer {

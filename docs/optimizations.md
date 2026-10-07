@@ -68,6 +68,7 @@ emit nothing.
 | [A singleton's reading functions do not exclude each other](#a-singletons-reading-functions-do-not-exclude-each-other) | every but `--hot-reload`, decided per singleton | readers count on their own cache line; 2 KiB of counts per such singleton |
 | [While no task runs, a singleton's lock is skipped](#while-no-task-runs-a-singletons-lock-is-skipped) | every but `--hot-reload`, only with `Parallel` | one load per locked call, two atomic additions per task |
 | [The fault handler is in every program](#the-fault-handler-is-in-every-program) | every | a cost, not an optimisation: about 3.7 KB of code and 32 bytes and a name per function; one store per foreign call |
+| [A foreign name is never copied](#a-foreign-name-is-never-copied) | every | fewer allocations when a foreign library is opened |
 | [Smaller ones](#smaller-ones) | every | nothing |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | every | a proof after a call that may change it is written again |
 | [Text joined in one piece](#text-joined-in-one-piece) | every | fewer allocations; a text made only of constants is constant |
@@ -1177,6 +1178,39 @@ ones stay constant text; both forms release and retain as nothing.
 
 **What a user can observe.** Nothing: a symbol compares, prints and converts the same in either form. The C
 shows it: `static SpiteString spite_symbol_4 = { (int64_t)0x00000065756c6176ULL, ... }` for `'value'`.
+
+### A foreign name is never copied
+
+**What it does.** The first call into a foreign library opens it and looks up every function the program calls in
+it, all at once. The library's file name and each function's name, and the name of the Spite function that calls it
+(which a missing function's error message shows), are known while compiling, so each is a `String` pointing at text
+written into the program, never copied onto the heap first. Opening `kernel32.dll` for a `Lock` and a `ThreadSlot`
+used to copy nine names of more than 15 bytes, like `AcquireSRWLockExclusive` and `ThreadSlot.create_key`, and
+free each one a moment later; it copies none now.
+
+**When.** Every foreign library a program opens, in every build.
+
+**Example.** Locking opens the system's thread library on its first call, and its names cost nothing:
+
+```gdscript title=foreign_names/foreign_names.spite entry
+var console = Console()
+var guard = Lock()
+
+func ForeignNames() {
+    guard.lock()
+    console.print("locked")
+    guard.unlock()
+}
+```
+```output
+locked
+```
+
+**What you notice.** Fewer allocations under `--debug-memory`, where a library is opened after the allocation
+table started counting: on Windows this program makes 5 allocations rather than 10 (the `Lock`, its handle, the
+library and the program's two objects). On Linux every library the standard one opens is the C library, which the
+allocation table itself opens before it counts, so there the counts are as they were. The C shows each name as
+`((SpiteString)SPITE_STATIC_STRING("AcquireSRWLockExclusive", 23))`.
 
 ### Crash text out of the binary
 
