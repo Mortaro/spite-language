@@ -872,6 +872,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   a `Dictionary` slot; an uncounted read whose name is passed, kept, compared or returned; the optimisation report
   does not yet say why a write-back was kept.
 
+### A list item read only to test it is not counted
+
+- Built (pair B3 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).
+  Not built: a `Dictionary` entry tested with `crash table[key]`; an attribute tested through an item
+  (`crash rows[index].owner` tests `rows[index]` in its slot but still reads the item counted to test `owner`); an
+  index that calls a function.
+
 ### Objects of one class sit together
 
 - Built (pair M6 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).

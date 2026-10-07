@@ -241,6 +241,29 @@ measurements: B3 with B1 for the held locals of `find_row` and `fill_attribute`,
 (L8's shape, or T4b's unrolling, which would make each system's row loop plain code), then C4 across units (the
 split build is still 4 ms behind the one-file build).
 
+### Fourth pass (2026-10-07)
+
+Engine `naive` at 81b0e20, Spite from 303bfbc3, the same machine, `--optimized`, medians of 5 interleaved runs, the
+same sampler (about 14 000 samples over three runs of the one-file build). Before: stress 48.1 ms a tick (split
+build; 43.3 ms as one C file), physics 8.4 ms.
+
+**Built: B3** (D518), a list item read only to test it is not counted: the matcher's `crash headers[index]`,
+`crash kinds[index]`, `crash keys[index]` and the columns' `crash values[row]` test the slot in place.
+
+| | before | after |
+|---|---|---|
+| stress tick, split build | 48.1 ms | 43.8 ms |
+| stress tick, one C file | 43.3 ms | 40.3 ms |
+| physics step | 8.4 ms | 8.1 ms |
+| `benchmarks/versus_c` (all five) | | the same C, but for the numbers of its temporaries |
+
+The profile after B3, inclusive, both systems summed: writing rows back 36%, matching 23% (`find_row` 17%), filling
+rows 19%, the candidate list 13%, `choose` 9%. The counts left are in reads that are not tests: `choose` reads
+`candidates[index]` twice per entity, each a counted `List<Integer>` (4% of the tick in its count and release), the
+matcher passes its `rows` attribute to `match_into` (counted, 4%), `stamp_written` passes `headers[index]` to
+`changes.stamp_written` (3%), and the `header` locals of `find_row`, `fill_attribute` and `store_attribute` are
+counted reads (B1).
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

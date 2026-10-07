@@ -62,6 +62,10 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   class keeps the memory it once used for its own next objects, never for another class or the system, while the
   program runs. Pooling every class was measured and not kept (one benchmark 4% slower); pooling short-lived
   objects no list holds would make `vector_maths` 1.75 times faster and is listed as not built.
+- **D518, a list item read only to test it**: `crash list[index]`, `assert`, `if` and `if not` of an item test the
+  slot in place and count nothing. Why: the count up and down was two writes to the item's object for a test that
+  only reads the slot (a stress tick 48.1 ms to 43.8). Nothing runs between the read and the test, so it holds in
+  every build.
 
 ## Open
 

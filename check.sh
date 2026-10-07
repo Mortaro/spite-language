@@ -900,6 +900,17 @@ if [ -z "$moved_body" ] || echo "$moved_body" | grep -qE "List_Point_set_at|List
    || ! echo "$reversed_body" | grep -q "List_Point_set_at(self->points_, 0, Point___retain(first_));"; then
   echo "FAILED: slot_write_backs should drop moved()'s and bump_third()'s write-backs and counts, and keep reversed()'s"; exit 1
 fi
+# A list item read only to test it is not counted (pair B3): tested_items's tests read the slot, never a counted item.
+tested_items="$work/tested_items.c"
+"$work/generation_two.exe" conformance/stage6/tested_items --check --c-source --c-path="$tested_items" > /dev/null 2>&1 || {
+  echo "FAILED: tested_items does not write its C"; exit 1; }
+tested_bodies=$(awk '/^void TestedItems_report_(points|maybe|names)\(TestedItems\* self\) \{$/ { inside = 1 }
+  inside && /^}$/ { inside = 0 }
+  inside { print }' "$tested_items")
+if [ -z "$tested_bodies" ] || echo "$tested_bodies" | grep -q "path_narrowed" \
+   || ! echo "$tested_bodies" | grep -q "((Point\*\*)(intptr_t)"; then
+  echo "FAILED: tested_items should test its list items in their slots, without counting them"; exit 1
+fi
 # Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
 # gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's
 # allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run printed.

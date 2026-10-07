@@ -1,0 +1,13 @@
+no point -1
+point 0 0
+point 1 10
+point 2 20
+no point 3
+last 20
+owned 1 99
+maybe 0 99
+maybe none 1
+maybe none 2
+first
+one name
+still first

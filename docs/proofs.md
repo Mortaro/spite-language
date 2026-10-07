@@ -111,6 +111,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A singleton attribute that never changes](#a-singleton-attribute-that-never-changes-is-read-in-place) | no count, no lock | the counted, locked read |
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
 | [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back; no count on the read | the counted read and the write |
+| [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
@@ -852,6 +853,20 @@ have moved.
 - **See.** [optimizations.md: An item written back to its own slot is not
   written](optimizations.md#an-item-written-back-to-its-own-slot-is-not-written);
   `conformance/stage6/slot_write_backs`.
+
+### A list item read only to test it is not counted
+
+- **Proves.** A test that only asks whether `list[index]` is there needs no reference to the item.
+- **Rule.** The test is `crash`, `assert`, `if` or `if not` of `list[index]`, or of a path through it; `list` is a
+  `List` of objects or text (its items may be nullable) named by a path of names and attributes, and `index` is a
+  name, an attribute, a number, or a sum or difference of those. Nothing runs between reading the item and testing
+  it, so nothing else has to hold.
+- **Buys.** The slot is tested in place: the index inside the list and the slot holding an item, with no count up
+  and down on the item's object.
+- **Falls back.** The counted read and its release: a `Dictionary` entry, an index that calls a function, a list
+  that is a call's result. Nothing is an error.
+- **See.** [optimizations.md: A list item read only to test it is not
+  counted](optimizations.md#a-list-item-read-only-to-test-it-is-not-counted); `conformance/stage6/tested_items`.
 
 ## Threads and locks
 

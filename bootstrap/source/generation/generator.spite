@@ -24923,7 +24923,10 @@ func try_path_guard(
         if link_nullable {
             var link_inner = link_nullable.inner
             inner = link_inner
-            var link_condition = link_test(link_result, link, link_inner)
+            var link_condition = slot_presence_test(link_result, link, link_inner, probe_scope, class_information)
+            if link_condition.is_empty() {
+                link_condition = link_test(link_result, link, link_inner)
+            }
             tests.append(link_condition)
             link_tests.append(link_condition)
         } else {
@@ -24979,6 +24982,84 @@ func link_test(
         return "(\{ {c_type_name(inner)} {value_temporary} = {link_result.code}; int path_narrowed = {present_code(value_temporary, inner)}; {release_call(inner, value_temporary)}; path_narrowed; })"
     }
     return present_code(link_result.code, inner)
+}
+
+# ../../../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted
+func slot_presence_test(
+    link_result: ExpressionResult,
+    link_ast: Syntax.Expressions.Expression,
+    inner: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if not type_needs_drop(inner) or not owns(link_result, link_ast) {
+        return ""
+    }
+    var read = shape.as_index(link_ast)
+    if not read {
+        return ""
+    }
+    crash read.object
+    crash read.index
+    if not plain_path(read.object) or not plain_index(read.index) {
+        return ""
+    }
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    if not list_type {
+        return ""
+    }
+    var listed = type_shape.as_list(list_type)
+    if not listed {
+        return ""
+    }
+    var element = listed.element
+    var stored = element
+    var maybe_element = type_shape.as_nullable(element)
+    if maybe_element {
+        stored = maybe_element.inner
+    }
+    var element_class = type_shape.as_class_ref(stored)
+    var plain_class = false
+    if element_class {
+        plain_class = not element_class.has_signature
+    }
+    if not plain_class and not type_shape.as_string(stored) {
+        return ""
+    }
+    var list_class = list_class_of(element)
+    if not is_library_class(list_class) {
+        return ""
+    }
+    var list_result = generate_expression(read.object, scope, class_information)
+    if owns(list_result, read.object) {
+        return ""
+    }
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(read.index, integer_spite_type, scope, class_information)
+    var list_temporary = next_temporary()
+    var index_temporary = next_temporary()
+    var item = list_item_code(element, list_temporary, index_temporary)
+    var inside = "{index_temporary} >= 0 && {index_temporary} < ({list_temporary})->item_count_"
+    return "(\{ {c_type_name(list_type)} {list_temporary} = {list_result.code}; int32_t {index_temporary} = {index_code}; ({inside}) && {present_code(item, inner)}; })"
+}
+
+func plain_index(expression: Syntax.Expressions.Expression): Boolean {
+    if shape.as_identifier(expression) or shape.as_integer_literal(expression) {
+        return true
+    }
+    if shape.as_member(expression) {
+        return plain_path(expression)
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        crash binary.left
+        crash binary.right
+        if binary.operator != 'add' and binary.operator != 'subtract' {
+            return false
+        }
+        return plain_index(binary.left) and plain_index(binary.right)
+    }
+    return false
 }
 
 func emit_scope_drops(scope: Scope, all_the_way_up: Boolean) {

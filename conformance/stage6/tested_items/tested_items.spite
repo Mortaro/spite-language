@@ -1,0 +1,75 @@
+var console = Console()
+var points = List<Point>()
+var maybe_points = List<Point?>()
+var names = List<String>()
+
+func TestedItems() {
+    var index = 0
+    while index < 3 {
+        var made = Point(index * 10)
+        points.append(made)
+        index = index + 1
+    }
+    var owner = Point(99)
+    crash points[1]
+    points[1].owner = owner
+    maybe_points.append(owner)
+    maybe_points.append(null)
+    names.append("first")
+    report_points()
+    report_owners()
+    report_maybe()
+    report_names()
+}
+
+func report_points() {
+    var index = -1
+    while index < 4 {
+        if points[index] {
+            console.print("point", index, points[index].x)
+        }
+        if not points[index] {
+            console.print("no point", index)
+        }
+        index = index + 1
+    }
+    crash points[2]
+    var last = points[2]
+    console.print("last", last.x)
+}
+
+func report_owners() {
+    var index = 0
+    while index < points.count() {
+        if points[index].owner {
+            console.print("owned", index, points[index].owner.x)
+        }
+        index = index + 1
+    }
+}
+
+func report_maybe() {
+    var index = 0
+    while index < 3 {
+        if maybe_points[index] {
+            console.print("maybe", index, maybe_points[index].x)
+        } else {
+            console.print("maybe none", index)
+        }
+        index = index + 1
+    }
+}
+
+func report_names() {
+    assert names[0]
+    var first = names[0]
+    console.print(first)
+    if not names[1] {
+        console.print("one name")
+    }
+    if names[0 + 1 - 1] {
+        console.print("still first")
+    } else {
+        console.print("lost first")
+    }
+}

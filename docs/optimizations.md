@@ -1521,6 +1521,64 @@ classes, for a `List` item read with `[]` into a `var` in the same block as the 
 **What you notice.** Speed. The loop above over 200,000 particles, 200 passes, goes from 112 ms to 44 ms (about
 2.8 ns an item to 1.1). Allocations, the order of everything a program can see and what it prints are the same.
 
+### A list item read only to test it is not counted
+
+**What it does.** `crash list[index]`, `assert list[index]`, `if list[index]` and `if not list[index]` read an item
+only to ask whether it is there:
+
+```gdscript title=tested_items/tested_items.spite entry
+var console = Console()
+var names = List<String>()
+
+func TestedItems() {
+    names.append("first")
+    names.append("second")
+    var index = 0
+    while index < 3 {
+        if names[index] {
+            console.print(names[index])
+        } else {
+            console.print("nothing at", index)
+        }
+        index = index + 1
+    }
+    crash names[1]
+    var length = names[1].length()
+    console.print(length)
+}
+```
+```output
+first
+second
+nothing at 2
+6
+```
+
+Read as a value, the item would be counted up for the test and down again right after it: two writes to the
+item's object, which for an object in a cache line of its own cost more than the test. Nothing runs between that
+read and the test, so the compiler tests the slot itself: the index inside the list, and the slot holding an item.
+`crash names[1]` becomes:
+
+```c
+if (!(({ List_String* list = self->names_; int32_t at = 1;
+    (at >= 0 && at < list->item_count_) && !SPITE_STRING_IS_NULL(((SpiteString*)(intptr_t)list->items_)[at]); })))
+    spite_failed_12(self);
+```
+
+In a path (`crash rows[index].owner`), the test of `rows[index]` on the way is the slot's too, and the attribute is
+read as before. The read after the test
+(`names[1].length()`) is an ordinary read, left uncounted only where
+[the section above](#an-item-written-back-to-its-own-slot-is-not-written) proves it.
+
+**When.** Every build, for a test of an item of a `List` of objects or text, read with `[]` from a path of names
+and attributes, with an index that is a name, an attribute, a number or a sum or difference of those. An item of
+a `Vector` or an `Items` is borrowed already, a list of numbers is never counted, and a `Dictionary`'s entry is
+still read and counted.
+
+**What you notice.** Speed: the naive engine's stress test, whose matcher tests three items of its rows' lists
+for every entity and component, ticks in 43.8 ms instead of 48.1 (40.3 instead of 43.3 as one C file). What a
+crash report says, allocations and everything a program prints are the same.
+
 ### A number joined into text is written in place
 
 **What it does.** `"line {index} of {round};"` would turn `index` and `round` into texts of their own (two
