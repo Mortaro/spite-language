@@ -1,0 +1,54 @@
+var console = Console()
+var step = 1
+
+func FunctionValueInFrame() {
+    var scorer = Scorer()
+    var total = 0
+    var index = 0
+    while index < 5 {
+        total = total + apply(scorer.score, index)
+        total = total + twice(scorer.score, index)
+        total = total + apply(add_step, index)
+        index = index + 1
+    }
+    console.print("total", total)
+    var description = named(scorer.score)
+    console.print("named", description)
+    var kept = List<Spite.Function<Integer, Integer>>()
+    keep(kept, scorer.score)
+    keep(kept, add_step)
+    var kept_count = kept.count()
+    var first = kept[0]
+    var second = kept[1]
+    crash first and second
+    var first_answer = first(10)
+    var second_answer = second(10)
+    console.print("kept", kept_count, first_answer, second_answer)
+    var passed = pass_on(scorer.score, 4)
+    console.print("passed on", passed)
+}
+
+func apply(change: Spite.Function<Integer, Integer>, value: Integer): Integer {
+    return change(value)
+}
+
+func twice(change: Spite.Function<Integer, Integer>, value: Integer): Integer {
+    var once = change(value)
+    return change(once)
+}
+
+func named(change: Spite.Function<Integer, Integer>): String {
+    return "{change.name} with {change.arguments.count()} argument"
+}
+
+func keep(kept: List<Spite.Function<Integer, Integer>>, change: Spite.Function<Integer, Integer>) {
+    kept.append(change)
+}
+
+func pass_on(change: Spite.Function<Integer, Integer>, value: Integer): Integer {
+    return apply(change, value) + 1
+}
+
+func add_step(value: Integer): Integer {
+    return value + step
+}

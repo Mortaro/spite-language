@@ -360,6 +360,8 @@ var borrow_site = ""
 var lent_argument_positions = List<String>()
 var lent_argument_sources = List<String>()
 var held_argument_positions = List<String>()
+var framed_argument_positions = List<String>()
+var framing_function_value = false
 var held_arguments_blocked = false
 var lent_callers = Dictionary<String>()
 var lent_parameter_names = List<String>()
@@ -12856,9 +12858,11 @@ func generate_argument_list(
     var lent_positions = lent_argument_positions
     var lent_sources = lent_argument_sources
     var held_positions = held_argument_positions
+    var framed_positions = framed_argument_positions
     lent_argument_positions = List<String>()
     lent_argument_sources = List<String>()
     held_argument_positions = List<String>()
+    framed_argument_positions = List<String>()
     var variadic = variadic_list(expected_types)
     if variadic {
         return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
@@ -12895,7 +12899,15 @@ func generate_argument_list(
             var lent_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
             result.append(lent_code)
         } else if held_at >= 0 {
+            var framed = position_in(framed_positions, index) >= 0
+            framing_function_value = framed
             var held_result = generate_expression(arguments_ast[index], scope, class_information)
+            if framed and framing_function_value {
+                framing_function_value = false
+                report(
+                    "internal: the function value passed here was to be made in the frame and was not; this is a compiler bug",
+                )
+            }
             var held_type = held_result.type
             var held_code = cast(held_result.code, held_type, expected_types[index])
             result.append(held_code)
@@ -14482,6 +14494,16 @@ func function_value(
         builder.add_support(joined_lines)
     }
     var code = "{maker}({owner.code})"
+    if framing_function_value and not owns(owner, owner_ast) {
+        framing_function_value = false
+        var framed_signature = signature_of(function)
+        var framed = ExpressionResult(
+            "&(Spite_Function)\{ .spite_owner = (void*)({owner.code}), .spite_typed_call = (void*){function.c_name} }",
+            framed_signature,
+        )
+        framed.owning_override = false
+        return framed
+    }
     if owns(owner, owner_ast) {
         var owner_temporary = next_temporary()
         var value_temporary = next_temporary()
@@ -15373,8 +15395,9 @@ func lent_variant_name(
     class_information: Analysis.ClassInfo,
 ): String {
     held_argument_positions = List<String>()
+    framed_argument_positions = List<String>()
     var lent_name = lent_items_variant_name(function_c_name, arguments_ast, expected_types, scope, class_information)
-    return held_variant_name(lent_name, arguments_ast, expected_types, scope)
+    return held_variant_name(lent_name, arguments_ast, expected_types, scope, class_information)
 }
 
 func lent_items_variant_name(
@@ -15501,6 +15524,7 @@ func held_variant_name(
     arguments_ast: List<Syntax.Expressions.Expression>,
     expected_types: List<Analysis.SpiteType>,
     scope: Scope,
+    class_information: Analysis.ClassInfo,
 ): String {
     if resumable_mode or hot_reload or read_evaluate_print_loop or remote_loop_port != 0 or keeps_internals {
         return function_c_name
@@ -15512,11 +15536,17 @@ func held_variant_name(
         return function_c_name
     }
     var candidates = List<Integer>()
+    var framed_candidates = List<Integer>()
     var index = 0
     while index < arguments_ast.count() {
         var index_text = index.to_string()
-        if not lent_argument_positions.contains(index_text) and held_by_caller(arguments_ast[index], expected_types[index], scope) {
-            candidates.append(index)
+        if not lent_argument_positions.contains(index_text) {
+            if held_by_caller(arguments_ast[index], expected_types[index], scope) {
+                candidates.append(index)
+            } else if frameable_function_value(arguments_ast[index], expected_types[index], scope, class_information) {
+                candidates.append(index)
+                framed_candidates.append(index)
+            }
         }
         index = index + 1
     }
@@ -15538,13 +15568,21 @@ func held_variant_name(
         return function_c_name
     }
     var positions = List<String>()
+    var framed = List<String>()
     var candidate_index = 0
     while candidate_index < candidates.count() {
         var position = candidates[candidate_index]
         crash original.parameters[position]
         var parameter_name = original.parameters[position].name
         var position_text = position.to_string()
-        if not assigns_name(original.body, parameter_name) and not original.lent_parameters.contains(parameter_name) {
+        var fits = not assigns_name(original.body, parameter_name) and not original.lent_parameters.contains(parameter_name)
+        if fits and framed_candidates.contains(position) {
+            fits = block_only_calls(original.body, parameter_name)
+            if fits {
+                framed.append(position_text)
+            }
+        }
+        if fits {
             positions.append(position_text)
         }
         candidate_index = candidate_index + 1
@@ -15553,6 +15591,7 @@ func held_variant_name(
         return function_c_name
     }
     held_argument_positions = positions
+    framed_argument_positions = framed
     var variant_c_name = "{function_c_name}___held_{positions.join("_")}"
     var existing = function_by_c_name(owner, variant_c_name)
     if existing {
@@ -15601,6 +15640,204 @@ func held_variant_name(
     owner.declared_functions.append(variant)
     builder.add_prototype("{function_signature(owner, variant)};")
     return variant_c_name
+}
+
+# ../../../docs/optimizations.md#a-function-value-describes-its-arguments-when-asked
+func frameable_function_value(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if not objects_in_frame_allowed(class_information) {
+        return false
+    }
+    var expected = type_shape.as_class_ref(expected_type)
+    if not expected {
+        return false
+    }
+    if expected.c_name != "Spite_Function" or not expected.has_signature {
+        return false
+    }
+    var named = shape.as_identifier(argument)
+    if named {
+        if scope.lookup_type(named.name) or class_information.find_field(named.name) {
+            return false
+        }
+        if find_getter(class_information, named.name, class_information) {
+            return false
+        }
+        return own_function_value_target(class_information, named.name)
+    }
+    var member = shape.as_member(argument)
+    if not member {
+        return false
+    }
+    crash member.object
+    var value_owner = shape.as_identifier(member.object)
+    if not value_owner or member.name.starts_with("_") {
+        return false
+    }
+    if not scope.borrow_source(value_owner.name).is_empty() or not scope.row_source(value_owner.name).is_empty() {
+        return false
+    }
+    if not scope.holds_for_call(value_owner.name) {
+        return false
+    }
+    var owner_type = scope.lookup_type(value_owner.name)
+    if not owner_type {
+        return false
+    }
+    var owner_reference = type_shape.as_class_ref(owner_type)
+    if not owner_reference {
+        return false
+    }
+    if owner_reference.has_signature {
+        return false
+    }
+    var owner_class = find_class_by_c_name(owner_reference.c_name)
+    if not owner_class {
+        return false
+    }
+    if owner_class.find_field(member.name) or container_class_of(owner_type) {
+        return false
+    }
+    if find_getter(owner_class, member.name, class_information) {
+        return false
+    }
+    return own_function_value_target(owner_class, member.name)
+}
+
+func own_function_value_target(information: Analysis.ClassInfo, name: String): Boolean {
+    if information.is_value_class or information.is_generic_template or is_hot_class(information) {
+        return false
+    }
+    var function = information.find_function(name)
+    if not function {
+        return false
+    }
+    return not function.is_constructor and function.has_body
+}
+
+func block_only_calls(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if not statement_only_calls(statements[index], name) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func statement_only_calls(statement: Syntax.Statements.Statement, name: String): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return statement.name != name and optional_only_calls(statement.value, name)
+        Syntax.Statements.AssignmentStatement: return optional_only_calls(statement.target, name) and optional_only_calls(statement.value, name)
+        Syntax.Statements.IfStatement: {
+            if not optional_only_calls(statement.condition, name) {
+                return false
+            }
+            return block_only_calls(statement.then_branch, name) and block_only_calls(statement.else_branch, name)
+        }
+        Syntax.Statements.WhileStatement: return optional_only_calls(statement.condition, name) and block_only_calls(statement.body, name)
+        Syntax.Statements.SwitchStatement: {
+            if not optional_only_calls(statement.subject, name) {
+                return false
+            }
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if not block_only_calls(statement.cases[case_index].body, name) {
+                    return false
+                }
+                case_index = case_index + 1
+            }
+            return true
+        }
+        Syntax.Statements.AssertStatement: return optional_only_calls(statement.value, name)
+        Syntax.Statements.ReturnStatement: return optional_only_calls(statement.value, name)
+        Syntax.Statements.ExpressionStatement: return optional_only_calls(statement.value, name)
+        _: return false
+    }
+}
+
+func optional_only_calls(expression: Syntax.Expressions.Expression?, name: String): Boolean {
+    if not expression {
+        return true
+    }
+    return expression_only_calls(expression, name)
+}
+
+func each_only_calls(expressions: List<Syntax.Expressions.Expression>, name: String): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        if not expression_only_calls(expressions[index], name) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func expression_only_calls(expression: Syntax.Expressions.Expression, name: String): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return expression.name != name
+        Syntax.Expressions.GenericIdentifierExpression: return expression.name != name
+        Syntax.Expressions.StringLiteralExpression: return not expression.value.contains(name)
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var called = shape.as_identifier(expression.callee)
+            if called {
+                if called.name == name {
+                    return each_only_calls(expression.arguments, name)
+                }
+            }
+            return expression_only_calls(expression.callee, name) and each_only_calls(expression.arguments, name)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            return expression_only_calls(expression.callee, name) and each_only_calls(expression.arguments, name)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            return expression_only_calls(expression.left, name) and expression_only_calls(expression.right, name)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return expression_only_calls(expression.operand, name)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return expression_only_calls(expression.object, name)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            return expression_only_calls(expression.object, name) and expression_only_calls(expression.index, name)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                if not optional_only_calls(expression.elements[index].value, name) {
+                    return false
+                }
+                index = index + 1
+            }
+            return true
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                if not optional_only_calls(expression.fields[index].value, name) {
+                    return false
+                }
+                index = index + 1
+            }
+            return true
+        }
+        _: return true
+    }
 }
 
 func held_by_caller(argument: Syntax.Expressions.Expression, expected_type: Analysis.SpiteType, scope: Scope): Boolean {
@@ -25711,7 +25948,9 @@ func generate_variable_declaration(
     assert not frames_local_object(declaration, scope, class_information)
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
+    frame_variadic_allowed = not resumable_mode
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
+    frame_variadic_allowed = false
     borrow_site = ""
     if not declaration.type_reference or not current_class_is_generic() {
         report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
@@ -25720,6 +25959,8 @@ func generate_variable_declaration(
         value_code = rebind(declaration.name, value_code, declared_type, scope)
     }
     builder.add_user("{c_type_name(declared_type)} {c_value_name(declaration.name)} = {value_code};")
+    framed_cleanups.each(builder.add_user)
+    framed_cleanups.clear()
     if type_needs_drop(declared_type) {
         scope.declare_owned(declaration.name, declared_type)
         scope.check_last(current_line)
@@ -40560,9 +40801,13 @@ func generate_return_statement(
     if return_statement.value {
         report_unlent_return(return_statement.value, class_information, function_information)
         assert not returns_object_in_frame(return_statement.value, return_type, scope, class_information)
+        frame_variadic_allowed = not resumable_mode
         var value_code = coerce_for_store(return_statement.value, return_type, scope, class_information)
+        frame_variadic_allowed = false
         var temporary = next_temporary()
         builder.add_user("{c_type_name(return_type)} {temporary} = {value_code};")
+        framed_cleanups.each(builder.add_user)
+        framed_cleanups.clear()
         emit_scope_drops(scope, true)
         builder.add_user("return {temporary};")
     } else {
@@ -40667,7 +40912,16 @@ func generate_statement(
     }
     var errors_before = errors_reported
     var waits_before = wait_mark_counters.count()
+    var assigned = shape.as_assignment_statement(statement)
+    if assigned {
+        frame_variadic_allowed = not resumable_mode
+    }
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    if assigned {
+        frame_variadic_allowed = false
+        framed_cleanups.each(builder.add_user)
+        framed_cleanups.clear()
+    }
     note_repeated_check(statement, scope, errors_reported == errors_before)
     if ended_in_return {
         leaving_statements.append(statement)

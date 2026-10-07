@@ -82,6 +82,10 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   level), and the `versus_c` programs become cases with an expert C each.
 - **D525, the file names**: `generated.c` is the whole generated C, `highlights.c` the excerpt that shows the
   optimisation.
+- **D528, values in the caller's frame**: a function value the callee only calls is a struct in the caller's frame,
+  and a variadic list the callee only reads is framed for a `var`, an assignment or a `return` as for a statement.
+  Why: the plain loop `apply(scorer.score, index)` made two objects per call and took 66.8 times naive C's time
+  (0.65 now), and `var biggest = largest(a, b, c)` 31.6 times (1.01 now).
 
 ## Open
 

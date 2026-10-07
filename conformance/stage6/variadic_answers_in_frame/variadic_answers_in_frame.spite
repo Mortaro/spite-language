@@ -1,0 +1,63 @@
+var console = Console()
+var longest_seen = ""
+
+func VariadicAnswersInFrame() {
+    var total = 0
+    var round = 0
+    while round < 4 {
+        var biggest = largest(round % 3, round % 5, 7 - round)
+        total = total + biggest
+        round = round + 1
+    }
+    console.print("total", total)
+    var word = "pear"
+    var longest = longest_of(word, "fig", "banana", "kiwi")
+    console.print("longest", longest)
+    longest_seen = longest_of("plum", word)
+    console.print("seen", longest_seen)
+    var counted = 0
+    counted = count_long(word, "melon", "apricot")
+    console.print("counted", counted)
+    var forwarded = forward(3, 9, 4)
+    console.print("forwarded", forwarded)
+}
+
+func largest(...values: List<Integer>): Integer {
+    var biggest = 0
+    var index = 0
+    while index < values.count() {
+        if values[index] > biggest {
+            biggest = values[index]
+        }
+        index = index + 1
+    }
+    return biggest
+}
+
+func longest_of(...words: List<String>): String {
+    var longest = ""
+    var index = 0
+    while index < words.count() {
+        if words[index].length() > longest.length() {
+            longest = words[index]
+        }
+        index = index + 1
+    }
+    return longest
+}
+
+func count_long(...words: List<String>): Integer {
+    var counted = 0
+    var index = 0
+    while index < words.count() {
+        if words[index].length() > 4 {
+            counted = counted + 1
+        }
+        index = index + 1
+    }
+    return counted
+}
+
+func forward(first: Integer, second: Integer, third: Integer): Integer {
+    return largest(first, second, third)
+}

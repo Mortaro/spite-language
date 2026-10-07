@@ -101,6 +101,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Buffers in the frame](#a-buffer-freed-in-its-block-lives-in-the-frame) | no allocation | the heap |
 | [Frame objects](#objects-that-never-leave-their-function-live-in-the-frame) | no allocation | the heap |
 | [Local and variadic lists in the frame](#local-and-variadic-lists-in-the-frame) | no allocation | the heap |
+| [A function value its callee only calls](#a-function-value-its-callee-only-calls-lives-in-the-frame) | no allocation, a direct call once inlined | the value on the heap |
 | [Borrowed items of a `Vector` or `Items`](#borrowed-items-of-a-vector-or-items) | no count, no copy | refused, naming `copy()` |
 | [No read past a resize](#no-borrowed-read-past-a-resize) | the item cannot move under you | refused |
 | [Rows and walked rows](#rows-of-borrowed-items) | a row in the frame | refused, or an ordinary `type` value |
@@ -681,8 +682,9 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Proves.** A list is only read after it is filled, or only read by the function it is handed to.
 - **Rule.** A local list made by a literal or `List<T>()` and filled by `append` statements at its own level, then only
   read, lives in the frame (16 items) or in constant data (256). A variadic list whose callee only reads it
-  (`count`, `[]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, ...), in a call that is a statement of its own, lives
-  in the caller's frame.
+  (`count`, `[]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, ...), in a call that is a statement of its own,
+  the value of a `var` or an assignment (`var biggest = largest(a, b, c)`) or what a `return` answers, lives in the
+  caller's frame.
 - **Buys.** Two allocations fewer per list.
 - **Falls back.** The heap, when the list is stored, returned, changed after filling, handed to a template, asked for
   `.memory`, or in an inspectable build or a function that waits.
@@ -690,6 +692,26 @@ A short guide by task. Find what you are writing; the entries below say the rest
   frame](optimizations.md#a-local-list-of-known-size-lives-in-the-frame),
   [A variadic list the callee only reads](optimizations.md#a-variadic-list-the-callee-only-reads-lives-in-the-callers-frame);
   `conformance/stage6/text_building`.
+
+### A function value its callee only calls lives in the frame
+
+- **Proves.** The function a value is passed to does nothing with it but call it, so the value never outlives the call
+  and nothing ever reads its description.
+- **Rule.** The argument is a function of a program class named on a bare name the caller holds for the call
+  (`apply(scorer.score, 3)`, where `scorer` is its own parameter or a local it owns), or a function of the caller's own
+  class named alone (`apply(add_step, 3)`). The callee is a program function with a body, called by name, that never
+  assigns that parameter, and whose every mention of it is the callee of a call (`change(value)`): no `.name`, no
+  `.arguments`, not stored, not passed on, not in a text hole.
+- **Buys.** The value is a struct in the caller's frame holding the owner and the function, passed to the callee's
+  `___held_` copy: no allocation and no count, and once the callee is inlined the C compiler sees which function is
+  called and calls it directly. `benchmarks/cases/a_function_value_describes_its_arguments_when_asked` from 66.8
+  times plain C's time to 0.65.
+- **Falls back.** The value on the heap, as before, when the callee reads or keeps it in any other way, when the
+  owner is a temporary or an item borrowed from a list, for a library function, and in the builds and functions held
+  arguments fall back in.
+- **See.** [optimizations.md: A function value describes its arguments when
+  asked](optimizations.md#a-function-value-describes-its-arguments-when-asked);
+  `conformance/stage6/function_value_in_frame`.
 
 ## Borrowing and lending
 

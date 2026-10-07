@@ -3,4 +3,4 @@ spite_function_value_Scorer_score___arguments
 spite_function_arguments_described
 Spite_Function_get_arguments
 Naive_apply_all___held_0
-Naive_apply
+Naive_apply___held_0

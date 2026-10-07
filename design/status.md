@@ -956,10 +956,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   own with atomic instructions, and a singleton whose only changing state is such counters (which should take
   atomics and no lock) still got the loop's lock (a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once);
   a system reading a column through `at(row)` from a `Parallel` counts each element it is answered
-  (a_singletons_reading_functions_do_not_exclude_each_other); a variadic call whose answer is kept, `var biggest =
-  largest(a, b, c, d)`, makes its list on the heap every call, where the same call as a statement keeps it in the
-  frame, so the commonest shape is left out (a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame);
-  `Lamp.instances.count()` copies the registry into a new list to count it
+  (a_singletons_reading_functions_do_not_exclude_each_other); `Lamp.instances.count()` copies the registry into a new list to count it
   (reflection_symbols_and_registries_only_where_read); tree shaking leaves `typedef`s and `SPITE_ALLOCATOR_` macros
   of dropped classes behind (tree_shaking_the_generated_c); an object made in an arena still counts the arena and is
   given back one by one when its list goes (an_allocator_set_after_construction_is_where_the_object_is_made); a
@@ -984,8 +981,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   a function taking a `type` given an ordinary object is compiled per class, so the uncounted read through a `type`
   only shows for a row of borrowed items, and a typed object literal of `List` items is allocated and dispatched
   while the program runs (reading_through_a_type_without_counting); a component made and appended to a `Vector` or
-  `Items` is allocated, copied in and freed (a_row_of_borrowed_items_lives_in_the_frame); a function value passed in
-  a loop is made again on every pass (a_function_value_describes_its_arguments_when_asked); the lint that names
+  `Items` is allocated, copied in and freed (a_row_of_borrowed_items_lives_in_the_frame); the lint that names
   `bodies.each(mover.update_each)` for a `while` points at a line that is an error when the function takes a `type`
   the element fits; and skills/spite/reference.md names `is_fixed_size` and says there are no `Symbol` walks while
   `benchmarks/sparse_rows` and the conformance programs still use `fits_vector()` and `Symbol` walks.

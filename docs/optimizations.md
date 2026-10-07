@@ -786,7 +786,8 @@ pointer.
 **The case:** [benchmarks/cases/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](../benchmarks/cases/a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/).
 
 **What it does.** The `...values` of a variadic call arrive in a `List`. When the call is a statement of its own
-(`console.print(name, count)`), outside `and`/`or` and outside a function that waits, and the function called only
+(`console.print(name, count)`), the value of a `var` or of an assignment (`var biggest = largest(a, b, c)`) or what a
+`return` answers, outside `and`/`or` and outside a function that waits, and the function called only
 reads its list (`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, or passing it to a
 function of its own class that only reads it too), the list and its items are in the caller's frame: no allocation for
 the list or its items, and its elements (the boxes of text above) are released after the call. A function that stores,
@@ -794,7 +795,9 @@ returns, grows or passes on its list anywhere else gets a list on the heap as be
 `--hot-reload` build's own classes, which can be swapped.
 
 **What you notice.** Two allocations fewer per such call under `--debug-memory`: `text_building` allocates 19 times
-(31 before), `short_text` 73 (100), `fused_chain_allocations` 11 (13), `folded_function_value` 9 (13).
+(31 before), `short_text` 73 (100), `fused_chain_allocations` 11 (13), `folded_function_value` 9 (13). The case's
+`var biggest = largest(...)` made its list on the heap at every call and took 31.6 times plain C's time; in the
+caller's frame it takes as long as plain C (1.01).
 
 ### Concurrency machinery only where it is used
 
@@ -1493,6 +1496,18 @@ function passed on. A `.functions` list is reflection read on purpose, so its va
 52 per round of two `Summer`s and two `Parallel`s to 22), and passing a function value makes 2 instead of 10: the
 value and its empty list (`benchmarks/function_values`, from 2 000 019 to 400 019). `.arguments` answers the
 same list, in the same order, whenever it is read.
+
+**A value its callee only calls is not made at all.** When the function a value is passed to does nothing with
+that parameter but call it (`func apply(change: Spite.Function<Integer, Integer>, value: Integer): Integer { return
+change(value) }`), and the value is a function of an object the caller holds for the call, `apply(scorer.score,
+index)`, or of the caller's own class, `apply(add_step, index)`, the value is a struct in the caller's frame that
+holds only the owner and the function: no allocation, no count, no description, since nothing can ask for one
+([the proof](proofs.md#a-function-value-its-callee-only-calls-lives-in-the-frame)). The call goes to the callee's
+`___held_` copy, which lets nothing go, and once that copy is inlined the C compiler sees which function the value
+holds and calls it directly. A callee that reads `.name` or `.arguments`, keeps the value, passes it on or names it
+in text gets a value on the heap as before, and so does a value whose owner is a temporary.
+`benchmarks/cases/a_function_value_describes_its_arguments_when_asked` makes 2 000 000 such calls: 4 000 014
+allocations and 66.8 times plain C's time before, 14 allocations and 0.65 of plain C's time now.
 
 ### A list's templates read its elements without counting them
 

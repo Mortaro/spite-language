@@ -1,0 +1,5 @@
+total 22
+longest banana
+seen plum
+counted 2
+forwarded 9
