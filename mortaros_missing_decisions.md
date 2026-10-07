@@ -35,6 +35,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **Which section of values_and_types.md was outdated**: the link had no anchor, so the agent fixing it took the
   "Inline types and duck typing" section (a `type`'s functions taught as dispatched function values, replaced by
   "always mono it") and checked the rest of the page against the compiler. Say if you meant another section.
+- **D512, the naive engine's language gaps**: assets that finish in a later frame are the compiler's job (until
+  then asset loading keeps `Parallel`); bytes and foreign structs get plain library forms; thread-pinned classes are
+  a fact the compiler respects; the engine keeps stages, and commands flush between them.
 
 ## Open
 

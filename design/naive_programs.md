@@ -97,6 +97,53 @@ order below is by what the measurements so far say pays most.
 - Expected (from the proposal and the stress measurements): locks, per-field layout and loop parallelism dominate;
   memory matters only in frame loops that allocate (render, UI).
 
+### Stage 1 results (2026-10-07)
+
+Built on the engine package's `naive` branch (13 commits; the full report is `design/naive_baseline.md` there).
+Ryzen 9 5950X (16 cores), Windows 11, Spite `e7261193`, `--optimized`, medians of 5 runs. "Hand" is the main
+branch plus two bug fixes it needed to build, now also on main.
+
+| Benchmark | Hand | Hand on several cores? | Naive | Naive against hand |
+|---|---|---|---|---|
+| stress tick | 7.0 ms | yes: 2 systems on 2 threads (12.8 ms on one) | 27.3 ms | 3.9x slower |
+| physics tick | 6.4 ms | no | 9.8 ms | 1.5x slower |
+| navigation, one thread | 10,761 / 639 queries/s | no | 11,905 / 700 | same |
+| navigation, 20,000 queries in batches | 2,533 queries/s on 32 threads | yes, and 4.2x slower than one thread | 11,882 queries/s | 4.7x faster |
+| navigation, 10,000 bots at once | 3.8 s, worst tick 186 ms | yes | 0.89 s, worst tick 856 ms | faster overall, worse worst tick |
+| animation | 17.2 ms | no | 17.5 ms | same |
+| replication send | 804 us | no | 801 us | same |
+
+Only two hand forms really used several cores: stress (two systems at once, 1.85x) and the navigation pool, which
+was slower than one thread because each of its 32 searchers kept its own 4-million-cell scratch. That is the
+case for the compiler choosing: the expert's parallel form lost.
+
+The gaps, by time, are the work queue for stages 2 to 5 (pairs in [naive_programs_pairs.md](naive_programs_pairs.md)):
+
+1. Systems in a stage are a loop over a list of runners, so D505 does not see a row of calls (stress, about
+   6 ms): T4b, then T1 inside each system's 200,000-row stream.
+2. Reading an object out of a list counts a reference, atomically because asset loading still starts threads
+   (stress about 5.5 ms): B1 and C5.
+3. The split build does not inline the new small calls across units (stress about 5 ms): C4 across units.
+4. About 4 ms of stress not yet explained (`Regenerate` slowed far more than `Move`).
+5. Despawning allocates per removal and trims copy the kept log: L1, L5, M3.
+6. The physics grid makes a fresh list per bucket each tick: L6 for nested lists, or M1.
+7. A returned object is built in the frame and then copied to the heap: M5.
+8. Colliders as objects instead of parallel arrays: L1 across several lists of one class, then L2.
+9. 10,000 navigation requests in one tick: T8, then T1 with a cost model that counts memory.
+
+Language gaps it found, and what was decided (under D509, D512):
+
+- **Work that may finish in a later frame** (a synchronous asset load inside a system): the compiler arranges it
+  (stage 6, W1); until then asset loading keeps its `Parallel` on the naive branch.
+- **File and socket bytes come only through `Memory.Address`**, and **foreign structs holding pointers or
+  arrays** have no plain declaration: both stay `Memory` until the library gives a plain form (a bytes value
+  and a foreign struct declaration); queued as library work.
+- **Thread affinity of operating system handles** is an engine convention: the compiler must learn it (a class
+  pinned to its creating thread is already a fact D505 reads) before it runs systems at once.
+- **Stages stay** in the engine: queued commands flush between stages as today, so when systems see each other's
+  commands does not change.
+- **Compiler bug** (on main too): the crash-report C names some locals' types wrongly; with the check.sh fixes.
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

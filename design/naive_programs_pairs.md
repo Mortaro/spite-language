@@ -32,6 +32,8 @@ say.
 | T4 | two systems called in a row | D505 per field, not per class, from stage 2's effect summary | overlapped | in order | hand stages | |
 | T5 | a system's body with two halves touching disjoint fields | the halves share nothing written | two pieces overlapped like T4 | one piece | | |
 | T6 | any of T1 to T3 | cost: body estimate times count above a threshold | the parallel form only above it, one branch on count if the count is unknown | serial | hand grain sizes | |
+| T4b | `for runner in runners { runner.run() }` over a list never changed after it is built | the list's element classes and order are known while compiling | unrolled into a row of calls, then T4 applies | the loop | a stage's hand row of calls | |
+| T8 | a loop sharing one scratch every pass overwrites before reading | each pass writes the scratch before it reads it | a private scratch per band, then T1 | serial | per-thread searchers | |
 | T7 | a shared id counter `next_id = next_id + 1` | the counter is the only shared state of the writers | atomic, or a range handed to each band | lock | locked id counter | |
 
 ## Layout
@@ -53,7 +55,15 @@ say.
 | M1 | objects made in a frame loop's pass | never outlive the pass (the pass ends in a wait) | frame arena reset at the end of the pass | heap | hand scratch pools | |
 | M2 | a list used only as a queue | append at one end, remove at the other, with a visible bound | ring buffer | growable list | hand rings | |
 | M3 | many objects let go together | their `drop`s are independent | freed in slices between passes | freed at once | budgeted deferred freeing | |
+| M5 | `return Shape(...)` | the caller keeps the result in its own frame or a slot it already owns | built straight into the caller's slot | heap copy | | |
 | M4 | an object made and dropped in one call to the OS | no escape past the foreign call | in the frame, aligned for the target | heap | per-call OS structures | |
+
+## Counting references
+
+| # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
+|---|---|---|---|---|---|---|
+| B1 | `var row = list[index]` then reads of `row` | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | |
+| C5 | any class in a program with threads | no task can reach an object of the class | plain counts, not atomic | atomic counts | | |
 
 ## Waiting
 
@@ -69,7 +79,7 @@ say.
 | C1 | any function over lists | no two parameters alias | `restrict` on the C pointers | alias facts per field, not per pointer |
 | C2 | a loop whose bound is proven | bounds proven, count known | unrolled or vectorised by the C compiler with hints | own unrolling by cost |
 | C3 | a hot path with rare branches | a branch only reaches a crash or a cold call | the branch marked cold, its code moved out (built for crashes) | layout by profile from benchmarks |
-| C4 | a call to a small function | its body fits a size bound | inlined in the generated C | |
+| C4 | a call to a small function | its body fits a size bound | inlined in the generated C, across the parallel C units too (the split build lost about 5 ms of stress) | |
 
 ## Open threads in this catalogue
 
