@@ -1,0 +1,9 @@
+var total: Long = 0
+
+func count() {
+    var index = 0
+    while index < 40000000 {
+        total = total + index % 7 * 2
+        index = index + 1
+    }
+}

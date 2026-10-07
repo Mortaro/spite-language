@@ -1,0 +1,21 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var values = List<Integer>()
+    var index = 0
+    while index < 1000000 {
+        values.append(index % 1000)
+        index = index + 1
+    }
+    var tally = Tally()
+    var round = 0
+    while round < 50 {
+        values.each(tally.count_value)
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", tally.total, "large", tally.large)
+    console.error("microseconds {microseconds}")
+}

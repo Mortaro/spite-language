@@ -1,0 +1,33 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var names = List<String>()
+    var index = 0
+    while index < 1000 {
+        var name = "traveller number {index}"
+        names.append(name)
+        index = index + 1
+    }
+    var total: Long = 0
+    var round = 0
+    while round < 1000 {
+        total = total + meetings(names)
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("characters", total)
+    console.error("microseconds {microseconds}")
+}
+
+func meetings(names: List<String>): Integer {
+    var total = 0
+    var index = 0
+    while index + 1 < names.count() {
+        var line = "{names[index]} meets {names[index + 1]} at the gate."
+        total = total + line.length()
+        index = index + 1
+    }
+    return total
+}

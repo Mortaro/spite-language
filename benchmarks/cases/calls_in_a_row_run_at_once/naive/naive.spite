@@ -1,0 +1,17 @@
+var console = Console()
+var clock = Clock()
+var evens = Evens()
+var odds = Odds()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    count_both()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print(evens.total, odds.total)
+    console.error("microseconds {microseconds}")
+}
+
+func count_both() {
+    evens.count()
+    odds.count()
+}

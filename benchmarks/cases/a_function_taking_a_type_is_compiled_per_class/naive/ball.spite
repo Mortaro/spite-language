@@ -1,0 +1,9 @@
+var radius = 0.0
+
+func Ball(starting_radius: Float) {
+    radius = starting_radius
+}
+
+func to_double(): Double {
+    return radius + radius
+}

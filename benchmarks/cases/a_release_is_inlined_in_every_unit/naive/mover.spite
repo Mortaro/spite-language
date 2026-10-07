@@ -1,0 +1,5 @@
+var speed = 0
+
+func Mover(starting_speed: Integer) {
+    speed = starting_speed
+}

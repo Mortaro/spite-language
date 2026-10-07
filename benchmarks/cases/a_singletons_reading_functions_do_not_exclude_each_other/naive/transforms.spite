@@ -1,0 +1,12 @@
+singleton
+
+var stored = List<Transform>()
+
+func insert(transform: Transform) {
+    stored.append(transform)
+}
+
+func at(row: Integer): Transform {
+    crash stored[row]
+    return stored[row]
+}

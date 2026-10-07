@@ -1,0 +1,4 @@
+struct Offset
+Naive_simulate___into
+Offset_scaled___into
+Offset_sum___into

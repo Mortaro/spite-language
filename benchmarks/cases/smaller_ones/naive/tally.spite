@@ -1,0 +1,9 @@
+var total: Long = 0
+var large = 0
+
+func count_value(value: Integer) {
+    total = total + value
+    if value > 900 {
+        large = large + 1
+    }
+}

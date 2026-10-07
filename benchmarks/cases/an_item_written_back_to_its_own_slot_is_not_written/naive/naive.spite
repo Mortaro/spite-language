@@ -1,0 +1,32 @@
+var console = Console()
+var clock = Clock()
+var particles = List<Particle>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var index = 0
+    while index < 200000 {
+        var made = Particle(index % 7 + 1)
+        particles.append(made)
+        index = index + 1
+    }
+    var tick = 0
+    while tick < 200 {
+        step()
+        tick = tick + 1
+    }
+    var total = particles.sum_left()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func step() {
+    var index = 0
+    while index < particles.count() {
+        var particle = particles[index]
+        particle.left = particle.left + particle.speed
+        particles[index] = particle
+        index = index + 1
+    }
+}

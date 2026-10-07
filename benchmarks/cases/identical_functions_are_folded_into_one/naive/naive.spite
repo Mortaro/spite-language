@@ -1,0 +1,18 @@
+var console = Console()
+
+func Naive() {
+    var positions = List<Position>()
+    var velocities = List<Velocity>()
+    var index = 0
+    while index < 1000 {
+        var position = Position(index, index * 2)
+        positions.append(position)
+        var velocity = Velocity(index % 7, index % 5)
+        velocities.append(velocity)
+        index = index + 1
+    }
+    var across = positions.sum_across() + velocities.sum_across()
+    var down = positions.sum_down() + velocities.sum_down()
+    var items = positions.count() + velocities.count()
+    console.print("across", across, "down", down, "items", items)
+}

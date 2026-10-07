@@ -1,0 +1,33 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var bodies = List<Body>()
+    var labels = List<Label>()
+    var index = 0
+    while index < 200000 {
+        var body = Body(index % 5 + 1)
+        bodies.append(body)
+        var label = Label(index % 10)
+        labels.append(label)
+        index = index + 1
+    }
+    var total = simulate(bodies)
+    var numbers = labels.sum_number()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total, "labels", numbers)
+    console.error("microseconds {microseconds}")
+}
+
+func simulate(bodies: List<Body>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 100 {
+        bodies.each_advance()
+        var positions = bodies.sum_position()
+        total = total + positions
+        round = round + 1
+    }
+    return total
+}

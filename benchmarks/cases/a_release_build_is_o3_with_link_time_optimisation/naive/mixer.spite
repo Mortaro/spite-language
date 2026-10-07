@@ -1,0 +1,9 @@
+var factor = 1
+
+func Mixer(starting_factor: Integer) {
+    factor = starting_factor
+}
+
+func mixed(value: Integer): Integer {
+    return (value % 65536 * factor + 7) % 1000
+}

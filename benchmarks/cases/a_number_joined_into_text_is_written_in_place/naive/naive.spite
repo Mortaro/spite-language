@@ -1,0 +1,26 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total: Long = 0
+    var round = 0
+    while round < 20 {
+        total = total + lines(100000, round)
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("characters", total)
+    console.error("microseconds {microseconds}")
+}
+
+func lines(count: Integer, round: Integer): Integer {
+    var total = 0
+    var index = 0
+    while index < count {
+        var line = "line {index} of {round};"
+        total = total + line.length()
+        index = index + 1
+    }
+    return total
+}

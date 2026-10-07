@@ -1,0 +1,33 @@
+var console = Console()
+
+func Naive() {
+    var movers = make_movers(1000)
+    var every_other = List<Mover>()
+    var total = keep_every_other(movers, every_other)
+    movers.clear()
+    var kept = every_other.count()
+    console.print(kept, total)
+}
+
+func make_movers(count: Integer): List<Mover> {
+    var movers = List<Mover>()
+    var index = 0
+    while index < count {
+        var mover = Mover(index)
+        movers.append(mover)
+        index = index + 1
+    }
+    return movers
+}
+
+func keep_every_other(movers: List<Mover>, every_other: List<Mover>): Integer {
+    var total = 0
+    var position = 0
+    while position < movers.count() {
+        var mover = movers[position]
+        total = total + mover.speed
+        every_other.append(mover)
+        position = position + 2
+    }
+    return total
+}

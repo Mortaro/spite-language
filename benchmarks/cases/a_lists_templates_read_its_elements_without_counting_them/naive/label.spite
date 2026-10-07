@@ -1,0 +1,5 @@
+var number = 0
+
+func Label(new_number: Integer) {
+    number = new_number
+}

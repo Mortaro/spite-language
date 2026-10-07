@@ -1,0 +1,15 @@
+var limit = 0
+
+func Summer(starting_limit: Integer) {
+    limit = starting_limit
+}
+
+func total(): Long {
+    var sum: Long = 0
+    var index = 0
+    while index < limit {
+        sum = sum + index % 7
+        index = index + 1
+    }
+    return sum
+}

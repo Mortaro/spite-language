@@ -1,0 +1,28 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var ended = simulate(20000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var across: Long = ended.x * 1000.0
+    var up: Long = ended.y * 1000.0
+    var ahead: Long = ended.z * 1000.0
+    console.print("ended at", across, up, ahead)
+    console.error("microseconds {microseconds}")
+}
+
+func simulate(steps: Integer): Offset {
+    var position = Offset(0.0, 0.0, 0.0)
+    var velocity = Offset(1.0, 0.5, 0.25)
+    var gravity = Offset(0.0, -0.5, 0.0)
+    var step = 0
+    while step < steps {
+        var pulled = gravity.scaled(0.000001)
+        velocity = velocity + pulled
+        var moved = velocity.scaled(0.001)
+        position = position + moved
+        step = step + 1
+    }
+    return position
+}

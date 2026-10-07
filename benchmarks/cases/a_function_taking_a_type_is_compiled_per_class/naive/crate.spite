@@ -1,0 +1,13 @@
+var width = 0.0
+var height = 0.0
+var depth = 0.0
+
+func Crate(starting_width: Float, starting_height: Float, starting_depth: Float) {
+    width = starting_width
+    height = starting_height
+    depth = starting_depth
+}
+
+func to_double(): Double {
+    return width * height * depth
+}

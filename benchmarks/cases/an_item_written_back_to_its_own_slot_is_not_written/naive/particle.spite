@@ -1,0 +1,6 @@
+var left = 0
+var speed = 1
+
+func Particle(starting_speed: Integer) {
+    speed = starting_speed
+}

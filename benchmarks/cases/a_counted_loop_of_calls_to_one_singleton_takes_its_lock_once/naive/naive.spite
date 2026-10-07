@@ -1,0 +1,26 @@
+var console = Console()
+var clock = Clock()
+var tally = Tally()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var counted = count_on_four(5000000)
+    var total = tally.sum()
+    var calls = tally.call_count()
+    var largest = tally.largest_amount()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("counted", counted, "calls", calls, "total", total, "largest", largest)
+    console.error("microseconds {microseconds}")
+}
+
+func count_on_four(rounds: Integer): Integer {
+    var first = Counter(rounds)
+    var first_run = Parallel(first.count_up)
+    var second = Counter(rounds)
+    var second_run = Parallel(second.count_up)
+    var third = Counter(rounds)
+    var third_run = Parallel(third.count_up)
+    var fourth = Counter(rounds)
+    var fourth_run = Parallel(fourth.count_up)
+    return first_run + second_run + third_run + fourth_run
+}

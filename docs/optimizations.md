@@ -281,6 +281,8 @@ run-time list, and one copy per element in `--final-classes`.
 
 ### Template chains run as one loop
 
+**The case:** [benchmarks/cases/template_chains_run_as_one_loop](../benchmarks/cases/template_chains_run_as_one_loop/).
+
 **What it does.** `teams.filter_is_active().map_leads().sum_age()` reads as three steps, and that is what it means,
 but the compiler writes it as one loop over `teams` with no list in between: each element is tested, mapped and
 added before the next one is read.
@@ -356,6 +358,8 @@ pins four chains run a thousand times at 11 allocations, where the steps written
 above. Member functions a template reads should not depend on that order; ones that only compute never do.
 
 ### Appending to text in place
+
+**The case:** [benchmarks/cases/appending_to_text_in_place](../benchmarks/cases/appending_to_text_in_place/).
 
 **What it does.** `text = text + piece`, or `text = "{text}{piece}"`, would copy the whole text on every
 append, which makes the most common loop there is quietly quadratic. When nothing but that variable holds the
@@ -619,6 +623,8 @@ thread never pays for atomics. In a program that does, only the classes another 
 
 ### Plain reference counts where no thread reaches a class
 
+**The case:** [benchmarks/cases/plain_reference_counts_where_no_thread_reaches_a_class](../benchmarks/cases/plain_reference_counts_where_no_thread_reaches_a_class/).
+
 **What it does.** An atomic count costs a locked instruction at every retain and release, and most classes of a
 program with threads never need one: an engine's components are moved by the program's own thread while a worker
 reads a file. So the compiler decides it class by class. Once every generic class is made for its values and the
@@ -705,6 +711,8 @@ step of 5 000 characters from 13.3 to 11.5 ms.
 above, whose C `check.sh` reads.
 
 ### A function taking a `type` is compiled per class
+
+**The case:** [benchmarks/cases/a_function_taking_a_type_is_compiled_per_class](../benchmarks/cases/a_function_taking_a_type_is_compiled_per_class/).
 
 **What it does.** A function whose parameter is a `type` (`Anything`, `Printable`, a shape of your own) is compiled
 once for each class that reaches it, following calls through the whole program. A call whose argument's class is
@@ -1098,6 +1106,8 @@ a `memcpy` in the machine code, and what is left is its allocation (about 39 ns 
 
 ### A singleton's reading functions do not exclude each other
 
+**The case:** [benchmarks/cases/a_singletons_reading_functions_do_not_exclude_each_other](../benchmarks/cases/a_singletons_reading_functions_do_not_exclude_each_other/).
+
 **What it does.** A locked singleton's function that only reads its state (an engine column's `at(row)`, a lookup)
 does not take the lock itself. It takes the readers' side: it adds one to a count of its own thread's (one of 32
 counts, each on a cache line of its own), checks that no function that writes holds the lock, reads, and takes the
@@ -1133,6 +1143,8 @@ carries 2 KiB of counts. What a program computes is unchanged: a reading functio
 whole, never half-way through a write.
 
 ### A counted loop of calls to one singleton takes its lock once
+
+**The case:** [benchmarks/cases/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](../benchmarks/cases/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/).
 
 **What it does.** A `while` that calls functions of one locked singleton many times (a worker removing rows through
 `columns.remove_row(entity)`, a system adding to a tally) takes that singleton's lock once around the whole loop
@@ -1317,6 +1329,8 @@ and `spite.assert<TAB>id<TAB>answered=...` in an optimised build, and `grep <id>
 
 ### Smaller ones
 
+**The case:** [benchmarks/cases/smaller_ones](../benchmarks/cases/smaller_ones/).
+
 None of these needs anything from you:
 
 - `join` writes every piece once into one buffer instead of copying the text so far at each step.
@@ -1363,6 +1377,8 @@ again, and a call through a function value keeps no proof about attributes or li
 ([failure.md](failure.md#a-call-may-undo-a-proof)).
 
 ### Text joined in one piece
+
+**The case:** [benchmarks/cases/text_joined_in_one_piece](../benchmarks/cases/text_joined_in_one_piece/).
 
 **What it does.** `"line {index} of {round};"` and `prefix + name + suffix` are one join, not a chain of pairs:
 every piece is computed in order, left to right as written, and the text is made once, at its final length. Before,
@@ -1418,6 +1434,8 @@ same list, in the same order, whenever it is read.
 
 ### A list's templates read its elements without counting them
 
+**The case:** [benchmarks/cases/a_lists_templates_read_its_elements_without_counting_them](../benchmarks/cases/a_lists_templates_read_its_elements_without_counting_them/).
+
 **What it does.** Every member template of `List` (`sum_price()`, `filter_is_active()`, `each(step)`, `copy()`)
 and every fused chain would read each element with `values.read_value(items, index)`, which raises the element's
 reference count, and lowers it again when the pass over that element ends: two writes to every object walked,
@@ -1448,6 +1466,8 @@ particles, in a program whose counts are atomic, takes 211-252 µs a pass, again
 decided.
 
 ### An item written back to its own slot is not written
+
+**The case:** [benchmarks/cases/an_item_written_back_to_its_own_slot_is_not_written](../benchmarks/cases/an_item_written_back_to_its_own_slot_is_not_written/).
 
 **What it does.** A plain loop over a list often reads an item into a name, changes it, and puts it back:
 
@@ -1523,6 +1543,8 @@ classes, for a `List` item read with `[]` into a `var` in the same block as the 
 
 ### A list item read only to test it is not counted
 
+**The case:** [benchmarks/cases/a_list_item_read_only_to_test_it_is_not_counted](../benchmarks/cases/a_list_item_read_only_to_test_it_is_not_counted/).
+
 **What it does.** `crash list[index]`, `assert list[index]`, `if list[index]` and `if not list[index]` read an item
 only to ask whether it is there:
 
@@ -1580,6 +1602,8 @@ for every entity and component, ticks in 43.8 ms instead of 48.1 (40.3 instead o
 crash report says, allocations and everything a program prints are the same.
 
 ### An item a name holds from its list is not counted
+
+**The case:** [benchmarks/cases/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/cases/an_item_a_name_holds_from_its_list_is_not_counted/).
 
 **What it does.** A name read from a list and used for a while is the commonest way a plain program looks at an
 item:
@@ -1662,6 +1686,8 @@ Allocations, the order of everything a program can see and what it prints are th
 
 ### A number joined into text is written in place
 
+**The case:** [benchmarks/cases/a_number_joined_into_text_is_written_in_place](../benchmarks/cases/a_number_joined_into_text_is_written_in_place/).
+
 **What it does.** `"line {index} of {round};"` would turn `index` and `round` into texts of their own (two
 allocations each) only to copy them into the result and free them. An `Integer` or `Long` piece of a text join,
 or of an append in place (`text = "{text}{count}"`), is instead written as digits into a buffer in the function's own
@@ -1704,6 +1730,8 @@ ms) and `flex_layout` (about 3 ms of 70) were faster; the Vulkan UI tests (`clic
 ms) at the cost of up to 2 MB kept per thread; `benchmarks/README.md` has both sets of numbers.
 
 ### Objects of one class sit together
+
+**The case:** [benchmarks/cases/objects_of_one_class_sit_together](../benchmarks/cases/objects_of_one_class_sit_together/).
 
 **What it does.** Every object of a class that a list holds is made from that class's own pool: blocks the size of
 one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
@@ -2152,6 +2180,8 @@ four items, which would grow its buffer while it was filled): `conformance/stage
 
 ### A loop over plain values reads its count once and its items unchecked
 
+**The case:** [benchmarks/cases/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](../benchmarks/cases/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/).
+
 **What it does.** A `while index < values.count()` over a `List` of numbers or `Boolean` (the only list that holds
 them), with `values` a local or a parameter named bare, not an attribute or any other expression, is written as
 the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
@@ -2215,6 +2245,8 @@ comparison means what it reads as: after `var tenth: Float = 0.1`, `tenth == 0.1
 
 ### A proven read tests only its bounds
 
+**The case:** [benchmarks/cases/a_proven_read_tests_only_its_bounds](../benchmarks/cases/a_proven_read_tests_only_its_bounds/).
+
 **What it does.** Every `[]` answers a `T?`, and a read the compiler proves (a loop bound `index < list.count()`, a
 proven count, a list literal's indices, the effects of calls, a bound past the index such as `at + 2 < list.count()`,
 or a count kept in a `var`) needs nothing written. It also costs no presence test of the `T?`: the compiler reads the
@@ -2253,6 +2285,8 @@ more for itself as it always did (`conformance/stage6/sparse_rows` reads its ref
 compare, show no tick slower beyond the run-to-run noise.
 
 ### Objects that never leave their function live in the frame
+
+**The case:** [benchmarks/cases/objects_that_never_leave_their_function_live_in_the_frame](../benchmarks/cases/objects_that_never_leave_their_function_live_in_the_frame/).
 
 **What it does.** Every class is passed by reference, so `var moved = position +
 velocity.scaled(delta)` reads as two new objects. When the compiler can prove an object never outlives the call
@@ -2350,6 +2384,8 @@ not inlined by the C compiler (which the default `-O0` build never does anyway, 
 
 ### A release build is `-O3` with link-time optimisation
 
+**The case:** [benchmarks/cases/a_release_build_is_o3_with_link_time_optimisation](../benchmarks/cases/a_release_build_is_o3_with_link_time_optimisation/).
+
 `--optimized` asks the C compiler for `-O3`, and a build from several units adds
 ThinLTO (`-flto=thin`, clang) or `-flto=auto` (gcc) so functions are still inlined across units. What you could
 notice: the link takes longer, since it is where the optimisation across units happens. The default build is `-O0`,
@@ -2359,6 +2395,8 @@ where they run; an `--optimized` build, the one shipped, adds nothing of the kin
 [benchmarks/README.md](../benchmarks/README.md#release-builds).
 
 ### A release is inlined in every unit
+
+**The case:** [benchmarks/cases/a_release_is_inlined_in_every_unit](../benchmarks/cases/a_release_is_inlined_in_every_unit/).
 
 **What it does.** Letting go of a reference is a count-down and, rarely, the freeing of the object and everything it
 holds. The compiler writes each class's retain and release as a small `static inline` function in the header that
@@ -2450,6 +2488,8 @@ shared.
 
 ### Identical functions are folded into one
 
+**The case:** [benchmarks/cases/identical_functions_are_folded_into_one](../benchmarks/cases/identical_functions_are_folded_into_one/).
+
 Two versions of one dependency are two different libraries
 ([packages.md](packages.md#two-versions-of-one-repository)), and what that duplicates must cost nothing. So the
 compiler folds every function it generates that is identical to another once both are normalised: the same statements
@@ -2482,6 +2522,8 @@ every build, rather than leaving it to the C compiler or the linker.
 - **Cost**: compile time only; the executable gets smaller.
 
 ### Calls in a row run at once
+
+**The case:** [benchmarks/cases/calls_in_a_row_run_at_once](../benchmarks/cases/calls_in_a_row_run_at_once/).
 
 **What it does.** Statements in a row that each call a function on an object of the program, and share nothing
 one of them writes, run on the thread pool at once ([concurrency.md](concurrency.md#calls-in-a-row-run-at-once)).

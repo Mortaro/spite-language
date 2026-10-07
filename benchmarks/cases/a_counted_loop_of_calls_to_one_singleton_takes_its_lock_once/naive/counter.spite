@@ -1,0 +1,15 @@
+var tally = Tally()
+var rounds = 0
+
+func Counter(new_rounds: Integer) {
+    rounds = new_rounds
+}
+
+func count_up(): Integer {
+    var index = 0
+    while index < rounds {
+        tally.add(index % 3)
+        index = index + 1
+    }
+    return rounds
+}

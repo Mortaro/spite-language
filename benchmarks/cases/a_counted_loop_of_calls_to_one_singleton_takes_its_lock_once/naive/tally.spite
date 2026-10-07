@@ -1,0 +1,25 @@
+singleton
+
+var total: Long = 0
+var calls = 0
+var largest = 0
+
+func add(amount: Integer) {
+    total = total + amount
+    calls = calls + 1
+    if amount > largest {
+        largest = amount
+    }
+}
+
+func sum(): Long {
+    return total
+}
+
+func call_count(): Integer {
+    return calls
+}
+
+func largest_amount(): Integer {
+    return largest
+}

@@ -1,0 +1,42 @@
+var console = Console()
+var clock = Clock()
+var points = List<Point>()
+var notes = List<Note>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    make_both(300000)
+    var total = sum_points()
+    var noted = notes.count()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total, "notes", noted)
+    console.error("microseconds {microseconds}")
+}
+
+func make_both(count: Integer) {
+    var index = 0
+    while index < count {
+        var point = Point(index % 1000, index % 30)
+        points.append(point)
+        var note = Note("made")
+        notes.append(note)
+        index = index + 1
+    }
+}
+
+func sum_points(): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 30 {
+        var position = 0
+        while position < points.count() {
+            var point = points[position]
+            if point.down >= round {
+                total = total + point.across + point.down
+            }
+            position = position + 1
+        }
+        round = round + 1
+    }
+    return total
+}

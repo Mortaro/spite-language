@@ -256,6 +256,13 @@ job_benchmark() {
     echo "FAILED: the C of benchmark $name does not compile"; echo "$errors" | head -5; exit 1; }
 }
 
+# A case of an optimisation (benchmarks/cases/README.md): naive/ compiles, the C it compiles to still holds what its
+# generated.c shows, and naive/, naive.c and expert.c print the same answer (scripts/cases/check.sh). Timing them is
+# benchmarks/cases/run.sh's, by hand.
+job_case() {
+  CASES_WORK="$work/cases" bash scripts/cases/check.sh --compiler="$work/generation_two.exe" "$1" || exit 1
+}
+
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 job_tests() {
   local test_output test_balance
@@ -419,8 +426,9 @@ mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
   for folder in conformance/*/*/ examples/*/; do echo "program $folder"; done   # the examples are held to the same standard as the corpus
   for folder in .spite/docs/*/; do echo "documentation $folder"; done
   for folder in benchmarks/*/ benchmarks/versus_c/*/; do
-    [ "$(basename "$folder")" == "versus_c" ] || echo "benchmark $folder"   # a suite of programs, each checked on its own
+    case "$(basename "$folder")" in versus_c|cases) ;; *) echo "benchmark $folder" ;; esac   # a suite of programs, each checked on its own
   done
+  for folder in benchmarks/cases/*/; do echo "case $folder"; done
   for folder in diagnostics/*/; do echo "diagnostic $folder"; done
 } | awk '{ print NR, $0 }' > "$work/jobs.txt"
 
@@ -435,7 +443,7 @@ run_pool() {
 # The report prints each job's output in the order of the job list, never in the order the jobs ended, and counts
 # the results of each kind; a job that left no exit code failed.
 report_pool() {
-  failures=0; passed=0; failed=0; skipped=0; documented=0; undocumented=0; checked=0; wrong=0; benchmarked=0
+  failures=0; passed=0; failed=0; skipped=0; documented=0; undocumented=0; checked=0; wrong=0; benchmarked=0; cased=0
   while read -r index kind rest; do
     status=""; [ -f "$work/results/$index.status" ] && read -r status < "$work/results/$index.status"
     [ -s "$work/results/$index.txt" ] && tr -d '\r' < "$work/results/$index.txt"
@@ -451,6 +459,7 @@ report_pool() {
       documentation) if [ "$status" == "0" ]; then documented=$((documented+1)); else undocumented=$((undocumented+1)); fi ;;
       diagnostic) checked=$((checked+1)); [ "$status" == "0" ] || wrong=$((wrong+1)) ;;
       benchmark) [ "$status" == "0" ] && benchmarked=$((benchmarked+1)) ;;
+      case) [ "$status" == "0" ] && cased=$((cased+1)) ;;
     esac
   done < "$work/jobs.txt"
 }
@@ -478,6 +487,7 @@ echo "conformance and examples: $passed passed, $failed failed, $skipped skipped
 echo "documentation: $documented passed, $undocumented failed"
 echo "diagnostics: $checked checked, $wrong wrong"
 echo "benchmarks: $benchmarked compile"
+echo "optimisation cases: $cased compile, keep their generated C, and answer alike in Spite, naive C and expert C"
 [ "$failures" == "0" ] || { echo "FAILED: $failures jobs failed"; exit 1; }
 echo "generation 3: byte identical to generation 2"
 echo "tests: passed"

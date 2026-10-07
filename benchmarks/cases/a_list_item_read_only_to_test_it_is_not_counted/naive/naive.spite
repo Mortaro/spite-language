@@ -1,0 +1,36 @@
+var console = Console()
+var clock = Clock()
+var entries = List<Entry>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var index = 0
+    while index < 200000 {
+        var made = Entry(index % 1000)
+        entries.append(made)
+        index = index + 1
+    }
+    var found = probe(20000000)
+    var keys = entries.sum_key()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("found", found, "keys", keys)
+    console.error("microseconds {microseconds}")
+}
+
+func probe(probes: Integer): Integer {
+    var found = 0
+    var missing = 0
+    var at = 0
+    var index = 0
+    while index < probes {
+        at = (at + 7919) % 400000
+        if entries[at] {
+            found = found + 1
+        } else {
+            missing = missing + 1
+        }
+        index = index + 1
+    }
+    crash found + missing == probes
+    return found
+}

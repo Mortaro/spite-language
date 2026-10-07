@@ -1,0 +1,3 @@
+Naive_count_both
+Evens_count
+Odds_count

@@ -1,0 +1,5 @@
+var key = 0
+
+func Entry(new_key: Integer) {
+    key = new_key
+}

@@ -1,0 +1,39 @@
+type Measured {
+    to_double(): Double
+}
+
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = measure_all(20000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var whole: Long = total
+    console.print("total", whole)
+    console.error("microseconds {microseconds}")
+}
+
+func measure_all(steps: Integer): Double {
+    var total: Double = 0.0
+    var crate = Crate(1.0, 2.0, 3.0)
+    var ball = Ball(1.0)
+    var step = 0
+    while step < steps {
+        var count = step % 10
+        total = total + doubled(count)
+        var share: Float = step % 4
+        total = total + doubled(share)
+        crate.width = step % 7
+        total = total + doubled(crate)
+        ball.radius = step % 5
+        total = total + doubled(ball)
+        step = step + 1
+    }
+    return total
+}
+
+func doubled(value: Measured): Double {
+    var measure = value.to_double()
+    return measure + measure
+}

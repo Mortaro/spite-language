@@ -1,0 +1,30 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var items = List<Item>()
+    var index = 0
+    while index < 100000 {
+        var owner = Owner(index % 90)
+        var item = Item(index % 1000, index % 3 != 0, owner)
+        items.append(item)
+        index = index + 1
+    }
+    var total = totals(items)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func totals(items: List<Item>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 100 {
+        var prices = items.filter_is_active().sum_price()
+        var ages = items.filter_is_active().map_owners().filter_is_adult().sum_age()
+        total = total + prices + ages
+        round = round + 1
+    }
+    return total
+}

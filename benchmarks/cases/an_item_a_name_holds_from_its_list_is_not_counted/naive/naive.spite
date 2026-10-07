@@ -1,0 +1,45 @@
+var console = Console()
+var clock = Clock()
+var columns = List<Column>()
+var weights = List<Integer>()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var index = 0
+    while index < 100000 {
+        var made = Column(index % 3 + 1)
+        columns.append(made)
+        weights.append(0)
+        index = index + 1
+    }
+    var round = 0
+    while round < 100 {
+        visit_all()
+        round = round + 1
+    }
+    var hits = columns.sum_hits()
+    crash weights[99999]
+    var last = weights[99999]
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("hits", hits, "last weight", last)
+    console.error("microseconds {microseconds}")
+}
+
+func visit_all() {
+    var index = 0
+    while index < columns.count() {
+        visit(index)
+        index = index + 1
+    }
+}
+
+func visit(index: Integer) {
+    crash columns[index]
+    var column = columns[index]
+    column.hit()
+    weights[index] = weight(column)
+}
+
+func weight(column: Column): Integer {
+    return column.hits * 10
+}

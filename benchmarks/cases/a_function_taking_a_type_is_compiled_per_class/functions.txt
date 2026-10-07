@@ -1,0 +1,5 @@
+Naive_measure_all
+Naive_doubled___for_0_Integer
+Naive_doubled___for_0_Float
+Naive_doubled___for_0_Crate___held_0
+Naive_doubled___for_0_Ball___held_0

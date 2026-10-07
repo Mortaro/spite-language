@@ -1,0 +1,52 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var from = List<Float>()
+    var into = List<Float>()
+    var index = 0
+    while index < 100000 {
+        var value: Float = index % 7
+        from.append(value)
+        into.append(0.0)
+        index = index + 1
+    }
+    var start = clock.elapsed_nanoseconds()
+    var total = rounds(from, into)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total in quarters", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(from: List<Float>, into: List<Float>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 2000 {
+        var offset: Float = round % 4
+        offset = offset * 0.25
+        scale_list(from, into, offset)
+        var sum = add_up(into)
+        var quarters: Long = sum * 4.0
+        total = total + quarters
+        round = round + 1
+    }
+    return total
+}
+
+func scale_list(from: List<Float>, into: List<Float>, offset: Float) {
+    var index = 0
+    while index < from.count() {
+        into[index] = from[index] * 1.5 + offset
+        index = index + 1
+    }
+}
+
+func add_up(values: List<Float>): Float {
+    var total = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index]
+        index = index + 1
+    }
+    return total
+}

@@ -1,0 +1,3 @@
+Naive_window_total___held_0
+Naive_rise_count___held_0
+List_Integer_get_at

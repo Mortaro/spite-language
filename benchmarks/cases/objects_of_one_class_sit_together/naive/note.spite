@@ -1,0 +1,5 @@
+var text = ""
+
+func Note(starting_text: String) {
+    text = starting_text
+}

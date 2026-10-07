@@ -1,0 +1,10 @@
+var hits = 0
+var step = 1
+
+func Column(new_step: Integer) {
+    step = new_step
+}
+
+func hit() {
+    hits = hits + step
+}

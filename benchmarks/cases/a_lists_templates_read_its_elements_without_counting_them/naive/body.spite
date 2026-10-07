@@ -1,0 +1,10 @@
+var position = 0
+var speed = 1
+
+func Body(new_speed: Integer) {
+    speed = new_speed
+}
+
+func advance() {
+    position = position + speed
+}

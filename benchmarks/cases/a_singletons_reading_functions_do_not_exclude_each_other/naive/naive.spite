@@ -1,0 +1,52 @@
+var console = Console()
+var clock = Clock()
+var transforms = Transforms()
+var row_total = 15000
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var row = 0
+    while row < row_total {
+        var transform = Transform(row % 1000)
+        transforms.insert(transform)
+        row = row + 1
+    }
+    var total = ticks(20)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func ticks(count: Integer): Long {
+    var total: Long = 0
+    var tick = 0
+    while tick < count {
+        total = total + one_tick()
+        var written = transforms.at(tick)
+        transforms.insert(written)
+        tick = tick + 1
+    }
+    return total
+}
+
+func one_tick(): Long {
+    var first = System(row_total)
+    var first_run = Parallel(first.run)
+    var second = System(row_total)
+    var second_run = Parallel(second.run)
+    var third = System(row_total)
+    var third_run = Parallel(third.run)
+    var fourth = System(row_total)
+    var fourth_run = Parallel(fourth.run)
+    var fifth = System(row_total)
+    var fifth_run = Parallel(fifth.run)
+    var sixth = System(row_total)
+    var sixth_run = Parallel(sixth.run)
+    var seventh = System(row_total)
+    var seventh_run = Parallel(seventh.run)
+    var eighth = System(row_total)
+    var eighth_run = Parallel(eighth.run)
+    var early: Long = first_run + second_run + third_run + fourth_run
+    var late: Long = fifth_run + sixth_run + seventh_run + eighth_run
+    return early + late
+}

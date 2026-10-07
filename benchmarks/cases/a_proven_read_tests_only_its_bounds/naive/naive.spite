@@ -1,0 +1,56 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var values = List<Integer>()
+    var index = 0
+    while index < 100000 {
+        values.append(index * 37 % 101)
+        index = index + 1
+    }
+    var start = clock.elapsed_nanoseconds()
+    var total = rounds(values)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(values: List<Integer>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 300 {
+        var weight = round % 3 + 1
+        var windows = window_total(values, weight)
+        var threshold = round % 50
+        var rises = rise_count(values, threshold)
+        total = total + windows + rises
+        round = round + 1
+    }
+    return total
+}
+
+func window_total(values: List<Integer>, weight: Integer): Integer {
+    var total = 0
+    var at = 0
+    while at + 2 < values.count() {
+        total = total + values[at] * weight + values[at + 1] + values[at + 2]
+        at = at + 1
+    }
+    return total
+}
+
+func rise_count(values: List<Integer>, threshold: Integer): Integer {
+    var count = values.count()
+    var rises = 0
+    var previous = 0
+    var index = 0
+    while index < count {
+        var value = values[index]
+        if value - previous > threshold {
+            rises = rises + 1
+        }
+        previous = value
+        index = index + 1
+    }
+    return rises
+}

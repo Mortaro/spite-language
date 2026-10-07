@@ -1,0 +1,27 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var total = 0
+    var round = 0
+    while round < 8 {
+        var text = words(10000)
+        total = total + text.length()
+        round = round + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("characters", total)
+    console.error("microseconds {microseconds}")
+}
+
+func words(count: Integer): String {
+    var text = ""
+    var piece = "word "
+    var index = 0
+    while index < count {
+        text = text + piece
+        index = index + 1
+    }
+    return text
+}

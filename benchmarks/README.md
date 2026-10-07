@@ -50,6 +50,16 @@ for the allocation counts.
 | `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps a game engine wrote while Spite had no maths (`engine/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
 | `plain_loops` | a million `Float`s and `Integer`s: `into[index] = from[index] * 1.5 + 0.25` over two `List<Float>`, the same in place over one `List<Float>` (a `Vector<Float>` before D225, printed as `Vector scale` then and `in place` now), a `Float` sum and an `Integer` sum, each a plain `while` over `count()`; three rounds, each printing microseconds per pass of all four. The loops the C compiler vectorises once the count is read once and the items unchecked ([optimizations.md](../docs/optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) |
 
+## Optimisation cases
+
+`cases/` holds one folder per section of [docs/optimizations.md](../docs/optimizations.md): the plain Spite
+program, the same program in naive C and in expert C, and the C the compiler writes for it, so each optimisation
+can be read before and after and timed against both kinds of C ([cases/README.md](cases/README.md)).
+
+```
+bash benchmarks/cases/run.sh [case ...]
+```
+
 ## Spite against C
 
 `versus_c/` holds five programs, each beside a C twin (`twin.c`) that does the same work the way a C programmer

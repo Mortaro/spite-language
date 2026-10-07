@@ -1,0 +1,21 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var mixer = Mixer(31)
+    var total = checksum(mixer, 50000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("checksum", total)
+    console.error("microseconds {microseconds}")
+}
+
+func checksum(mixer: Mixer, count: Integer): Long {
+    var total: Long = 0
+    var index = 0
+    while index < count {
+        total = total + mixer.mixed(index)
+        index = index + 1
+    }
+    return total
+}

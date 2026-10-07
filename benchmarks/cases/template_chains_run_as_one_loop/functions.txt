@@ -1,0 +1,3 @@
+Naive_totals___held_0
+List_Item_filter_is_active_then_sum_price
+List_Item_filter_is_active_then_map_owners_then_filter_is_adult_then_sum_age
