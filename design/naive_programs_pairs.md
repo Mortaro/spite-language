@@ -24,6 +24,7 @@ say.
 | C5: plain counts for every class no other thread can count | [optimizations](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class), [proofs](../docs/proofs.md#no-other-thread-counts-a-class) |
 | C6: a release is a `static inline` count-down in every unit, its freeing out of line | [optimizations](../docs/optimizations.md#a-release-is-inlined-in-every-unit) |
 | B2: an item written back to its own slot is not written, and B1's uncounted read where the same proof holds to the end of the block (same block only; the engine's runner reads and stores in different functions) | [optimizations](../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written), [proofs](../docs/proofs.md#an-item-written-back-to-its-own-slot-is-the-slot) |
+| M6: objects of a class a list holds come from that class's own pool, side by side (stress 64.0 to 47.6 ms a tick, despawning 113 to 21 ms, physics 9.5 to 8.5 ms) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-a-list-holds-made-on-one-thread) |
 
 ## Threads
 
@@ -67,6 +68,7 @@ say.
 | # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
 |---|---|---|---|---|---|---|
 | B1 | `var row = list[index]` then `row` passed to calls, compared or kept (reading and writing its attributes is built, above) | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | |
+| B3 | `crash list[index]`, `assert list[index]` or `if list[index]` before reading the item | the read is used only for the test, and nothing runs between the read and the test | the slot's pointer tested, no retain and release (with B1 for the read that follows, when it holds) | the counted read | | |
 | B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | |
 | B2c | `var row = list[i].copy()`, changed, `list[i] = row` | no other name holds the stored object (L1's proof) | the slot changed in place, no copy | copy and write back | | |
 
@@ -89,5 +91,9 @@ say.
 ## Open threads in this catalogue
 
 - Which of these the stage 1 baseline actually needs is unknown until it is measured; rows will be reordered then.
+- The third pass ([naive_programs.md](naive_programs.md#third-pass-2026-10-07)) measured B3 and L8 on hand-edited C
+  after M6: B3 takes a stress tick from 43.1 to 39.7 ms, and dropping the first match (what L8 would remove) from
+  43.1 to 37.8 ms. The engine's candidate list is an attribute of its runner read through `choose`, not a local
+  list read in order by the next loop, so L8 as written does not reach it yet.
 - Rows that change observable order (T3's merge, M3's timing of `drop`) keep written order or are refused; any that
   cannot will go to Mortaro.

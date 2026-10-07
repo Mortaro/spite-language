@@ -112,6 +112,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
 | [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back; no count on the read | the counted read and the write |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
+| [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
 | [A function that touches no changing state](#a-function-that-touches-no-changing-state-takes-no-lock) | no lock for it | the lock |
@@ -887,6 +888,24 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   that work classes of its own where the count matters.
 - **See.** [optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class);
   `conformance/stage6/plain_counts`.
+
+### Objects a list holds, made on one thread
+
+- **Proves.** Every object of a class is made and let go on the program's own thread, and the program keeps
+  objects of the class in a list.
+- **Rule.** Read from the program after every generic class is made and the program is tree shaken. The class is
+  not shared under [No other thread counts a class](#no-other-thread-counts-a-class), and no code that can run on
+  another thread (the same code that proof follows) makes an object of it, copies one or frees one. In a program
+  without threads every class meets the first half. The second half holds when the class is the item of a `List`,
+  or of anything else built on `TypedMemory<T>` such as a `Dictionary`'s values, anywhere in the program; the class
+  is not a singleton and frees its objects through its own release alone.
+- **Buys.** The class's objects come from a pool of its own, with no lock: side by side in memory, made and given
+  back with a few plain writes ([optimizations.md](optimizations.md#objects-of-one-class-sit-together)).
+- **Falls back.** The C library's `malloc` and `free` for the class: a class another thread counts, makes or frees,
+  one no list holds, a singleton, a `--debug-memory` build, a program that reads `live_allocations()` or
+  `live_bytes()`, and an inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). Nothing
+  for the program to write: the fallback is the allocator every object had before.
+- **See.** [optimizations.md](optimizations.md#objects-of-one-class-sit-together); `conformance/stage6/class_pools`.
 
 ### Which singletons a `Parallel` reaches
 

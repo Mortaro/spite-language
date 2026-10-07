@@ -55,6 +55,13 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   be a write meant for the list, so it is refused naming `list[index] = value`, or the function of the class
   holding the list that writes it. Why: it compiled and stored nothing (D244); the general dead store ("any
   assignment nothing reads") is a wider rule left for you, since it would refuse code that is merely redundant.
+- **D517, a pool per class for objects a list holds**: in a production build, an object of a class the program
+  keeps in a list (and no other thread makes or counts) comes from that class's own pool, so a list's objects sit
+  side by side. Why: the naive engine's components were interleaved in the C library's heap and every read was a
+  cache miss (a stress tick 64 ms to 48, despawning 113 ms to 21, peak memory 96 MB to 67). The cost to confirm: a
+  class keeps the memory it once used for its own next objects, never for another class or the system, while the
+  program runs. Pooling every class was measured and not kept (one benchmark 4% slower); pooling short-lived
+  objects no list holds would make `vector_maths` 1.75 times faster and is listed as not built.
 
 ## Open
 

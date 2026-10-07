@@ -1554,14 +1554,96 @@ not shaken, so it counts.
 is 922 lines with this, the crash trace and the foreign library changes in [Smaller ones](#smaller-ones),
 against 1 356 without them.
 
-**Freed small blocks are not kept for reuse.** Keeping each freed object of up to 256 bytes on a per-thread
-list for its size, for the next allocation of that size, was tried and is not done: it was not a clear,
+**Freed small blocks are not kept by size.** Keeping each freed object of up to 256 bytes on a per-thread
+list for its size, for the next allocation of that size, was tried and is not done (objects a list holds are kept
+by class instead, [below](#objects-of-one-class-sit-together)): it was not a clear,
 repeatable gain on a game engine, the program it was for. Against the plain C allocator, `clang -O2`, best of
 nine interleaved runs on one machine: `examples/stress` ticks 42.9 ms with it and 41.9 without in parallel,
 49.0 and 50.9 single-threaded, 60 ticks after despawning 87.7 and 87.2 ms; only the 200 000 spawns (449 and 504
 ms) and `flex_layout` (about 3 ms of 70) were faster; the Vulkan UI tests (`click_counter_test`,
 `text_field_test`) did not move beyond noise. It sped up the small benchmarks (`small_allocations` 84 against 140
 ms) at the cost of up to 2 MB kept per thread; `benchmarks/README.md` has both sets of numbers.
+
+### Objects of one class sit together
+
+**What it does.** Every object of a class that a list holds is made from that class's own pool: blocks the size of
+one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
+object. The C library's allocator puts each object wherever a block of its size is free, so objects of different
+classes made in turn (an entity's position, then its velocity, then its health) end up interleaved, and a loop over
+one class's list touches a new cache line for every object. From their class's pool, the positions sit side by
+side, four 16-byte objects to a 64-byte line, and the loop reads its memory in order.
+
+```gdscript title=nearby_points/point.spite
+var across = 0
+var down = 0
+
+func Point(starting_across: Integer, starting_down: Integer) {
+    across = starting_across
+    down = starting_down
+}
+```
+```gdscript title=nearby_points/note.spite
+var text = ""
+
+func Note(starting_text: String) {
+    text = starting_text
+}
+```
+```gdscript title=nearby_points/nearby_points.spite entry
+var console = Console()
+var points = List<Point>()
+var notes = List<Note>()
+
+func NearbyPoints() {
+    var index = 0
+    while index < 1000 {
+        var point = Point(index, index * 2)
+        points.append(point)
+        var note = Note("made")
+        notes.append(note)
+        index = index + 1
+    }
+    var total = 0
+    var position = 0
+    while position < points.count() {
+        var point = points[position]
+        total = total + point.across + point.down
+        position = position + 1
+    }
+    var noted = notes.count()
+    console.print("total", total, "notes", noted)
+}
+```
+```output
+total 1498500 notes 1000
+```
+
+A point and a note are made in turn, a thousand times. Each `Point` comes from `Point`'s pool and each `Note` from
+`Note`'s, so the loop that sums the points reads one run of points after another and never a note. A point let go
+goes back to `Point`'s pool, and the next `Point` made takes its place.
+
+A pool starts with room for 16 objects and doubles the room it takes each time it runs out, until a run of
+blocks is at least 256 KiB, each run starting on a cache line. Taking an object is a read of the last one given back, or the next free block; giving
+one back is two writes. Nothing else runs: there is no collector and no table, and a class whose objects no list
+holds keeps the C library's allocator.
+
+**When.** Production builds, ordinary or `--optimized`, that allocate with the C library's `malloc` and `free`:
+not a `--debug-memory` build, whose table names every object, not a program that reads
+`Memory.Heap().live_allocations()` or `live_bytes()`, which count the C library's blocks, and not an inspectable
+build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). A class qualifies when the program keeps its objects in a list
+(a `List`, or anything built on `TypedMemory<T>` the same way, such as a `Dictionary`'s values), and it is not a
+singleton. In a program with
+threads, a class qualifies only when no code that can run on another thread counts, makes or frees one of its
+objects ([Proofs](proofs.md#objects-a-list-holds-made-on-one-thread)); a pool has no lock.
+
+**What you notice.** Speed, and less memory: a pooled object carries no block header of the C library's. In a game
+engine's stress test (200 000 entities moved by two systems) a tick went from 64.0 to 47.6 ms (60.5 to 43.2 built
+as one C file), sixty ticks after despawning every entity from 113 to 21 ms, spawning them from 163 to 98 ms, and
+the program's peak memory from 96 to 67 MB; a physics step of 5 000 characters from 9.5 to 8.5 ms. The cost is
+that memory a class used stays that class's: an object given back is kept for the next object of its class, never
+for another class and never returned to the system while the program runs. A program that makes a million objects
+of one class, lets them all go and then makes a million of another holds room for both.
+`conformance/stage6/class_pools` is a program whose C `check.sh` reads, built `--optimized` and run.
 
 ### A dictionary hashes a key once, cheaply
 

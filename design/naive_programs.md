@@ -174,6 +174,73 @@ Language gaps it found, and what was decided (under D509, D512):
   commands does not change.
 - **Compiler bug** (on main too): the crash-report C names some locals' types wrongly; with the check.sh fixes.
 
+### Third pass (2026-10-07)
+
+Engine `naive` at 81b0e20, Spite at e229034a, Ryzen 9 5950X, Windows 11, `--optimized`, medians of 5 interleaved
+runs. Before: stress 64.0 ms a tick (split build; 60.5 ms as one C file), physics 9.5 ms.
+
+**How it was profiled.** No sampling profiler is installed, so the one-file C of `stress` was built with
+`clang -O3 -g -gcodeview` beside a small sampler: a thread that suspends the program's thread every 0.1 ms or so
+while the 20 ticks run, walks its stack with `RtlVirtualUnwind` and records the addresses; `llvm-symbolizer
+--inlining` names them, inlined functions included. About 22 000 samples over three runs; the sampled program
+ticks at the same speed as the plain one. Percentages are of the tick, inclusive (a function's callees included),
+summed over both systems.
+
+| What the time is in | % of tick | The Spite code | What the hand engine did instead |
+|---|---|---|---|
+| Reading each component, `Column.value_at` through `Slot.fetch` and `Row.fill_attribute` | 31 | `crash values[row]` then `return values[row]`: each of 800 000 component objects is a heap block of its own, and its count is the first touch of a cold cache line (the four component releases alone are 34% of the samples) | `Items<T>`: components inline and contiguous, borrowed in place by `Stream` |
+| Writing each row back, `Row.store` through `Slot.store` and `Column.write_at`, with `Row.stamp_written` | 24 | `values[row] = value` per attribute, `changes.stamp_written` per header | `Stream` wrote the inline item in place |
+| Matching each entity, `Row.matches` and `find_row` per header | 19, half of it in `candidates()` and half again in `fill()` | per header, counted reads of `headers[index]`, `kinds[index]`, `keys[index]` (`String` and `ColumnIndex` counts are 12% on their own) | the driver column walked once, each entity matched once |
+| The candidate list, `Row.candidates` | 11 (its matching included) | a fresh `List<Integer>` of 200 000 per system per tick | none |
+| Decoding the combination, `Runner.choose` | 6 | `candidates[index].count()` and `candidates[index][picked]` per entity, each a counted read of a `List<Integer>` | none: a one-row system has no combinations |
+| Singleton guards | 2 | `spite_guard_enter` on every `Row<T>` call | none |
+| The systems themselves | 0.8 | `update_each` | the same |
+
+**The three largest costs, as pairs**, each measured on hand-edited C of the one-file build:
+
+1. **M6 (new): objects of a class a list holds come from that class's own pool.** Proof: the class is the item of
+   a `List` (anything built on `TypedMemory<T>`), and no code that can run on another thread counts, makes or frees
+   one (C5's proof, extended to making). Faster form: a free list and a bump pointer per class, runs of blocks
+   aligned to the cache line. Falls back: the C library's `malloc`. Hand-edited (the four component classes
+   pooled): 60.3 to 43.1 ms. The rest of the gap the component reads showed was where the objects lay, not their
+   counts: removing only the counts moved the same cache misses into the next read (59.4 to 53.4 ms, item 2).
+2. **B3 (new): a list item read only to test it is not counted.** `crash values[row]`, `crash keys[index]`,
+   `crash headers[index]` each retain and release the item just to test it. Proof: the value is used only by the
+   test, with nothing between. Faster form: the slot's pointer tested. Falls back: the counted read. Hand-edited
+   (all 58 such reads): 59.4 to 53.4 ms, and 43.1 to 39.7 ms after M6.
+3. **L8: the candidate list and the second match.** Dropping the first match by hand (every stress entity matches,
+   so the program still prints the same): 59.3 to 53.7 ms, and 43.1 to 37.8 ms after M6. The list is an attribute
+   of the runner read through `choose`, not a local read in order by the next loop, so L8 as written does not reach
+   it; it needs the runner's loop and `candidates()` seen as one producer and one consumer.
+
+Writing each row back (24%) is larger than B3 or L8, but the last pass measured eliding just the store at about
+3 ms; most of it is the per-attribute machinery around the store (`Row.store`, header reads, `stamp_written`), the
+same reads and counts B3 and B1 remove.
+
+**Built: M6** (D517), the largest and general: any program that keeps many objects of a few classes in lists,
+made in turn, gets them side by side.
+
+| | before | after |
+|---|---|---|
+| stress tick, split build | 64.0 ms | 47.6 ms |
+| stress tick, one C file | 60.5 ms | 43.2 ms |
+| stress despawn, sixty ticks | 113 ms | 21 ms (hand: 22.8) |
+| stress spawn | 163 ms | 98 ms |
+| stress peak memory | 96 MB | 67 MB |
+| physics step | 9.5 ms | 8.5 ms |
+| `benchmarks/versus_c` (all five) | | the same C, byte for byte: no class there is both held in a list and made as an object |
+
+Pooling every class instead of the ones a list holds was measured too: `vector_maths` ran in 0.57 of the time (its
+`Vector3` temporaries reuse one block), but `particles` ran 4% slower, traced to where its single `Vector` header
+landed, and `number_dictionary` moved by as much from code placement alone. So only listed classes are pooled; the
+rest is in [status.md](status.md).
+
+After M6 the profile of the stress tick is: writing rows back 32%, matching 28% (half of it in `candidates()`),
+filling rows 18% (reading the components themselves 5%), the candidate list 15%, `choose` 9%. Next, by the
+measurements: B3 with B1 for the held locals of `find_row` and `fill_attribute`, then the runner's matching once
+(L8's shape, or T4b's unrolling, which would make each system's row loop plain code), then C4 across units (the
+split build is still 4 ms behind the one-file build).
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

@@ -1,0 +1,23 @@
+var count = 0
+
+func Maker(starting_count: Integer) {
+    count = starting_count
+}
+
+func total(): Integer {
+    var marks = List<Mark>()
+    var index = 0
+    while index < count {
+        var mark = Mark(index)
+        marks.append(mark)
+        index = index + 1
+    }
+    var sum = 0
+    index = 0
+    while index < marks.count() {
+        var mark = marks[index]
+        sum = sum + mark.value
+        index = index + 1
+    }
+    return sum
+}

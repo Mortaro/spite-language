@@ -134,8 +134,9 @@ decides. A `resize` keeps the bytes it moves and fills only the new ones; the ta
 for that. Only a `--debug-memory` build does this.
 
 **Run-time cost.** The table and the summary exist only in a `--debug-memory` build: no other build's C
-has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else,
-unless the program reads `Memory.Heap().live_allocations()` or `live_bytes()`: then, and only then, each
+has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else (a
+production build takes the objects a list holds from their class's pool, [below](#placement-the-compiler-decides-where-memory-lives),
+whose runs of blocks are themselves from `malloc`), unless the program reads `Memory.Heap().live_allocations()` or `live_bytes()`: then, and only then, each
 allocation adds one to a counter and each free subtracts one, which is what `live_allocations()` answers, and the
 bytes the C library holds for each block (its usable size, `_msize`, `malloc_usable_size` or `malloc_size`) are
 added and subtracted the same way, which is what `live_bytes()` answers; a `--debug-memory` build answers the
@@ -238,6 +239,15 @@ is the same whichever it makes:
   by its constructor lives in the frame on the same terms when its class also holds text, lists, dictionaries or
   other objects (and is not a container): what it holds is let go where the local's scope ends, and returning it
   moves it to the heap, attributes and all.
+- **Heap, in its class's pool:** an object on the heap whose class the program keeps in a list (the item of a
+  `List`, or of anything else built on `TypedMemory<T>`, such as a `Dictionary`'s values), when the class is not a
+  singleton and, in a program with threads, no code that can run on another thread counts, makes, copies or frees
+  one of its objects. The class's objects come from blocks of their own size side by side, in runs of 16 objects
+  doubling until a run is at least 256 KiB, each run starting on a 64-byte boundary; an object let go is kept for
+  the class's next object and is never handed to another class or back to the system while the program runs. Its
+  `.memory.section` is `'heap'`. Not in a `--debug-memory` build, a program that reads `live_allocations()` or
+  `live_bytes()`, or the inspectable builds
+  ([optimizations.md](../docs/optimizations.md#objects-of-one-class-sit-together)).
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name: it would be a second way to

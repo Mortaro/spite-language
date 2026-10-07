@@ -14,6 +14,7 @@ var dropping_targets = List<Integer>()
 var called_arities = Dictionary<Boolean>()
 var typed_calls_unknown = false
 var dropping_called = false
+var made_elsewhere = Dictionary<Boolean>()
 
 # ../../../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class
 func plain_counts(types: String, bodies: String, main_function: String): String {
@@ -430,8 +431,34 @@ func reach_piece(position: Integer, waiting: List<Integer>) {
         }
     }
     note_value_calls(piece)
+    note_made_elsewhere(piece, name)
     var mentioned = mentions(piece, false)
     mentioned.each(waiting.append)
+}
+
+func note_made_elsewhere(piece: String, name: String) {
+    if name.ends_with("___free") {
+        var name_length = name.length()
+        var freed_class = name.slice(0, name_length - 7)
+        made_elsewhere[freed_class] = true
+    }
+    assert piece.contains(")SPITE_MALLOC(sizeof(")
+    var parts = piece.split(")SPITE_MALLOC(sizeof(")
+    var index = 1
+    while index < parts.count() {
+        var part = parts[index]
+        var end = part.index_of(")")
+        if end > 0 {
+            var made_class = part.slice(0, end)
+            made_elsewhere[made_class] = true
+        }
+        index = index + 1
+    }
+}
+
+# ../../../docs/optimizations.md#objects-of-one-class-sit-together
+func leaves_to_one_thread(class_name: String): Boolean {
+    return not counted_unknown and not shared.has(class_name) and not made_elsewhere.has(class_name)
 }
 
 func counts_its_own(name: String): Boolean {

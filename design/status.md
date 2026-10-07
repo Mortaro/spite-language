@@ -872,6 +872,15 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   a `Dictionary` slot; an uncounted read whose name is passed, kept, compared or returned; the optimisation report
   does not yet say why a write-back was kept.
 
+### Objects of one class sit together
+
+- Built (pair M6 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).
+  Not built: a pool for a class no list holds (the short-lived `Vector3` objects of `benchmarks/versus_c/vector_maths`
+  run in 0.57 of the time from a pool, but pooling every class made `particles` 4% slower, from where its one
+  `Vector` header landed, so only listed classes are pooled); a pool per thread, so a class a worker makes keeps the C
+  library's allocator; giving a run of blocks back once every object in it is let go; the optimisation report does
+  not yet list the classes pooled and the ones left out, with why.
+
 ### Identical functions are folded into one
 
 - Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.

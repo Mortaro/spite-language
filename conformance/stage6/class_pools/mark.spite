@@ -1,0 +1,5 @@
+var value = 0
+
+func Mark(starting_value: Integer) {
+    value = starting_value
+}

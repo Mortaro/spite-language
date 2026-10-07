@@ -900,6 +900,22 @@ if [ -z "$moved_body" ] || echo "$moved_body" | grep -qE "List_Point_set_at|List
    || ! echo "$reversed_body" | grep -q "List_Point_set_at(self->points_, 0, Point___retain(first_));"; then
   echo "FAILED: slot_write_backs should drop moved()'s and bump_third()'s write-backs and counts, and keep reversed()'s"; exit 1
 fi
+# Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
+# gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's
+# allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run printed.
+pools="$work/class_pools.c"
+"$work/generation_two.exe" conformance/stage6/class_pools --check --c-source --c-path="$pools" > /dev/null 2>&1 || {
+  echo "FAILED: class_pools does not write its C"; exit 1; }
+if ! grep -q "^Point\* self = Point___pool_take();$" "$pools" || ! grep -q "^Point___pool_give(self);$" "$pools" \
+   || grep -qE "(Label|Mark)___pool_" "$pools"; then
+  echo "FAILED: class_pools should pool Point and leave Label and Mark to the C library's allocator"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/class_pools --optimized --build --executable-path="$work/class_pools_optimized.exe" > /dev/null 2>&1 || {
+  echo "FAILED: class_pools does not build --optimized"; exit 1; }
+pooled_output=$("$work/class_pools_optimized.exe" | tr -d '\r')
+if [ "$pooled_output" != "$(tr -d '\r' < conformance/stage6/class_pools/expected_output.txt)" ]; then
+  echo "FAILED: class_pools built --optimized printed: $pooled_output"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
@@ -998,7 +1014,7 @@ if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) 
    || ! grep -q "Registry___outside_read_enter(); Board\* " "$attribute_reads"; then
   echo "FAILED: singleton_attribute_reads should read names in place and current under the lock"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic, a release is inline"
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic, a release is inline, objects a list holds come from their class's pool"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no zero check for it (it keeps
 # the check that the smallest Integer divided by -1 does not fit, D359).

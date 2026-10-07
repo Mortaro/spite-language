@@ -1,0 +1,212 @@
+var lines = List<String>()
+var free_lines = Dictionary<Integer>()
+var made = Dictionary<Boolean>()
+var refused = Dictionary<Boolean>()
+var pooled_classes = List<String>()
+var pooled = Dictionary<Boolean>()
+
+# ../../../docs/optimizations.md#objects-of-one-class-sit-together
+func with_pools(types: String, bodies: String, sharing: CountSharing?): String {
+    lines = bodies.split("\n")
+    var index = 0
+    while index < lines.count() {
+        index = scanned_line(index)
+    }
+    choose_classes(types, sharing)
+    if pooled_classes.is_empty() {
+        return bodies
+    }
+    rewrite_lines()
+    var pool_texts = List<String>()
+    var pool_index = 0
+    while pool_index < pooled_classes.count() {
+        var pooled_name = pooled_classes[pool_index]
+        var text = pool_text(pooled_name)
+        pool_texts.append(text)
+        pool_index = pool_index + 1
+    }
+    var pools = pool_texts.join("\n")
+    var rewritten = lines.join("\n")
+    return "{pools}\n{rewritten}"
+}
+
+func scanned_line(index: Integer): Integer {
+    crash lines[index]
+    var line = lines[index]
+    if line.contains(")SPITE_MALLOC(sizeof(") {
+        note_made(line)
+    }
+    var freed = freed_class(line)
+    if freed.is_empty() {
+        return index + 1
+    }
+    return after_free(freed, index)
+}
+
+func freed_class(line: String): String {
+    if not line.starts_with("void ") or not line.ends_with("* self) \{") {
+        return ""
+    }
+    var at = line.index_of("___free(")
+    if at < 5 {
+        return ""
+    }
+    var class_name = line.slice(5, at)
+    if line != "void {class_name}___free({class_name}* self) \{" {
+        return ""
+    }
+    return class_name
+}
+
+func after_free(class_name: String, first: Integer): Integer {
+    var depth = 0
+    var frees = 0
+    var plain = true
+    var index = first
+    while index < lines.count() {
+        var line = lines[index]
+        if line.contains("\"") or line.contains("'") or line.contains("spite_singleton_free_later") {
+            plain = false
+        }
+        if line == "SPITE_FREE(self);" {
+            frees = frees + 1
+            free_lines[class_name] = index
+        } else if line.contains("SPITE_FREE(") {
+            plain = false
+        }
+        depth = depth + brace_change(line)
+        index = index + 1
+        if depth <= 0 {
+            if not plain or frees != 1 {
+                refused[class_name] = true
+            }
+            return index
+        }
+    }
+    refused[class_name] = true
+    return index
+}
+
+func brace_change(line: String): Integer {
+    var change = 0
+    var index = 0
+    var line_length = line.length()
+    while index < line_length {
+        var code = line.code_at(index)
+        if code == 123 {
+            change = change + 1
+        } else if code == 125 {
+            change = change - 1
+        }
+        index = index + 1
+    }
+    return change
+}
+
+func note_made(line: String) {
+    var parts = line.split(")SPITE_MALLOC(sizeof(")
+    var index = 1
+    while index < parts.count() {
+        var part = parts[index]
+        var end = part.index_of(")")
+        if end > 0 {
+            var class_name = part.slice(0, end)
+            made[class_name] = true
+        }
+        index = index + 1
+    }
+}
+
+func choose_classes(types: String, sharing: CountSharing?) {
+    var names = free_lines.keys()
+    var index = 0
+    while index < names.count() {
+        var class_name = names[index]
+        var allowed = true
+        if sharing {
+            allowed = sharing.leaves_to_one_thread(class_name)
+        }
+        var listed = types.contains("typedef struct TypedMemory__{class_name} TypedMemory__{class_name};")
+        if allowed and listed and made.has(class_name) and not refused.has(class_name) {
+            pooled_classes.append(class_name)
+            pooled[class_name] = true
+        }
+        index = index + 1
+    }
+}
+
+func rewrite_lines() {
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if line.contains(")SPITE_MALLOC(sizeof(") {
+            lines[index] = taken_line(line)
+        }
+        index = index + 1
+    }
+    var class_index = 0
+    while class_index < pooled_classes.count() {
+        var class_name = pooled_classes[class_index]
+        var free_line = free_lines[class_name]
+        crash free_line
+        lines[free_line] = "{class_name}___pool_give(self);"
+        class_index = class_index + 1
+    }
+}
+
+func taken_line(line: String): String {
+    var parts = line.split(")SPITE_MALLOC(sizeof(")
+    crash parts[0]
+    var written = parts[0]
+    var index = 1
+    while index < parts.count() {
+        var part = parts[index]
+        var end = part.index_of(")")
+        var class_name = ""
+        if end > 0 {
+            class_name = part.slice(0, end)
+        }
+        var cast = "({class_name}*"
+        var part_length = part.length()
+        if end > 0 and pooled.has(class_name) and written.ends_with(cast) {
+            var written_length = written.length()
+            var cast_length = cast.length()
+            var before = written.slice(0, written_length - cast_length)
+            var after = part.slice(end + 2, part_length)
+            written = "{before}{class_name}___pool_take(){after}"
+        } else {
+            written = "{written})SPITE_MALLOC(sizeof({part}"
+        }
+        index = index + 1
+    }
+    return written
+}
+
+func pool_text(class_name: String): String {
+    var pool_lines = [
+        "static {class_name}* {class_name}___pool_free = 0;"
+        "static char* {class_name}___pool_next = 0;"
+        "static char* {class_name}___pool_end = 0;"
+        "static size_t {class_name}___pool_count = 0;"
+        "static void {class_name}___pool_grow(void) \{"
+        "if ({class_name}___pool_count == 0) \{ {class_name}___pool_count = 16; } else if ({class_name}___pool_count * sizeof({class_name}) < 262144) \{ {class_name}___pool_count = {class_name}___pool_count * 2; }"
+        "char* chunk = (char*)SPITE_MALLOC({class_name}___pool_count * sizeof({class_name}) + 63);"
+        "if (chunk == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }"
+        "{class_name}___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);"
+        "{class_name}___pool_end = {class_name}___pool_next + {class_name}___pool_count * sizeof({class_name});"
+        "}"
+        "static inline {class_name}* {class_name}___pool_take(void) \{"
+        "{class_name}* self = {class_name}___pool_free;"
+        "if (self != 0) \{ {class_name}___pool_free = *({class_name}**)self; return self; }"
+        "if ({class_name}___pool_next == {class_name}___pool_end) {class_name}___pool_grow();"
+        "self = ({class_name}*){class_name}___pool_next;"
+        "{class_name}___pool_next = {class_name}___pool_next + sizeof({class_name});"
+        "return self;"
+        "}"
+        "static inline void {class_name}___pool_give({class_name}* self) \{"
+        "*({class_name}**)self = {class_name}___pool_free;"
+        "{class_name}___pool_free = self;"
+        "}"
+    ]
+    return pool_lines.join("\n")
+}
