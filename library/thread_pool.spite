@@ -174,3 +174,28 @@ func drop() {
         destroy_lock(queue_lock)
     }
 }
+
+func run_marked(piece: Spite.Function<Integer, Integer, Nothing>, count: Integer, marks: Memory.Address) {
+    var last = count - 1
+    while last >= 0 and marks.read_long(last * 8) == 0 {
+        last = last - 1
+    }
+    var block = heap.allocate(count * 8)
+    var index = 0
+    while index < count {
+        if index != last and marks.read_long(index * 8) != 0 {
+            submit(piece, index, index + 1, block + index * 8)
+        } else {
+            piece(index, index + 1)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < count {
+        if index != last and marks.read_long(index * 8) != 0 {
+            join(block + index * 8)
+        }
+        index = index + 1
+    }
+    heap.free(block)
+}

@@ -1,0 +1,21 @@
+type Voice {
+    render()
+}
+
+var console = Console()
+var clock = Clock()
+var sine = Sine()
+var square = Square()
+var saw = Saw()
+var voices = List<Voice>()
+
+func Naive() {
+    voices.append(sine)
+    voices.append(square)
+    voices.append(saw)
+    var start = clock.elapsed_nanoseconds()
+    voices.each_render()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print(sine.level, square.level, saw.level)
+    console.error("microseconds {microseconds}")
+}

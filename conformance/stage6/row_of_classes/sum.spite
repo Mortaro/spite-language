@@ -1,0 +1,9 @@
+var total: Long = 0
+
+func run() {
+    var index = 0
+    while index < 200000 {
+        total = total + index % 7
+        index = index + 1
+    }
+}
