@@ -101,6 +101,14 @@ form is best, for general-purpose programs, before the own backend, which must k
   themselves (the Spite compiler's own lists of nodes are a candidate).
 - **Measure it.** Every pair here gets a case in `benchmarks/` that is not a game (D521): naive Spite, naive C
   written with objects, expert C written data-oriented by hand.
+- **Measured, 2026-10-08:** [proposals/data_oriented_layout.md](proposals/data_oriented_layout.md). A sweep of eight
+  layouts by seven loops by eight sizes on a Ryzen 9 5950X, and five non-game cases (a report, a tokeniser, an
+  image filter, a spreadsheet recalculation, a sort of records) each with inline-struct and column hand forms.
+  Columns never lost an in-order pass (10 times inline structs and 14 times Spite's pool for one field of eight in
+  memory); inline structs win only random reads of two or more fields (1.8 times); a reordered list walked through
+  its pool costs 3 to 11 times a walk in memory order; overflow checks cost a vectorisable sum 4 to 7 times. Eight
+  rules, each with its proof and fallback, mapped onto the compiler's existing facts, and a build order whose first
+  step is dropping the overflow checks a sum provably cannot need.
 
 ## The GPU, without the moron ever thinking about it (Mortaro, 2026-10-08)
 

@@ -69,6 +69,25 @@ builds from one C file and from translation units
 optimisation level's speed is in
 [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/#each-optimisation-level).
 
+## Data-oriented cases
+
+Five cases measure layouts the compiler does not choose yet, in programs that are not games, for
+[design/proposals/data_oriented_layout.md](../design/proposals/data_oriented_layout.md). Each has two more hand
+forms beside `expert.c`, where the best layout is not obvious: `expert_aos.c` keeps the records inline in one array
+of structs and `expert_soa.c` keeps them as columns, both with `naive.c`'s loops, while `expert.c` is the best by
+hand. Every form takes its size as a setting (`--records=N` and the like), and the proposal's `cases.sh` times them
+all at five sizes:
+
+- [report_over_records](report_over_records/): two million sales of eight fields, summed by one field, five fields
+  in 64 filtered passes, and all eight.
+- [tokens_as_columns](tokens_as_columns/): a text of a million and a half pieces tokenised into a list of tokens,
+  then counted and summed.
+- [image_filter_over_planes](image_filter_over_planes/): 2048 by 2048 pixels brightened, given contrast and
+  measured; interleaved channels against planes.
+- [spreadsheet_recalculation](spreadsheet_recalculation/): a million cells recalculated twenty times from two
+  gathered operands each.
+- [records_sorted_by_one_field](records_sorted_by_one_field/): two million orders sorted by time and walked twice.
+
 ## Running them
 
 ```

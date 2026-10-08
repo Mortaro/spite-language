@@ -34,12 +34,21 @@ Every C form prints the time of making the orders, sorting and walking after its
 their own and merge-sorts a list of positions by them, so the comparisons read 8-byte keys in order, never the
 orders. But the list it answers holds pointers to the same objects in the new order, so the walks after it read
 objects scattered across the pool: `Naive_running_total___held_0` follows a pointer to a random place per order.
-The sweep in the proposal measures that cost (a pool walked in shuffled order, up to fourteen times a walk in memory
+The sweep in the proposal measures that cost (a pool walked in shuffled order, up to eleven times a walk in memory
 order) and `expert.c` shows the cure: gather the records into sorted order once.
 
 ## Timings
 
 <!-- timings -->
+| form | best µs | executable bytes |
+|---|---|---|
+| Spite: `naive/`, `--optimized` | 591 668 | 233 984 |
+| naive C: `naive.c`, `clang -O2` | 693 851 | 141 312 |
+| expert C: `expert.c`, `clang -O2` | 89 569 | 142 848 |
+
+Spite takes 0.85 times naive C's time and 6.61 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=591668 naive=693851 expert=89569 -->
 <!-- /timings -->
 
 At other sizes, and with each phase apart: [cases.md](../../design/proposals/data_oriented_layout/cases.md#records_sorted_by_one_field).
