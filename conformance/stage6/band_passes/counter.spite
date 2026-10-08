@@ -1,0 +1,14 @@
+var total: Long = 0
+var step = 0
+
+func Counter(seed: Integer) {
+    step = seed % 5 + 1
+}
+
+func bump() {
+    var round = 0
+    while round < 200 {
+        total = total + step
+        round = round + 1
+    }
+}

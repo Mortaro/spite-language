@@ -1492,7 +1492,17 @@ index_ = (index_ + 1);
 }
 int32_t tick_ = 0;
 while (((tick_ < 300))) {
+
+
+
+
+
+
+
 Vector__Particle_each_step(particles_);
+
+
+
 tick_ = (tick_ + 1);
 }
 float height_ = 0.0;
@@ -2176,6 +2186,8 @@ spite_singletons_destroy();
 
 if (spite_foreign_library_2_tracked) DynamicLibrary___destroy(spite_foreign_library_2_cache);
 if (spite_foreign_library_1_tracked) DynamicLibrary___destroy(spite_foreign_library_1_cache);
+
+
 
 
 return 0;

@@ -6,7 +6,17 @@ int64_t Naive_simulate___held_0(Naive* self, List_Body* bodies_) {
     int64_t total_ = SpiteInteger_to_long(0);
     int32_t round_ = 0;
     while (((round_ < 100))) {
+        
+        
+        
+        
+        
+        
+        
         List_Body_each_advance(bodies_);
+        
+        
+        
         int32_t positions_ = List_Body_sum_position(bodies_);
         total_ = (total_ + SpiteInteger_to_long(positions_));
         round_ = (round_ + 1);

@@ -1,0 +1,38 @@
+var console = Console()
+
+func BandPasses() {
+    var counters = List<Counter>()
+    var index = 0
+    while index < 20000 {
+        var counter = Counter(index)
+        counters.append(counter)
+        index = index + 1
+    }
+    counters.each_bump()
+    var first_total = counters.sum_total()
+    console.print("each counter once:", first_total)
+    var twice = counters.first()
+    crash twice
+    counters.append(twice)
+    counters.each_bump()
+    var second_total = counters.sum_total()
+    console.print("one counter held twice:", second_total)
+    var links = List<Link>()
+    index = 0
+    while index < 20000 {
+        var link = Link(index)
+        links.append(link)
+        index = index + 1
+    }
+    index = 1
+    while index < links.count() {
+        var previous = links[index - 1]
+        var current = links[index]
+        crash previous
+        current.follow(previous)
+        index = index + 2
+    }
+    links.each_pull()
+    var pulled = links.sum_value()
+    console.print("links pulled:", pulled)
+}

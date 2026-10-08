@@ -158,6 +158,8 @@ var listed_ended_in_return = false
 var overlap_groups = 0
 var row_groups = 0
 var row_sites = List<RowSite>()
+var band_threshold: Long = 1000000
+var band_minimum_weight: Long = 256
 var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
@@ -15372,6 +15374,11 @@ func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
     return signature
 }
 
+# ../../../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands
+func borrows_its_owner(function: Analysis.FunctionInfo): Boolean {
+    return function.name.starts_with("spite_band_") and function.name.ends_with("_piece")
+}
+
 func function_value(
     information: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
@@ -15423,8 +15430,13 @@ func function_value(
             "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
         )
         add_lazy_arguments(maker, argument_lines, lines)
-        lines.append("described->spite_owner = {information.c_name}___retain(owner);")
-        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
+        if borrows_its_owner(function) {
+            lines.append("described->spite_owner = (void*)owner;")
+            lines.append("described->spite_release_owner = 0;")
+        } else {
+            lines.append("described->spite_owner = {information.c_name}___retain(owner);")
+            lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
+        }
         if function.parameters.count() == 0 {
             lines.append("described->spite_call = (void (*)(void*)){ensure_dropping_call(information, function)};")
         }
@@ -34134,6 +34146,9 @@ func generate_statement_list(
         var row: RowSite? = null
         if overlapping < 2 {
             row = row_each_site(statements[index], scope, class_information)
+            if not row {
+                row = band_each_site(statements[index], scope, class_information)
+            }
         }
         if row {
             join_overlapped_reads(overlapped_reads, scope)
@@ -34423,6 +34438,53 @@ func row_each_member(
     return member.name
 }
 
+# ../../../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands
+func band_each_site(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): RowSite? {
+    assert overlap_allowed and not generating_overlap and not class_information.is_singleton
+    assert not current_path.starts_with("library/")
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement and expression_statement.value
+    var call = shape.as_call(expression_statement.value)
+    assert call and call.callee
+    var callee = shape.as_member(call.callee)
+    assert callee and callee.object
+    var receiver_text = operand_text(callee.object)
+    assert not receiver_text.is_empty() and not receiver_text.contains("(") and not receiver_text.contains("[")
+    var member_name = row_each_member(callee.name, call.arguments, class_information)
+    assert not member_name.is_empty()
+    var saved_counter = temporary_counter
+    var receiver = generate_expression(callee.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    assert not owns(receiver, callee.object) and not receiver.code.contains("(\{")
+    var receiver_type = receiver.type
+    assert not type_shape.as_dictionary(receiver_type)
+    var element = chained_element_of(receiver_type)
+    assert element
+    var element_reference = type_shape.as_class_ref(element)
+    assert element_reference
+    var element_class = find_class_by_c_name(element_reference.c_name)
+    assert element_class and not element_class.is_singleton and not element_class.is_value_class
+    assert not is_library_class(element_class)
+    var base_list = chain_class_of(receiver_type, element)
+    var vector_like = base_list.qualified_dotted == "Vector"
+    assert vector_like or base_list.qualified_dotted == "List"
+    var member = find_or_instantiate_function(element_class, member_name)
+    assert member and member.parameters.is_empty() and not member.is_constructor
+    var returned = member.return_type
+    assert type_shape.is_void(returned)
+    var site = RowSite(element_class.c_name, member_name, base_list.c_name)
+    site.kind = "band"
+    site.member_c_name = member.c_name
+    site.inline_items = vector_like
+    site.path = current_path
+    site.line = statement_line(statement)
+    return site
+}
+
 func emit_row_each(
     statements: List<Syntax.Statements.Statement>,
     start: Integer,
@@ -34436,7 +34498,8 @@ func emit_row_each(
     var group = row_groups
     var list_class = find_class_by_c_name(site.list_c_name)
     crash list_class
-    var run = row_run_function(list_class, site.member_name)
+    var banded = site.kind == "band"
+    var run = row_run_function(list_class, site.member_name, banded)
     crash run
     site.run_c_name = run.c_name
     row_sites.append(site)
@@ -34458,17 +34521,23 @@ func emit_row_each(
     var parallel_before = parallel_used
     var marks_name = "spite_row_{group}_marks"
     builder.add_user("/*spite_row_{group} begin*/")
-    builder.add_user("\{ int64_t {marks_name}[64];")
+    if banded {
+        builder.add_user("\{")
+    } else {
+        builder.add_user("\{ int64_t {marks_name}[64];")
+    }
     builder.add_user("/*spite_row_{group} fits*/")
     builder.add_user("if (0) \{")
     var inner = Scope(scope)
-    var marks_type = address_type()
-    inner.declare(marks_name, marks_type)
-    inner.mark_used(marks_name)
-    inner.set_override(marks_name, "((int64_t)(intptr_t){marks_name})")
-    var marks_argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(marks_name)
     var run_arguments = List<Syntax.Expressions.Expression>()
-    run_arguments.append(marks_argument)
+    if not banded {
+        var marks_type = address_type()
+        inner.declare(marks_name, marks_type)
+        inner.mark_used(marks_name)
+        inner.set_override(marks_name, "((int64_t)(intptr_t){marks_name})")
+        var marks_argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(marks_name)
+        run_arguments.append(marks_argument)
+    }
     generating_overlap = true
     var parameter_types = parameter_types_of(run.parameters)
     var run_return_type = run.return_type
@@ -34503,8 +34572,11 @@ func emit_row_each(
     return next
 }
 
-func row_run_function(list_class: Analysis.ClassInfo, member_name: String): Analysis.FunctionInfo? {
+func row_run_function(list_class: Analysis.ClassInfo, member_name: String, banded: Boolean): Analysis.FunctionInfo? {
     var run_name = "spite_row_{member_name}"
+    if banded {
+        run_name = "spite_band_{member_name}"
+    }
     var existing = list_class.find_function(run_name)
     if existing {
         return existing
@@ -34524,6 +34596,9 @@ func row_run_function(list_class: Analysis.ClassInfo, member_name: String): Anal
     var piece = register_fused_function(list_class, piece_source, piece_name)
     crash piece
     var run_source = "func {run_name}(marks: Memory.Address) \{\n    var pool = ThreadPool()\n    pool.run_marked({piece_name}, item_count, marks)\n}\n"
+    if banded {
+        run_source = "func {run_name}() \{\n    var pool = ThreadPool()\n    pool.run_bands({piece_name}, item_count)\n}\n"
+    }
     return register_fused_function(list_class, run_source, run_name)
 }
 
@@ -34812,7 +34887,12 @@ func finish_row_groups() {
     while group <= row_groups {
         crash row_sites[group - 1]
         var site = row_sites[group - 1]
-        var condition = row_condition(facts, site, group)
+        var condition = ""
+        if site.kind == "band" {
+            condition = band_condition(facts, site)
+        } else {
+            condition = row_condition(facts, site, group)
+        }
         settle_row_group(group, condition)
         group = group + 1
     }
@@ -34988,6 +35068,40 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
     )
     parts.append("}")
     parts.append("spite_row_ok && spite_row_heavies >= 2; })")
+    return parts.join(" ")
+}
+
+# ../../../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands
+func band_condition(facts: OverlapFacts, site: RowSite): String {
+    var target = site.member_c_name
+    if not facts.bodies.has(target) or wait_facts.may_wait(target) {
+        return ""
+    }
+    if not weak_classes.is_empty() and row_reaches_weak(target, site.member_name) {
+        return ""
+    }
+    var fact = facts.band_fact(target)
+    if not facts.item_only(fact) or facts.band_counts {
+        return ""
+    }
+    var weight = facts.weight_of(target)
+    if weight < band_minimum_weight {
+        return ""
+    }
+    var minimum = band_threshold / weight + 1
+    if minimum < 2 {
+        minimum = 2
+    }
+    var parts = List<String>()
+    parts.append("(\{ {site.list_c_name}* spite_band_list = {site.list_code};")
+    parts.append("int32_t spite_band_n = spite_band_list->item_count_;")
+    parts.append("bool spite_band_ok = spite_band_n >= {minimum};")
+    if not site.inline_items {
+        parts.append(
+            "for (int32_t spite_band_i = 0; spite_band_ok && spite_band_i < spite_band_n; spite_band_i++) spite_band_ok = ((SpiteHeader*)(((void**)(intptr_t)spite_band_list->items_)[spite_band_i]))->ref_count == 1;",
+        )
+    }
+    parts.append("spite_band_ok; })")
     return parts.join(" ")
 }
 

@@ -1296,7 +1296,17 @@ List_Particle___release(particles_);
 void Naive_move_all___held_0(Naive* self, List_Particle* particles_) {
 int32_t round_ = 0;
 while (((round_ < 20))) {
+
+
+
+
+
+
+
 List_Particle_each_step(particles_);
+
+
+
 round_ = (round_ + 1);
 }
 }
@@ -1933,6 +1943,8 @@ spite_singletons_destroy();
 
 
 if (spite_foreign_library_1_tracked) DynamicLibrary___destroy(spite_foreign_library_1_cache);
+
+
 
 
 

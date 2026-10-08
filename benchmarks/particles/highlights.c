@@ -24,7 +24,17 @@ void Naive_Naive(Naive* self) {
     }
     int32_t tick_ = 0;
     while (((tick_ < 300))) {
+        
+        
+        
+        
+        
+        
+        
         Vector__Particle_each_step(particles_);
+        
+        
+        
         tick_ = (tick_ + 1);
     }
     float height_ = 0.0;

@@ -150,6 +150,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   `String`, a whole number or an enum; no format writes an object key; the binary schema text keeps its old
   spelling, so binary files written before still read. Why: a JSON key is text, and an object's identity does not
   survive a file.
+- **D542, a loop whose passes write only their own item runs in bands**: `orbits.each_advance()` over a `List` or
+  `Vector` of a class runs in bands on the pool when every pass writes only its own element and counts no
+  reference, the pass weighs at least 256 and the count times the weight reaches a million; a `List` is also
+  checked for an element held twice. Why: the passes are independent by proof, and the two numbers were measured
+  on this machine so light passes (bound by memory) and short lists stay in order (the case 800 ms to 51).
 - **D543, ranges drop overflow checks**: the compiler works out the range of every whole-number local (from
   literals, assignments, remainders, `clamp`, counts and the conditions in force, widened at each loop's entry) and
   leaves out a check its ranges prove can never fire, such as a `Long` total of `Integer` items over a list; every

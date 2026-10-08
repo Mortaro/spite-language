@@ -127,6 +127,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) | a test against a value it never holds decided while compiling | the test runs |
 | [Calls that share nothing written](#calls-that-share-nothing-written) | a row of calls runs at once | in order, as written |
 | [Classes in a list that share nothing written](#classes-in-a-list-that-share-nothing-written) | a loop over different classes runs them at once | in order, as written |
+| [Passes that write only their own item](#passes-that-write-only-their-own-item) | a loop over one class runs in bands | in order, as written |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
@@ -1096,6 +1097,24 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   own class and its own lists.
 - **Shows it.** [optimizations.md](optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once);
   `conformance/stage6/row_of_classes`.
+
+### Passes that write only their own item
+
+- **Proves.** Every pass of `list.each_function()` over a `List` or `Vector` of a class writes only attributes of
+  the element it runs on (or the items of a list attribute made for that element and never handed on), and reads
+  nothing that a pass writes on another element, through every function it reaches: what the function reaches on
+  its own element is told apart from what it reaches on any other object of the class.
+- **Rule.** [concurrency.md](concurrency.md#calls-in-a-row-run-at-once): the function and everything it reaches
+  write nothing else, count no reference, print, wait, call out of the program or through a function value, write
+  memory through an address or reach a `Weak`. The compiler weighs the pass while compiling and writes the smallest
+  count at which bands pay; when the loop runs, it compares the count with it and, for a `List`, checks that each
+  element is held by the list alone.
+- **Buys.** The passes run in bands on the thread pool, one band for each thread, with no `parallel_each_` written.
+- **Falls back.** A pass that writes anything but its own element, reads what another pass writes, counts a
+  reference or prints runs in order, as written, and so does a list shorter than the count or holding an element
+  that is also held elsewhere. To let passes run in bands, keep what each pass changes in its own element.
+- **Shows it.** [optimizations.md](optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands);
+  `conformance/stage6/band_passes`.
 
 ### No other thread counts a class
 

@@ -68,12 +68,12 @@ loop.
 
 | # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
 |---|---|---|---|---|---|---|
-| T1 | `for item in list { item.x = f(item) }` | each iteration writes only its own item and reads nothing another writes | bands on the pool, joined after the loop | serial loop | `Parallel` per system, hand bands | vectorised bands with no alias checks |
+| T1 | `for item in list { item.x = f(item) }` | each iteration writes only its own item and reads nothing another writes | bands on the pool, joined after the loop | serial loop | `Parallel` per system, hand bands | vectorised bands with no alias checks; **built** for the member templates (D542, below) |
 | T2 | `total = total + item.x` in a loop | the only shared write is a recognised reduction (sum, min, max, count, and, or) | per-band partials merged in band order | serial | hand partial sums | exact reassociation only where proven safe for integers |
 | T3 | `out.add(g(item))` in a loop | appends go only to a list made outside and read only after the loop | per-band lists joined in written order | serial | per-thread command queues | |
 | T4 | two systems called in a row | D505 per field, not per class, from stage 2's effect summary | overlapped | in order | hand stages | |
 | T5 | a system's body with two halves touching disjoint fields | the halves share nothing written | two pieces overlapped like T4 | one piece | | |
-| T6 | any of T1 to T3 | cost: body estimate times count above a threshold | the parallel form only above it, one branch on count if the count is unknown | serial | hand grain sizes | |
+| T6 | any of T1 to T3 | cost: body estimate times count above a threshold | the parallel form only above it, one branch on count if the count is unknown | serial | hand grain sizes | **built** with T1 (D542) |
 | T4b | `for runner in runners { runner.run() }` over a list never changed after it is built | the list's element classes and order are known while compiling | unrolled into a row of calls, then T4 applies | the loop | a stage's hand row of calls | **built** in the form below (D539) |
 | T8 | a loop sharing one scratch every pass overwrites before reading | each pass writes the scratch before it reads it | a private scratch per band, then T1 | serial | per-thread searchers | |
 | T7 | a shared id counter `next_id = next_id + 1` | the counter is the only shared state of the writers | atomic, or a range handed to each band | lock | locked id counter | |
@@ -92,6 +92,19 @@ raw thread took the update stage from about 30.5 to 17.5 ms with the counts left
 about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). So the next steps
 for the engine are facts that tell objects of one class apart where each runner owns its own (an attribute made for
 its object and never assigned again), and count disciplines per group of overlapped calls (S4).
+
+T1 is **built** for the member template (D542, [optimizations](../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands),
+[proofs](../docs/proofs.md#passes-that-write-only-their-own-item)): `list.each_function()` and
+`list.each(own_function)` over a `List` or `Vector` of a class run in bands when every pass writes only its own
+element (a self-indexed key in the overlap facts: what a function reaches through `self` of the element, and of
+every function it calls on `self`, is told apart from any other object of the class) and counts no reference. T6 is
+built with it: the pass is weighed while compiling and the smallest count at which bands pay is a constant in the
+C, compared with the list's count when the loop runs; for a `List`, the loop also checks that every element is held
+by the list alone (a list may hold one object twice). Not built: T2's reductions, T8's scratch per band, a loop
+written as a `while`, and passes that count references (which would make their classes atomic for the whole
+program until S4 exists). The naive engine has no such loop: its systems' row loop is a `while` over combinations
+that writes the runner's own scratch (`chosen`, `position`, `skipping`) and stores through the matchers, so it
+stays in order.
 
 ## Layout
 

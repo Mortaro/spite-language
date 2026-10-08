@@ -1,0 +1,3 @@
+each counter once: 12000000
+one counter held twice: 24000800
+links pulled: 201989800

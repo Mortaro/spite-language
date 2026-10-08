@@ -3,6 +3,9 @@ var member_name = ""
 var list_c_name = ""
 var run_c_name = ""
 var list_code = ""
+var kind = "row"
+var member_c_name = ""
+var inline_items = false
 var path = ""
 var line = 0
 

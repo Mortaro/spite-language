@@ -2448,8 +2448,28 @@ List_Pixel_append(pixels_, Pixel___retain(pixel_));
 index_ = (index_ + 1);
 Pixel___release(pixel_);
 }
+
+
+
+
+
+
+
 List_Pixel_each_brighten(pixels_);
+
+
+
+
+
+
+
+
+
+
 List_Pixel_each_contrast(pixels_);
+
+
+
 List_Integer* histogram_ = Naive_histogram_of___held_0(self, pixels_);
 int32_t bright_ = List_Pixel_count_is_bright(pixels_);
 int64_t weights_ = List_Pixel_sum_weight(pixels_);

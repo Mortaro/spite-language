@@ -3277,6 +3277,85 @@ once counts atomically the classes the overlapped calls count, as every program 
 ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), also on the times the table sends it in
 order.
 
+### A loop whose passes write only their own item runs in bands
+
+**The case:** [benchmarks/a_loop_whose_passes_write_only_their_own_item_runs_in_bands](../benchmarks/a_loop_whose_passes_write_only_their_own_item_runs_in_bands/).
+
+**What it does.** A loop that calls one function on every element of a list of a class, `orbits.each_advance()`,
+runs on the thread pool in bands, one band for each thread, when every pass writes only its own element: the
+function (and every function it reaches on its element) writes the element's own attributes and nothing else, and
+reads nothing a pass writes on another element. It is [`parallel_each_`](concurrency.md#parallel_each_-a-member-on-every-element)
+without writing it: the compiler proves what that page asks the programmer to keep true, and when it cannot, the
+loop is the loop as written.
+
+```gdscript title=bands_of_orbits/orbit.spite
+var angle = 0.0
+var speed = 0.0
+var turns = 0
+
+func Orbit(seed: Integer) {
+    speed = seed % 17 + 1
+}
+
+func advance() {
+    var step = 0
+    while step < 2000 {
+        angle = angle + speed * 0.001
+        if angle > 6.28318 {
+            angle = angle - 6.28318
+            turns = turns + 1
+        }
+        step = step + 1
+    }
+}
+```
+```gdscript title=bands_of_orbits/bands_of_orbits.spite entry
+var console = Console()
+
+func BandsOfOrbits() {
+    var orbits = List<Orbit>()
+    var index = 0
+    while index < 3000 {
+        var orbit = Orbit(index)
+        orbits.append(orbit)
+        index = index + 1
+    }
+    orbits.each_advance()
+    var turns = orbits.sum_turns()
+    console.print("the orbits turned", turns, "times")
+}
+```
+```output
+the orbits turned 7047 times
+```
+
+`advance` writes only `angle` and `turns` of the orbit it runs on and reads only its own `speed`, so the 3000
+passes are cut into a band for each thread and run at once; `sum_turns` runs after all of them, as written.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, for a `List` or a `Vector` of a class of
+the program, when every pass writes only its own element's attributes (or the items of a list attribute made for
+it), reads nothing another pass writes, counts no reference, prints, waits, calls out of the program or through a
+function value, and does not reach a `Weak`.
+
+**What it costs, and when it is not worth it.** Starting the bands costs about as much as a few thousand light
+passes, so the compiler weighs the function while compiling (each statement 1, a loop's body its bound or 8 times,
+a call what its function weighs). A pass that weighs less than 256 (a few statements and no loop) is never run in
+bands: it is bound by memory, not by the processor, and bands made such passes slower even over four million
+elements. For a heavier pass the compiler writes the smallest count at which the bands pay (the count times the
+weight reaching a million, about a fifth of a millisecond of work on the machine it was measured on); the loop
+compares the list's count with it when it starts and runs in order below it. A list of a class may hold one object twice, and two
+bands would then write it at once, so before running in bands the loop checks that each element is held by the
+list alone (one pass over the elements' headers, only above that count); a `Vector` holds its elements in place
+and needs no check. Above the count, the passes run in bands; below it, or when an element is held elsewhere too,
+the loop is the loop as written.
+
+**Why at run time.** How many elements the list holds and who else holds them are known only when the loop runs;
+which functions qualify, what they weigh and the count they need are decided while compiling.
+
+**What you notice.** Speed on heavy passes over many elements, and the same output. A pass that counts a
+reference (it reads an object out of a list, or makes one) stays in order: counting from several threads would
+make the class's counts atomic everywhere ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)).
+
 ### A crash's report is kept out of the way
 
 **The case:** [benchmarks/a_crashs_report_is_kept_out_of_the_way](../benchmarks/a_crashs_report_is_kept_out_of_the_way/).
