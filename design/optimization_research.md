@@ -76,6 +76,35 @@ overlap in practice (W1). Questions: how to keep the profile small and stable un
 source position and name, drop entries that no longer match); how a test suite or a benchmark doubles as the
 profiling run; how to show in `--optimization-report` what a profile changed.
 
+## The GPU, without the moron ever thinking about it (Mortaro, 2026-10-08)
+
+Mortaro: research using the GPU where it makes sense, with no program ever mentioning it; a possible "compile
+where it runs" mode that, instead of parallelising on the CPU and uploading results, does most of the work on the
+GPU. Not the only mode and not the default; research that could unlock large speed-ups, not only for games.
+
+- **Which loops qualify.** The same proof as T1 (independent passes, self-indexed writes, recognised reductions),
+  plus what a GPU needs: no recursion, no allocation inside the body, no IO, no calls the GPU cannot run, bounded
+  control flow, data that fits plain arrays (after L1/S2 the columns already are). A loop over 200,000 entities
+  that only reads and writes its own row is the textbook case; so are image filters, physics broad phases,
+  pathfinding grids, audio mixing, decoding, sorting, matrix work, simulations in a script.
+- **Where the data lives.** The cost is moving data, not computing. A loop on the GPU pays only if its columns
+  stay there across passes and frames. "Compile where it runs" would place whole columns in GPU memory and run
+  every qualifying pass there, moving data back only where the CPU reads it (IO, printing, a non-qualifying
+  pass). The compiler sees every reader, so it can decide placement per column and per phase (D520).
+- **What it compiles to.** A compute kernel per qualifying loop, emitted while compiling (SPIR-V for Vulkan,
+  or C for a portable fallback), with the CPU form kept. Zero runtime means no shader compiler or scheduler
+  shipped: kernels are compiled ahead, and dispatch is generated code. The device API (Vulkan compute) is a
+  foreign library like any other.
+- **Same result.** Integer work is exact. Decimal work already allows reassociation (a decimal's last bits are
+  never a promise), but GPU maths functions may differ from the C library's in their last bits too; that needs a
+  rule. Crashes inside a kernel (a proven read cannot fail; an overflow can) must still be reported with their
+  site (D244).
+- **When it pays.** A cost model like T6 with transfer cost: size times passes, against bytes moved. A profile
+  (D530) can settle it for sizes only the run knows.
+- **Questions.** Which targets have a usable GPU and how a build chooses (a mode flag, a target, a profile); how
+  to test kernels in `check.sh` without a GPU (a CPU executor of the same kernel); whether the engine's renderer
+  and this mode share one device; what the moron sees in `--optimization-report`.
+
 ## Threads and parallelism
 
 - **Independent loops in bands.** Idea: a loop whose passes write only their own item runs on the pool. Proof:
