@@ -1151,6 +1151,100 @@ class (five `Float`s and an `Integer`), 20 000 000 copies at `clang -O2`: 785-79
 (five instructions after the allocation either way), so a `copy()` of a class whose attributes all fit a `Vector` is
 a `memcpy` in the machine code, and what is left is its allocation (about 39 ns of a copy that is kept).
 
+### A singleton no other thread reaches takes no lock
+
+**The case:** [benchmarks/a_singleton_no_other_thread_reaches_takes_no_lock](../benchmarks/a_singleton_no_other_thread_reaches_takes_no_lock/).
+
+**What it does.** Once the whole program is written out, the compiler looks again at which code can run on another
+thread, this time in the generated program itself, with every generic class made and everything unused shaken out,
+the same walk that decides [plain reference counts](#plain-reference-counts-where-no-thread-reaches-a-class). A
+singleton that none of that code calls, reads or writes keeps no lock: its functions call their bodies directly,
+its attributes read and written from other classes are plain loads and stores, and an attribute that would have been
+atomic on its own is a plain number again. The first walk, made while the program is still being compiled, has to
+count every function made into a value as something a thread might run; this one sees which values a thread
+actually calls.
+
+```gdscript title=unshared_ledger/ledger.spite
+singleton
+
+var total = 0
+var marks = List<Integer>()
+
+func note(amount: Integer): Integer {
+    total = total + amount
+    if amount % 100 == 0 {
+        marks.append(amount)
+    }
+    return amount + 1
+}
+
+func is_large(amount: Integer): Boolean {
+    return amount > 10
+}
+```
+```gdscript title=unshared_ledger/counter.spite
+func run(): Integer {
+    var sum = 0
+    var index = 0
+    while index < 100 {
+        sum = sum + index % 7
+        index = index + 1
+    }
+    return sum
+}
+```
+```gdscript title=unshared_ledger/unshared_ledger.spite entry
+var console = Console()
+var ledger = Ledger()
+
+func UnsharedLedger() {
+    var counter = Counter()
+    var counted = Parallel(counter.run)
+    var amounts = [4, 12, 30, 7]
+    var large = amounts.filter(ledger.is_large)
+    var index = 0
+    while index < 1000 {
+        index = ledger.note(index)
+    }
+    var marked = ledger.marks.count()
+    var large_count = large.count()
+    console.print("counted", counted, "large", large_count, "total", ledger.total, "marked", marked)
+}
+```
+```output
+counted 295 large 2 total 499500 marked 10
+```
+
+`ledger.is_large` is made into a value for `filter`, so while compiling, `Ledger` counts as something a `Parallel`
+might reach and is given a lock. In the program as written out, the only code that can run on another thread is
+`Counter.run` and what it calls, which is none of `Ledger`; and the value `filter` calls is called on the program's
+own thread. So `Ledger_note` is only its body:
+
+```c
+int32_t Ledger_note(Ledger* self, int32_t amount_) {
+SPITE_GUARDS_COUNT(1);
+int32_t spite_unshared = Ledger_note___unguarded(self, amount_);
+SPITE_GUARDS_COUNT(-1);
+return spite_unshared;
+}
+```
+
+where it was the test for work in flight and the lock behind it, and the read of `ledger.total` is a plain load
+where it was an atomic one. The count of locks held stays, so a wait inside such a function behaves as before.
+
+**When.** In a program with threads, every build that decides [plain
+counts](#plain-reference-counts-where-no-thread-reaches-a-class): not `--repl`, `--repl-port`, `--hot-reload` or
+`--development`, which keep every lock. For each singleton that took a lock, or an atomic attribute, while
+compiling: none of the code that can run on another thread (from every function whose address the program keeps, a
+function value's target only where that code calls a value with as many arguments) names its lock, its readers'
+counts or its atomic attributes. A singleton any of that code calls keeps the form it had.
+
+**What you notice.** Speed, and nothing else: the singleton's functions were already one indivisible step for the
+only thread that calls them. The case's ten million calls take 24.3 ms instead of 41.1 (medians of seven). The naive engine's stress
+test, whose matchers and columns are singletons only the program's thread calls while a recipe catalog loads on the
+pool, ticks in 36.9 ms instead of 43.3 as one C file (42.7 instead of 50.3 split), and its physics step takes 12.6
+ms instead of 13.4.
+
 ### A singleton's reading functions do not exclude each other
 
 **The case:** [benchmarks/a_singletons_reading_functions_do_not_exclude_each_other](../benchmarks/a_singletons_reading_functions_do_not_exclude_each_other/).

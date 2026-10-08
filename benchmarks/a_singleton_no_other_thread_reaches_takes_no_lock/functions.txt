@@ -1,0 +1,4 @@
+lines #define Ledger___atomic
+Naive_note_many
+Ledger_note
+Ledger_note___unguarded

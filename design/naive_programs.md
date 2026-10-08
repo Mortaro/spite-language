@@ -397,6 +397,50 @@ What remains of S1 is step 2 (a copy per configuration with a compiled dispatch,
 edit's ratio) and step 3, the runner made direct (L8b, B2b, the row kept in registers), which is where the rest of
 the hand edit's 4.0 ms is.
 
+### Sixth pass (2026-10-07)
+
+Engine `naive` at 81b0e20, Spite from 54ecc98f, the same machine (shared with other sessions all day, so compare
+numbers within one table), `--optimized`, the one-file C built with `clang -O3`, medians of 5 interleaved runs.
+Before: stress 40.4 ms a tick as one C file.
+
+**What the 4.0 ms hand edit is made of.** The S1 hand edit replaces each runner's loop with the driver column walked
+once, the other column looked up, the components read in place, the system's body inlined and two stamps; it ran in
+4.7 ms that day. It was taken apart into hand edits that each stand for one general optimisation, applied in turn
+to the same C (`edits.py` in the session's scratch folder):
+
+| Hand edit | What it stands for | Stress tick | Saved |
+|---|---|---|---|
+| none | | 40.4 ms | |
+| F: the runner walks the driver column and matches each entity once, no candidate list, no `choose` | L8b, the loop fused | 39.0 ms | 1.4 |
+| M: the second `matches(entity)` in `fill_into` dropped | a call repeated with the same arguments and nothing changed between | 35.7 ms | 3.3 |
+| W: `store` keeps its stamps and writes nothing back | B2b, a write-back of what was read, across calls | 23.9 ms | 11.8 |
+| R: the row object never filled, the components fetched into locals, the system's body on them | scalar replacement of the row, with the call inlined | 10.7 ms | 13.2 |
+| G: the runner calls the row's unguarded functions | the singleton's lock | 10.6 ms | 0.1 |
+| K: `kinds` read as 0 and two headers | S1 step 2, the configuration folded | 9.8 ms | 0.8 |
+| the S1 hand edit itself | the matcher reduced to the other column's `row_of` | 4.7 ms | 5.1 |
+
+Taken alone, W saves 10.8 ms (29.6), M and F need each other, and the write itself (`set_at` with its counts) is
+only 2.5 of W: the rest is the per-attribute path to it (cursor, header reads, `Slot.store`, the column's lock). Every
+singleton lock removed at once (each guarded wrapper calling its body, every outside access plain) took the tick
+from 76.4 to 62.7 ms on a busy machine (18%), and from 44.0 to 34.3 ms on top of F, M and W: the locks were the
+largest single general cost, spread over every call the runner makes to a matcher or a column. They are there
+because the program makes a `Parallel` (a recipe catalog loading on the pool) and the walk that decides locks
+counts every function made into a value as something a thread might run: the matchers' `found.filter(matches)`
+makes every matcher reachable, and the columns with it.
+
+**Built: no lock for a singleton no other thread reaches** (D529), the general form of that measurement: the walk
+already made over the written-out C for plain counts (C5) decides it again, and a singleton none of the code that
+can run on another thread names keeps no lock and no atomic attribute.
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file | 43.3 ms | 36.9 ms |
+| stress tick, split build | 50.3 ms | 42.7 ms |
+| physics step | 13.4 ms | 12.6 ms |
+| the case, ten million calls (medians of seven) | 41.1 ms | 24.3 ms |
+
+Every singleton of the stress program but the recipe cookbook (which the cook task calls) loses its lock.
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

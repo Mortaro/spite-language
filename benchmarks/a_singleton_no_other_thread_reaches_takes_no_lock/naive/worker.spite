@@ -1,0 +1,9 @@
+func run(): Integer {
+    var sum = 0
+    var index = 0
+    while index < 1000 {
+        sum = sum + index % 7
+        index = index + 1
+    }
+    return sum
+}

@@ -25,6 +25,11 @@ a list only its class fills can hold are listed while compiling, and a test agai
 one C file, 41.9 to 41.3 split. Step 2 (a copy per configuration, with a compiled dispatch) and step 3 (the
 runner made direct, with L8b and B2b) are not built.
 
+The sixth pass ([naive_programs.md](naive_programs.md#sixth-pass-2026-10-07)) took the 4.0 ms hand edit apart: of
+the 40.4 ms tick, L8b's fused loop is 1.4 ms, the repeated match 3.3, the write-back (B2b) 11.8, the row kept in
+locals with the call inlined 13.2, the configuration folded 0.8, and the matcher reduced to one lookup 5.1; every
+singleton lock on top of those was about 18%, and is built.
+
 S1 measured by hand on the stress C after B1 (the fourth pass of [naive_programs.md](naive_programs.md#fourth-pass-2026-10-07)):
 `Runner<Move>` and `Runner<Regenerate>` specialised for the configuration `prepare()` leaves in their matchers'
 `headers`, `kinds` and `keys` take the tick from 37.9 ms to 4.0 ms, against the hand engine's 7.0 ms on two
@@ -53,6 +58,7 @@ loop.
 | M6: objects of a class a list holds come from that class's own pool, side by side (stress 64.0 to 47.6 ms a tick, despawning 113 to 21 ms, physics 9.5 to 8.5 ms) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-a-list-holds-made-on-one-thread) |
 | B1 for named items: an item a name holds from its list is not counted while nothing can write the list, the name passed to calls as held (stress 43.6 to 41.2 ms a tick, 40.0 to 38.1 as one C file) | [optimizations](../docs/optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted) |
 | S1 step 1: a test against a value a list only its class fills never holds is decided while compiling (stress 39.0 to 35.4 ms a tick as one C file, 41.9 to 41.3 split, physics 9.2 to 8.9 ms) | [optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling), [proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills) |
+| Singleton locks only where another thread reaches: the walk over the written-out C (C5's) decides locks and atomic attributes again, so a function made into a value no thread calls no longer locks its singleton (stress 43.3 to 36.9 ms a tick as one C file, 50.3 to 42.7 split, physics 13.4 to 12.6 ms) | [optimizations](../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock), [proofs](../docs/proofs.md#no-other-thread-touches-a-singleton) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
 
 ## Threads

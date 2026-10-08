@@ -118,6 +118,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
+| [No other thread touches a singleton](#no-other-thread-touches-a-singleton) | no lock, plain attributes | the form it had |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
 | [A function that touches no changing state](#a-function-that-touches-no-changing-state-takes-no-lock) | no lock for it | the lock |
 | [Reading functions share the lock](#reading-functions-share-the-lock) | readers never contend | the plain lock |
@@ -1005,6 +1006,25 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   form](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form),
   [concurrency.md: A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock);
   `conformance/stage6/singleton_forms`.
+
+### No other thread touches a singleton
+
+- **Proves.** No code that can run on a thread other than the program's own calls a singleton, or reads or writes
+  one of its attributes.
+- **Rule.** Read from the program once it is written out, after every generic class is made and the program is
+  tree shaken, with the same walk as [No other thread counts a class](#no-other-thread-counts-a-class): from every
+  function whose address the program keeps (but a singleton's teardown, and a function value's target while nothing
+  that runs on another thread calls a value with as many arguments), following every call. A singleton whose lock,
+  readers' counts and atomic attributes none of that code names is not touched by another thread.
+- **Buys.** A singleton [the first walk](#which-singletons-a-parallel-reaches) locked, or one of whose attributes it
+  made atomic, keeps neither: its functions call their bodies, and its attributes are plain loads and stores. The
+  count of locks a thread holds is kept, so a wait inside one of its functions behaves as before.
+- **Falls back.** The form the first walk chose: a singleton the code on another thread calls, a program without
+  threads (where there was nothing to remove), and an inspectable build (`--repl`, `--repl-port`, `--hot-reload`,
+  `--development`). Nothing to write: give the work on the pool singletons of its own if a singleton it does not
+  need keeps a lock.
+- **See.** [optimizations.md](optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock);
+  `benchmarks/a_singleton_no_other_thread_reaches_takes_no_lock`.
 
 ### Read-only and atomic singletons
 

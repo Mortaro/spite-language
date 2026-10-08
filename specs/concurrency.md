@@ -367,6 +367,16 @@ proven safe for what its functions actually do; the exact conditions are on
    object that nothing assigns after the singleton is made is read with no lock and no count, since it stays the
    same object for the rest of the program ([optimizations.md](../docs/optimizations.md#a-singletons-attribute-that-never-changes-is-read-in-place)).
 
+The first walk is made while compiling, so it counts every function made into a value as one a thread might run.
+Once the program is written out (every generic class made, the program tree shaken), the walk that decides
+[plain counts](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class) is made again over
+it: from every function whose address the program keeps but a singleton's teardown, a function value's target only
+where that code calls a value with as many arguments, following every call. A singleton that took a lock or an
+atomic attribute in forms 3 and 4, and whose lock, readers' counts and atomic attributes none of that code names,
+falls back to form 1: its wrappers call the bodies (still counting the locks held, so a wait inside behaves the
+same), and its reads and writes from other classes are plain. Not in `--repl`, `--repl-port`, `--hot-reload` or
+`--development` builds ([optimizations.md](../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock)).
+
 **A loop that cannot end inside a locked singleton function is a compile error.** A `while true` with no `return`, `assert` or `crash` inside it, in a function of
 a singleton that takes the lock (the fourth form above), would hold the lock for good, so every other call on the
 singleton would wait forever: `'Window.run' holds Window's lock for the whole call, since a Parallel reaches Window,

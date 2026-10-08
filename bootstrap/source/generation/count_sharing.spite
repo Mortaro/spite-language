@@ -15,6 +15,10 @@ var called_arities = Dictionary<Boolean>()
 var typed_calls_unknown = false
 var dropping_called = false
 var made_elsewhere = Dictionary<Boolean>()
+var free_guards = Dictionary<Boolean>()
+var free_guard_count = 0
+var free_atomics = Dictionary<Boolean>()
+var free_atomic_count = 0
 
 # ../../../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class
 func plain_counts(types: String, bodies: String, main_function: String): String {
@@ -39,10 +43,217 @@ func plain_counts(types: String, bodies: String, main_function: String): String 
     var taken_in_main = mentions(main_function, true)
     taken_in_main.each(roots.append)
     reach_from_roots()
-    if counted_unknown {
+    note_free_guards()
+    if counted_unknown and free_guard_count == 0 {
         return bodies
     }
+    if counted_unknown {
+        return guard_free_bodies()
+    }
     return rewritten_bodies()
+}
+
+# ../../../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock
+func note_free_guards() {
+    var declared = List<String>()
+    var atomic = List<String>()
+    var mentioned = Dictionary<Boolean>()
+    var touched = Dictionary<Boolean>()
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        if piece.starts_with("#define ") and piece.ends_with("___atomic 1") {
+            var atomic_end = piece.index_of("___atomic 1")
+            var atomic_name = piece.slice(8, atomic_end)
+            atomic.append(atomic_name)
+        } else if piece.starts_with("static SpiteGuard ") {
+            var end = piece.index_of("___guard")
+            if end > 18 {
+                var declared_name = piece.slice(18, end)
+                declared.append(declared_name)
+            }
+        } else if reached[index] == true {
+            note_guard_mentions(piece, "___guard", mentioned)
+            note_guard_mentions(piece, "___readers", mentioned)
+            note_guard_mentions(piece, "___atomic", touched)
+            note_singleton_accesses(piece, "SPITE_SINGLETON_LOAD(", touched)
+            note_singleton_accesses(piece, "SPITE_SINGLETON_STORE(", touched)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < declared.count() {
+        var name = declared[index]
+        if not mentioned.has(name) {
+            free_guards[name] = true
+            free_guard_count = free_guard_count + 1
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < atomic.count() {
+        var name = atomic[index]
+        if not mentioned.has(name) and not touched.has(name) {
+            free_atomics[name] = true
+            free_atomic_count = free_atomic_count + 1
+        }
+        index = index + 1
+    }
+    index = first_body
+    while free_guard_count > 0 and index < pieces.count() {
+        var piece = pieces[index]
+        var freed = freed_guard_of(piece)
+        if not freed.is_empty() {
+            pieces[index] = unguarded_wrapper(piece)
+        }
+        index = index + 1
+    }
+}
+
+func note_guard_mentions(piece: String, suffix: String, mentioned: Dictionary<Boolean>) {
+    var at = piece.index_of(suffix)
+    while at > 0 {
+        var name = table.name_before(piece, at)
+        if not name.is_empty() {
+            mentioned[name] = true
+        }
+        at = index_after(piece, suffix, at + 1)
+    }
+}
+
+func note_singleton_accesses(piece: String, opening: String, touched: Dictionary<Boolean>) {
+    var opening_length = opening.length()
+    var at = piece.index_of(opening)
+    while at >= 0 {
+        var start = at + opening_length
+        var end = name_end_from(piece, start)
+        if end > start {
+            var name = piece.slice(start, end)
+            touched[name] = true
+        }
+        at = index_after(piece, opening, start)
+    }
+}
+
+func guard_free_bodies(): String {
+    var kept = List<String>()
+    var index = first_body
+    while index < pieces.count() {
+        var piece = pieces[index]
+        kept.append(piece)
+        index = index + 1
+    }
+    return kept.join("\n")
+}
+
+func freed_guard_of(piece: String): String {
+    var skip = "spite_skipped[spite_skip] = (void*)&"
+    var at = piece.index_of(skip)
+    if at < 0 or not piece.contains("\nif (spite_skipped_depth < 16 && __atomic_load_n(&spite_tasks_in_flight") {
+        return ""
+    }
+    var start = at + skip.length()
+    var end = index_after(piece, "___guard;", start)
+    if end < 0 {
+        return ""
+    }
+    var name = piece.slice(start, end)
+    if not free_guards.has(name) {
+        return ""
+    }
+    return name
+}
+
+func unguarded_wrapper(piece: String): String {
+    var piece_lines = piece.split("\n")
+    var counted = piece_lines.index_of("SPITE_GUARDS_COUNT(1);")
+    crash counted
+    if counted < 1 or counted + 1 >= piece_lines.count() {
+        return piece
+    }
+    var done = counted + 2
+    while done < piece_lines.count() and not starts_line_with(piece_lines, done, "return") {
+        done = done + 1
+    }
+    if done >= piece_lines.count() {
+        return piece
+    }
+    crash piece_lines[0]
+    var kept = List<String>()
+    kept.append(piece_lines[0])
+    kept.append("SPITE_GUARDS_COUNT(1);")
+    kept.append(piece_lines[counted + 1])
+    kept.append("SPITE_GUARDS_COUNT(-1);")
+    kept.append(piece_lines[done])
+    kept.append("}")
+    return kept.join("\n")
+}
+
+# ../../../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock
+func unguarded_types(types: String): String {
+    if free_guard_count == 0 and free_atomic_count == 0 {
+        return types
+    }
+    var type_lines = types.split("\n")
+    var quieted = Dictionary<Boolean>()
+    var index = 0
+    while index < type_lines.count() {
+        var line = type_lines[index]
+        if line.starts_with("#define ") and line.ends_with("___atomic 1") {
+            var atomic_end = line.index_of("___atomic 1")
+            var atomic_name = line.slice(8, atomic_end)
+            if free_atomics.has(atomic_name) {
+                type_lines[index] = "#define {atomic_name}___atomic 0"
+            }
+        } else if line.starts_with("#define ") and frees_a_guard(line) {
+            var head = macro_head(line)
+            type_lines[index] = "{head} ((void)0)"
+            var name_end = head.index_of("(")
+            var name = head.slice(8, name_end)
+            quieted[name] = true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < type_lines.count() {
+        var line = type_lines[index]
+        if line.starts_with("#define ") and line.contains("_leave(") {
+            var head = macro_head(line)
+            var name_end = head.index_of("(")
+            var name = head.slice(8, name_end)
+            var name_length = name.length()
+            var entered = "{name.slice(0, name_length - 6)}_enter"
+            if name.ends_with("_leave") and quieted.has(entered) {
+                type_lines[index] = "{head} ((void)0)"
+            }
+        }
+        index = index + 1
+    }
+    return type_lines.join("\n")
+}
+
+func frees_a_guard(line: String): Boolean {
+    var at = line.index_of("___guard")
+    while at > 0 {
+        var name = table.name_before(line, at)
+        var name_length = name.length()
+        if free_guards.has(name) and line.code_at(at - name_length - 1) == 38 {
+            return true
+        }
+        at = index_after(line, "___guard", at + 1)
+    }
+    return false
+}
+
+func starts_line_with(piece_lines: List<String>, index: Integer, start: String): Boolean {
+    crash piece_lines[index]
+    var line = piece_lines[index]
+    return line.starts_with(start)
+}
+
+func macro_head(line: String): String {
+    var close = line.index_of(")")
+    return line.slice(0, close + 1)
 }
 
 func add_piece(piece: String) {

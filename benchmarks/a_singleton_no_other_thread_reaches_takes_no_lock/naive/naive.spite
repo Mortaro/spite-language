@@ -1,0 +1,46 @@
+var console = Console()
+var clock = Clock()
+var ledger = Ledger()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var counted = count_on_the_pool()
+    var amounts = [4, 12, 30, 7]
+    var large = amounts.filter(ledger.is_large)
+    var seen = note_many(10000000)
+    var total = ledger.sum()
+    var notes = ledger.note_count()
+    var milestones = ledger.milestone_count()
+    var large_count = large.count()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print(
+        "counted",
+        counted,
+        "large",
+        large_count,
+        "seen",
+        seen,
+        "notes",
+        notes,
+        "milestones",
+        milestones,
+        "total",
+        total,
+    )
+    console.error("microseconds {microseconds}")
+}
+
+func count_on_the_pool(): Integer {
+    var worker = Worker()
+    return Parallel(worker.run)
+}
+
+func note_many(count: Integer): Integer {
+    var seen = 0
+    var index = 0
+    while index < count {
+        index = ledger.note(index)
+        seen = seen + ledger.milestones.count()
+    }
+    return seen
+}

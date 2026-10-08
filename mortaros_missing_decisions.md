@@ -87,6 +87,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   and a variadic list the callee only reads is framed for a `var`, an assignment or a `return` as for a statement.
   Why: the plain loop `apply(scorer.score, index)` made two objects per call and took 66.8 times naive C's time
   (0.65 now), and `var biggest = largest(a, b, c)` 31.6 times (1.01 now).
+- **D529, no lock for a singleton no other thread reaches**: after the program is written out, the walk that
+  decides plain counts decides locks again, and a singleton no code on another thread names keeps no lock and no
+  atomic attribute. Why: the walk made while compiling counts every function made into a value as one a thread
+  might run, so a `filter(matches)` locked a whole engine's matchers and columns while only a recipe loader ran on
+  the pool (a stress tick 43.3 ms to 36.9 as one C file). The count of locks held is kept, so nothing a program
+  does changes.
 
 ## Open
 

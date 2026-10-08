@@ -344,6 +344,7 @@ func render(): String {
     if threads and shakes and counts_by_class {
         var sharing = CountSharing()
         bodies = sharing.plain_counts(typedef_text, bodies, main_function)
+        typedef_text = sharing.unguarded_types(typedef_text)
         count_sharing = sharing
     }
     if shakes and counts_by_class and allocates_plainly(typedef_text) {

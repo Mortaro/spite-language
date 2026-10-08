@@ -1,0 +1,30 @@
+singleton
+
+var total: Long = 0
+var notes = 0
+var milestones = List<Integer>()
+
+func note(amount: Integer): Integer {
+    total = total + amount
+    notes = notes + 1
+    if amount % 1000000 == 0 {
+        milestones.append(amount)
+    }
+    return amount + 1
+}
+
+func is_large(amount: Integer): Boolean {
+    return amount > 10
+}
+
+func sum(): Long {
+    return total
+}
+
+func note_count(): Integer {
+    return notes
+}
+
+func milestone_count(): Integer {
+    return milestones.count()
+}
