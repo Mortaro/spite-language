@@ -985,8 +985,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `BinaryWriter<T>` and `schema()` has its attributes reported as never read (a_binary_schema_is_a_constant), as
   [specs/style.md](../specs/style.md) says of a walk that reads only an attribute's name and class, though a schema
   is what the attributes are for (a question for Mortaro); the length of a reflection
-  name known while compiling is not folded (short_symbols_are_inline_text); a program's `.crashes` file lists some
-  sites twice (a_crashs_report_is_kept_out_of_the_way); reads in a row hand only `fread` to the helper thread, so on
+  name known while compiling is not folded (short_symbols_are_inline_text); reads in a row hand only `fread` to the helper thread, so on
   cached files the overlapped reads are slower than reading in turn (reads_in_a_row_overlap); a singleton that never changes is still read with atomic loads
   (thread_safety_for_singletons_the_cheapest_safe_form); each sleep in a state machine counts `Program` twice
   (hidden_async_await_as_compile_time_state_machines); an item read through a singleton's attribute that is read in

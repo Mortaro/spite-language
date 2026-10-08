@@ -40464,7 +40464,16 @@ func crash_map(): String {
     while index < crash_map_lines.count() {
         var line = crash_map_lines[index]
         var insert_position = sorted_position(sorted, line)
-        sorted.insert(insert_position, line)
+        var repeated = false
+        if insert_position > 0 {
+            repeated = sorted[insert_position - 1] == line
+        }
+        if insert_position < sorted.count() and not repeated {
+            repeated = sorted[insert_position] == line
+        }
+        if not repeated {
+            sorted.insert(insert_position, line)
+        }
         index = index + 1
     }
     var body = sorted.join("\n")
