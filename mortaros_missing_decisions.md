@@ -113,11 +113,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   writes back; 311 `List<T>(32)` and `String(256)` only in a `type` that crosses into C; 312 a held-list class when a
   binding needs it; 313 Booleans and enums 32 bits in a struct; 314 address forms leave programs now; 315 a
   `<list>_count` attribute is written by the compiler.
+- **D537, two small calls, confirm after the speed goal**: (a) a walk that hashes or prints a class's description,
+  such as `BinaryWriter<T>.schema()`, counts as reading those attributes, since they are the wire format; (b) of the
+  two ways to ask whether a class's objects can be stored inline, `is_fixed_size` stays (it says what the class is,
+  not which container holds it, D520) and `fits_vector()` goes.
 
 ## Open
 
-- **Does a binary schema read the attributes it describes?** A class seen only through `BinaryWriter<T>` and its
-  `schema()` (`benchmarks/a_binary_schema_is_a_constant` with the writes taken out) is refused: `the attribute
-  'sensor' is never read: remove it`, since specs/style.md counts a walk that reads only an attribute's name and
-  class as its description, not a read. But the attributes are the wire format the schema hashes, so removing one
-  changes the schema. Should `schema()` (and any walk that hashes or prints the description) count as a read?
+None.
