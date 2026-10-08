@@ -135,6 +135,12 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
+- (found 2026-10-08, intermittent) `conformance/stage6/concurrent_wait_cycle` once crashed at
+  `Scheduler.idle_stepping` (from `Concurrent.drop` while a list let go of a `Concurrent`) instead of its expected
+  `Scheduler.joins` report, under the full `check.sh` load on branch plain-bytes; it passes 5 of 5 alone. A crash
+  path that depends on timing is a D244 bug: the same program must report the same cause every run. Reproduce under
+  load (run it many times with the suite's 32 jobs) and find the race.
+
 - (found 2026-10-07 by the naive engine; the common forms are refused since D515) A local read from a list and
   assigned a value nothing reads is a compile error ([specs/memory.md](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name)),
   but two forms still compile without a word: the assignment inside a `while` loop whose local is declared outside
