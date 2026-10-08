@@ -73,9 +73,24 @@ loop.
 | T4 | two systems called in a row | D505 per field, not per class, from stage 2's effect summary | overlapped | in order | hand stages | |
 | T5 | a system's body with two halves touching disjoint fields | the halves share nothing written | two pieces overlapped like T4 | one piece | | |
 | T6 | any of T1 to T3 | cost: body estimate times count above a threshold | the parallel form only above it, one branch on count if the count is unknown | serial | hand grain sizes | |
-| T4b | `for runner in runners { runner.run() }` over a list never changed after it is built | the list's element classes and order are known while compiling | unrolled into a row of calls, then T4 applies | the loop | a stage's hand row of calls | |
+| T4b | `for runner in runners { runner.run() }` over a list never changed after it is built | the list's element classes and order are known while compiling | unrolled into a row of calls, then T4 applies | the loop | a stage's hand row of calls | **built** in the form below (D539) |
 | T8 | a loop sharing one scratch every pass overwrites before reading | each pass writes the scratch before it reads it | a private scratch per band, then T1 | serial | per-thread searchers | |
 | T7 | a shared id counter `next_id = next_id + 1` | the counter is the only shared state of the writers | atomic, or a range handed to each band | lock | locked id counter | |
+
+T4b is **built** as a table instead of an unrolling (D539,
+[optimizations](../docs/optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once),
+[proofs](../docs/proofs.md#classes-in-a-list-that-share-nothing-written)). The naive engine's stages are filled at
+run time by comparing the strings each runner reports (`place` and `conflicts` in `App`), so neither their count
+nor their order is known while compiling, and an unrolling would need the setup evaluated while compiling. Instead
+the compiler decides, for every two classes the list's `type` can reach, whether their calls are independent, and
+the loop reads its elements' classes at run time against that table. The engine's stage loop is reached and stays
+in order: the two stress systems both write a `Profile.Timing` (`timing.record` in `run_once`), the `stamps` of a
+`ColumnIndex` (found through `Columns.headers` by name) and the items of `List<Integer>`s passed as parameters, which
+the per-class facts count as one. Measured by hand on the stress C (one file, `clang -O3`), overlapping the two on a
+raw thread took the update stage from about 30.5 to 17.5 ms with the counts left as they were, and the tick to
+about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). So the next steps
+for the engine are facts that tell objects of one class apart where each runner owns its own (an attribute made for
+its object and never assigned again), and count disciplines per group of overlapped calls (S4).
 
 ## Layout
 

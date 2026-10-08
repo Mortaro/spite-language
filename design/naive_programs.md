@@ -483,6 +483,42 @@ slot in place.
 | stress tick, one C file (medians of nine) | 27.3 ms | 25.9 ms |
 | the case, ten million passes | 23.9 ms | 20.7 ms |
 
+### Seventh pass: systems on several cores (2026-10-08)
+
+Engine `naive` at 81b0e20, Spite from 1afb00d9, the same machine (busy with other sessions: the processor sat
+around 85% before any run), `--optimized` split builds, medians of 5 interleaved runs unless said.
+
+**What the cores are worth by hand.** The stress stage loop changed by hand in the C to run `Runner<Move>` on a raw
+thread while `Runner<Regenerate>` runs on the program's own (the hand engine's `Parallel` per system): the update
+stage went from about 30.5 to 17.5 ms with every count as the compiler left it (plain for the classes C5 found no
+thread counting), and the tick from about 29 to 21 to 25 ms with every count made atomic (medians of 9 swung by a
+third on the busy machine). So two cores are worth about 1.75 times on the stage, and atomic counts take back a
+good part of it: pair S4, or count disciplines per group of overlapped calls, matters as much as the overlap.
+
+**Built: a loop over a list of different classes runs them at once** (D539, pair T4b). `stage.each(run_runner)` in
+`App.run_stage` is reached. The stages are built at run time by `place` and `conflicts`, comparing the strings each
+runner reports, so the pair's unrolling (count and order known while compiling) does not apply; instead the
+compiler writes, for every two classes the shape's call reaches, whether their calls are independent, and the loop
+reads the classes when it starts. The same commit makes D505's facts see what its rule always allowed: a clock read
+through a foreign call (`QueryPerformanceCounter`) is not a call out, nor is a singleton's outside-access guard, nor
+a crash's report to the error output; before it, every runner looked as if it called out of the program.
+
+The engine's two systems still share, as far as per-class facts see: the four fields of `Profile.Timing`
+(`timing.record` in `run_once`, each runner's own object), the items of `ColumnIndex.stamps` (each column's own
+index, found through `Columns.headers` by name), and the items of `List<Integer>` reached through parameters (the
+candidate lists). So the table has no pair for them and the stage runs in order.
+
+| | before | after |
+|---|---|---|
+| stress tick | 30.5 ms | 30.2 ms (the same C) |
+| physics step | 9.2 ms | 9.1 ms (the same C) |
+| the case, three voices | 257 ms | 91 ms |
+
+What would let the stress systems overlap, in order of what it takes: facts that tell apart objects an attribute
+holds when the attribute is made for its object and never assigned again (the `Profile.Timing`); the same for the
+list items reached through such an attribute (`chosen`, the candidate lists); and either the matcher's columns
+folded to the column they name (S1 step 2) or a fact that each runner's rows name columns no other runner names.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a
