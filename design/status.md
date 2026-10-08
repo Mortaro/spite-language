@@ -952,7 +952,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Arithmetic is checked in every build
 
-- Built (D540, decided by Claude under D509): ranges of whole-number locals and
+- Built (D541, decided by Claude under D509): ranges of whole-number locals and
   parameters, narrowed by conditions, widened at loop entry, with counted passes and totals of one term a pass (see
   "Arithmetic a range proves is not checked"). Not built: ranges of attributes (every write to an attribute across
   the program, as `item_values.spite` does for enumerated values), of list items, of a call's answer, and of a
