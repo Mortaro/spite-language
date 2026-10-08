@@ -520,8 +520,30 @@ func address_members(): List<String> {
         "func compare_and_swap_long(offset: Long, expected: Long, desired: Long): Boolean"
         "written by the generator: one machine operation"
     ]
-    var types = ["Byte", "Short", "UnsignedShort", "Integer", "UnsignedInteger", "Long", "Float", "Double"]
-    var words = ["byte", "short", "unsigned_short", "integer", "unsigned_integer", "long", "float", "double"]
+    var types = [
+        "Byte"
+        "Tiny"
+        "Short"
+        "UnsignedShort"
+        "Integer"
+        "UnsignedInteger"
+        "Long"
+        "UnsignedLong"
+        "Float"
+        "Double"
+    ]
+    var words = [
+        "byte"
+        "tiny"
+        "short"
+        "unsigned_short"
+        "integer"
+        "unsigned_integer"
+        "long"
+        "unsigned_long"
+        "float"
+        "double"
+    ]
     var index = 0
     while index < types.count() {
         crash words[index]
@@ -531,6 +553,12 @@ func address_members(): List<String> {
         members.append("written by the generator: one machine operation")
         members.append("func write_{word}(offset: Long, value: {type_name})")
         members.append("written by the generator: one machine operation")
+        if index > 1 {
+            members.append("func read_{word}_big_endian(offset: Long): {type_name}")
+            members.append("written by the generator: one machine operation and a byte swap")
+            members.append("func write_{word}_big_endian(offset: Long, value: {type_name})")
+            members.append("written by the generator: a byte swap and one machine operation")
+        }
         index = index + 1
     }
     return members

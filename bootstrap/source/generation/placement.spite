@@ -368,28 +368,36 @@ func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boo
 }
 
 func is_address_primitive(name: String): Boolean {
-    var primitives = [
-        "read_byte"
-        "read_integer"
-        "read_long"
-        "read_double"
-        "read_short"
-        "read_unsigned_short"
-        "read_unsigned_integer"
-        "read_float"
-        "write_byte"
-        "write_integer"
-        "write_long"
-        "write_double"
-        "write_short"
-        "write_unsigned_short"
-        "write_unsigned_integer"
-        "write_float"
-        "copy_to"
-        "compare_bytes"
-        "text"
+    var primitives = ["copy_to", "compare_bytes", "text"]
+    if primitives.contains(name) {
+        return true
+    }
+    var plain = name
+    if name.ends_with("_big_endian") {
+        var name_length = name.length()
+        plain = name.slice(0, name_length - 11)
+    }
+    var words = [
+        "byte"
+        "tiny"
+        "short"
+        "unsigned_short"
+        "integer"
+        "unsigned_integer"
+        "long"
+        "unsigned_long"
+        "float"
+        "double"
     ]
-    return primitives.contains(name)
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        if plain == "read_{word}" or plain == "write_{word}" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func study_read_lists(

@@ -346,6 +346,10 @@ In detail:
   program, bytes both ways and a line without waiting, then the close) and `socket_waits` (the waiting calls,
   inside a `Concurrent`) are the proof.
 
+### Bytes are a List<Byte>
+
+TODO
+
 **`WebSocket` is RFC 6455 written in Spite over `Socket`.** `library/web_socket.spite` holds all of it, with
 `WebSocketText` and `WebSocketBinary` beside it:
 

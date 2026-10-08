@@ -1,6 +1,3 @@
-var heap = Memory.Heap()
-var byte_memory = TypedMemory<Byte>()
-
 func test_writes_a_class_as_its_attributes_in_order() {
     var ada = Sailor("Ada")
     ada.knots.append("hitch")
@@ -96,23 +93,20 @@ func test_values_follow_each_other_in_one_buffer() {
     crash not whole
 }
 
-func test_reads_from_memory() {
+func test_reads_after_a_header_of_numbers() {
     var bo = Sailor("Bo")
     var writer = BinaryWriter<Sailor>()
-    var bytes = writer.write(bo)
+    var record = writer.write(bo)
+    var bytes = List<Byte>()
+    bytes.append_integer_big_endian(record.count())
+    bytes.append_bytes(record, 0, record.count())
+    var length = bytes.read_integer_big_endian(0)
+    crash length == record.count()
     var reader = BinaryReader<Sailor>()
-    var count = bytes.count()
-    var memory = heap.allocate(count)
-    var index = 0
-    while index < bytes.count() {
-        byte_memory.write_value(memory, index, bytes[index])
-        index = index + 1
-    }
-    var read = reader.read_memory(memory, count)
-    heap.free(memory)
+    var read = reader.read_from(bytes, 4)
     crash read
     crash read.name == "Bo"
-    crash reader.position == count
+    crash reader.position == bytes.count()
 }
 
 func test_values_that_are_not_classes() {

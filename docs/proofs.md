@@ -370,6 +370,14 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **See.** [optimizations.md: A proven read tests only its bounds](optimizations.md#a-proven-read-tests-only-its-bounds);
   `conformance/stage6/proven_read_outside`.
 
+### A proven count or bound proves a read of a width
+
+TODO
+
+### An index built from loop counters is proven by one guard
+
+TODO
+
 ### A counted loop reads its items unchecked
 
 - **Proves.** Inside `while index < values.count()`, the counter is at least 0 and below the count, and the list's

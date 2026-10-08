@@ -69,8 +69,7 @@ func _ask(connection: Socket, host: String, request: HttpRequest): String? {
     head = "{head}content-length: {body_length}\r\n\r\n"
     var whole = head + request.body
     var bytes = whole.to_bytes()
-    var counted = bytes.count()
-    var written = connection.write_bytes(bytes.items, counted)
+    var written = connection.write_bytes(bytes)
     assert written
     return connection.read_line()
 }
@@ -217,7 +216,7 @@ func _read_exactly(connection: Socket, count: Integer): String? {
     var filled = 0
     while filled < count {
         var at = buffer + filled
-        var received = connection.read_bytes(at, count - filled)
+        var received = connection.read_bytes_into(at, count - filled)
         if received <= 0 {
             heap.free(buffer)
             return null
@@ -233,7 +232,7 @@ func _read_until_closed(connection: Socket): String? {
     var buffer = heap.allocate(4096)
     var body = ""
     while not connection.closed {
-        var received = connection.read_bytes(buffer, 4096)
+        var received = connection.read_bytes_into(buffer, 4096)
         if received > 0 {
             var piece = buffer.text(received)
             body = body + piece

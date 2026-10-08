@@ -2,6 +2,7 @@ var handle: Long = -1
 var pending = ""
 var closed = false
 var heap = Memory.Heap()
+var _received: Memory.Address = 0
 
 func listen_locally(port: Integer): Boolean {
     var address = local_address(port)
@@ -111,7 +112,20 @@ func read_line_now(): String? {
     return take_line(newline)
 }
 
-func read_bytes(address: Memory.Address, count: Integer): Integer {
+func read_bytes(): List<Byte>? {
+    var buffer = _receive_buffer()
+    var received = read_bytes_into(buffer, 65536)
+    assert received > 0
+    return _received_bytes(buffer, received)
+}
+
+func read_bytes_now(): List<Byte> {
+    var buffer = _receive_buffer()
+    var received = read_bytes_now_into(buffer, 65536)
+    return _received_bytes(buffer, received)
+}
+
+func read_bytes_into(address: Memory.Address, count: Integer): Integer {
     var taken = take_pending(address, count)
     if taken > 0 or closed or count <= 0 {
         return taken
@@ -125,7 +139,7 @@ func read_bytes(address: Memory.Address, count: Integer): Integer {
     return received
 }
 
-func read_bytes_now(address: Memory.Address, count: Integer): Integer {
+func read_bytes_now_into(address: Memory.Address, count: Integer): Integer {
     var taken = take_pending(address, count)
     if taken > 0 or closed or count <= 0 {
         return taken
@@ -155,7 +169,17 @@ func write_line(text: String): Boolean {
     return written == line_length
 }
 
-func write_bytes(address: Memory.Address, count: Integer): Boolean {
+func write_bytes(bytes: List<Byte>): Boolean {
+    var counted = bytes.count()
+    return write_bytes_from(bytes.items, counted)
+}
+
+func write_bytes_now(bytes: List<Byte>): Integer {
+    var counted = bytes.count()
+    return write_bytes_now_from(bytes.items, counted)
+}
+
+func write_bytes_from(address: Memory.Address, count: Integer): Boolean {
     use_blocking_calls()
     var written = 0
     while written < count and not closed {
@@ -169,7 +193,7 @@ func write_bytes(address: Memory.Address, count: Integer): Boolean {
     return written == count
 }
 
-func write_bytes_now(address: Memory.Address, count: Integer): Integer {
+func write_bytes_now_from(address: Memory.Address, count: Integer): Integer {
     if closed or count <= 0 {
         return 0
     }
@@ -186,6 +210,10 @@ func close() {
     if handle != -1 {
         close_handle()
         handle = -1
+    }
+    if _received != 0 {
+        heap.free(_received)
+        _received = 0
     }
 }
 
@@ -226,6 +254,23 @@ func take_line(newline: Integer): String {
         return line.slice(0, line_length - 1)
     }
     return line
+}
+
+func _receive_buffer(): Memory.Address {
+    if _received == 0 {
+        _received = heap.allocate(65536)
+    }
+    return _received
+}
+
+func _received_bytes(buffer: Memory.Address, received: Integer): List<Byte> {
+    var bytes = List<Byte>()
+    if received > 0 {
+        bytes.reserve(received)
+        buffer.copy_to(bytes.items, received)
+        bytes.item_count = received
+    }
+    return bytes
 }
 
 func take_pending(address: Memory.Address, count: Integer): Integer {
