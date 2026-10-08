@@ -94,6 +94,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Whether a class fits a `Vector`](#whether-a-class-fits-a-vector) | inline storage | reference storage |
 | [Whether a function writes a parameter](#whether-a-function-writes-a-parameter) | engines refuse lost writes | `true` where unsure |
 | [Whether a class keeps state](#whether-a-class-keeps-state) | engines refuse stateful systems | `true` where unsure |
+| [The one class a `type` admits](#the-one-class-a-type-admits) | a component read with no class test | the test |
 | [A `crash` that folds false is an error](#a-crash-that-folds-false-is-a-compile-error) | a certain halt becomes a build error | a run-time check |
 | [Tree shaking](#tree-shaking-what-main-can-reach) | smaller program | an inspectable build keeps all |
 | [A reload compiles only the changed classes](#a-reload-compiles-only-the-changed-classes) | a reload in seconds | the whole program is compiled |
@@ -578,6 +579,18 @@ A short guide by task. Find what you are writing; the entries below say the rest
   library counts like any code, so a class binding `Console` has state (reading a line writes its buffer).
 - **See.** [metaprogramming.md: Every class in the program](metaprogramming.md#walking-a-programs-structure);
   `conformance/stage6/class_walk`.
+
+### The one class a `type` admits
+
+- **Proves.** Every value a `type` holds in this program is of one class.
+- **Rule.** Once the whole program is written, the classes admitted to each `type` are known; when there is one,
+  reading an attribute's component through the `type` reads that class's attribute.
+- **Buys.** No test of the value's class at each read, which the C compiler would make again after every write
+  through a component (`benchmarks/reading_through_a_type_without_counting`, 38.3 to 26.6 ms).
+- **Falls back.** The class test, when two or more classes are admitted, and in `--hot-reload`, `--repl`,
+  `--repl-port` and `--development` builds, where a class can be added while the program runs.
+- **See.** [optimizations.md: Reading through a `type` without
+  counting](optimizations.md#reading-through-a-type-without-counting).
 
 ### A `crash` that folds false is a compile error
 

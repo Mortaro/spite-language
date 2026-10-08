@@ -26,8 +26,10 @@ attribute.
 
 ## What to look at in highlights.c
 
-`Mover_Moving___peek_position` answers `((Object_position_Position_velocity_Velocity*)self)->position_` when the
-value's class is the row's, and `0` otherwise: a pointer to the component where it lies, with no retain. In
+`Mover_Moving___peek_position` answers `((Object_position_Position_velocity_Velocity*)self)->position_`, a pointer
+to the component where it lies, with no retain and no test of the value's class: the row is the only class this
+program admits to `Moving`. With a second class admitted it tests the class and answers `0` for one without the
+attribute. In
 `Mover_advance___lent_0` each read is `({ Position* p = Mover_Moving___peek_position(moving_); p != 0 ? p->left_ :
 (0); })`, the default `0` standing in for a class without the attribute, and each write lands in
 `*Mover_Moving___peek_position(moving_)` or, for such a class, in `spite_temp_scratch`, a `Position` in the frame
@@ -51,11 +53,11 @@ Spite is about three times slower than `naive.c` on this loop, for reasons outsi
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 38 319 | 182 784 |
-| naive C: `naive.c`, `clang -O2` | 12 259 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 6 752 | 139 776 |
+| Spite: `naive/`, `--optimized` | 26 614 | 182 272 |
+| naive C: `naive.c`, `clang -O2` | 9 598 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 5 450 | 139 776 |
 
-Spite takes 3.13 times naive C's time and 5.68 times expert C's (lower is faster).
+Spite takes 2.77 times naive C's time and 4.88 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=38319 naive=12259 expert=6752 -->
+<!-- measured spite=26614 naive=9598 expert=5450 -->
 <!-- /timings -->

@@ -1603,19 +1603,19 @@ fputs("spite.crash\tPrintable.to_string was called on a value of a class it was 
 abort();
 }
 Health* Healer_Mending___peek_health(Healer_Mending self) {
-if (((SpiteHeader*)(self))->class_id == 180) return ((Object_health_Health_regeneration_Regeneration*)self)->health_;
+return ((Object_health_Health_regeneration_Regeneration*)self)->health_;
 return 0;
 }
 Regeneration* Healer_Mending___peek_regeneration(Healer_Mending self) {
-if (((SpiteHeader*)(self))->class_id == 180) return ((Object_health_Health_regeneration_Regeneration*)self)->regeneration_;
+return ((Object_health_Health_regeneration_Regeneration*)self)->regeneration_;
 return 0;
 }
 Position* Mover_Moving___peek_position(Mover_Moving self) {
-if (((SpiteHeader*)(self))->class_id == 179) return ((Object_position_Position_velocity_Velocity*)self)->position_;
+return ((Object_position_Position_velocity_Velocity*)self)->position_;
 return 0;
 }
 Velocity* Mover_Moving___peek_velocity(Mover_Moving self) {
-if (((SpiteHeader*)(self))->class_id == 179) return ((Object_position_Position_velocity_Velocity*)self)->velocity_;
+return ((Object_position_Position_velocity_Velocity*)self)->velocity_;
 return 0;
 }
 static int32_t spite_foreign_library_1_lock = 0;

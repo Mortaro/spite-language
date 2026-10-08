@@ -2280,14 +2280,18 @@ value, uncounted: a read of a class without the attribute answers the attribute'
 would have, and a write to one lands in a scratch object in the frame, as it would land in a default object that was
 then thrown away. A write borrows only when computing the value it stores can let go of nothing (the same proof as [a
 list's templates](#a-lists-templates-read-its-elements-without-counting-them)), and only when the value holding the
-component is itself held for the whole statement.
+component is itself held for the whole statement. When the whole program admits only one class to the `type` (a
+row of borrowed items is often the only thing a system is handed), asking for the component is reading that class's
+attribute, with no test of the value's class: the test read the class from the value after every write through a
+component, since the C compiler cannot tell a component's numbers from the value's class.
 
 **When.** Every build but `--hot-reload`, for a plain attribute of a class read through a `type` attribute:
 `moving.position.left`, not `moving.position` passed on or kept.
 
 **What you notice.** Speed, in systems that walk components through a `type`: their functions no longer count
 anything. [Its case](../benchmarks/reading_through_a_type_without_counting/), 200 ticks over 100 000 entities, takes
-35.5 ms, against 11.0 ms for naive C and 6.2 ms for expert C. Allocations and results are the same.
+26.6 ms, against 9.6 ms for naive C and 5.5 ms for expert C (38.3 ms with the class tested at every read, measured
+on the same loaded machine). Allocations and results are the same.
 
 ### A row of borrowed items lives in the frame
 

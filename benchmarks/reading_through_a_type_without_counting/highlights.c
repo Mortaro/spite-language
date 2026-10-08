@@ -3,12 +3,12 @@
  * names numbered again from 1. check.sh compares it with what the compiler writes now. */
 
 Position* Mover_Moving___peek_position(Mover_Moving self) {
-    if (((SpiteHeader*)(self))->class_id == 171) return ((Object_position_Position_velocity_Velocity*)self)->position_;
+    return ((Object_position_Position_velocity_Velocity*)self)->position_;
     return 0;
 }
 
 Velocity* Mover_Moving___peek_velocity(Mover_Moving self) {
-    if (((SpiteHeader*)(self))->class_id == 171) return ((Object_position_Position_velocity_Velocity*)self)->velocity_;
+    return ((Object_position_Position_velocity_Velocity*)self)->velocity_;
     return 0;
 }
 

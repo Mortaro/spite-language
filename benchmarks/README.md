@@ -119,7 +119,7 @@ same time, so read a few percent either way as noise.
 | [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 0.72 | 0.72 |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed |
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
-| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 3.66 | 8.57 |
+| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 4.53 | 9.90 |
 | [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 4.45 | 6.75 |
 | [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.60 | 47.73 |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 0.17 | 3.18 |
@@ -130,6 +130,7 @@ same time, so read a few percent either way as noise.
 | [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 1.32 | 31.08 |
 | [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 0.77 | 31.16 |
 | [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 0.35 | 19.23 |
+| [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 1.01 | 1.69 |
 | [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 1.06 | 8.64 |
 | [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
 | [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.59 | 12.89 |
@@ -155,7 +156,7 @@ same time, so read a few percent either way as noise.
 | [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | 0.62 | 1.87 |
 | [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not timed | not timed |
 | [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 3.64 | 5.27 |
-| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 3.13 | 5.68 |
+| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 2.77 | 4.88 |
 | [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 1.41 | 1.56 |
 | [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 0.96 | 4.75 |
 | [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed |

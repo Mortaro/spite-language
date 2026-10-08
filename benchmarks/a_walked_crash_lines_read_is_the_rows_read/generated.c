@@ -1674,15 +1674,15 @@ fputs("spite.crash\tPrintable.to_string was called on a value of a class it was 
 abort();
 }
 Position* Mover_Moving___peek_position(Mover_Moving self) {
-if (((SpiteHeader*)(self))->class_id == 179) return ((Object_entity_Entity_position_Position_velocity_Velocity*)self)->position_;
+return ((Object_entity_Entity_position_Position_velocity_Velocity*)self)->position_;
 return 0;
 }
 Velocity* Mover_Moving___peek_velocity(Mover_Moving self) {
-if (((SpiteHeader*)(self))->class_id == 179) return ((Object_entity_Entity_position_Position_velocity_Velocity*)self)->velocity_;
+return ((Object_entity_Entity_position_Position_velocity_Velocity*)self)->velocity_;
 return 0;
 }
 Entity* Mover_Moving___peek_entity(Mover_Moving self) {
-if (((SpiteHeader*)(self))->class_id == 179) return ((Object_entity_Entity_position_Position_velocity_Velocity*)self)->entity_;
+return ((Object_entity_Entity_position_Position_velocity_Velocity*)self)->entity_;
 return 0;
 }
 static int32_t spite_foreign_library_1_lock = 0;

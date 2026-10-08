@@ -4271,8 +4271,14 @@ func emit_shape_peekers(information: Analysis.UnionInfo) {
         assert field_type
         var lines = List<String>()
         lines.append("{c_type_name(field_type)} {information.c_name}___peek_{field_name}({information.c_name} self) \{")
+        var only = information.members.count() == 1 and not hot_reload and not read_evaluate_print_loop and remote_loop_port == 0 and not keeps_internals
+        if only {
+            crash information.members[0]
+            var sole = information.members[0]
+            lines.append("return {field_place("(({sole.c_name}*)self)", sole, field_name)};")
+        }
         var member_index = 0
-        while member_index < information.members.count() {
+        while not only and member_index < information.members.count() {
             var member = information.members[member_index]
             lines.append(
                 "if {class_id_test("self", member)} return {field_place("(({member.c_name}*)self)", member, field_name)};",

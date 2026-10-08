@@ -42,11 +42,11 @@ regenerations[entity]` reads three items to test them before the rows read them 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 40 268 | 190 464 |
-| naive C: `naive.c`, `clang -O2` | 11 001 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 4 698 | 139 776 |
+| Spite: `naive/`, `--optimized` | 31 160 | 190 464 |
+| naive C: `naive.c`, `clang -O2` | 6 875 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 3 149 | 139 776 |
 
-Spite takes 3.66 times naive C's time and 8.57 times expert C's (lower is faster).
+Spite takes 4.53 times naive C's time and 9.90 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=40268 naive=11001 expert=4698 -->
+<!-- measured spite=31160 naive=6875 expert=3149 -->
 <!-- /timings -->
