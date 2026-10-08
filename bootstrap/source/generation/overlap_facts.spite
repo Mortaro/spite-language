@@ -10,6 +10,11 @@ var mutation_answers = Dictionary<String, Boolean>()
 var shared_holders = Dictionary<String, Boolean>()
 var made_classes = Dictionary<String, Boolean>()
 var mentioned = Dictionary<String, Boolean>()
+var item_direct = Dictionary<String, OverlapFact>()
+var item_mode = false
+var band_counts = false
+var weights = Dictionary<String, Long>()
+var weighing = Dictionary<String, Boolean>()
 var container_prefixes = ["List_", "Vector_", "Items_", "Dictionary_", "TypedMemory_", "InlineMemory_"]
 var keywords = [
     "if"
@@ -563,6 +568,14 @@ func study_call(fact: OverlapFact, line: String, name: String, open: Integer, li
         }
         return
     }
+    if item_mode and not fact.container and not is_container_function(name) {
+        var passed = first_argument(line, open)
+        if passed == "self" {
+            var item_fact = item_facts_of(name)
+            fact.merge_item(name, item_fact)
+            return
+        }
+    }
     fact.call(name)
     assert is_container_function(name)
     var argument = first_argument(line, open)
@@ -574,6 +587,9 @@ func study_call(fact: OverlapFact, line: String, name: String, open: Integer, li
     }
     var key = content_key(argument, name, lines)
     assert not key.is_empty()
+    if item_mode and own_content(argument, key) {
+        key = "s:{key}"
+    }
     if mutates(name) {
         fact.write(key)
     } else {
@@ -819,6 +835,9 @@ func study_field(fact: OverlapFact, line: String, arrow: Integer, lines: List<St
     }
     var written = atomic or writes_after(line, field_end) or address_before(line, base_start)
     var key = "f:{holder}#{field}"
+    if item_mode and base == "self" {
+        key = "s:{key}"
+    }
     if written {
         fact.write(key)
     } else {
@@ -1067,4 +1086,234 @@ func contents_touch(first: String, second: String): Boolean {
         return true
     }
     return first_holder == second_holder
+}
+
+# ../../../docs/proofs.md#passes-that-write-only-their-own-item
+func item_facts_of(name: String): OverlapFact {
+    var known = item_direct[name]
+    if known {
+        return known
+    }
+    var fact = OverlapFact()
+    item_direct[name] = fact
+    var lines = bodies[name]
+    if not lines {
+        fact.write("unknown")
+        return fact
+    }
+    var saved = item_mode
+    item_mode = true
+    var index = 1
+    while index < lines.count() {
+        study_line(fact, lines[index], lines, name)
+        index = index + 1
+    }
+    item_mode = saved
+    return fact
+}
+
+func own_content(argument: String, key: String): Boolean {
+    var text = stripped(argument)
+    if not text.starts_with("self->") or last_arrow(text) != 4 {
+        return false
+    }
+    var bar = key.index_of("|")
+    var key_length = key.length()
+    var holder = key.slice(bar + 1, key_length)
+    return not holder.starts_with("*") and not shared_holders.has(holder)
+}
+
+func band_fact(target: String): OverlapFact {
+    var fact = OverlapFact()
+    var root = item_facts_of(target)
+    fact.merge(root)
+    var reached = Dictionary<String, Boolean>()
+    reached[target] = true
+    var item_index = 0
+    while item_index < root.item_calls.count() {
+        var item_name = root.item_calls[item_index]
+        reached[item_name] = true
+        item_index = item_index + 1
+    }
+    var waiting = root.calls.copy()
+    while not waiting.is_empty() {
+        var name = waiting.remove_last()
+        crash name
+        if not reached.has(name) {
+            reached[name] = true
+            var callee = facts_of(name)
+            fact.merge(callee)
+            callee.calls.each(waiting.append)
+        }
+    }
+    band_counts = false
+    var names = reached.keys()
+    var index = 0
+    while index < names.count() {
+        if counts_references(names[index]) {
+            band_counts = true
+        }
+        index = index + 1
+    }
+    return fact
+}
+
+func counts_references(name: String): Boolean {
+    var lines = bodies[name]
+    if not lines {
+        return false
+    }
+    var markers = ["___retain(", "___release(", "_box_retain(", "_box_release(", "SPITE_COUNT_UP(", "SPITE_COUNT_DOWN("]
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var marker = 0
+        while marker < markers.count() {
+            if line.contains(markers[marker]) {
+                return true
+            }
+            marker = marker + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func item_only(fact: OverlapFact): Boolean {
+    var written = fact.writes.keys()
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        if not key.starts_with("s:") {
+            return false
+        }
+        var key_length = key.length()
+        var plain = key.slice(2, key_length)
+        if touches_any(plain, fact.reads) or touches_any(plain, fact.writes) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func weight_of(name: String): Long {
+    if weights.has(name) {
+        var known = weights[name]
+        crash known
+        return known
+    }
+    var lines = bodies[name]
+    if not lines or weighing.has(name) {
+        return 1
+    }
+    weighing[name] = true
+    var total: Long = 0
+    var factors = List<Long>()
+    var openings = List<Integer>()
+    var multiplier: Long = 1
+    var depth = 0
+    var index = 1
+    while index < lines.count() {
+        var line = lines[index]
+        var trimmed = line.trim()
+        var called = calls_weight(line)
+        var step = capped_product(multiplier, called + 1)
+        total = capped_sum(total, step)
+        var opens_loop = trimmed.starts_with("while (") or trimmed.starts_with("for (")
+        if opens_loop and trimmed.ends_with("\{") {
+            factors.append(multiplier)
+            openings.append(depth)
+            var factor = loop_factor(trimmed)
+            multiplier = capped_product(multiplier, factor)
+        }
+        depth = depth + brace_change(line)
+        multiplier = closed_loops(factors, openings, depth, multiplier)
+        index = index + 1
+    }
+    weighing.remove(name)
+    if total < 1 {
+        total = 1
+    }
+    weights[name] = total
+    return total
+}
+
+func closed_loops(factors: List<Long>, openings: List<Integer>, depth: Integer, multiplier: Long): Long {
+    var current = multiplier
+    while not openings.is_empty() and depth <= innermost(openings) {
+        var restored = factors.remove_last()
+        crash restored
+        current = restored
+        openings.remove_last()
+    }
+    return current
+}
+
+func innermost(openings: List<Integer>): Integer {
+    var opened = openings.last()
+    crash opened
+    return opened
+}
+
+func calls_weight(line: String): Long {
+    var total: Long = 0
+    var length = line.length()
+    var position = 0
+    while position < length {
+        var code = line.code_at(position)
+        if outline.is_name_code(code) {
+            var end = outline.name_end(line, position)
+            if end < length and line.code_at(end) == 40 {
+                var name = line.slice(position, end)
+                if bodies.has(name) {
+                    var called = weight_of(name)
+                    total = capped_sum(total, called)
+                }
+            }
+            position = end
+        } else {
+            position = position + 1
+        }
+    }
+    return total
+}
+
+func loop_factor(header: String): Long {
+    var less = header.index_of(" < ")
+    if less < 0 {
+        return 8
+    }
+    var bound: Long = 0
+    var position = less + 3
+    var length = header.length()
+    var reading = true
+    while reading and position < length and bound < 1000000000000 {
+        var code = header.code_at(position)
+        reading = code >= 48 and code <= 57
+        if reading {
+            bound = bound * 10 + code - 48
+            position = position + 1
+        }
+    }
+    if bound > 0 {
+        return bound
+    }
+    return 8
+}
+
+func capped_sum(first: Long, second: Long): Long {
+    var limit: Long = 1000000000000000
+    if first >= limit - second {
+        return limit
+    }
+    return first + second
+}
+
+func capped_product(first: Long, second: Long): Long {
+    var limit: Long = 1000000000000000
+    if second > 0 and first > limit / second {
+        return limit
+    }
+    return first * second
 }

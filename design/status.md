@@ -16,8 +16,9 @@ The page teaches D506, D507 and D508 as the language; most of what it says the c
 plan and its order are [naive_programs.md](naive_programs.md), the work items [naive_programs_pairs.md](naive_programs_pairs.md).
 
 - Built: calls in a row run at once (D505, see concurrency below), a loop over a list of different classes run
-  the same way (D539), placement in the frame, proven reads, tree
-  shaking, singleton lock elision. Not built: independent loops run in parallel, reductions, layout chosen by the
+  the same way (D539), a loop whose passes write only their own item run in bands (D542, for the member templates),
+  placement in the frame, proven reads, tree
+  shaking, singleton lock elision. Not built: independent loops written as a `while`, reductions, layout chosen by the
   compiler (structure of arrays, hot and cold splitting, field order and cache-line alignment), waiting arranged by
   the compiler outside a `Concurrent`, frame arenas, rings and deferred freeing.
 - "A plain program must reach the hand-written speed": not yet true of the engine package; its naive branch and
@@ -145,8 +146,12 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
   `Scheduler.idle_stepping` (from `Concurrent.drop` while a list let go of a `Concurrent`) instead of its expected
   `Scheduler.joins` report, under the full `check.sh` load on branch plain-bytes; it passes 5 of 5 alone. A crash
   path that depends on timing is a D244 bug: the same program must report the same cause every run. Reproduce under
-  load (run it many times with the suite's 32 jobs) and find the race.
+  load (run it many times with the suite's 32 jobs) and find the race. Alone, built by the compiler at 54924f69, it reported `idle_stepping` in 1 of 30 runs and by the compiler with D542 in 5 of 30, from the same C.
 
+- (found 2026-10-08 while building D542) `list.parallel_each_member()` over a `List` holding one object twice runs
+  that object's member on two threads at once, a race on its attributes ([concurrency.md](../docs/concurrency.md#parallel_each_-a-member-on-every-element)
+  says so). The bands D542 builds check, before running, that every element is held by the list alone; the same
+  check, or a halt naming the element, would close it for `parallel_each_`.
 - (found 2026-10-07 by the naive engine; the common forms are refused since D515) A local read from a list and
   assigned a value nothing reads is a compile error ([specs/memory.md](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name)),
   but two forms still compile without a word: the assignment inside a `while` loop whose local is declared outside
@@ -484,6 +489,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   but stays in order: `Runner<Move>` and `Runner<Regenerate>` both write a `Profile.Timing`, the stamps of a
   `ColumnIndex` and the items of `List<Integer>`s reached through parameters, which the per-class facts cannot tell
   apart.
+- D542, a loop whose passes write only their own item runs in bands: built for `list.each_function()` and
+  `list.each(own_function)` over a `List` or `Vector` of a class. Not built: reductions (T2), a scratch per band
+  (T8), a loop written as a `while`, passes that count references (refused, since their classes would count
+  atomically everywhere until S4), an `Items` of a class, and a threshold measured on each machine (the weight
+  of 256 and the million are constants measured on one machine). `parallel_each_` still runs a list holding one
+  object twice on two threads at once; the bands' check that every element is held by the list alone is not
+  applied to it.
 - Section was tagged implemented on Windows. The names and mechanism are decided; several details were only "proposed by Claude, unconfirmed": the written-handle-type rule covering only the declaration that starts the work (handle element types in `List<Parallel<Integer>>()` and parameters are still written), `finished`, `finished_value()` (name provisional, D216), `class`/`attributes`/`functions` staying a handle's own members, comparing handles (nothing has needed a way to compare the handles themselves), the debug text of handles, default-made handles, the `Concurrent` holding its function only while it runs, `Atomic<T>` (names provisional, D205/D214), and all of the ThreadPool, Lock, ThreadSlot and ThreadLocal shapes.
 - `Concurrent` is described as for "IO, sleeps, database calls later": no database classes exist yet.
 - Compiler-supplied members still have bodies written in C inside the compiler: `ThreadPool.entry_address()` and `address()`, `Concurrent._start_frame()`, `_frame_result()` and `_free_frame()`, `Scheduler.step_frame(frame)` and `release_work(frame)`. D147 decides that no compiler-supplied function stays bodiless and no Spite body holds C; turning them into Spite over the backend's primitives is not built. The page now states the rule as if done.

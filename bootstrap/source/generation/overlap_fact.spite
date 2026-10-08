@@ -1,6 +1,7 @@
 var reads = Dictionary<String, Boolean>()
 var writes = Dictionary<String, Boolean>()
 var calls = List<String>()
+var item_calls = List<String>()
 var loops = false
 var container = false
 var mutates = false
@@ -24,5 +25,18 @@ func merge(other: OverlapFact) {
     other.writes.keys().each(write)
     if other.loops {
         loops = true
+    }
+}
+
+func merge_item(name: String, other: OverlapFact) {
+    merge(other)
+    other.calls.each(call)
+    note_item_call(name)
+    other.item_calls.each(note_item_call)
+}
+
+func note_item_call(name: String) {
+    if not item_calls.contains(name) {
+        item_calls.append(name)
     }
 }

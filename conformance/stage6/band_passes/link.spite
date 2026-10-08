@@ -1,0 +1,20 @@
+var value: Long = 0
+var before: Link? = null
+
+func Link(seed: Integer) {
+    value = seed
+}
+
+func follow(previous: Link) {
+    before = previous
+}
+
+func pull() {
+    var round = 0
+    while round < 200 {
+        if before {
+            value = value + before.value % 3
+        }
+        round = round + 1
+    }
+}

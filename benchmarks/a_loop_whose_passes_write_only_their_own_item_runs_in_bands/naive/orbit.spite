@@ -1,0 +1,19 @@
+var angle = 0.0
+var speed = 0.0
+var turns = 0
+
+func Orbit(seed: Integer) {
+    speed = seed % 17 + 1
+}
+
+func advance() {
+    var step = 0
+    while step < 1000 {
+        angle = angle + speed * 0.001
+        if angle > 6.28318 {
+            angle = angle - 6.28318
+            turns = turns + 1
+        }
+        step = step + 1
+    }
+}

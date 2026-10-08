@@ -519,6 +519,28 @@ holds when the attribute is made for its object and never assigned again (the `P
 list items reached through such an attribute (`chosen`, the candidate lists); and either the matcher's columns
 folded to the column they name (S1 step 2) or a fact that each runner's rows name columns no other runner names.
 
+**Built: a loop whose passes write only their own item runs in bands** (D542, pairs T1 and T6), for
+`list.each_function()` over a `List` or `Vector` of a class. The overlap facts gain a self-indexed key: what the
+function reaches through its own `self`, and through `self` of every function it calls on `self`, is told apart
+from any other object of the class. The cost model was measured with the bands forced on (the machine busy, medians
+of 3): starting the bands costs about 80 to 90 µs; a pass weighing 203 (a 20-step loop) ran 48 to 86 µs over
+1 000 elements, 482 to 122 over 10 000 and 48 to 6.5 ms over a million; a pass weighing 7 (six statements) was
+slower at every count, four times at a million, and `image_filter_over_planes`'s two passes over 4 million pixels
+(weighing about 50) went from 186 to 230 ms. Hence the two constants: a pass under 256 stays in order, and above
+it bands start when the count times the weight reaches a million. The bands' function value borrows the list, so
+the list's release does not become a root of C5's walk: before that, the item class lost its plain counts and its
+pool, and the image case went from 184 to 464 ms.
+
+| | before | after |
+|---|---|---|
+| the case, 100 000 orbits ten times | 800 ms | 51 ms (expert C on every core: 49) |
+| stress tick, physics step | | the same C |
+| every other case | | the same C (four gain blank lines) |
+
+The engine has no loop of this form: its systems' row loop is a `while` over combinations that writes the
+runner's own scratch (`chosen`, `position`, `skipping`) and stores through the matchers. Reductions (T2), scratch
+per band (T8) and loops written as a `while` are not built.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a

@@ -545,6 +545,23 @@ statement; otherwise the loop runs in order, as written. Two objects of one clas
 two classes could ever run together, the statement is the plain loop and the program carries nothing of this. The
 same builds and places are left out as for calls in a row, and a crash halts the same way. `conformance/stage6/row_of_classes`.
 
+**A loop whose passes write only their own item runs in bands.** The same two statements over a `List` or a
+`Vector` of a class of the program (not a singleton), where `function` belongs to that class, takes no arguments
+and answers nothing, run in bands on the thread pool, one band for each thread with the first on the calling thread
+and all joined before the next statement, when every pass writes only its own element: taken through every function
+it reaches, the pass writes attributes only of the object it runs on (reached as that object, not through another
+name of its class), or the items of a list or dictionary attribute of it that holds one made for it and never
+handed anywhere else, and reads nothing a pass writes, read through any other name; and it counts no reference,
+prints, reads or writes a `File`, a `Directory` or a `Socket`, waits, calls anything outside the program but plain
+arithmetic, the clock and memory, writes memory through an address, calls through a function value or reaches a
+`Weak`. The compiler weighs the pass while compiling (each statement 1, a loop's body as many times as its bound
+when the bound is a number, 8 times otherwise, a call what its function weighs) and runs in bands only when the
+pass weighs at least 256 and the list's count, read when the statement runs, times that weight reaches a million (see
+[optimizations.md](../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands)), and,
+for a `List`, only when every element is held by the list alone, so that no object is two elements; otherwise the
+loop runs in order, as written. When no pass qualifies the statement is the plain loop. The same builds and places
+are left out as for calls in a row, and a crash halts the same way. `conformance/stage6/band_passes`.
+
 ---
 
 Next: [Standard library](standard_library.md).

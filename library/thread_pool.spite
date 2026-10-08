@@ -199,3 +199,32 @@ func run_marked(piece: Spite.Function<Integer, Integer, Nothing>, count: Integer
     }
     heap.free(block)
 }
+
+func run_bands(piece: Spite.Function<Integer, Integer, Nothing>, count: Integer) {
+    var bands = size() + 1
+    if bands > count {
+        bands = count
+    }
+    if bands < 2 {
+        piece(0, count)
+        return
+    }
+    var block = heap.allocate(bands * 8)
+    var base = count / bands
+    var extra = count % bands
+    var index = 1
+    while index < bands {
+        var first = piece_start(index, base, extra)
+        var end = piece_start(index + 1, base, extra)
+        submit(piece, first, end, block + index * 8)
+        index = index + 1
+    }
+    var first_end = piece_start(1, base, extra)
+    piece(0, first_end)
+    index = 1
+    while index < bands {
+        join(block + index * 8)
+        index = index + 1
+    }
+    heap.free(block)
+}

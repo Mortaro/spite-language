@@ -1686,7 +1686,17 @@ int64_t Naive_simulate___held_0(Naive* self, List_Body* bodies_) {
 int64_t total_ = SpiteInteger_to_long(0);
 int32_t round_ = 0;
 while (((round_ < 100))) {
+
+
+
+
+
+
+
 List_Body_each_advance(bodies_);
+
+
+
 int32_t positions_ = List_Body_sum_position(bodies_);
 total_ = ({ int64_t spite_temp_78 = total_; int64_t spite_temp_79 = SpiteInteger_to_long(positions_); int64_t spite_temp_80; if (__builtin_expect(__builtin_add_overflow(spite_temp_78, spite_temp_79, &spite_temp_80), 0)) spite_overflowed("total + positions", "a Long", "+", (int64_t)spite_temp_78, (int64_t)spite_temp_79, spite_site_15()); spite_temp_80; });
 round_ = (round_ + 1);
@@ -2440,6 +2450,8 @@ spite_singletons_destroy();
 
 if (spite_foreign_library_2_tracked) DynamicLibrary___destroy(spite_foreign_library_2_cache);
 if (spite_foreign_library_1_tracked) DynamicLibrary___destroy(spite_foreign_library_1_cache);
+
+
 
 
 return 0;

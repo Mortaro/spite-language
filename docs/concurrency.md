@@ -789,6 +789,12 @@ see two elements that are the same object: a list holding one instance twice run
 A pass costs one allocation per call and none per element, and a list of fewer than two elements runs on the
 calling thread without touching the pool.
 
+You rarely need to write it. A plain `particles.each_step()` runs in bands on its own when the compiler proves that
+each pass writes only its own element, reads nothing another pass writes and counts no reference, and when the
+list is long enough for the bands to pay; otherwise it runs in order
+([optimizations.md](optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands)).
+`parallel_each_` remains for a pass you want on many threads whatever its length.
+
 ## The REPL answers at the waits
 
 A `--repl-port` build (see [repl.md](repl.md)) serves its commands **on the program's own thread, at the same
