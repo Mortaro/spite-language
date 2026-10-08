@@ -97,11 +97,12 @@ func test_reads_after_a_header_of_numbers() {
     var bo = Sailor("Bo")
     var writer = BinaryWriter<Sailor>()
     var record = writer.write(bo)
+    var record_count = record.count()
     var bytes = List<Byte>()
-    bytes.append_integer_big_endian(record.count())
-    bytes.append_bytes(record, 0, record.count())
+    bytes.append_integer_big_endian(record_count)
+    bytes.append_bytes(record, 0, record_count)
     var length = bytes.read_integer_big_endian(0)
-    crash length == record.count()
+    crash length == record_count
     var reader = BinaryReader<Sailor>()
     var read = reader.read_from(bytes, 4)
     crash read

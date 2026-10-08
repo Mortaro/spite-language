@@ -549,6 +549,23 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Run on Linux only so far; Windows and macOS are held to compiling by check.sh (the library is Spite over
   `Socket`, with nothing of its own per system).
 
+### Numbers in bytes (D536, bytes half)
+- Built: bytes are a `List<Byte>` for `File` (`read_bytes()`, `read_bytes_at`, `write_bytes`, `append_bytes`) and
+  `Socket` (`read_bytes()`, `read_bytes_now()`, `write_bytes`, `write_bytes_now`); `List<Byte>` reads, appends and
+  writes every number with big-endian twins and `append_bytes`; `ForeignBytes`; the address forms are compile errors
+  in programs; the width-aware read proofs, the `<=` bound, the non-negative position, the area guard and counted
+  loops stepping by a record. The choices taken under D509 are in mortaros_missing_decisions.md (D538).
+- Not built (item 305's second half): a read answers a fresh list every time, one allocation per read; the compiler
+  does not yet reuse the block of a list let go before the next read at the same place, and
+  `--optimization-report` does not name the allocation.
+- Not built: a proven read outside a counted loop keeps one compare of its top, since a local that aliases a list is
+  not tracked (specs/failure.md); tracking aliases would let those reads be one load too.
+- Not built, the foreign structs half of D536 (items 309 to 313 and 315): a `type` holding text, a nested `type`, a
+  `type?`, a `List` with its compiler-written `<list>_count`, an enum or a fixed-length array still cannot cross a
+  foreign call; bindings build such structs by hand on `Memory`.
+- The library's own HTTP and WebSocket code still reads and writes sockets through `read_bytes_into` and
+  `write_bytes_from` on blocks of its own (D536 item 314 keeps them for the library).
+
 ### Bytes: base64, compression, hashes and passwords
 - Class and function names proposed, unconfirmed. Removed clause: the `Argon2` defaults are those of the C# library
   the Unreal game stored its accounts with (64 MiB, 3 passes, 1 lane).

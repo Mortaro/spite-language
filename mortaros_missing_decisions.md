@@ -117,6 +117,18 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   such as `BinaryWriter<T>.schema()`, counts as reading those attributes, since they are the wire format; (b) of the
   two ways to ask whether a class's objects can be stored inline, `is_fixed_size` stays (it says what the class is,
   not which container holds it, D520) and `fits_vector()` goes.
+- **D538, the bytes half of D536 as built, confirm after the speed goal**: what Claude chose beyond the proposal.
+  (a) `File.read_bytes()` answers `null` when fewer bytes arrive than the size said; `read_bytes_at` reads up to
+  `count` and halts on a negative position or count. (b) A `Socket` keeps one 64 KB receive block and copies what
+  arrived into a fresh list per read (the compiler does not reuse a let-go list's block yet). (c) The library keeps
+  `read_bytes_into`, `read_bytes_now_into`, `write_bytes_from`, `write_bytes_now_from` for HTTP and WebSocket, refused
+  in a program like the old forms; `BinaryReader.read_memory` is removed, not kept. (d) Beyond the proposal's list:
+  `tiny` and `unsigned_long` reads, and `_big_endian` twins of the appends and writes too. (e) `ForeignBytes(address,
+  count)` reads as well as writes, has `get_at`/`set_at`, `read_bytes`, `write_bytes`, `count(): Long`, and takes the
+  address as a `Long`. (f) New proofs: `base + k <= list.count()`; non-negative positions; `rows * stride <=
+  list.count()` for `row * stride + column`; a counted loop stepping by up to its window plus one. (g) A proven read
+  outside a counted loop keeps one compare, because a local alias of a list is not tracked (a stale read would be a
+  silent wrong value); only counted loops get the bare load.
 
 ## Open
 

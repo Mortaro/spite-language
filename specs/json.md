@@ -46,11 +46,12 @@ packer.append_to(order, frame)          # the same bytes, at the end of a List<B
 var unpacker = BinaryReader<Order>()    # made once, reused for every buffer
 var read = unpacker.read(bytes)         # Order?: null on bytes that are not exactly one Order
 var next = unpacker.read_from(frame, unpacker.position)  # the next value in a buffer of many
-var from_socket = unpacker.read_memory(buffer, received)
+var received = connection.read_bytes_now()   # List<Byte>: what a socket has
+var from_socket = unpacker.read(received)
 ```
 
 The names: `write`, `read` and `read_or_crash`; `append_to(value, bytes)` says where the bytes go ("append", not
-"add"); `read_from(bytes, start)` and `read_memory(address, count)` say what they read from; `position` is where
+"add"); `read_from(bytes, start)` says what it reads from; `position` is where
 the last value read ended. The old name `Json` is an error that names the new
 pair: `there is no 'Json': it is two classes, 'JsonWriter<T>()' whose 'write(value)'
 makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagnostics/json_split`).
@@ -62,8 +63,11 @@ makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagn
 - **A binary serializer is made with no arguments and reused, as a JSON one is**: `BinaryWriter<T>()` with
   `write(value: T): List<Byte>` and `append_to(value: T, bytes: List<Byte>)`, and `BinaryReader<T>()` with
   `read(bytes: List<Byte>): T?`, which reads one value that must fill the bytes, `read_from(bytes: List<Byte>,
-  start: Integer): T?`, which reads one value from `start` and leaves what follows, and `read_memory(address,
-  count): T?`. The value a writer takes is a `T`, not a `T?`: an empty `T?` is narrowed by the caller, who then
+  start: Integer): T?`, which reads one value from `start` and leaves what follows. There is no reading from a
+  `Memory.Address`: bytes from a `Socket` or a `File` are a `List<Byte>` already, and `read_memory` in a program is
+  the error `a BinaryReader reads from a List<Byte>, not from memory at an address: write 'read(bytes)', or
+  'read_from(bytes, start)' to read one value and leave what follows`
+  ([standard_library.md](standard_library.md#bytes-are-a-listbyte)). The value a writer takes is a `T`, not a `T?`: an empty `T?` is narrowed by the caller, who then
   knows whether anything was written (a `T?` inside a value has its presence byte). `position` is where the last
   successful read ended, so a buffer of many values is read by starting each `read_from` there; nothing else is
   held between calls.
@@ -105,8 +109,7 @@ The details:
   so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the
   same `T` answer the same value (`conformance/stage6/binary_schema`).
 - **The bytes are a `List<Byte>`**: one block, no count per byte, and a reader borrows nothing, since each
-  call reads the block of the list it is given and keeps nothing of it. `read_memory` covers memory the program did
-  not put in a list. `List<T>` has `reserve(count)` for this, making room for `count` items without making any;
+  call reads the block of the list it is given and keeps nothing of it. `List<T>` has `reserve(count)` for this, making room for `count` items without making any;
   the library's binary classes grow the list and write into its block directly, which only `library/` may do.
 - **`BinaryReader` answers `null` for every bad input** (bad input is a normal condition, never a crash):
   bytes that end inside a value, a `Boolean` byte other than 0 or 1, a presence byte other than 0 or 1, an enum

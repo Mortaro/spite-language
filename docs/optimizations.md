@@ -86,6 +86,7 @@ emit nothing.
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | every but the inspectable ones | fewer allocations |
 | [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | every but `--repl`, `--repl-port` and `--hot-reload` | speed; the last bits of a decimal sum or multiply-add in such a loop |
 | [A decimal literal beside a `Float` is a `Float`](#a-decimal-literal-beside-a-float-is-a-float) | every | speed; the last bits of a `Float` result |
+| [A number read from bytes is one load](#a-number-read-from-bytes-is-one-load) | every | nothing but speed |
 | [A proven read tests only its bounds](#a-proven-read-tests-only-its-bounds) | every | nothing but speed; a read outside its list halts |
 | [A walked `crash` line's read is the row's read](#a-walked-crash-lines-read-is-the-rows-read) | every | nothing but speed |
 | [Objects that never leave their function live in the frame](#objects-that-never-leave-their-function-live-in-the-frame) | every but the inspectable ones | fewer allocations; `.memory.section` answers `'stack'` |
@@ -107,7 +108,8 @@ function nothing calls, from your classes, `library/` or the compiler's own prel
 prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
 `struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
 and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
-would free that object at exit, and every text literal, static table and prototype only dropped code named. A
+would free that object at exit, every text literal, static table and prototype only dropped code named, and the
+`T?` of a number (`Nullable_Short`) that only dropped code answered. A
 program that never makes a `FileSystemWatcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
 their C. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
 whichever C compiler you bring, and a C compiler cannot find most of it anyway, since a function it is not told
@@ -2593,10 +2595,12 @@ the plain C loop a C compiler can turn into vector instructions (SIMD), when the
   width) whose every assignment in the function is a whole-number
   literal of 0 or more, or `index = index + 1` as the last statement of a loop bounded by `index < ....count()` or a
   literal, with no other write to it in that loop. So it is never negative, never wraps, and inside the loop it is
-  below `values.count()`.
+  below `values.count()`. Under a window (`while at + 2 < values.count()`, below) the step may be any literal up to
+  one more than the window, `at = at + 3` here, so a loop over records of three steps by a record.
 - **Nothing in the loop changes a list's size.** The body only declares and assigns numbers and `Boolean`s (its own
   locals, not attributes), reads and writes the items of lists of plain values (`[index]`, `get_at`, `set_at`,
-  `first`, `last`, `contains`, `index_of`, `count`, `is_empty`), and calls the maths functions of the number
+  `first`, `last`, `contains`, `index_of`, `count`, `is_empty`, and on a `List<Byte>` its `read_` and `write_`
+  number functions), and calls the maths functions of the number
   classes. Any other call, even one to a function that looks harmless, keeps the loop as it was: a call is where a
   list could be resized through another name.
 - **The loop cannot be interrupted.** A `--repl`, `--repl-port` or `--hot-reload` build may run code between two
@@ -2668,6 +2672,47 @@ unwrapped by a range proof (its `count()` is not known to mean anything).
 
 **What you notice.** Nothing but speed: the same compare `List.get_at` made when it halted out of range, and
 the same halt, named by the read (`conformance/stage6/proven_read_outside`).
+
+### A number read from bytes is one load
+
+**The case:** [benchmarks/a_number_read_from_bytes_is_one_load](../benchmarks/a_number_read_from_bytes_is_one_load/).
+
+**What it does.** `bytes.read_integer(position)` and the other reads of a `List<Byte>`
+([standard_library.md](standard_library.md#numbers-in-bytes)) are library functions that compare the position with the
+count and answer a `T?`. Where a proof covers the read
+([proofs.md](proofs.md#a-proven-count-or-bound-proves-a-read-of-a-width)), the compiler writes the read itself in
+place of the call: one unaligned load from the list's block (a `memcpy` of the number's width, which the C compiler
+makes one instruction), and for a `_big_endian` read one byte swap (`__builtin_bswap32` and its kin) after it. Inside
+a counted loop that is all there is, the list's block and count read once before the loop, so a decoder walking
+records,
+
+```gdscript
+func decode(records: List<Byte>): Long {
+    var total: Long = 0
+    var position = 0
+    while position + 15 < records.count() {
+        var identity = records.read_integer_big_endian(position)
+        var kind = records.read_short_big_endian(position + 12)
+        total = total + identity + kind
+        position = position + 16
+    }
+    return total
+}
+```
+
+compiles to the loop a C programmer writes over a byte pointer. A proven `write_<number>` in a counted loop is one
+store the same way. A counted loop may step by more than one for this: `position = position + 16` last, under a
+window of `+ 15`.
+
+**When.** Every build, for a read on a `List<Byte>` named bare (a local, a parameter or an attribute). Outside a
+counted loop the read keeps one compare of its top, which the C compiler is told is never taken, since the list
+could have been shrunk through another name since the bound; a position not known to be non-negative adds the
+compare of its low end. `bytes[index]` on a list of numbers gets the same single compare when its index is known not
+to be negative.
+
+**What you notice.** Speed only. [Its case](../benchmarks/a_number_read_from_bytes_is_one_load/) decodes 100 000
+big-endian records 300 times; its README has the times against naive C, which puts each number together byte by
+byte, and expert C, which loads and swaps.
 
 ### A walked `crash` line's read is the row's read
 

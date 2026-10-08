@@ -40,6 +40,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
   `list[at + 2]`), a count (`list.count() >= 3`), a count kept in a `var`, or `not list.is_empty()` proves the read.
   A `Dictionary` read is proven only by checking that key.
   [Proven reads](#a-proven-count-or-bound-proves-a-read).
+- **Reading numbers from bytes**: one bound covers a header (`crash body + 13 <= bytes.count()`), a loop walks
+  records (`while position + 15 < bytes.count()`, `position = position + 16` last), and one guard covers an image
+  (`crash height * stride <= pixels.count()`). [A read of a width](#a-proven-count-or-bound-proves-a-read-of-a-width),
+  [an index from counters](#an-index-built-from-loop-counters-is-proven-by-one-guard).
 - **A tight loop over numbers**: write `while index < values.count()` with `index = index + 1` last, over a local
   `List` of plain values, and call nothing but the list's reading functions and maths.
   [Counted loops](#a-counted-loop-reads-its-items-unchecked).
@@ -80,6 +84,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A switch covers every case](#a-switch-covers-every-case) | refuses a forgotten case | add the case or `_:` |
 | [A proven count or bound proves a read](#a-proven-count-or-bound-proves-a-read) | `list[i]` read without narrowing | refused until proven, naming how |
 | [A proven read halts outside its list](#a-proven-read-halts-outside-its-list) | a stray counter stops the program | none |
+| [A read of a width](#a-proven-count-or-bound-proves-a-read-of-a-width) | `bytes.read_integer(position)` read as a number, one load in a counted loop | a `T?` to narrow |
+| [An index built from loop counters](#an-index-built-from-loop-counters-is-proven-by-one-guard) | `list[row * stride + column]` read under one guard | a `T?` to narrow |
 | [A counted loop reads its items unchecked](#a-counted-loop-reads-its-items-unchecked) | no range checks, vectorisable | the ordinary checked loop |
 | [A proven divisor is not checked](#a-proven-divisor-is-not-checked) | no zero check | the zero check |
 | [A divisor written as zero is an error](#a-divisor-written-as-zero-is-an-error) | refuses a certain halt | none |
@@ -372,11 +378,41 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 ### A proven count or bound proves a read of a width
 
-TODO
+- **Proves.** A `List<Byte>`'s `read_<number>(position)` reads only bytes inside the list, so it answers the number,
+  not a `T?`; and, when the position cannot be negative, that it needs no test of its low end.
+- **Rule.** A read of width `w` at `position` is proven exactly when `bytes[position + w - 1]` would be, the sum
+  written out (`read_integer(body + 4)` needs `bytes[body + 7]`): by a bound, a count or a counted loop's window, as
+  [above](#a-proven-count-or-bound-proves-a-read). A bound may be written with `<=`: `base + k <= bytes.count()`, `k` a
+  literal from 1 to 64, proves `bytes[base]` to `bytes[base + k - 1]`, so `crash body + 13 <= bytes.count()` proves
+  every read of width `w` at `body + j` with `j + w <= 13`. The position cannot be negative when it is a literal of 0
+  or more, a local whose every assignment in the function is such a literal or adds one to itself, a name proven
+  `>= 0` or `> 0` inside the same loop, or one of those plus a literal. A counted loop may step its counter by any
+  literal up to its window: `while position + 15 < records.count()` with `position = position + 16` last.
+- **Buys.** In a counted loop, one load from the list (and one byte swap for `_big_endian`), with no test and no
+  call: the hand-written loop's code. Elsewhere one compare of the top, which the C compiler is told is never taken,
+  and the load; two compares when the low end is not known. A `write_<number>` in a counted loop is one store.
+- **Falls back.** Unproven, the read is a `T?` the program narrows (`crash header`, `if value { }`), and the
+  library's own read compares both ends. Outside a counted loop the compare stays, because another name for the same
+  list could have shrunk it since the bound; a read that finds it so halts naming the read
+  ([below](#a-proven-read-halts-outside-its-list)). Nothing proves a read whose position comes from another read
+  (an offset stored in the file): narrow it.
+- **See.** [standard_library.md: Numbers in bytes](standard_library.md#numbers-in-bytes), [the
+  rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_byte_numbers`,
+  `diagnostics/byte_reads`.
 
 ### An index built from loop counters is proven by one guard
 
-TODO
+- **Proves.** `list[row * stride + column]`, and a read of a width there, is inside the list at both ends.
+- **Rule.** A guard `rows * stride <= list.count()` (or `list.count() >= rows * stride`) where the read can see it;
+  the read inside `while row < rows` and `while column < stride` (or `column + k < stride`, `k` at least the read's
+  width less one); `row` and `column` locals that are never negative (as above), named bare. `stride` may be a literal,
+  and with a literal stride the column may be a literal too: `index * 16 + 4` under `count * 16 <= bytes.count()`,
+  inside `while index < count`, since `4 + 3 < 16`.
+- **Buys.** The read needs no narrowing and its position no test of its low end: one compare and the load, as above.
+- **Falls back.** Any other shape of index (`column + row * stride`, an index kept in a `var` first) is not traced:
+  narrow the read, or write the index inline. Assigning `rows`, `stride` or the list after the guard, or shrinking the
+  list, undoes the guard; assigning `row` or `column` inside the inner loop is the error for a proof the loop read.
+- **See.** [the rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_byte_numbers`.
 
 ### A counted loop reads its items unchecked
 
@@ -385,7 +421,8 @@ TODO
 - **Rule.** The condition is exactly `index < values.count()`, or `index + k < values.count()` with `k` a literal
   from 1 to 63 (then `values[index]` to `values[index + k]` are the items in range), over a local or parameter
   holding a `List` of numbers or `Boolean`s (the only list that holds them); `index` is a local `Integer` whose every assignment in the function is a literal of 0 or
-  more, or `index = index + 1` as the last statement of a loop bounded by `index < ...count()` or a literal; the body
+  more, or `index = index + s` as the last statement of a loop bounded by `index < ...count()` or a literal, the step
+  `s` a literal from 1 to one more than the window's `k` (`index + 15 < bytes.count()` steps by up to 16); the body
   only declares and assigns plain locals, reads and writes items of plain-value lists, and calls those lists' reading
   functions and maths. A second list indexed by the counter is checked once, before the loop.
 - **Buys.** The count is read once and items are read and written as a C array, which the C compiler vectorises;

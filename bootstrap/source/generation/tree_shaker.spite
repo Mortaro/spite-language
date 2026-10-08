@@ -304,6 +304,9 @@ func piece_name(line: String): String {
     if trimmed.starts_with("typedef struct ") and trimmed.ends_with(";") and trimmed.index_of("\{") < 0 {
         return name_before(trimmed, trimmed_length - 1)
     }
+    if trimmed.starts_with("typedef struct \{ bool has_value; ") and trimmed.ends_with(";") {
+        return name_before(trimmed, trimmed_length - 1)
+    }
     if trimmed.starts_with("struct ") and trimmed.ends_with("\{") {
         var words = trimmed.slice(7, trimmed_length - 1)
         var name = words.trim()

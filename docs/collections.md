@@ -45,6 +45,7 @@ var empty = List<String>()
 | `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Boolean`, an enum value |
 | `copy()` / `deep_copy()` | `List<T>` | one level, or all the way down ([memory.md](memory.md)) |
 | `to_utf8_text()` | `String?` | a `List<Byte>` only: the text those bytes spell, or `null` when they are not valid UTF-8 ([standard_library.md](standard_library.md#bytes-base64-compression-hashes-and-passwords)) |
+| `read_integer(position)`, `append_integer(value)`, `write_integer(position, value)` and the other numbers, each with a `_big_endian` twin; `append_bytes(other, start, count)` | `T?` for a read | a `List<Byte>` only: the numbers laid out in the bytes, little-endian or big-endian; a read is `null` unless all its bytes are in the list, a write outside it halts ([standard_library.md](standard_library.md#numbers-in-bytes)) |
 
 `append`, `remove_last`, `list[index]` and their kin take the same time however long the list is; `prepend`,
 `insert`, `remove_first` and `remove_at` move every later element, and `contains` looks at each in turn. An empty

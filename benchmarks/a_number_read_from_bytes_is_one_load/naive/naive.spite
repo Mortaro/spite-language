@@ -1,0 +1,48 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var records = List<Byte>()
+    var index = 0
+    while index < 100000 {
+        records.append_integer_big_endian(index)
+        records.append_integer_big_endian(index * 7 - 50000)
+        records.append_integer_big_endian(index % 1000)
+        var kind: Short = index % 5
+        records.append_short_big_endian(kind)
+        var flags: Short = index % 3
+        records.append_short_big_endian(flags)
+        index = index + 1
+    }
+    var start = clock.elapsed_nanoseconds()
+    var total = rounds(records)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}
+
+func rounds(records: List<Byte>): Long {
+    var total: Long = 0
+    var round = 0
+    while round < 300 {
+        var decoded = decode(records)
+        total = total + decoded + round
+        round = round + 1
+    }
+    return total
+}
+
+func decode(records: List<Byte>): Long {
+    var total: Long = 0
+    var position = 0
+    while position + 15 < records.count() {
+        var identity = records.read_integer_big_endian(position)
+        var across = records.read_integer_big_endian(position + 4)
+        var down = records.read_integer_big_endian(position + 8)
+        var kind = records.read_short_big_endian(position + 12)
+        var flags = records.read_short_big_endian(position + 14)
+        total = total + identity + across + down * kind + flags
+        position = position + 16
+    }
+    return total
+}

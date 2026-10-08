@@ -1,0 +1,22 @@
+var console = Console()
+var heap = Memory.Heap()
+
+func AddressForms() {
+    var buffer = heap.allocate(16)
+    var store = File(".spite/address_forms.bin")
+    store.read_bytes(0, 16, buffer)
+    store.write_bytes(buffer, 16)
+    store.append_bytes(buffer, 16)
+    var connection = Socket()
+    connection.read_bytes(buffer, 16)
+    connection.read_bytes_now(buffer, 16)
+    connection.write_bytes(buffer, 16)
+    connection.write_bytes_now(buffer, 16)
+    connection.read_bytes_into(buffer, 16)
+    var reader = BinaryReader<Integer>()
+    reader.read_memory(buffer, 16)
+    heap.free(buffer)
+    var numbers = [1, 2, 3]
+    var number = numbers.read_integer(0)
+    console.print(number)
+}

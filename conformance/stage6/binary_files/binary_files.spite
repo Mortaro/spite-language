@@ -1,34 +1,40 @@
 var console = Console()
-var heap = Memory.Heap()
-var ints = TypedMemory<Integer>()
-var longs = TypedMemory<Long>()
 var clock = Clock()
 
 func BinaryFiles() {
     var store = File(".spite/binary_files.bin")
-    var header = heap.allocate(12)
-    ints.write_value(header, 0, 7)
-    longs.write_value(header + 4, 0, 1234567890123)
-    var saved = store.write_bytes(header, 12)
-    var record = heap.allocate(8)
-    longs.write_value(record, 0, -42)
-    var record_start = store.append_bytes(record, 8)
+    var header = List<Byte>()
+    header.append_integer(7)
+    header.append_long(1234567890123)
+    var saved = store.write_bytes(header)
+    var record = List<Byte>()
+    record.append_long(-42)
+    var record_start = store.append_bytes(record)
     crash record_start
     var size = store.size()
     crash size
     console.print("wrote", saved, "appended at", record_start, "size", size)
-    var read_back = heap.allocate(8)
-    var got = store.read_bytes(4, 8, read_back)
-    crash got
-    var stamp = longs.read_value(read_back, 0)
+    var read_back = store.read_bytes_at(4, 8)
+    crash read_back
+    var got = read_back.count()
+    var stamp = read_back.read_long(0)
+    crash stamp
     console.print("read", got, "bytes at 4:", stamp)
-    var tail = store.read_bytes(record_start, 8, read_back)
+    var tail = store.read_bytes_at(record_start, 8)
     crash tail
-    var appended = longs.read_value(read_back, 0)
+    var appended = tail.read_long(0)
+    crash appended
     console.print("the appended record:", appended)
-    var past_end = store.read_bytes(size, 8, read_back)
+    var past_end = store.read_bytes_at(size, 8)
     crash past_end
-    console.print("reading past the end gives", past_end, "bytes")
+    var past_count = past_end.count()
+    console.print("reading past the end gives", past_count, "bytes")
+    var whole = store.read_bytes()
+    crash whole
+    var first = whole.read_integer(0)
+    crash first
+    var whole_count = whole.count()
+    console.print("the whole file is", whole_count, "bytes, starting with", first)
     var written_at = store.modified()
     crash written_at
     var now = clock.now()
@@ -37,15 +43,21 @@ func BinaryFiles() {
     var skew = Duration(-5, 'seconds')
     console.print("modified within the last minute:", age < minute and age > skew)
     var missing = File(".spite/binary_files_missing.bin")
-    var nothing = missing.read_bytes(0, 8, read_back)
+    var nothing = missing.read_bytes_at(0, 8)
+    var none_at_all = missing.read_bytes()
     var no_size = missing.size()
     var never = missing.modified()
-    if nothing or no_size or never {
+    if nothing or none_at_all or no_size or never {
         console.print("a missing file was read")
     } else {
         console.print("a missing file answers null")
     }
-    heap.free(header)
-    heap.free(record)
-    heap.free(read_back)
+    var empty = File(".spite/binary_files_empty.bin")
+    var nothing_written = List<Byte>()
+    empty.write_bytes(nothing_written)
+    var no_bytes = empty.read_bytes()
+    crash no_bytes
+    var empty_count = no_bytes.count()
+    console.print("an empty file is an empty list:", empty_count)
+    empty.remove()
 }
