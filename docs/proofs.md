@@ -46,9 +46,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
 - **Dividing whole numbers**: prove the divisor with `!= 0` or `> 0` against a written `0`, or divide by a
   constant. [Proven divisor](#a-proven-divisor-is-not-checked).
 - **Arithmetic that could overflow**: every build checks it; step a local counter by one under a `<` (or down under
-  a `>`) and that step carries no check; write the wider type first, or call `wrapping_sum`, `wrapping_subtract` or
-  `wrapping_multiply` where wrapping is the point.
-  [Overflow](#arithmetic-that-does-not-fit-halts).
+  a `>`) and that step carries no check; an operation whose operands' ranges prove it fits (a `Long` total of
+  `Integer` terms over a list, a remainder, a clamped value) carries none either; write the wider type first, or
+  call `wrapping_sum`, `wrapping_subtract` or `wrapping_multiply` where wrapping is the point.
+  [Overflow](#arithmetic-that-does-not-fit-halts), [ranges](#a-range-proves-arithmetic-fits).
 - **A function that answers something**: end every path with `return` or a bare `crash`; use a guard `assert` only
   in a function whose result can say "nothing". [Every path ends](#every-path-ends-in-a-return),
   [guard `assert`](#a-guard-assert-answers-only-nothing).
@@ -84,6 +85,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A proven divisor is not checked](#a-proven-divisor-is-not-checked) | no zero check | the zero check |
 | [A divisor written as zero is an error](#a-divisor-written-as-zero-is-an-error) | refuses a certain halt | none |
 | [Arithmetic that does not fit halts](#arithmetic-that-does-not-fit-halts) | a counter's step and constants unchecked | the overflow check, in every build |
+| [A range proves arithmetic fits](#a-range-proves-arithmetic-fits) | sums, remainders and bounded steps unchecked | the overflow check, listed in `--optimization-report` |
 | [A wider operand is written first](#a-wider-operand-is-written-first) | refuses a silent cut | write the wider side first |
 | [A dictionary's key kind](#a-dictionarys-key-kind-is-decided-while-compiling) | numbers hashed as numbers | text keys; mixing is an error |
 | [Maths on constants](#maths-on-constants-is-worked-out-while-compiling) | no call | the call |
@@ -432,8 +434,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   unrolled and vectorised; in the compiler's own C, 1 145 of 2 595 checks go.
 - **Falls back.** The check stays wherever no such condition is in force: a second step in the same pass (the first
   assignment ends the proof), a step inside a nested loop whose own condition does not bound `counter` (the inner
-  loop may repeat it), `counter + 2`, an attribute (a call could change it), a sum like `total = total + value`,
-  and a value put into a narrower name. Write the wider type first where a total may grow, and call
+  loop may repeat it), `counter + 2`, an attribute (a call could change it), a sum like `total = total + value`
+  where [no range proves it](#a-range-proves-arithmetic-fits), and a value put into a narrower name. Write the wider type first where a total may grow, and call
   `wrapping_sum`, `wrapping_subtract` or `wrapping_multiply` where wrapping is the point.
 - **See.** [values_and_types.md: Arithmetic that does not fit
   halts](values_and_types.md#arithmetic-that-does-not-fit-halts),
@@ -444,7 +446,30 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 ### A range proves arithmetic fits
 
-- **Proves.** (draft)
+- **Proves.** A `+`, `-`, `*` or a `-` in front of a whole number gives an answer inside its type, from the ranges
+  of values its operands can hold.
+- **Rule.** Every whole-number local and parameter has a range at each point: a literal's, a `var`'s value's, each
+  assignment's, cut by the conditions in force (`x < e`, `x <= e`, `x > e`, `x >= e`, `x == e` in a `while`, an `if`,
+  an `assert`, a `crash`, either side of an `and`, or an `if` that leaves). `count()` and `length()` are never
+  negative, `x % n` is smaller than `n`, and `minimum`, `maximum`, `clamp` and `absolute` bound their answers. A
+  loop first gives each local it assigns a range true on every pass: a counter stepped up keeps its floor and, under
+  `<` on it, its bound plus its steps; anything else covers every value its assignments can give. A counter stepped
+  once a pass as one of the body's own statements bounds the passes, and a total assigned once a pass,
+  `total = total + term`, holds at most that many terms. An attribute, a list's item and a call's answer have
+  their type's range. The rules in full are in
+  [values_and_types.md](../specs/values_and_types.md#a-range-proves-a-check-unneeded).
+- **Buys.** No compare-and-branch for the operation, so a loop of plain sums can be vectorised: a `Long` total of
+  `Integer` terms over a list (`total = total + values[index]`), `seed * 48271 % 2147483647` for a `Long` seed,
+  `index * 37` under `index < 100000`, `weight = round % 3 + 1`. In the compiler's own C, 250 of the 1 513 checks
+  the counter's proof leaves go.
+- **Falls back.** The check stays wherever a range does not prove it, and `--optimization-report` lists each with
+  the ranges it found. An `Integer` total of `Integer` items keeps it (2 to the 31st items of up to 2 to the 31st
+  each can pass it), as does any product of attributes or list items. Hold the total in a `Long`, keep a value in a
+  local the code bounds (`var level = step.clamp(0, 50)`), or step the counter as one of the loop body's own
+  statements so its passes are known. A `--repl`, `--repl-port` or `--hot-reload` build proves no ranges.
+- **See.** [optimizations.md](optimizations.md#arithmetic-a-range-proves-is-not-checked),
+  [values_and_types.md](../specs/values_and_types.md#a-range-proves-a-check-unneeded);
+  `conformance/stage6/proven_ranges`, `conformance/stage6/optimization_report`.
 
 ### A wider operand is written first
 

@@ -106,6 +106,7 @@ func counted_items_of(key: String): String {
 }
 
 func declare(name: String, spite_type: Analysis.SpiteType) {
+    forget_range_here(name)
     entry_names.append(name)
     entry_types.append(spite_type)
     entry_used.append(false)
@@ -775,6 +776,18 @@ func know_loop_condition(text: String) {
 
 # ../../../docs/proofs.md#a-range-proves-arithmetic-fits
 func set_range(name: String, range: NumberRange?) {
+    forget_range_here(name)
+    range_names.append(name)
+    if range {
+        range_lowest.append(range.lowest)
+        range_highest.append(range.highest)
+        return
+    }
+    range_lowest.append(1)
+    range_highest.append(0)
+}
+
+func forget_range_here(name: String) {
     var index = range_names.count() - 1
     while index >= 0 {
         if range_names[index] == name {
@@ -784,14 +797,6 @@ func set_range(name: String, range: NumberRange?) {
         }
         index = index - 1
     }
-    range_names.append(name)
-    if range {
-        range_lowest.append(range.lowest)
-        range_highest.append(range.highest)
-        return
-    }
-    range_lowest.append(1)
-    range_highest.append(0)
 }
 
 func range_of(name: String): NumberRange? {

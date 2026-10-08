@@ -931,13 +931,17 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Other optimisations
 
-- The optimisation report (`--optimization-report`, D36, D332, D389) is built (D450; the file format, the sections, the reasons' wording and linking a list type at the line that first needed it are proposed by Claude, unconfirmed). Not reported yet: a temporary or an argument that stays on the heap; a call result `var x = make()` whose function does not return only fresh objects; an `Items<T>` that chose references; the overflow checks that remain (N2 calls `OptimizationReport.overflow_check_kept` and sets `reports_overflow_checks`, which adds the section). A list type is linked at the first line that needed it in a function the build keeps, which may be a line of the library.
+- The optimisation report (`--optimization-report`, D36, D332, D389) is built (D450; the file format, the sections, the reasons' wording and linking a list type at the line that first needed it are proposed by Claude, unconfirmed). Not reported yet: a temporary or an argument that stays on the heap; a call result `var x = make()` whose function does not return only fresh objects; an `Items<T>` that chose references. The overflow checks that remain are reported (section "Overflow checks kept", every kept `+`, `-`, `*` and `-` in front, with the ranges that did not prove it; the wording is proposed by Claude under D509, unconfirmed); a value put into a narrower name and the smallest value divided by `-1` keep their checks unreported. A list type is linked at the first line that needed it in a function the build keeps, which may be a line of the library.
 - Found by the report: a text literal containing `instances` anywhere in a program makes the compiler treat every class as read with `.instances` (`note_instance_lists`), so no object of any class is placed in the frame. The compiler itself has such a text in `Generation.Generator`, so none of its own objects are framed; `spite bootstrap --check --optimization-report=...` lists about 600.
 
 ### Arithmetic is checked in every build
 
-- Not built: leaving out the overflow check where a proof bounds the operands other than a counter stepped by one
-  under a `<` or `>` and constants (an index already bounded, a `bits_and` mask put into a `Byte`, an attribute).
+- Built (D-proven-ranges row of 2026-10-08, decided by Claude under D509): ranges of whole-number locals and
+  parameters, narrowed by conditions, widened at loop entry, with counted passes and totals of one term a pass (see
+  "Arithmetic a range proves is not checked"). Not built: ranges of attributes (every write to an attribute across
+  the program, as `item_values.spite` does for enumerated values), of list items, of a call's answer, and of a
+  `bits_and` mask; a value put into a narrower name keeps its check whatever its range (the cast has no expression
+  to bound); an `Integer` total of list items, which only a run can bound (R6's speculate and replay).
 
 ### A loop over plain values reads its count once and its items unchecked
 
@@ -1042,9 +1046,9 @@ recorded below.
 
 ### Arithmetic that does not fit halts
 
-- Built for a local counter stepped by one under a `<` or `>` and for constants; other range facts (bounded
-  indexes, masks, attributes) do not remove the check yet (see optimizations.md, "Arithmetic is checked in every
-  build").
+- Built for a local counter stepped by one under a `<` or `>`, for constants, and for the ranges of whole-number
+  locals ("A range proves arithmetic fits"); attributes, list items, masks and a value put into a narrower name do
+  not remove the check yet (see optimizations.md, "Arithmetic is checked in every build").
 
 ### A list's templates read their elements uncounted
 
@@ -1134,8 +1138,8 @@ The section listed proofs that are not built. Each, with what it said:
 - A foreign function's status is handled while compiling (D272, decided by Mortaro; design proposed by Claude,
   unconfirmed): a C enum result becomes a Spite enum that must be switched over. Not built: today a call answers an
   `Integer` and `crash result == 0` compiles (foreign_libraries.md, "Foreign libraries", partial).
-- An overflow check left out where a range fact other than a counter's bound or a constant bounds the operands
-  (optimizations.md, "Arithmetic is checked in every build").
+- An overflow check left out where an attribute's or a list item's range bounds the operands (locals' ranges are
+  built: proofs.md, "A range proves arithmetic fits").
 - A write to a copy that dies unread is an error (proposed by Claude, unconfirmed): escape analysis already proves a
   result fresh (failure.md, "Nothing fails silently", still open).
 - Frame objects holding text, lists or objects as a result, a temporary or a copy, and an attribute object laid

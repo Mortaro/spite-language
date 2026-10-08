@@ -62,7 +62,9 @@ for the smallest signed value divided by `-1`, and for a value put into a narrow
 argument or by `return`: `var small: Tiny = count` halts when `count` is 200 (`spite: 200, an Integer, does not fit
 in a Tiny, at ...`), and so does a decimal outside the whole number it is put into. A number written into a name
 it does not fit (`var small: Byte = 300`) is a compile error. The compiler leaves a check out wherever it can
-prove the answer fits ([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)), so what remains costs little.
+prove the answer fits ([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)): from the ranges your locals can
+hold, a counter under its loop's bound, a remainder, a clamp, and a total that adds one term a pass over a list
+([proofs.md](proofs.md#a-range-proves-arithmetic-fits)), so what remains costs little.
 The fix is a wider type written first (`Long` for a total of `Integer`s), or, when wrapping is what you meant, the
 function that says so:
 
