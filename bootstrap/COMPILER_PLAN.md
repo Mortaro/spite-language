@@ -549,3 +549,17 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   path an `assert`/`crash` re-proves inside a loop (`Scope.rechecked_paths`, `proven_inside_loop`), so a proof from
   before the loop neither makes the check "proves nothing" nor answers reads in that loop. Two-list `and` bounds this
   branch wrote in `library/` and here became one bound and a `crash`.
+- 2026-10-08 (D528 to D530, the D521 cases): a function value its callee only calls is a `Spite_Function`
+  compound literal in the caller's frame (`frameable_function_value`, `block_only_calls`, `framing_function_value`
+  read by `function_value`) passed to the callee's `___held_` copy; a variadic list is framed for a `var`, an
+  assignment and a `return` (`frame_variadic_allowed` around their values, `framed_cleanups` after them). A
+  counter's room proof (`~+[name]`, `~-[name]`) survives every call (`undo_proofs_after_call`). A singleton's
+  guard backs off (`spite_guard_wait`, `spite_spin_pause`). `ObjectEscape.own_written_construction` admits
+  `Vector3<$number_type>(...)` in the class's own functions, so `normalized()` and `Matrix4.multiply` get `___into`
+  copies; an `___into` return that copies is reported. `if d[k]` keeps a plain value it found
+  (`keeps_dictionary_read`, `Scope.keep_read`/`kept_read`, dropped by `may_change_kept_reads`), and a number key
+  of 32 bits or fewer is kept in its slot (library/dictionary.spite). `ObjectFrames.copies_item_in` lends
+  `InlineMemory.write_item`'s value and `ObjectEscape.statement_keeps` folds a codegen `if`, so appended items stay
+  in the frame. `Scope.overrides_read_from_outside` and the loop's condition text decide whether a call that undoes
+  an attribute's narrowing in a loop is an error. `crash_map` writes each line once, the report links a list at
+  its first kept site (`OptimizationReport.list_sites`), and a `type` with one admitted class peeks with no test.
