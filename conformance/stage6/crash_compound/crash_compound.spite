@@ -1,5 +1,5 @@
 var console = Console()
-var recipes = Dictionary<String>()
+var recipes = Dictionary<String, String>()
 var cooked = ["bread"]
 var never_cooked_id = "cake"
 

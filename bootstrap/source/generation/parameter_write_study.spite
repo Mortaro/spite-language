@@ -5,8 +5,8 @@ var generator: Generator? = null
 var table: ParameterWrites? = null
 var owner: Analysis.ClassInfo? = null
 var function: Analysis.FunctionInfo? = null
-var roots = Dictionary<String>()
-var types = Dictionary<Analysis.SpiteType>()
+var roots = Dictionary<String, String>()
+var types = Dictionary<String, Analysis.SpiteType>()
 var line = 0
 var path = ""
 var called_owner: Analysis.ClassInfo? = null
@@ -263,7 +263,7 @@ func narrow_case(switched: Syntax.Statements.SwitchStatement, switch_case: Synta
     types[subject.name] = narrowed
 }
 
-func join(other: Dictionary<String>) {
+func join(other: Dictionary<String, String>) {
     var names = other.keys()
     var index = 0
     while index < names.count() {

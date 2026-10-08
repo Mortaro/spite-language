@@ -205,7 +205,7 @@ A reader reads one type; to read a different one from the same bytes, a second r
 | a `Symbol` | its name, as text; read back only as a name the program already uses as a `Symbol` | its name, as a `String` is written; read back the same way |
 | a class | an object, one key per attribute | its attributes, one after another in declaration order, with nothing around them |
 | `List<T>` | an array | its count as a count, then each element |
-| `Dictionary<T>` | an object, one key per entry; a number key as the number in quotes | its count as a count, then each key as its type is written (a `String`, or the whole number) and its value |
+| `Dictionary<Key, Value>` | an object, one key per entry; a number key as the number in quotes, an enum key as its name | its count as a count, then each key as its type is written (a `String`, or the whole number) and its value |
 | `T?` | `null`, or what `T` becomes | 1 byte, `0` for empty or `1` followed by what `T` becomes |
 
 A **count** is an unsigned LEB128 varint: seven bits per byte, low bits first, the top bit set on every byte but
@@ -425,17 +425,17 @@ is `null`.
 
 ## Values that are not classes
 
-All four take any type, not only classes: `JsonWriter<Dictionary<Integer>>()` for a dictionary,
+All four take any type, not only classes: `JsonWriter<Dictionary<String, Integer>>()` for a dictionary,
 `JsonReader<List<Double>>()` to read a list, `BinaryWriter<Integer>()`.
 
 ```gdscript title=json_values/json_values.spite entry
 var console = Console()
 
 func JsonValues() {
-    var scores = Dictionary<Integer>()
+    var scores = Dictionary<String, Integer>()
     scores["ada"] = 3
     scores["bo"] = 5
-    var writer = JsonWriter<Dictionary<Integer>>()
+    var writer = JsonWriter<Dictionary<String, Integer>>()
     var text = writer.write(scores)
     console.print(text)
     var numbers = JsonReader<List<Double>>()

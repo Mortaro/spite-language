@@ -1,7 +1,7 @@
 singleton
 
 var console = Console()
-var titles = Dictionary<String>()
+var titles = Dictionary<Long, String>()
 
 func open(handle: Long, title: String) {
     titles[handle] = title

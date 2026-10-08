@@ -1,6 +1,6 @@
 singleton
 
-var sizes = Dictionary<Integer>()
+var sizes = Dictionary<String, Integer>()
 var loads = 0
 
 func remember(name: String, size: Integer) {

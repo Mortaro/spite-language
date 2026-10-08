@@ -37,7 +37,7 @@ func held_by(book: Book): String {
 }
 
 func report_by_shelf() {
-    var counts = Dictionary<Integer>()
+    var counts = Dictionary<String, Integer>()
     var index = 0
     while index < books.count() {
         var shelf: String = books[index].shelf

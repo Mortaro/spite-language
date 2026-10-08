@@ -33,7 +33,7 @@ instance is an ordinary function that costs what its body costs. `--final-classe
   value's class at run time like any read through a `type`.
 - **An exact function always wins over a template, for that one name and direction**: an exact `set_name` answers a
   write of `name` while its read still goes through `get_attribute`. A generated `get_<attribute>()` of an owning
-  attribute (a `String`, `List<T>` or `Dictionary<T>`) returns a retained, independent value, exactly as an explicit
+  attribute (a `String`, `List<T>` or `Dictionary<Key, Value>`) returns a retained, independent value, exactly as an explicit
   getter does.
 - **A template that makes a function the class already has is an error** at that function's line: "the template
   'store_attribute' makes 'store_row' for the attribute 'row' of 'RowView', which is already a function of 'Row':
@@ -179,7 +179,7 @@ var sword = Weapon<Integer, true>(10)
 - **The values can be left out when the constructor's arguments say them**: each parameter whose declared type
   mentions a `$name` is
   matched against its argument's type (`$name` itself, `$name?` (a `T` or a `T?` both give `T`), `List<$name>`,
-  `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`). A `null` argument says nothing.
+  `Dictionary<$key, $value>`, and the arguments and return of a `Spite.Function<...>`). A `null` argument says nothing.
   Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
   value(s), in this order: $held_type. Write them between < and > before the arguments". `Pair("Hero", 7)`,
   `Concurrent(file.read)`.
@@ -202,7 +202,7 @@ resolved like any type name from the generic's file. In detail:
 
 - **Fitting is what [Types](values_and_types.md#types) already means by it**: the class a `type` would admit
   fits: a class with the listed functions and attributes, `String`, a number, an enum, a `List<T>` or
-  `Dictionary<T>` with what the `type` needs, and the `type` itself. A `T?` does not fit ("'Integer?' does not fit
+  `Dictionary<Key, Value>` with what the `type` needs, and the `type` itself. A `T?` does not fit ("'Integer?' does not fit
   type 'Printable', which 'Shelf' requires of $item_type: it may be null, and null has none of what the type
   needs"), and neither does a function value.
 - **A constraint names a `type`, not a class, a union or a number type**: anything else is an error on the
@@ -270,7 +270,7 @@ does not want to spell:
 | Test | True when the type is |
 |---|---|
 | `$value_type == List` | any `List<T>` |
-| `$value_type == Dictionary` | any `Dictionary<T>` |
+| `$value_type == Dictionary` | any `Dictionary<Key, Value>` |
 | `$value_type == Null` | any `T?` (`Null` is a member of the union a `T?` is) |
 | `$value_type == Symbol` | an enum, or `Symbol` (an enum is a closed list of symbols) |
 | `$value_type == Number` | any number class, `Tiny` to `Double` (a `type` name asks whether the type fits it) |
@@ -291,9 +291,9 @@ in every build, inspectable ones included. A class that is not generic still com
 mistake in an uncalled one is still reported. `conformance/stage6/folded_helpers`.
 
 **The types a type was built from are read by their codegen names**: `$value_type.element_type` for a
-`List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>` or a `$value_type?`, and a generic
+`List<$element_type>`, `$value_type.key_type` and `$value_type.value_type` for a `Dictionary<$key_type, $value_type>`, `$value_type.value_type` for a `$value_type?`, and a generic
 class's own names for one of its instances, the names this section already gives the containers. Reading a name
-the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type': List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
+the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type': List<$element_type>, Dictionary<$key_type, $value_type> and $value_type? name theirs, and a generic class names its own"
 (`diagnostics/every_attribute`). `conformance/stage6/every_attribute`.
 Compared in a condition, a name read this way folds like `$value_type` itself: `if $list_type.element_type ==
 Float`, `else if $map_type.key_type == String`, `$holder_type.held_type != Item`, to any depth and in every

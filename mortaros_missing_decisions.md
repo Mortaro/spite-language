@@ -138,6 +138,18 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   list.count()` for `row * stride + column`; a counted loop stepping by up to its window plus one. (g) A proven read
   outside a counted loop keeps one compare, because a local alias of a list is not tracked (a stale read would be a
   silent wrong value); only counted loops get the bare load.
+- **D541, how `Dictionary<Key, Value>` keys behave** (built for D532): a fraction key is found by value, so
+  `0.0` and `-0.0` are one key and every `not_a_number` is one key; a `Boolean` and an enum value are keys by value;
+  an untyped literal is keyed `String` or `Integer` by its first key; a key is cast to the key type as any argument
+  is, so a number given to a `Dictionary<String, V>` becomes its text. Why: each answers the same as the value's
+  `==` would, but for `not_a_number`, where a key that can never be found again would be a silent loss (D244).
+- **D541, what cannot be a key**: a class that declares `equals` (until keying by `equals` is built), a
+  nullable, a union, a shape, a function value, a `Symbol` and a value class are compile errors. Why: each would
+  either miss an equal key or has no identity to key by; every one can be allowed later without breaking a program.
+- **D541, writing keyed dictionaries out**: JSON writes an enum key by its name and refuses keys other than a
+  `String`, a whole number or an enum; no format writes an object key; the binary schema text keeps its old
+  spelling, so binary files written before still read. Why: a JSON key is text, and an object's identity does not
+  survive a file.
 
 ## Open
 

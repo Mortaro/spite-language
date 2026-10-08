@@ -1,6 +1,6 @@
 var console = Console()
-var ages = Dictionary<Integer>()
-var labels = Dictionary<String>()
+var ages = Dictionary<String, Integer>()
+var labels = Dictionary<String, String>()
 
 func Dictionaries() {
     ages["ada"] = 36
@@ -37,7 +37,7 @@ func Dictionaries() {
     var y_label = lookup("y")
     var q_label = lookup("q")
     console.print(y_label, q_label)
-    var pets = Dictionary<Animal>()
+    var pets = Dictionary<String, Animal>()
     var dog = Animal("dog")
     pets["rex"] = dog
     var cat = Animal("cat")

@@ -1,0 +1,49 @@
+enum Color {
+    'red'
+    'green'
+    'blue'
+}
+
+var console = Console()
+
+func AnyKeys() {
+    var by_color = Dictionary<Color, Integer>()
+    by_color['green'] = 2
+    by_color['red'] = 1
+    by_color['green'] = 5
+    crash by_color['green']
+    var color_count = by_color.count()
+    var has_blue = by_color.has('blue')
+    console.print("green", by_color['green'], "count", color_count, "has blue", has_blue)
+    var ada = Player("ada")
+    var grace = Player("grace")
+    var also_ada = Player("ada")
+    var parties = Dictionary<Player, Party>()
+    parties[ada] = Party("red team")
+    parties[grace] = Party("blue team")
+    crash parties[ada]
+    var equal_found = parties.has(also_ada)
+    console.print("ada is in", parties[ada].name, "an equal name is another key", equal_found)
+    var flags = Dictionary<Boolean, String>()
+    flags[true] = "yes"
+    flags[false] = "no"
+    crash flags[false]
+    var flag_count = flags.count()
+    console.print("false is", flags[false], flag_count)
+    var weights = Dictionary<Float, String>()
+    var zero = 0.0
+    var negative_zero = -0.0
+    weights[zero] = "zero"
+    weights[negative_zero] = "negative zero"
+    weights[1.5] = "one and a half"
+    var weight = weights[zero]
+    crash weight
+    var weight_count = weights.count()
+    console.print("zero is", weight, weight_count)
+    var players = parties.keys()
+    crash players[1]
+    console.print("second key", players[1].name)
+    var by_color_keys = by_color.keys()
+    var shown_colors = by_color_keys.join(",")
+    console.print(shown_colors)
+}

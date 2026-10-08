@@ -1,7 +1,7 @@
 singleton
 
 var stage = 0
-var notes = Dictionary<Integer>()
+var notes = Dictionary<String, Integer>()
 var marks = 0
 
 func note(key: String) {

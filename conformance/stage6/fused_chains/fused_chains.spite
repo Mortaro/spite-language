@@ -81,7 +81,7 @@ func compare_collecting_chains() {
 }
 
 func compare_dictionary_chain() {
-    var by_name = Dictionary<Team>()
+    var by_name = Dictionary<String, Team>()
     var eve = Person("eve", 40, false)
     var red = Team("red", 4, true, eve)
     by_name["red"] = red

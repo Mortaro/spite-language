@@ -321,7 +321,7 @@ func SingletonInlineError() {
 ## Classes are references
 
 A scalar (`Integer`, `Float`, `Boolean`, an enum value) is passed by value, copied at the call site. Everything else
-(a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an object literal) is a reference: passing one
+(a class instance, `List<T>`, `Dictionary<Key, Value>`, `String`, a union, an object literal) is a reference: passing one
 shares the exact same object, so a function can change it and the caller sees the change. There is nothing
 special to write at the call site or in the parameter's type ([memory.md](memory.md)):
 

@@ -91,7 +91,6 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A divisor written as zero is an error](#a-divisor-written-as-zero-is-an-error) | refuses a certain halt | none |
 | [Arithmetic that does not fit halts](#arithmetic-that-does-not-fit-halts) | a counter's step and constants unchecked | the overflow check, in every build |
 | [A wider operand is written first](#a-wider-operand-is-written-first) | refuses a silent cut | write the wider side first |
-| [A dictionary's key kind](#a-dictionarys-key-kind-is-decided-while-compiling) | numbers hashed as numbers | text keys; mixing is an error |
 | [Maths on constants](#maths-on-constants-is-worked-out-while-compiling) | no call | the call |
 | [A dictionary only read by literal keys](#a-dictionary-only-read-by-literal-keys-is-never-made) | no dictionary, no hashing | the dictionary |
 | [Conditions decided while compiling](#conditions-decided-while-compiling) | the branch not taken is absent | a run-time test |
@@ -503,19 +502,6 @@ A short guide by task. Find what you are writing; the entries below say the rest
   first](values_and_types.md#wider-arithmetic-goes-wider-operand-first),
   [Comparisons are checked the same way](values_and_types.md#comparisons-are-checked-the-same-way);
   `diagnostics/wider_right_operand`, `diagnostics/wider_comparison`, `diagnostics/wider_bitwise_operand`.
-
-### A dictionary's key kind is decided while compiling
-
-- **Proves.** Every key a dictionary is given, and every dictionary it flows into, is of one kind: text or a whole
-  number.
-- **Rule.** Each place a dictionary type is written is joined with every place it flows to; the keys given to
-  `[]`, `set`, `get`, `has` and `remove` decide the kind, the widest whole number winning, text for a `String`, symbol
-  or enum, and text for a dictionary given no key. It settles in at most eight passes.
-- **Buys.** A number key is hashed as a number, with no `String` made.
-- **Falls back.** Text keys. Two kinds meeting is a compile error, not a conversion; to key by text, give text.
-- **See.** [collections.md: Keyed by numbers](collections.md#keyed-by-numbers),
-  [optimizations.md](optimizations.md#a-dictionary-keyed-by-numbers-hashes-the-numbers);
-  `conformance/stage6/number_keys`, `diagnostics/mixed_dictionary_keys`.
 
 ### Maths on constants is worked out while compiling
 

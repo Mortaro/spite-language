@@ -6,9 +6,9 @@ var walking_library = false
 var language_folder = "."
 var build = Build()
 var host_operating_system = build.target_operating_system
-var supplied_settings = Dictionary<String>()
+var supplied_settings = Dictionary<String, String>()
 var bare_settings = List<String>()
-var build_values = Dictionary<String>()
+var build_values = Dictionary<String, String>()
 var entry_qualified = ""
 var entry_file_path = ""
 var loaded_folders = List<String>()
@@ -16,7 +16,7 @@ var loaded_roots = List<String>()
 var loaded_root_sites = List<String>()
 var paths = Paths()
 var program_paths = List<String>()
-var program_texts = Dictionary<String>()
+var program_texts = Dictionary<String, String>()
 var pending_files = List<Syntax.SourceFile>()
 var following_loads = false
 var walking_program = false
@@ -32,7 +32,7 @@ var earlier: Versions? = null
 var current_library = ""
 var current_checkout = ""
 var current_version = ""
-var library_of_file = Dictionary<String>()
+var library_of_file = Dictionary<String, String>()
 var library_classes = List<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
@@ -1939,9 +1939,9 @@ func note_pinned_versions() {
     }
 }
 
-func version_notes(): Dictionary<String> {
+func version_notes(): Dictionary<String, String> {
     crash earlier
-    var notes = Dictionary<String>()
+    var notes = Dictionary<String, String>()
     var index = 0
     while index < earlier.versioned.count() {
         var identity = earlier.versioned[index]

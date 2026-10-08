@@ -1,5 +1,5 @@
 var console = Console()
-var variables = Dictionary<Float>()
+var variables = Dictionary<String, Float>()
 var current_tree: Expression? = null
 
 func assign(name: String, value: Float) {

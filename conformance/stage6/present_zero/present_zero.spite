@@ -5,7 +5,7 @@ func PresentZero() {
     var counts: List<Integer> = [0, 3]
     var flags: List<Boolean> = [false, true]
     var labels: List<String> = ["", "b"]
-    var stock = Dictionary<Integer>()
+    var stock = Dictionary<String, Integer>()
     stock["empty shelf"] = 0
     var empty = List<Integer>()
     crashes_on_nothing(keys, counts, labels)
@@ -97,7 +97,7 @@ func label_of(labels: List<String>, index: Integer): String {
     return "no label {index}"
 }
 
-func on_shelf(stock: Dictionary<Integer>, shelf: String): String {
+func on_shelf(stock: Dictionary<String, Integer>, shelf: String): String {
     if stock[shelf] {
         return "{shelf} holds {stock[shelf]}"
     }

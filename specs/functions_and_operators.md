@@ -23,7 +23,7 @@ func function_name(first: Reference, second: Value): Tiny {
   return type, with no diagnostic.
 - A function with no return type returns nothing.
 - **Parameters**: a scalar (every numeric type, `Boolean`, an enum value) is passed by value, copied.
-  Everything else (a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an object literal) is
+  Everything else (a class instance, `List<T>`, `Dictionary<Key, Value>`, `String`, a union, an object literal) is
   passed by reference: the caller writes nothing special, and the callee shares the exact same object (mutating
   it through the parameter is visible to the caller). There are no value classes: a copy is always
   explicit, `copy()`/`deep_copy()` ([Memory](memory.md#the-memory-model)), and passing a copy by value where
@@ -233,7 +233,7 @@ Every operator is a shortcut for a function, which a class can define to support
 | `a[x]` | `get_at(x)` | answers a `T?` |
 | `a[x] = v` | `set_at(x, v)` | |
 
-For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<T>` these are intrinsic (they compile to exactly
+For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<Key, Value>` these are intrinsic (they compile to exactly
 the same C as before this table existed).
 
 **A direct call of an operator's function is an error naming the operator**: `a.sum(b)` is "write 'a + b'", and the same for every row of the table above, for `get_<name>()`

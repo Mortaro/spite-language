@@ -6,7 +6,7 @@ is the bug.
 
 ## Standard library
 
-Every value below is reference counted, exactly like a user class: a `String`/`List<T>`/`Dictionary<T>` is freed
+Every value below is reference counted, exactly like a user class: a `String`/`List<T>`/`Dictionary<Key, Value>` is freed
 the moment its last reference goes, not by a single-owner convention. See [Memory](../docs/memory.md#memory) for the
 retain/release rules and the cycle caveat.
 
@@ -464,7 +464,7 @@ and atomics at an address, are language primitives each backend lowers.
 
 | Part | How |
 |---|---|
-| `String`, `List<T>`, `Dictionary<T>`, number to text (`library/number_text.spite`) | over `Memory.Heap` and `TypedMemory<T>`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto these classes' functions, and per element type the compiler still writes four one-line functions a generic class cannot, plus `deep_copy`; the member templates are Spite in `library/list.spite` ([collections.md](collections.md#standard-library-metaprogramming)) |
+| `String`, `List<T>`, `Dictionary<Key, Value>`, number to text (`library/number_text.spite`) | over `Memory.Heap` and `TypedMemory<T>`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto these classes' functions, and per element type the compiler still writes four one-line functions a generic class cannot, plus `deep_copy`; the member templates are Spite in `library/list.spite` ([collections.md](collections.md#standard-library-metaprogramming)) |
 | `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `FileSystemWatcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` |
 | `--debug-memory`'s live table | `AllocationTable` (`library/allocation_table.spite`), an open-addressing set of live addresses with each object's class id beside it, which prints the leak report; the compiler emits only the small functions `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` call under `--debug-memory` |
 | the REPL, live reload, the event loop | `ReadEvaluatePrintLoop`, `HotReload` and `Scheduler`, over reflection tables the compiler generates |

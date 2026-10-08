@@ -1,7 +1,7 @@
 var name = ""
 var health = 10
 var scores = List<Integer>()
-var bag = Dictionary<Integer>()
+var bag = Dictionary<String, Integer>()
 var partner: Player? = null
 var mood: Symbol = 'calm'
 var weather: DebugValues.Weather = 'sunny'

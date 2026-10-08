@@ -180,7 +180,7 @@ that may be absent, `get_at` answers a `T?`: `func get_at(index: Integer): Integ
 that answers a plain `Integer` is an error naming `Integer?`.
 
 `not`/`and`/`or` stay built-in keywords, never functions. On numbers, `Boolean`, enums, `String`, `List<T>` and
-`Dictionary<T>` the operators are built in (on numbers, the machine's own arithmetic); number arithmetic is done in the left side's
+`Dictionary<Key, Value>` the operators are built in (on numbers, the machine's own arithmetic); number arithmetic is done in the left side's
 type, so a wider right side is an error that says to write the wider operand first
 ([Wider arithmetic goes wider operand first](values_and_types.md#wider-arithmetic-goes-wider-operand-first)).
 For a class of your own, the operator is a direct call of the matching function (nothing more at run time),

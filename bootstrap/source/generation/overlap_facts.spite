@@ -1,15 +1,15 @@
 var outline = ReportOutline()
-var struct_fields = Dictionary<String>()
-var returns = Dictionary<String>()
-var first_parameters = Dictionary<String>()
-var bodies = Dictionary<List<String>>()
+var struct_fields = Dictionary<String, String>()
+var returns = Dictionary<String, String>()
+var first_parameters = Dictionary<String, String>()
+var bodies = Dictionary<String, List<String>>()
 var body_names = List<String>()
-var direct = Dictionary<OverlapFact>()
-var studying = Dictionary<Boolean>()
-var mutation_answers = Dictionary<Boolean>()
-var shared_holders = Dictionary<Boolean>()
-var made_classes = Dictionary<Boolean>()
-var mentioned = Dictionary<Boolean>()
+var direct = Dictionary<String, OverlapFact>()
+var studying = Dictionary<String, Boolean>()
+var mutation_answers = Dictionary<String, Boolean>()
+var shared_holders = Dictionary<String, Boolean>()
+var made_classes = Dictionary<String, Boolean>()
+var mentioned = Dictionary<String, Boolean>()
 var container_prefixes = ["List_", "Vector_", "Items_", "Dictionary_", "TypedMemory_", "InlineMemory_"]
 var keywords = [
     "if"
@@ -964,7 +964,7 @@ func statement_fact(statement_lines: List<String>, function_lines: List<String>)
         study_line(fact, statement_lines[index], function_lines, "")
         index = index + 1
     }
-    var reached = Dictionary<Boolean>()
+    var reached = Dictionary<String, Boolean>()
     var waiting = fact.calls.copy()
     while not waiting.is_empty() {
         var name = waiting.remove_last()
@@ -1008,7 +1008,7 @@ func writes_touch(writer: OverlapFact, other: OverlapFact): Boolean {
     return false
 }
 
-func touches_any(key: String, keys: Dictionary<Boolean>): Boolean {
+func touches_any(key: String, keys: Dictionary<String, Boolean>): Boolean {
     var listed = keys.keys()
     var index = 0
     while index < listed.count() {

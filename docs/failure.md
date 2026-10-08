@@ -388,7 +388,7 @@ func IndexReadsDoc() {
         console.print(names[index], name_length)
         index = index + 1
     }
-    var ages = Dictionary<Integer>()
+    var ages = Dictionary<String, Integer>()
     ages["ada"] = 36
     crash ages["ada"]
     console.print("ada is", ages["ada"])
@@ -410,13 +410,13 @@ it, since the local holds what the read answered, not a second name for the path
 var console = Console()
 
 func KeptRead() {
-    var ages = Dictionary<Integer>()
+    var ages = Dictionary<String, Integer>()
     ages["ada"] = 36
     show_next_year(ages, "ada")
     show_next_year(ages, "bo")
 }
 
-func show_next_year(ages: Dictionary<Integer>, name: String) {
+func show_next_year(ages: Dictionary<String, Integer>, name: String) {
     var age = ages[name]
     if age {
         console.print(name, "turns", age + 1)
@@ -614,7 +614,7 @@ narrows `found`, `if not left or not right { return 0 }` narrows both, and `if i
 
 ```gdscript title=leaving_if/leaving_if.spite entry
 var console = Console()
-var prices = Dictionary<Integer>()
+var prices = Dictionary<String, Integer>()
 
 func LeavingIf() {
     prices["apple"] = 3
@@ -852,7 +852,7 @@ operands and of the other names in scope, so nothing has to be written and nothi
 
 ```gdscript title=crash_guard/crash_guard.spite entry
 var console = Console()
-var names = Dictionary<String>()
+var names = Dictionary<String, String>()
 
 func CrashGuard() {
     names["ada"] = "Ada Lovelace"

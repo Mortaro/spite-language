@@ -12,7 +12,7 @@ var next_same = List<Integer>()
 var type_piece_count = 0
 var guard_names = List<String>()
 var guard_lines = List<String>()
-var shaken_macros = Dictionary<Boolean>()
+var shaken_macros = Dictionary<String, Boolean>()
 
 func shake(roots: String, body: String): String {
     split_pieces(body)

@@ -1,6 +1,6 @@
 var key = ""
 var keys = List<String>()
-var key_set = Dictionary<Boolean>()
+var key_set = Dictionary<String, Boolean>()
 var fresh_keys = List<String>()
 var calls = List<EffectCall>()
 var incoming = List<EffectCall>()
@@ -10,8 +10,8 @@ var member_reads = List<String>()
 var own_keys = List<String>()
 var functions_studied = 0
 var variadic_position = -1
-var kept_values = Dictionary<Boolean>()
-var kept_lists = Dictionary<Boolean>()
+var kept_values = Dictionary<String, Boolean>()
+var kept_lists = Dictionary<String, Boolean>()
 var waiting = true
 
 func FunctionEffects(function_key: String) {

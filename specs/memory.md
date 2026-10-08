@@ -7,7 +7,7 @@ is the bug.
 ## The memory model
 
 **Reference counting is the memory model**, JavaScript-like. Every non-scalar value (a
-class instance, `List<T>`, `Dictionary<T>`, `String`, a union of classes, an object literal) is a reference:
+class instance, `List<T>`, `Dictionary<Key, Value>`, `String`, a union of classes, an object literal) is a reference:
 passing it, assigning it, storing it in a field/list/dictionary, and returning it all share the exact same object.
 Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied. There is no reference syntax
 (no `&`): a parameter of a class type is written `Type`. A copy is always explicit: `copy()`/`deep_copy()` (below).
@@ -269,7 +269,7 @@ there from the start. Setting it after the object was used is a compile error na
   hands out 16-byte-aligned memory from blocks of that size, chaining a new block when one is full, never frees
   one piece at a time, and frees every block when the arena itself is dropped.
 - **Where it may be set:** only as the statement directly after `var name =
-  ...` whose value is a constructor call, `List<T>()`/`Dictionary<T>()` or `.copy()` of a class whose copy the
+  ...` whose value is a constructor call, `List<T>()`/`Dictionary<Key, Value>()` or `.copy()` of a class whose copy the
   compiler writes, and only to a name or a path of names (so evaluating it earlier than written changes nothing).
   Anything else is an error (`diagnostics/allocator_after_use`):
   - after the object was used: `'spark' was already used, so its allocator can no longer change: an

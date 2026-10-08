@@ -9,7 +9,7 @@ func take(more: List<Buildable>) {
     more[0].build()
 }
 
-func take_named(named: Dictionary<Buildable>) {
+func take_named(named: Dictionary<String, Buildable>) {
     crash named["soup"]
     named["soup"].build()
 }

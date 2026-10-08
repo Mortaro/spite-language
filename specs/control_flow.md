@@ -52,7 +52,7 @@ Neither is a keyword, but either written as a statement of its own is an error n
 early exit says so in the loop's own condition: a flag (`var stopped = false` ... `while not stopped { ... }`)
 or the bound itself (`while index < words.count() and words[index] != "stop"`).
 
-`while` is the only loop. There is no `for`, so that people favor metaprogramming: reach for `List<T>`/`Dictionary<T>` metaprogramming
+`while` is the only loop. There is no `for`, so that people favor metaprogramming: reach for `List<T>`/`Dictionary<Key, Value>` metaprogramming
 ([Member templates](../docs/collections.md#member-templates-loops-you-do-not-write),
 [Passing a function for each element](../docs/collections.md#passing-a-function-for-each-element)) first, and index with
 `while index < list.count() { }` when a loop is genuinely needed. Writing `for` is a parse error rather than

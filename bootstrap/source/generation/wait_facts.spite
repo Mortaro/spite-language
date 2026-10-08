@@ -1,14 +1,14 @@
 var edge_callers = List<String>()
 var edge_callees = List<String>()
-var edge_keys = Dictionary<Boolean>()
+var edge_keys = Dictionary<String, Boolean>()
 var shape_callers = List<String>()
 var shape_callees = List<String>()
 var counted = -1
-var callers_of = Dictionary<List<String>>()
+var callers_of = Dictionary<String, List<String>>()
 var indexed_calls = 0
 var indexed_values = 0
-var waits = Dictionary<Boolean>()
-var answers = Dictionary<Boolean>()
+var waits = Dictionary<String, Boolean>()
+var answers = Dictionary<String, Boolean>()
 var asked_names = List<String>()
 var asked_texts = List<String>()
 var asked_paths = List<String>()
@@ -34,10 +34,10 @@ func settle(call_callers: List<String>, call_callees: List<String>, seeds: List<
     var size = call_callers.count() + edge_callers.count() + shape_callers.count() + seeds.count()
     assert size != counted
     counted = size
-    waits = Dictionary<Boolean>()
+    waits = Dictionary<String, Boolean>()
     indexed_calls = add_reverse_edges(callers_of, call_callers, call_callees, indexed_calls)
     indexed_values = add_reverse_edges(callers_of, edge_callers, edge_callees, indexed_values)
-    var shape_callers_of = Dictionary<List<String>>()
+    var shape_callers_of = Dictionary<String, List<String>>()
     add_reverse_edges(shape_callers_of, shape_callers, shape_callees, 0)
     var pending = List<String>()
     var index = 0
@@ -71,7 +71,7 @@ func wake_callers(callers: List<String>?, pending: List<String>) {
 }
 
 func add_reverse_edges(
-    reverse: Dictionary<List<String>>,
+    reverse: Dictionary<String, List<String>>,
     callers: List<String>,
     callees: List<String>,
     first: Integer,

@@ -16,10 +16,10 @@ func split_names(text: String): List<String> {
     return text.split(",")
 }
 
-func count_names(names: List<String>): Dictionary<Integer> {
-    var counts = Dictionary<Integer>()
+func count_names(names: List<String>): Dictionary<String, Integer> {
+    var counts = Dictionary<String, Integer>()
     if names.is_empty() {
-        return Dictionary<Integer>()
+        return Dictionary<String, Integer>()
     }
     counts["first"] = names.count()
     return counts

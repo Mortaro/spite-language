@@ -131,7 +131,7 @@ func _read_response(connection: Socket, request: HttpRequest, first_line: String
     return response
 }
 
-func _read_headers(connection: Socket, headers: Dictionary<String>): Boolean {
+func _read_headers(connection: Socket, headers: Dictionary<String, String>): Boolean {
     var count = 0
     while count < 200 {
         var line = connection.read_line()
@@ -165,7 +165,7 @@ func _read_chunks(connection: Socket): String? {
         assert size >= 0
         assert body.length() + size <= largest_body
         if size == 0 {
-            var trailers = Dictionary<String>()
+            var trailers = Dictionary<String, String>()
             var trailer_read = _read_headers(connection, trailers)
             assert trailer_read
             return body

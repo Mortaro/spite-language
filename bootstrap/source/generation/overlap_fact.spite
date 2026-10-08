@@ -1,5 +1,5 @@
-var reads = Dictionary<Boolean>()
-var writes = Dictionary<Boolean>()
+var reads = Dictionary<String, Boolean>()
+var writes = Dictionary<String, Boolean>()
 var calls = List<String>()
 var loops = false
 var container = false

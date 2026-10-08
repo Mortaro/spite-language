@@ -1,7 +1,7 @@
 # Memory
 
 Spite uses **reference counting**, JavaScript-like. A scalar (a number, a `Boolean`, an enum value) is a plain
-value, copied wherever it goes. Everything else (a class instance, `List<T>`, `Dictionary<T>`, `String`, a
+value, copied wherever it goes. Everything else (a class instance, `List<T>`, `Dictionary<Key, Value>`, `String`, a
 union, an object literal) is a **reference**: assigning it, passing it, storing it in a field, a list or a
 dictionary, and returning it all share the exact same object. There is no reference syntax to write: a reference
 is the default. When the last reference to an object goes (a scope ends, a field is overwritten, an element is
@@ -813,7 +813,7 @@ Memory is its own namespace, because it is the most basic thing a program has an
   It hands out addresses and takes them back; `Memory.Arena` is another
   ([below](#choosing-an-allocator-memoryallocator)).
 
-Every type in the standard library is Spite over these two: `String`, `List<T>` and `Dictionary<T>` keep their
+Every type in the standard library is Spite over these two: `String`, `List<T>` and `Dictionary<Key, Value>` keep their
 bytes in memory the heap hands out, and each number says in its own file how much memory it is. A container of
 your own is written over the heap and `TypedMemory<T>` (below), with nothing the compiler does for `List<T>`
 that it would not do for yours: read `library/list.spite` for a complete one. The rules of this floor are in

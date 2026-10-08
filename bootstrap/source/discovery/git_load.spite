@@ -6,14 +6,14 @@ var problem = ""
 var git_checked = false
 var git_found = false
 var verified = List<String>()
-var pins = Dictionary<String>()
-var version_commits = Dictionary<String>()
-var version_sites = Dictionary<String>()
+var pins = Dictionary<String, String>()
+var version_commits = Dictionary<String, String>()
+var version_sites = Dictionary<String, String>()
 var versions = Versions()
 var earlier: Versions? = null
-var identities = Dictionary<String>()
-var origins = Dictionary<String>()
-var displays = Dictionary<String>()
+var identities = Dictionary<String, String>()
+var origins = Dictionary<String, String>()
+var displays = Dictionary<String, String>()
 var checkout_folders = List<String>()
 
 func is_git_load(text: String): Boolean {
@@ -519,7 +519,7 @@ func unchanged_checkout(checkout: String, key_folder: String, commit: String, di
     crash stamped
     var recorded = stamped.split("\n")
     recorded.remove_first()
-    var expected = Dictionary<String>()
+    var expected = Dictionary<String, String>()
     var index = 0
     while index < recorded.count() {
         var line = recorded[index]
@@ -539,7 +539,7 @@ func unchanged_checkout(checkout: String, key_folder: String, commit: String, di
     return false
 }
 
-func changed_file(checkout: String, expected: Dictionary<String>): String {
+func changed_file(checkout: String, expected: Dictionary<String, String>): String {
     var found = List<String>()
     files_under(checkout, "", found)
     var index = 0

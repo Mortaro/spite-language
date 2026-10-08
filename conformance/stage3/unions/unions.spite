@@ -32,7 +32,7 @@ func Unions() {
     var name = pick(true).name
     var pick_name = pick(false).name
     console.print(name, pick_name)
-    var lookup = Dictionary<Shape>()
+    var lookup = Dictionary<String, Shape>()
     var round = Circle(1)
     lookup["round"] = round
     if lookup["round"] {

@@ -1,8 +1,8 @@
 var type_shape = Analysis.TypeShape()
-var frame_answers = Dictionary<Boolean>()
-var lend_answers = Dictionary<Boolean>()
-var fresh_answers = Dictionary<String>()
-var local_answers = Dictionary<Boolean>()
+var frame_answers = Dictionary<String, Boolean>()
+var lend_answers = Dictionary<String, Boolean>()
+var fresh_answers = Dictionary<String, String>()
+var local_answers = Dictionary<String, Boolean>()
 
 func frames_class(generator: Generator, information: Analysis.ClassInfo): Boolean {
     if frame_answers.has(information.c_name) {

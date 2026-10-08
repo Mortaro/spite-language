@@ -5,19 +5,19 @@ var first_body = 0
 var table = TreeShaker()
 var roots = List<Integer>()
 var reached = List<Boolean>()
-var shared = Dictionary<Boolean>()
+var shared = Dictionary<String, Boolean>()
 var counted_unknown = false
 var plain_classes = List<String>()
 var shared_classes = List<String>()
 var typed_targets = List<Integer>()
 var dropping_targets = List<Integer>()
-var called_arities = Dictionary<Boolean>()
+var called_arities = Dictionary<String, Boolean>()
 var typed_calls_unknown = false
 var dropping_called = false
-var made_elsewhere = Dictionary<Boolean>()
-var free_guards = Dictionary<Boolean>()
+var made_elsewhere = Dictionary<String, Boolean>()
+var free_guards = Dictionary<String, Boolean>()
 var free_guard_count = 0
-var free_atomics = Dictionary<Boolean>()
+var free_atomics = Dictionary<String, Boolean>()
 var free_atomic_count = 0
 
 # ../../../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class
@@ -57,8 +57,8 @@ func plain_counts(types: String, bodies: String, main_function: String): String 
 func note_free_guards() {
     var declared = List<String>()
     var atomic = List<String>()
-    var mentioned = Dictionary<Boolean>()
-    var touched = Dictionary<Boolean>()
+    var mentioned = Dictionary<String, Boolean>()
+    var touched = Dictionary<String, Boolean>()
     var index = 0
     while index < pieces.count() {
         var piece = pieces[index]
@@ -110,7 +110,7 @@ func note_free_guards() {
     }
 }
 
-func note_guard_mentions(piece: String, suffix: String, mentioned: Dictionary<Boolean>) {
+func note_guard_mentions(piece: String, suffix: String, mentioned: Dictionary<String, Boolean>) {
     var at = piece.index_of(suffix)
     while at > 0 {
         var name = table.name_before(piece, at)
@@ -121,7 +121,7 @@ func note_guard_mentions(piece: String, suffix: String, mentioned: Dictionary<Bo
     }
 }
 
-func note_singleton_accesses(piece: String, opening: String, touched: Dictionary<Boolean>) {
+func note_singleton_accesses(piece: String, opening: String, touched: Dictionary<String, Boolean>) {
     var opening_length = opening.length()
     var at = piece.index_of(opening)
     while at >= 0 {
@@ -195,7 +195,7 @@ func unguarded_types(types: String): String {
         return types
     }
     var type_lines = types.split("\n")
-    var quieted = Dictionary<Boolean>()
+    var quieted = Dictionary<String, Boolean>()
     var index = 0
     while index < type_lines.count() {
         var line = type_lines[index]

@@ -1,7 +1,7 @@
 var console = Console()
 
 func LibraryFunctionMistakes() {
-    var counts = Dictionary<Integer>()
+    var counts = Dictionary<String, Integer>()
     counts["pear"] = 3
     var keys = counts.keys()
     var ordered = keys.sort_by(counts.get_at)

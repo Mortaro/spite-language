@@ -1,5 +1,5 @@
 var status = 200
-var headers = Dictionary<String>()
+var headers = Dictionary<String, String>()
 var body = ""
 
 func header(name: String): String? {

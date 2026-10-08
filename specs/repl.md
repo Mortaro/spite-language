@@ -131,8 +131,8 @@ the entry class's own Spite name):
   `program.target`. A path may leave out the leading `program.`, so `player.health` and `program.player.health`
   name the same value. Walking through a non-null `T?` is transparent; a dictionary's entries are walked by key.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, `program.player.set_age(3)` (any
-  callable function, including an instantiated Symbol-codegen one); `List<T>`'s and `Dictionary<T>`'s `count()`,
-  and `Dictionary<T>`'s `keys()` (the keys, one a line, or `scores holds no keys`) and `has(key)`, each of which
+  callable function, including an instantiated Symbol-codegen one); `List<T>`'s and `Dictionary<Key, Value>`'s `count()`,
+  and `Dictionary<Key, Value>`'s `keys()` (the keys, one a line, or `scores holds no keys`) and `has(key)`, each of which
   must end the expression. A call that answers a value is walked on like any path,
   `World().position_of(1).across`, and it runs once; a call that answers `Nothing` ends the expression, and a
   path after one is refused after it ran: `World().spawn() ran, and it answers nothing, so nothing can follow it`.
@@ -225,7 +225,7 @@ the entry class's own Spite name):
   program's other classes a line each. Then `help`, `exit`, and `reload`, `last_reload` and `wait_reload`
   ([Live reload in detail](#live-reload-in-detail)).
 - Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class attribute
-  prints as `ClassName {...}`; a list or dictionary prints as `List<T>(count)`/`Dictionary<T>(count)` regardless
+  prints as `ClassName {...}`; a list or dictionary prints as `List<T>(count)`/`Dictionary<Key, Value>(count)` regardless
   of depth; a `T?` prints `null` or its held value at the *same* depth; a union prints its active member through
   its `to_string()` (`Circle { radius: 2 }`) at any depth; text prints without quotes (`name: hero`); a call that
   returns `Nothing` prints nothing.
@@ -420,13 +420,12 @@ own. [Live reload](../docs/repl.md#live-reload---hot-reload) teaches it; this se
   manifest lists, takes the facts of every unchanged class from the manifest, and compiles the functions of the
   classes the changed files declare, and any function the running program lacks, skipping every other function the
   running program has with the same prototype. The class ids are seeded from the manifest by identity, so every
-  class keeps the id its instances carry, and the dictionary key kinds are seeded too, so a program whose kinds did
-  not change is compiled once. **It compiles the whole program instead** when the changed code changes what other
+  class keeps the id its instances carry. **It compiles the whole program instead** when the changed code changes what other
   classes were compiled against: a parameter list or return type; a function the running program made for a
   changed class that is not made again; a fact whose set of classes changes, other than attribute reads and
   parameter-write answers (which decide only errors and the changed code); the digest of any function's call
   effects, the other whole-program studies, the functions that can wait, or the way a function takes its arguments;
-  a dictionary's key kind; or the classes that fit a shape the changed code's C names. A whole compile compares the
+  or the classes that fit a shape the changed code's C names. A whole compile compares the
   hash of every function's C with the manifest's, numbered names (`spite_temp_3`) and text constants compared by
   what they hold: every changed function is rebuilt with the changed ones, and a changed helper that keeps static
   state of its own, which has no slot, refuses the reload. A changed `static` function of the compiler's has no

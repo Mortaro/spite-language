@@ -1,4 +1,4 @@
-var names = Dictionary<String>()
+var names = Dictionary<Long, String>()
 
 func name(header: Long, text: String) {
     names[header] = text

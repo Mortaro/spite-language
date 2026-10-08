@@ -217,13 +217,16 @@ func is_alive(): Boolean {
   `names.get_at(0)` is an error naming `names[0]` (passing `counts.get_at` as a value is fine). Every `[]` answers a `T?`; a `Vector`'s and an `Items`' too. A
   list of numbers, `Boolean`, enums or `Memory.Address` is always a `List` (`Vector<Integer>` is an error naming
   `List<Integer>`); it has `remove_swapping(index)` and `reserve(count)` too.
-  `Dictionary<T>` (insertion order): `dictionary["key"] = value`, `has`, `remove`, `count`, `keys`,
-  `values`, `dictionary["key"]` (a `T?`, through `get_at` like every `[]`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
-  key). Keys are text or whole numbers, decided from the keys you give it: key by the number itself
-  (`created_layouts[entity]`), never by text made from it (no `"{entity}"`). `keys()` answers the numbers.
-  One dictionary never takes both kinds (a compile error naming both places). A dictionary literal writes its
-  entries, `{"cactus": "cacti", "foot": "feet"}` or `{1: 1, 2: 4}`; a key written twice is an error, and an empty
-  one is `Dictionary<T>()`. A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
+  `Dictionary<Key, Value>` (insertion order) names its key type, then its value type:
+  `Dictionary<String, Integer>()`, `Dictionary<Integer, Monster>()`, `Dictionary<Player, Party>()`; one type
+  argument is an error. `dictionary["key"] = value`, `has`, `remove`, `count`, `keys` (a `List<Key>`),
+  `values`, `dictionary["key"]` (a `Value?`, through `get_at` like every `[]`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
+  key). Any number, `Boolean`, `String`, enum or object can be a key: numbers by value (key by the number
+  itself, `created_layouts[entity]` in a `Dictionary<Integer, Layout>`, never by text made from it), an object
+  by identity (one object, one key; the dictionary holds it). A class that declares `equals` cannot be a key
+  (key by what `equals` compares); nor can a nullable, a union or a value class. A dictionary literal writes its
+  entries, `{"cactus": "cacti", "foot": "feet"}` or `{1: 1, 2: 4}` (keyed `String` or `Integer` unless declared);
+  a key written twice is an error, and an empty one is `Dictionary<Key, Value>()`. A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_leads().sum_age()`, runs as one loop with no list in between.
 - To remove many elements, never call `remove_at` or `remove_swapping` in a loop: `creatures.remove_where_dead()`
@@ -300,9 +303,6 @@ func is_alive(): Boolean {
   keep them or resize their columns (it may lend them on to its own helpers, D257), and calling `made_position(...)` anywhere else is the error for returning a
   borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
   it has no plural.
-- A dictionary's key kind (text or whole numbers) comes from the keys your own code gives it and follows it
-  wherever it is assigned or passed. An error naming `a Dictionary<String> keyed by whole numbers` against one
-  `keyed by text` says which key decided each: give both the same kind of key.
 - `null` is only for `T?`: `var target: Monster = null` is an error (D236); write `var target: Monster? = null`
   for none yet, or `var target = Monster()` for a default. In a generic class write `var system = $system_type()`,
   in a template `var made = argument.class()`. `= null` stays only on an attribute the constructor assigns and on
@@ -503,7 +503,7 @@ func is_alive(): Boolean {
   There is no `call_with`.
 - Questions are get-only attributes, folded on a constant: `Loader.functions['load_each']` (narrow it), then
   `.is_resumable` (it can reach a wait), `.arguments[1].is_mutated` (it changes what argument 1 is given),
-  `.arguments.count()`, `.accesses` (a `Dictionary<Spite.Access>` of what it reads and writes); `Loader.is_stateful`,
+  `.arguments.count()`, `.accesses` (a `Dictionary<String, Spite.Access>` of what it reads and writes); `Loader.is_stateful`,
   `Vector3.is_fixed_size`, `Monster.is_singleton`. [reflection.md](https://github.com/Mortaro/spite-language/blob/master/docs/reflection.md)
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
   or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. It is
@@ -524,7 +524,7 @@ func is_alive(): Boolean {
   shelf[0]`): a loop over `shelf.count()` proves nothing about it.
 - Codegen values: `generic $damage_type` and `generic $is_magic`, one per line at the top of `weapon.spite`, and
   `Weapon<Integer, true>(10)` supplies them in that order; `Pair("a", 1)` may leave them out when the constructor's
-  arguments say them (through `$T`, `$T?`, `List<$T>`, `Dictionary<$T>` or a function value). The constructor
+  arguments say them (through `$T`, `$T?`, `List<$T>`, `Dictionary<$K, $T>` or a function value). The constructor
   lists none: `func Weapon(damage: $damage_type)`. `$` is for generics only: a `$name` with no `generic` line is
   an error. A function never has codegen values of its own (`func pick<$value_type>(...)` is an error): a
   function that takes any object takes `Anything` or a `type`. `if $is_magic { }` is decided at compile time. `generic $item_type: Printable` accepts only classes

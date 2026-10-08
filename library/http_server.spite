@@ -168,7 +168,7 @@ func _read_request(client: Socket): HttpRequest? {
     return request
 }
 
-func _read_headers(client: Socket, headers: Dictionary<String>): Boolean {
+func _read_headers(client: Socket, headers: Dictionary<String, String>): Boolean {
     var count = 0
     while count < 200 {
         var line = client.read_line()

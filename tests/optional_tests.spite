@@ -62,7 +62,7 @@ func test_null_is_not_equal_to_anything() {
 }
 
 func test_two_missing_values_are_equal() {
-    var texts = Dictionary<String>()
+    var texts = Dictionary<String, String>()
     crash texts["a"] == texts["b"]
     crash not (texts["a"] != texts["b"])
     texts["a"] = "x"

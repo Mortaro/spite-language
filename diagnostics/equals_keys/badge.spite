@@ -1,0 +1,5 @@
+var label = ""
+
+func equals(other: Badge): Boolean {
+    return label == other.label
+}

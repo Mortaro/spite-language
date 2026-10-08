@@ -1,5 +1,5 @@
 var console = Console()
-var buffers = Dictionary<List<String>>()
+var buffers = Dictionary<String, List<String>>()
 
 func ConstructorAsArgument() {
     var screen = Screen()

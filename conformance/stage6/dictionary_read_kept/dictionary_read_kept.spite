@@ -1,7 +1,7 @@
 var console = Console()
 
 func DictionaryReadKept() {
-    var scores = Dictionary<Integer>()
+    var scores = Dictionary<Integer, Integer>()
     scores[1] = 10
     scores[2] = 20
     scores[3] = 30
@@ -31,7 +31,7 @@ func DictionaryReadKept() {
         var raised = scores[key]
         console.print("raised", raised)
     }
-    var names = Dictionary<String>()
+    var names = Dictionary<String, String>()
     names["first"] = "ada"
     if names["first"] {
         var named = names["first"]
@@ -41,6 +41,6 @@ func DictionaryReadKept() {
     }
 }
 
-func raise(scores: Dictionary<Integer>, key: Integer) {
+func raise(scores: Dictionary<Integer, Integer>, key: Integer) {
     scores[key] = 99
 }

@@ -38,10 +38,12 @@ int32_t Dictionary_Integer_find_slot(Dictionary_Integer* self, SpiteString key_)
     int32_t stored_ = SpiteMemory_Address_read_integer(self->slots_, SpiteInteger_to_long(({ int32_t spite_temp_15 = slot_; int32_t spite_temp_16 = 8; int32_t spite_temp_17; if (__builtin_expect(__builtin_mul_overflow(spite_temp_15, spite_temp_16, &spite_temp_17), 0)) spite_overflowed("slot * 8", "an Integer", "*", (int64_t)spite_temp_15, (int64_t)spite_temp_16, spite_site_3()); spite_temp_17; })));
     while (((stored_ != 0))) {
         {
-            if ((((stored_ > 0))) && (((SpiteMemory_Address_read_integer(self->slots_, SpiteInteger_to_long(({ int32_t spite_temp_18 = ({ int32_t spite_temp_19 = slot_; int32_t spite_temp_20 = 8; int32_t spite_temp_21; if (__builtin_expect(__builtin_mul_overflow(spite_temp_19, spite_temp_20, &spite_temp_21), 0)) spite_overflowed("slot * 8", "an Integer", "*", (int64_t)spite_temp_19, (int64_t)spite_temp_20, spite_site_4()); spite_temp_21; }); int32_t spite_temp_22 = 4; int32_t spite_temp_23; if (__builtin_expect(__builtin_add_overflow(spite_temp_18, spite_temp_22, &spite_temp_23), 0)) spite_overflowed("slot * 8 + 4", "an Integer", "+", (int64_t)spite_temp_18, (int64_t)spite_temp_22, spite_site_4()); spite_temp_23; }))) == fragment_))) && ((({ SpiteString spite_temp_24 = List_String_get_at(self->entry_keys_, (stored_ - 1)); bool spite_equal = ((!SPITE_STRING_IS_NULL(spite_temp_24))) ? (({ SpiteString spite_temp_25 = spite_temp_24; SpiteString spite_temp_26 = key_; bool spite_temp_27 = SpiteString_equals(spite_temp_25, SpiteString___retain(spite_temp_26)); spite_temp_27; })) : false; SpiteString___release(spite_temp_24); spite_equal; })))) {
-                int32_t spite_temp_28 = slot_;
-                SpiteString___release(key_);
-                return spite_temp_28;
+            {
+                if ((((stored_ > 0))) && (((SpiteMemory_Address_read_integer(self->slots_, SpiteInteger_to_long(({ int32_t spite_temp_18 = ({ int32_t spite_temp_19 = slot_; int32_t spite_temp_20 = 8; int32_t spite_temp_21; if (__builtin_expect(__builtin_mul_overflow(spite_temp_19, spite_temp_20, &spite_temp_21), 0)) spite_overflowed("slot * 8", "an Integer", "*", (int64_t)spite_temp_19, (int64_t)spite_temp_20, spite_site_4()); spite_temp_21; }); int32_t spite_temp_22 = 4; int32_t spite_temp_23; if (__builtin_expect(__builtin_add_overflow(spite_temp_18, spite_temp_22, &spite_temp_23), 0)) spite_overflowed("slot * 8 + 4", "an Integer", "+", (int64_t)spite_temp_18, (int64_t)spite_temp_22, spite_site_4()); spite_temp_23; }))) == fragment_))) && ((({ SpiteString spite_temp_24 = List_String_get_at(self->entry_keys_, (stored_ - 1)); bool spite_equal = ((!SPITE_STRING_IS_NULL(spite_temp_24))) ? (({ SpiteString spite_temp_25 = spite_temp_24; SpiteString spite_temp_26 = key_; bool spite_temp_27 = SpiteString_equals(spite_temp_25, SpiteString___retain(spite_temp_26)); spite_temp_27; })) : false; SpiteString___release(spite_temp_24); spite_equal; })))) {
+                    int32_t spite_temp_28 = slot_;
+                    SpiteString___release(key_);
+                    return spite_temp_28;
+                }
             }
         }
         slot_ = Dictionary_Integer_next_slot(self, slot_);

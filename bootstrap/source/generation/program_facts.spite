@@ -1,4 +1,4 @@
-var owners = Dictionary<List<String>>()
+var owners = Dictionary<String, List<String>>()
 var keys = List<String>()
 
 func note(key: String, owner: String) {
@@ -84,7 +84,7 @@ func distinct_digest(items: List<String>): String {
 }
 
 func deduplicated_digest(items: List<String>): String {
-    var seen = Dictionary<Boolean>()
+    var seen = Dictionary<String, Boolean>()
     var total: UnsignedLong = 0
     var index = 0
     while index < items.count() {
@@ -99,7 +99,7 @@ func deduplicated_digest(items: List<String>): String {
     return "{seen.count()}:{total}"
 }
 
-func pairs_digest(pairs: Dictionary<String>): String {
+func pairs_digest(pairs: Dictionary<String, String>): String {
     var entries = List<String>()
     var names = pairs.keys()
     var index = 0

@@ -1,4 +1,4 @@
-var labels = Dictionary<String>()
+var labels = Dictionary<Integer, String>()
 
 func place(slot: Integer, label: String) {
     labels[slot] = label

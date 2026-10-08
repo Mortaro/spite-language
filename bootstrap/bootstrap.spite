@@ -8,16 +8,15 @@ var console = Console()
 var compiler_build = Build()
 var program = Program()
 var last_crash_map = ""
-var supplied_settings = Dictionary<String>()
+var supplied_settings = Dictionary<String, String>()
 var bare_settings = List<String>()
-var build_values = Dictionary<String>()
+var build_values = Dictionary<String, String>()
 var generated_code = ""
 var last_hot_manifest = ""
 var last_hot_state = ""
 var language_folder = "."
 var reloading = false
 var flag_error = ""
-var maximum_passes = 8
 var partial_host: Generation.HotReloadLibrary? = null
 var layout_host: Generation.HotReloadLibrary? = null
 var partial_paths = List<String>()
@@ -376,8 +375,7 @@ func is_on(name: String): Boolean {
 
 func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     var no_host_classes = List<String>()
-    var no_keys = Dictionary<Analysis.SpiteType>()
-    var generator = keyed_generator(discovery, no_host_classes, no_host_classes, no_keys)
+    var generator = generator_pass(discovery, no_host_classes, no_host_classes)
     if generator.has_error {
         report_error(generator.error_message)
         return null
@@ -391,44 +389,19 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     return generator
 }
 
-func keyed_generator(
-    discovery: Discovery.DiscoveryResult,
-    host_classes: List<String>,
-    host_identities: List<String>,
-    starting_keys: Dictionary<Analysis.SpiteType>,
-): Generation.Generator {
-    var number_keys = starting_keys
-    var notes = Dictionary<String>()
-    var generator = generator_pass(discovery, host_classes, host_identities, number_keys, notes, 1)
-    var passes = 1
-    while generator.key_sites_changed and passes < maximum_passes {
-        number_keys = generator.learned_key_sites
-        notes = generator.learned_key_use_notes
-        passes = passes + 1
-        generator = generator_pass(discovery, host_classes, host_identities, number_keys, notes, passes)
-    }
-    return generator
-}
-
 func generator_pass(
     discovery: Discovery.DiscoveryResult,
     host_classes: List<String>,
     host_identities: List<String>,
-    number_keys: Dictionary<Analysis.SpiteType>,
-    notes: Dictionary<String>,
-    pass: Integer,
 ): Generation.Generator {
     var generator = Generation.Generator()
     configure(generator)
-    generator.another_pass_follows_a_change = pass < maximum_passes
     generator.renders_program = not reloading
     generator.reload_host = partial_host
     generator.layout_host = layout_host
     generator.reload_changed_paths = partial_paths
     generator.breakpoint_sites = breakpoint_sites
     generator.seed_class_names(host_classes, host_identities)
-    generator.number_key_sites = number_keys
-    generator.key_use_notes = notes
     var prelude = Generation.Prelude()
     var header = prelude.header()
     var structs = prelude.structs()
@@ -1472,7 +1445,7 @@ func compile_reload(
         partial_host = reload
         partial_paths = changed_files
     }
-    var generator = keyed_generator(discovery, reload.host_classes, reload.host_class_identities, reload.host_key_sites)
+    var generator = generator_pass(discovery, reload.host_classes, reload.host_class_identities)
     partial_host = null
     layout_host = null
     if generator.has_error {
@@ -1522,7 +1495,7 @@ func compile_reload(
     return ""
 }
 
-func used_constants(): Dictionary<String> {
+func used_constants(): Dictionary<String, String> {
     crash reload_generator
     return reload_generator.constant_texts
 }

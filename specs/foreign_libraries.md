@@ -210,7 +210,7 @@ func _send(event: UnsignedInteger, wheel_amount: UnsignedInteger) {
   A forgotten padding field fails the build at the Spite line, naming both types. **The derived C name is used to
   verify, never to generate.** Size is checked; field order is not, because C's own field names (`dwFlags`, `dx`,
   `mouseData`) are unmappable by any rule, and a table for them is exactly what this design refuses to have.
-- A `type` containing a `String`, `List<T>`, `Dictionary<T>` or class field is an error at a foreign call: the
+- A `type` containing a `String`, `List<T>`, `Dictionary<Key, Value>` or class field is an error at a foreign call: the
   all-scalars condition is enforced, not assumed. The error names the type (`a Labelled cannot cross into C: ...`,
   [below](#what-crosses)).
 

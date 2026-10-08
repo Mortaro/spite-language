@@ -205,7 +205,7 @@ passes, the way Win32 programs use `GWLP_USERDATA`:
 singleton
 
 var user32 = DynamicLibrary("user32.dll", 'identity', "")
-var windows = Dictionary<Window>()
+var windows = Dictionary<Long, Window>()
 var procedure: ForeignCallback? = null
 
 func register(): Long {

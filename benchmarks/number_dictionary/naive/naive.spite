@@ -3,7 +3,7 @@ var clock = Clock()
 
 func Naive() {
     var start = clock.elapsed_nanoseconds()
-    var scores = Dictionary<Integer>()
+    var scores = Dictionary<Integer, Integer>()
     var index = 0
     while index < 500000 {
         scores[index * 7] = index
