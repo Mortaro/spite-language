@@ -270,11 +270,11 @@ func find_slot(key: $key_type): Integer {
     var slot = home_slot(hash)
     var stored = slots.read_integer(slot * 8)
     while stored != 0 {
-        if $key_type == String {
-            if stored > 0 and slots.read_integer(slot * 8 + 4) == fragment and entry_keys[stored - 1] == key {
+        if $key_type == Tiny or $key_type == Short or $key_type == Integer {
+            if stored > 0 and slots.read_integer(slot * 8 + 4) == key {
                 return slot
             }
-        } else if stored > 0 and entry_keys[stored - 1] == key {
+        } else if stored > 0 and slots.read_integer(slot * 8 + 4) == fragment and entry_keys[stored - 1] == key {
             return slot
         }
         slot = next_slot(slot)
@@ -295,8 +295,12 @@ func place(key: $key_type, position: Integer) {
         used_slots = used_slots + 1
     }
     slots.write_integer(slot * 8, position + 1)
-    var fragment = fragment_of(hash)
-    slots.write_integer(slot * 8 + 4, fragment)
+    if $key_type == Tiny or $key_type == Short or $key_type == Integer {
+        slots.write_integer(slot * 8 + 4, key)
+    } else {
+        var fragment = fragment_of(hash)
+        slots.write_integer(slot * 8 + 4, fragment)
+    }
 }
 
 func close_gap(position: Integer) {

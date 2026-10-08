@@ -26,6 +26,8 @@ var counted_keys = List<String>()
 var counted_items = List<String>()
 var site_paths = List<String>()
 var site_texts = List<String>()
+var kept_read_paths = List<String>()
+var kept_read_codes = List<String>()
 var last_check_text = ""
 var last_check_line = 0
 
@@ -302,6 +304,7 @@ func lookup_override(name: String): String? {
 }
 
 func narrow_path(path: String) {
+    drop_kept_read(path)
     var index = range_only_paths.count() - 1
     while index >= 0 {
         if range_only_paths[index] == path {
@@ -326,6 +329,70 @@ func narrow_bound_path(path: String, condition_text: String) {
     } else {
         bound_reasons.append("'{condition_text}'")
     }
+}
+
+func keep_read(path: String, code: String) {
+    drop_kept_read(path)
+    kept_read_paths.append(path)
+    kept_read_codes.append(code)
+}
+
+func kept_read(path: String): String {
+    var index = kept_read_paths.count() - 1
+    while index >= 0 {
+        if kept_read_paths[index] == path {
+            if not narrowed_paths.contains(path) {
+                return ""
+            }
+            crash kept_read_codes[index]
+            return kept_read_codes[index]
+        }
+        index = index - 1
+    }
+    if narrowed_paths.contains(path) or rechecked_paths.contains(path) {
+        return ""
+    }
+    if parent {
+        return parent.kept_read(path)
+    }
+    return ""
+}
+
+func drop_kept_read(path: String) {
+    var index = kept_read_paths.count() - 1
+    while index >= 0 {
+        if kept_read_paths[index] == path {
+            kept_read_paths.remove_at(index)
+            kept_read_codes.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
+func drop_kept_reads() {
+    kept_read_paths.clear()
+    kept_read_codes.clear()
+    assert parent
+    parent.drop_kept_reads()
+}
+
+func visible_kept_paths(): List<String> {
+    var paths = kept_read_paths.copy()
+    if parent {
+        var above = parent.visible_kept_paths()
+        above.each(paths.append)
+    }
+    return paths
+}
+
+func holds_kept_reads(): Boolean {
+    if not kept_read_paths.is_empty() {
+        return true
+    }
+    if parent {
+        return parent.holds_kept_reads()
+    }
+    return false
 }
 
 func recheck_path(path: String) {
@@ -474,6 +541,7 @@ func forget_path(path: String, include_itself: Boolean, read_by_crossed_loops: L
         crash narrowed_paths[index]
         var narrowed = narrowed_paths[index]
         if narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") or key_mentions(narrowed, path) or include_itself and narrowed == path {
+            drop_kept_read(narrowed)
             narrowed_paths.remove_at(index)
             forget_bound(narrowed)
             if read_by_crossed_loops.contains(narrowed) {

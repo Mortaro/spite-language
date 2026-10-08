@@ -1,0 +1,5 @@
+total 60
+written 25
+moved 30
+raised 99
+named ada

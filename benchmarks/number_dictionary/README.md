@@ -19,20 +19,21 @@ them for keys that are not there, against an open-addressing table in C. It lean
 
 ## What to look at in highlights.c
 
-The keys are numbers, so `Dictionary_Integer_by_Integer_get_at` hashes the number itself, with no text made. The
-lookup is made twice, as the Spite writes it: once for `if scores[key]` and again for `scores[key]` in the sum,
-where `naive.c` looks it up once and keeps the pointer. Every `index * 7`, `index * 3` and `+` is checked.
+The keys are numbers, so `Dictionary_Integer_by_Integer_get_at` hashes the number itself, with no text made, and
+a probe compares the key kept in its slot. The lookup is made once: `if scores[key]` keeps what it found in
+`spite_temp_<n>`, and `scores[key]` in the sum is `spite_temp_<n>.value`, as `naive.c` keeps its pointer. Before
+both, the case took 3.79 times naive C's time. Every `index * 7`, `index * 3` and `+` is checked.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 86 560 | 185 856 |
-| naive C: `naive.c`, `clang -O2` | 22 812 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 12 468 | 139 264 |
+| Spite: `naive/`, `--optimized` | 160 213 | 185 344 |
+| naive C: `naive.c`, `clang -O2` | 70 381 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 30 417 | 139 264 |
 
-Spite takes 3.79 times naive C's time and 6.94 times expert C's (lower is faster).
+Spite takes 2.28 times naive C's time and 5.27 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=86560 naive=22812 expert=12468 -->
+<!-- measured spite=160213 naive=70381 expert=30417 -->
 <!-- /timings -->

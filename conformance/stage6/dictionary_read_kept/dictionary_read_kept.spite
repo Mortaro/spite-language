@@ -1,0 +1,46 @@
+var console = Console()
+
+func DictionaryReadKept() {
+    var scores = Dictionary<Integer>()
+    scores[1] = 10
+    scores[2] = 20
+    scores[3] = 30
+    var total = 0
+    var key = 1
+    while key < 5 {
+        if scores[key] {
+            total = total + scores[key]
+        }
+        key = key + 1
+    }
+    console.print("total", total)
+    key = 2
+    if scores[key] {
+        scores[key] = 25
+        var written = scores[key]
+        console.print("written", written)
+    }
+    if scores[key] {
+        key = 3
+        crash scores[key]
+        var moved = scores[key]
+        console.print("moved", moved)
+    }
+    if scores[key] {
+        raise(scores, key)
+        var raised = scores[key]
+        console.print("raised", raised)
+    }
+    var names = Dictionary<String>()
+    names["first"] = "ada"
+    if names["first"] {
+        var named = names["first"]
+        console.print("named", named)
+    } else {
+        console.print("no name")
+    }
+}
+
+func raise(scores: Dictionary<Integer>, key: Integer) {
+    scores[key] = 99
+}

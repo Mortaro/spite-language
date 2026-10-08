@@ -102,8 +102,8 @@ same time, so read a few percent either way as noise.
 | [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 1.55 | 1.83 |
 | [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 0.06 | 1.98 |
 | [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 0.58 | 41.94 |
-| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 1.03 | 3.34 |
-| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 2.14 | 2.27 |
+| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 0.49 | 1.68 |
+| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 1.89 | 2.28 |
 | [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 0.03 | 2.39 |
 | [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed |
 | [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 1.01 | 1.01 |
@@ -147,7 +147,7 @@ same time, so read a few percent either way as noise.
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 0.91 | 4.64 |
-| [number_dictionary](number_dictionary/) | 3.79 | 6.94 |
+| [number_dictionary](number_dictionary/) | 2.28 | 5.27 |
 | [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 0.49 | 4.82 |
 | [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 0.01 | 1.00 |
 | [other_optimisations](other_optimisations/) | not timed | not timed |

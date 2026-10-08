@@ -983,9 +983,8 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   (thread_safety_for_singletons_the_cheapest_safe_form); each sleep in a state machine counts `Program` twice
   (hidden_async_await_as_compile_time_state_machines); an item read through a singleton's attribute that is read in
   place is still counted (a_singletons_attribute_that_never_changes_is_read_in_place); a dictionary read narrowed
-  by `if d[k]` and read again hashes the key twice, and docs/optimizations.md says 32 bits of hash are kept where
-  the C keeps 31 (a_dictionary_hashes_a_key_once_cheaply); a number-keyed dictionary still writes hash bits nothing
-  reads (a_dictionary_keyed_by_numbers_hashes_the_numbers); a deep copy makes the defaults of each object and throws
+  by `if d[k]` is kept for the block only when its values are plain, so a text or object value is looked up twice
+  (a_dictionary_hashes_a_key_once_cheaply); a deep copy makes the defaults of each object and throws
   them away, and copies a list by appending (a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one);
   a function taking a `type` given an ordinary object is compiled per class, so the uncounted read through a `type`
   only shows for a row of borrowed items, and a typed object literal of `List` items is allocated and dispatched

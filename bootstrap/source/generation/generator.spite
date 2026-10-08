@@ -362,6 +362,7 @@ var lent_argument_sources = List<String>()
 var held_argument_positions = List<String>()
 var framed_argument_positions = List<String>()
 var framing_function_value = false
+var keeping_guard_reads = false
 var held_arguments_blocked = false
 var lent_callers = Dictionary<String>()
 var lent_parameter_names = List<String>()
@@ -15852,6 +15853,117 @@ func expression_only_calls(expression: Syntax.Expressions.Expression, name: Stri
     }
 }
 
+func may_change_kept_reads(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var expressions = List<Syntax.Expressions.Expression>()
+    var named = ""
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            expressions.append(statement.value)
+            named = statement.name
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            if not target {
+                return true
+            }
+            expressions.append(statement.value)
+            named = target.name
+        }
+        Syntax.Statements.ReturnStatement: collect_statement_expressions(statement, expressions)
+        Syntax.Statements.AssertStatement: collect_statement_expressions(statement, expressions)
+        Syntax.Statements.IfStatement: collect_statement_expressions(statement, expressions)
+        _: return true
+    }
+    var calls = List<Syntax.Expressions.Expression>()
+    collect_each_expression_call(expressions, calls)
+    if not calls.is_empty() {
+        return true
+    }
+    var index = 0
+    while index < expressions.count() {
+        if operates_on_objects(expressions[index], scope, class_information) {
+            return true
+        }
+        index = index + 1
+    }
+    if named.is_empty() {
+        return false
+    }
+    var kept_paths = scope.visible_kept_paths()
+    var path_index = 0
+    while path_index < kept_paths.count() {
+        if mentions_word(kept_paths[path_index], named) {
+            return true
+        }
+        path_index = path_index + 1
+    }
+    return false
+}
+
+func operates_on_objects(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if not plain_kept_operand(expression.left, scope, class_information) {
+                return true
+            }
+            return operates_on_objects(expression.left, scope, class_information) or operates_on_objects(expression.right, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            if not plain_kept_operand(expression.operand, scope, class_information) {
+                return true
+            }
+            return operates_on_objects(expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return operates_on_objects(expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            return operates_on_objects(expression.object, scope, class_information) or operates_on_objects(expression.index, scope, class_information)
+        }
+        Syntax.Expressions.IdentifierExpression: return false
+        Syntax.Expressions.IntegerLiteral: return false
+        Syntax.Expressions.FloatLiteral: return false
+        Syntax.Expressions.TrueLiteral: return false
+        Syntax.Expressions.FalseLiteral: return false
+        Syntax.Expressions.StringLiteralExpression: return expression.value.contains("\{")
+        _: return true
+    }
+}
+
+func plain_kept_operand(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var operand_type = lookup_static_type(expression, scope, class_information)
+    if not operand_type {
+        return false
+    }
+    var nullable = type_shape.as_nullable(operand_type)
+    if nullable {
+        var inner = nullable.inner
+        operand_type = inner
+    }
+    return type_shape.as_scalar(operand_type) or type_shape.as_enum(operand_type)
+}
+
 func held_by_caller(argument: Syntax.Expressions.Expression, expected_type: Analysis.SpiteType, scope: Scope): Boolean {
     var identifier = shape.as_identifier(argument)
     if not identifier {
@@ -22163,6 +22275,12 @@ func generate_index_read(
     var object_dictionary = type_shape.as_dictionary(object_result_type)
     if object_dictionary {
         var value_type = object_dictionary.element
+        if proven and present and not type_is_reference(value_type) {
+            var kept_value = scope.kept_read(read_path)
+            if not kept_value.is_empty() {
+                return ExpressionResult(kept_value, value_type)
+            }
+        }
         var key_parameter = dictionary_key_parameter(
             object_dictionary,
             index_expression.index,
@@ -25653,6 +25771,9 @@ func narrow_by_guard(scope: Scope, guard: NullableGuard, check: String) {
     scope.note_site(guard.name, "{check} on line {current_line}")
     if guard.override_code.is_empty() {
         scope.narrow_path(guard.name)
+        if not guard.kept_code.is_empty() {
+            scope.keep_read(guard.name, guard.kept_code)
+        }
     } else {
         scope.set_override(guard.name, guard.override_code)
         var guard_inner = guard.inner
@@ -25727,6 +25848,9 @@ func try_path_guard(
     assert not path.is_empty() and not is_caller_call(condition_ast) and not is_shape_member_read(condition_ast)
     assert not is_text_member_read(condition_ast)
     var links = path_links(condition_ast, class_information.qualified_dotted)
+    var keeping = keeping_guard_reads
+    keeping_guard_reads = false
+    var kept_code = ""
     var probe_scope = Scope(scope)
     var tests = List<String>()
     var link_tests = List<String>()
@@ -25748,7 +25872,16 @@ func try_path_guard(
         if link_nullable {
             var link_inner = link_nullable.inner
             inner = link_inner
-            var link_condition = slot_presence_test(link_result, link, link_inner, probe_scope, class_information)
+            var link_condition = ""
+            if keeping and index == links.count() - 1 and keeps_dictionary_read(link, link_inner, probe_scope, class_information) {
+                var kept = next_temporary()
+                builder.add_user("{c_type_name(link_result_type)} {kept};")
+                link_condition = "(({kept} = {link_result.code}).has_value)"
+                kept_code = "{kept}.value"
+            }
+            if link_condition.is_empty() {
+                link_condition = slot_presence_test(link_result, link, link_inner, probe_scope, class_information)
+            }
             if link_condition.is_empty() {
                 link_condition = link_test(link_result, link, link_inner)
             }
@@ -25766,7 +25899,33 @@ func try_path_guard(
     var guard = NullableGuard(path, inner, joined_tests, "")
     guard.links = links
     guard.link_tests = link_tests
+    guard.kept_code = kept_code
     return guard
+}
+
+# ../../../docs/optimizations.md#a-dictionary-hashes-a-key-once-cheaply
+func keeps_dictionary_read(
+    link: Syntax.Expressions.Expression,
+    inner: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if type_is_reference(inner) or type_needs_drop(inner) {
+        return false
+    }
+    var indexed = shape.as_index(link)
+    if not indexed {
+        return false
+    }
+    crash indexed.object
+    var object_type = lookup_static_type(indexed.object, scope, class_information)
+    if not object_type {
+        return false
+    }
+    if type_shape.as_dictionary(object_type) {
+        return true
+    }
+    return false
 }
 
 func path_links(
@@ -35189,7 +35348,9 @@ func generate_unfolded_if(
         generate_leaving_if(if_statement, sides, scope, class_information, function_information)
         return
     }
+    keeping_guard_reads = not resumable_mode and not hot_reload and not read_evaluate_print_loop
     var guard = try_nullable_guard(if_statement.condition, scope, class_information)
+    keeping_guard_reads = false
     if guard {
         report_terminal_if(if_statement, guard.name, function_information)
         builder.add_user("if ({guard.guard_code}) \{")
@@ -40927,6 +41088,9 @@ func generate_statement(
     }
     var errors_before = errors_reported
     var waits_before = wait_mark_counters.count()
+    if scope.holds_kept_reads() and may_change_kept_reads(statement, scope, class_information) {
+        scope.drop_kept_reads()
+    }
     var assigned = shape.as_assignment_statement(statement)
     if assigned {
         frame_variadic_allowed = not resumable_mode

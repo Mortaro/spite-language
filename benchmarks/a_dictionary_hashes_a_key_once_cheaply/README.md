@@ -46,11 +46,11 @@ fragment is `hash.shifted_right(33)`, 31 bits of the hash, where the optimisatio
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 102 576 | 195 584 |
-| naive C: `naive.c`, `clang -O2` | 99 568 | 143 872 |
-| expert C: `expert.c`, `clang -O2` | 30 751 | 143 872 |
+| Spite: `naive/`, `--optimized` | 69 590 | 195 072 |
+| naive C: `naive.c`, `clang -O2` | 140 962 | 143 872 |
+| expert C: `expert.c`, `clang -O2` | 41 508 | 143 872 |
 
-Spite takes 1.03 times naive C's time and 3.34 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=102576 naive=99568 expert=30751 -->
+Spite takes 0.49 times naive C's time and 1.68 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=69590 naive=140962 expert=41508 -->
 <!-- /timings -->

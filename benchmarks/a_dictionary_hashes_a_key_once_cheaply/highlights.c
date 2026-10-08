@@ -13,8 +13,9 @@ int64_t Naive_look_up___held_0_1(Naive* self, List_String* names_, Dictionary_In
                 spite_failed_1(position_, names_, total_, round_, index_);
             }
             SpiteString name_ = List_String_get_at(names_, position_);
-            if (((Dictionary_Integer_get_at(by_name_, SpiteString___retain(name_))).has_value)) {
-                total_ = ({ int64_t spite_temp_9 = total_; int64_t spite_temp_10 = SpiteInteger_to_long(({ Nullable_Integer spite_temp_11 = Dictionary_Integer_get_at(by_name_, SpiteString___retain(name_)); spite_temp_11.has_value ? spite_temp_11.value : 0; })); int64_t spite_temp_12; if (__builtin_expect(__builtin_add_overflow(spite_temp_9, spite_temp_10, &spite_temp_12), 0)) spite_overflowed("total + by_name[name]", "a Long", "+", (int64_t)spite_temp_9, (int64_t)spite_temp_10, spite_site_2()); spite_temp_12; });
+            Nullable_Integer spite_temp_9;
+            if (((spite_temp_9 = Dictionary_Integer_get_at(by_name_, SpiteString___retain(name_))).has_value)) {
+                total_ = ({ int64_t spite_temp_10 = total_; int64_t spite_temp_11 = SpiteInteger_to_long(spite_temp_9.value); int64_t spite_temp_12; if (__builtin_expect(__builtin_add_overflow(spite_temp_10, spite_temp_11, &spite_temp_12), 0)) spite_overflowed("total + by_name[name]", "a Long", "+", (int64_t)spite_temp_10, (int64_t)spite_temp_11, spite_site_2()); spite_temp_12; });
             }
             index_ = (index_ + 1);
             SpiteString___release(name_);

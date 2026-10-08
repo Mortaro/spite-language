@@ -4,6 +4,7 @@ var guard_code = ""
 var override_code = ""
 var links = List<Syntax.Expressions.Expression>()
 var link_tests = List<String>()
+var kept_code = ""
 
 func NullableGuard(
     starting_name: String,

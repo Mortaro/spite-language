@@ -2089,9 +2089,15 @@ of one class, lets them all go and then makes a million of another holds room fo
 **The case:** [benchmarks/a_dictionary_hashes_a_key_once_cheaply](../benchmarks/a_dictionary_hashes_a_key_once_cheaply/).
 
 **What it does.** A dictionary hashes a key with a multiply and an exclusive or per character on an
-`UnsignedLong` (FNV-1a), keeps 32 bits of that hash in the slot beside the key's position, and
+`UnsignedLong` (FNV-1a), keeps 31 bits of that hash in the slot beside the key's position, and
 compares key texts only when those bits match, where hashing with a multiply and a division by a prime for every
 character and comparing the whole key text on a hit is slower.
+
+**A key tested and then read is looked up once.** `if scores[key] { total = total + scores[key] }` keeps what the
+test found, when the values are numbers, `Boolean`s or enum values, and the read inside the block is that value,
+with no second lookup. It is kept only while nothing can change it: from the test to the first statement that calls
+anything, uses an operator on an object, assigns anything but a plain name, gives a new value to a name the key or
+the dictionary is written with, or starts a loop; from there on each read looks the key up again, as it reads.
 
 **When.** Every `Dictionary`, in every build. **What you notice.** Speed:
 [its case](../benchmarks/a_dictionary_hashes_a_key_once_cheaply/), two million lookups by name in a dictionary of
@@ -2154,9 +2160,11 @@ the dictionary would.
 **What it does.** A `Dictionary` the program gives whole-number keys
 ([collections.md](collections.md#keyed-by-numbers)) is compiled as its own form of `library/dictionary.spite`, whose
 bodies fold on the key's type as `Items` folds on `is_fixed_size`: its keys are a `List` of the numbers, a key is
-hashed by one multiply (Knuth's 6364136223846793005) instead of a loop over characters, and a slot's key is compared
-directly, without the 32 bits of hash a text key keeps beside it. No `String` is made for a key, in a lookup or in the
-table. A dictionary given text keys compiles to exactly the code it did before.
+hashed by one multiply (Knuth's 6364136223846793005) instead of a loop over characters, and no `String` is made for a
+key, in a lookup or in the table. Where a text key keeps 31 bits of its hash in the slot beside the key's position, a
+key of 32 bits or fewer (`Integer`, `Short`, `Tiny`) keeps the key itself there, so a probe compares the slot with the
+key and never reads the list of keys; a `Long` key keeps the hash bits as text does, and is compared with the list
+only when they match. A dictionary given text keys compiles to the code it did before.
 
 **When.** Every build, for each dictionary whose keys are whole numbers. Which dictionaries those are is worked out
 while compiling: every place a dictionary is made or named (a `Dictionary<T>()`, an attribute, a parameter, a
