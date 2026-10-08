@@ -156,22 +156,17 @@ func kept_site(list_name: String, sites: String, shaker: TreeShaker?): String {
             return ""
         }
     }
-    var unplaced = ""
     var index = 0
     while index < listed.count() {
         var site = listed[index]
         var holder = site.split("\t").first()
         crash holder
-        if holder.is_empty() {
-            if unplaced.is_empty() {
-                unplaced = site
-            }
-        } else if not shaker or shaker.is_kept_name(holder) {
+        if holder.is_empty() or not shaker or shaker.is_kept_name(holder) {
             return site
         }
         index = index + 1
     }
-    return unplaced
+    return ""
 }
 
 func insert_sorted(listed: List<String>, key: String) {
