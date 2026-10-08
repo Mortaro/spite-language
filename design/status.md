@@ -589,6 +589,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [collections.md](../docs/collections.md)
 
+- D537: `fits_vector()` still exists beside `is_fixed_size` (60 uses against 27); remove it and migrate. A walk over
+  a description (`schema()`) does not yet count as a read in specs/style.md's rule.
+
 - D532, `Dictionary<Key, Value>` with any key type (objects by identity): not built. The library, compiler, docs,
   specs, skills and every program still use `Dictionary<T>` with the key kind inferred (D224). One migration.
 

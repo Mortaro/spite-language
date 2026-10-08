@@ -103,11 +103,11 @@ same time, so read a few percent either way as noise.
 | [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 0.06 | 1.98 |
 | [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 0.58 | 41.94 |
 | [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 0.49 | 1.68 |
-| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 1.89 | 2.28 |
+| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 2.31 | 2.46 |
 | [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 0.03 | 2.39 |
 | [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed |
 | [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 1.01 | 1.01 |
-| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 0.65 | 0.65 |
+| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 0.75 | 0.83 |
 | [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 0.83 | 4.70 |
 | [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 0.73 | 11.40 |
 | [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 1.08 | 1.17 |
@@ -115,17 +115,17 @@ same time, so read a few percent either way as noise.
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
 | [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |
 | [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 0.96 | 1.09 |
-| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.82 | 5.01 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.82 | 5.06 |
 | [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 0.72 | 0.72 |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed |
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
-| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 4.53 | 9.90 |
+| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 3.62 | 8.06 |
 | [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 4.45 | 6.75 |
 | [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.60 | 47.73 |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 0.17 | 3.18 |
 | [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 0.69 | 1.37 |
-| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 1.01 | 0.96 |
-| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 2.07 | 15.86 |
+| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 0.75 | 1.07 |
+| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 2.05 | 12.41 |
 | [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 0.04 | 3.63 |
 | [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 1.32 | 31.08 |
 | [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 0.77 | 31.16 |
@@ -135,7 +135,7 @@ same time, so read a few percent either way as noise.
 | [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
 | [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.59 | 12.89 |
 | [appending_to_text_in_place](appending_to_text_in_place/) | 0.00 | 0.84 |
-| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 6.62 | 6.49 |
+| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 5.01 | 9.94 |
 | [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | 0.74 | 9.15 |
 | [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | 0.14 | 1.62 |
 | [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 0.83 | 1.55 |
@@ -144,30 +144,30 @@ same time, so read a few percent either way as noise.
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed |
 | [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 1.35 | 1.51 |
 | [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 0.53 | 83.60 |
-| [game_maths](game_maths/) | 1.40 | 1.76 |
+| [game_maths](game_maths/) | 1.24 | 1.60 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 0.91 | 4.64 |
-| [number_dictionary](number_dictionary/) | 2.28 | 5.27 |
+| [number_dictionary](number_dictionary/) | 2.98 | 5.55 |
 | [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 0.49 | 4.82 |
 | [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 0.01 | 1.00 |
 | [other_optimisations](other_optimisations/) | not timed | not timed |
 | [particles](particles/) | 0.73 | 1.14 |
 | [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | 0.62 | 1.87 |
 | [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not timed | not timed |
-| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 3.64 | 5.27 |
-| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 2.77 | 4.88 |
+| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 3.36 | 3.29 |
+| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 2.80 | 5.21 |
 | [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 1.41 | 1.56 |
 | [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 0.96 | 4.75 |
 | [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed |
-| [removing_many_at_once](removing_many_at_once/) | 2.90 | 4.57 |
+| [removing_many_at_once](removing_many_at_once/) | 3.42 | 3.96 |
 | [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed |
 | [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed |
 | [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 0.16 | 2.86 |
-| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 0.36 | 14.67 |
+| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 0.30 | 13.29 |
 | [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 0.08 | 3.30 |
 | [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed |
-| [smaller_ones](smaller_ones/) | 2.72 | 3.04 |
+| [smaller_ones](smaller_ones/) | 2.48 | 2.52 |
 | [sorting](sorting/) | 1.20 | 7.52 |
 | [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 0.17 | 11.38 |
 | [text_building](text_building/) | 1.77 | 15.48 |
@@ -177,9 +177,9 @@ same time, so read a few percent either way as noise.
 | [the_fault_handler_is_in_every_program](the_fault_handler_is_in_every_program/) | not timed | not timed |
 | [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | 1.44 | 1.48 |
 | [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 0.07 | 11.44 |
-| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 0.55 | 6.16 |
+| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 0.53 | 5.65 |
 | [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed |
-| [vector_maths](vector_maths/) | 1.30 | 1.78 |
+| [vector_maths](vector_maths/) | 1.30 | 1.70 |
 | [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed |
 | [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 0.69 | 18.76 |
 <!-- /summary -->

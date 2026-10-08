@@ -323,6 +323,42 @@ path), otherwise a header bit; never promote by copying (changes identity). Node
 calls, boxes, frames); edges: stores, arguments, returns, reads, captures; anything leaving the analysis (foreign,
 reflection, `type`, `Weak`) keeps all-atomic and is reported.
 
+**R10, a stage's systems as a row (T4b) and loop passes in bands (T1).** The naive engine runs a stage as
+`stage.each(run_runner)` over a list built once in `App()` and only appended to. D523's list-values proof sees
+that, but each element is a fresh generic instance or a local, so T4b also needs the count, the order and each
+element's class at its append site (unconditional appends at the top of a function with finitely many call sites);
+then the loop becomes bindings plus a row of calls, and D505 settles it. T1 needs a self-indexed key in the overlap
+facts; the band loop already exists for `parallel_each_`. Handed to the agent building T4b and T1.
+
+**R11, waiting inside a frame loop (W1, W2).** The engine's asset loading keeps `Parallel` and polls
+`finished_value()` each tick, because a plain blocking load would make every system that reaches it a waiting
+system, which may not write inline components. W1's "first needed" is the first implicit join (store, operand,
+text hole, condition, narrowing, end of scope); across frames the started wait must outlive the system's return,
+so it lives in a slot the compiler makes, keyed like today's `loads` and `load_slots`, collected on a later tick.
+The resumable-copy machinery for `Concurrent` and the helper thread for blocking IO already do the waiting. Open:
+the lifetime of a wait never needed, which line a failure a tick later reports, a bound on waits in flight, and
+whether the waiting-system rule is lifted (a decision).
+
+**R12, results built into the caller's slot.** Already fixed (`d083a22b`) by the time the model read it:
+`normalized()` and `Matrix4.multiply` now fill a fresh frame slot and copy its fields into the target. The next
+step is building straight into the target itself, which needs a proof that the callee does not read the target
+(it does for `accumulated * step_matrix`: the product would overwrite its own input, and the result pointer is
+`restrict`).
+
+**R13, the GPU (two models).** Qualifying loops: stress's `Move` and `Regenerate` (self-indexed, 200,000 rows,
+about 5 to 10 MB a tick, under a millisecond resident), the navigation grid's 4-million-cell passes (about 21 MB,
+two orders of magnitude over its bake), plain number loops in `benchmarks/`. Not qualifying as written: physics
+(shared buckets, scratch, commands), A* (writes neighbours), sorting (recursion), text and dictionaries. The
+engine already compiles GLSL to SPIR-V ahead of time and dispatches compute through a plain foreign library, so a
+kernel needs no shipped shader compiler, and a build with no qualifying loop links no Vulkan. Cost model: T6 plus
+transfer; the threshold is passes over resident data, not rows. Crashes: each dispatch writes a status slot (site
+and operands) that generated code reads after the pass. Smallest experiment: hand-write the two kernels of
+`benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked` (resident across 2000 rounds)
+and compare times and the decimal sum's bits with the CPU; then stress's two systems. Open: the Vulkan binding is
+headerless; whether compute shares the renderer's device; the decimal rule for device maths functions. One model
+flagged a discrepancy to check: navigation's `next_stamp` zeroes 16.8 MB per query, which does not fit the measured
+11,905 queries a second.
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
