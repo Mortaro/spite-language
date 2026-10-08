@@ -38950,7 +38950,7 @@ func counted_loop_list(
     if binary.operator != 'less' {
         return ""
     }
-    var counter = shape.as_identifier(binary.left)
+    var counter = counted_counter(binary.left)
     if not counter {
         return ""
     }
@@ -38971,6 +38971,33 @@ func counted_loop_list(
         return ""
     }
     return listed
+}
+
+func counted_counter(left: Syntax.Expressions.Expression): Syntax.Expressions.IdentifierExpression? {
+    var named = shape.as_identifier(left)
+    if named {
+        return named
+    }
+    var strided = shape.as_binary(left)
+    assert strided
+    crash strided.left
+    crash strided.right
+    assert strided.operator == 'add'
+    var reach = shape.as_integer_literal(strided.right)
+    assert reach
+    assert reach.value >= 1 and reach.value <= 63
+    return shape.as_identifier(strided.left)
+}
+
+func counted_reach(left: Syntax.Expressions.Expression): Integer {
+    var strided = shape.as_binary(left)
+    if not strided {
+        return 0
+    }
+    crash strided.right
+    var reach = shape.as_integer_literal(strided.right)
+    crash reach
+    return reach.value
 }
 
 func counted_receiver(expression: Syntax.Expressions.Expression): String {
@@ -39125,13 +39152,17 @@ func bounds_counter(counter: String, loop: Syntax.Statements.WhileStatement): Bo
     }
     crash binary.left
     crash binary.right
-    if binary.operator != 'less' or not is_identifier_named(binary.left, counter) {
+    if binary.operator != 'less' {
         return false
     }
-    if shape.as_integer_literal(binary.right) {
+    if shape.as_integer_literal(binary.right) and is_identifier_named(binary.left, counter) {
         return true
     }
-    return not counted_receiver(binary.right).is_empty()
+    var bounded = counted_counter(binary.left)
+    if not bounded {
+        return false
+    }
+    return bounded.name == counter and not counted_receiver(binary.right).is_empty()
 }
 
 func assigns_before_last(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
@@ -39458,34 +39489,39 @@ func generate_counted_loop(
     crash binary
     crash binary.left
     crash binary.right
-    var counter = shape.as_identifier(binary.left)
+    var counter = counted_counter(binary.left)
     crash counter
+    var reach = counted_reach(binary.left)
     var call = shape.as_call(binary.right)
     crash call
     crash call.callee
     var member = shape.as_member(call.callee)
     crash member
     crash member.object
-    var counter_result = generate_expression(binary.left, scope, class_information)
+    var counter_ast: Syntax.Expressions.Expression = counter
+    var counter_result = generate_expression(counter_ast, scope, class_information)
     var count_result = generate_expression(binary.right, scope, class_information)
     var bound = next_temporary()
     builder.add_user("int32_t {bound} = {count_result.code};")
     var key = "{listed}[{counter.name}]"
     var items = hoist_items(member.object, scope, class_information)
     var truth = "{counter_result.code} < {bound}"
+    if reach > 0 {
+        truth = "{counter_result.code} < {bound} - {reach}"
+    }
     var others = List<Syntax.Expressions.Expression>()
     var other_names = List<String>()
     collect_counted_others(listed, counter.name, while_statement.body, scope, others, other_names)
     if others.is_empty() or asserts_in(while_statement.body) {
         var body_scope = Scope(scope)
         body_scope.is_loop = true
-        body_scope.count_items(key, items)
+        count_reached_items(body_scope, key, listed, counter.name, reach, items)
         generate_counted_body(truth, while_statement, body_scope, class_information, function_information)
         return
     }
     var fast_scope = Scope(scope)
     fast_scope.is_loop = true
-    fast_scope.count_items(key, items)
+    count_reached_items(fast_scope, key, listed, counter.name, reach, items)
     var fits = List<String>()
     var index = 0
     while index < others.count() {
@@ -39504,9 +39540,21 @@ func generate_counted_loop(
     builder.add_user("} else \{")
     var slow_scope = Scope(scope)
     slow_scope.is_loop = true
-    slow_scope.count_items(key, items)
+    count_reached_items(slow_scope, key, listed, counter.name, reach, items)
     generate_counted_body(truth, while_statement, slow_scope, class_information, function_information)
     builder.add_user("}")
+}
+
+func count_reached_items(scope: Scope, key: String, listed: String, counter: String, reach: Integer, items: String) {
+    scope.count_items(key, items)
+    var step = 1
+    while step <= reach {
+        scope.count_items("{listed}[{counter} + {step}]", items)
+        step = step + 1
+    }
+    if reach > 0 {
+        scope.narrow_path("~+[{counter}]")
+    }
 }
 
 func hoist_items(list_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): String {
@@ -39830,14 +39878,37 @@ func counted_item(
         return ""
     }
     var counter = shape.as_identifier(index_ast)
+    var step = 0
+    if not counter {
+        var stepped = shape.as_binary(index_ast)
+        if not stepped {
+            return ""
+        }
+        crash stepped.left
+        crash stepped.right
+        var stepped_by = shape.as_integer_literal(stepped.right)
+        if stepped.operator != 'add' or not stepped_by {
+            return ""
+        }
+        step = stepped_by.value
+        counter = shape.as_identifier(stepped.left)
+    }
     if not counter {
         return ""
     }
-    var items = scope.counted_items_of("{listed.name}[{counter.name}]")
+    var key = "{listed.name}[{counter.name}]"
+    if step > 0 {
+        key = "{listed.name}[{counter.name} + {step}]"
+    }
+    var items = scope.counted_items_of(key)
     if items.is_empty() {
         return ""
     }
-    var counter_result = generate_expression(index_ast, scope, class_information)
+    var counter_ast: Syntax.Expressions.Expression = counter
+    var counter_result = generate_expression(counter_ast, scope, class_information)
+    if step > 0 {
+        return "{items}[{counter_result.code} + {step}]"
+    }
     return "{items}[{counter_result.code}]"
 }
 

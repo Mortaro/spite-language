@@ -374,8 +374,9 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** Inside `while index < values.count()`, the counter is at least 0 and below the count, and the list's
   size cannot change.
-- **Rule.** The condition is exactly `index < values.count()` over a local or parameter holding a `List`
-  of numbers or `Boolean`s (the only list that holds them); `index` is a local `Integer` whose every assignment in the function is a literal of 0 or
+- **Rule.** The condition is exactly `index < values.count()`, or `index + k < values.count()` with `k` a literal
+  from 1 to 63 (then `values[index]` to `values[index + k]` are the items in range), over a local or parameter
+  holding a `List` of numbers or `Boolean`s (the only list that holds them); `index` is a local `Integer` whose every assignment in the function is a literal of 0 or
   more, or `index = index + 1` as the last statement of a loop bounded by `index < ...count()` or a literal; the body
   only declares and assigns plain locals, reads and writes items of plain-value lists, and calls those lists' reading
   functions and maths. A second list indexed by the counter is checked once, before the loop.

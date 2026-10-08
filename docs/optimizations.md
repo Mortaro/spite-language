@@ -2605,6 +2605,9 @@ the plain C loop a C compiler can turn into vector instructions (SIMD), when the
 Then `values.count()` is read once before the loop, the address of its items once, and `values[index]`, `values[index]
 = x` and `values.set_at(index, x)` read and write the item directly, with no range check: the loop's own condition is
 the proof, which is also what narrows the `T?` every `[]` answers, so the read is a plain value with nothing to test.
+A window over the list, `while at + 2 < values.count()` (a literal from 1 to 63 added to the counter), is the same
+loop: it runs while `at < count - 2`, `values[at]` to `values[at + 2]` are read and written directly, and the step
+`at = at + 1` is not checked, since `at + 2` is below the count.
 `values.get_at(index)` written by name answers that `T?` and is an ordinary call; write `values[index]`. A second list
 indexed by the same counter (`into[index] = from[index] * 1.5`) is checked once instead, before the loop: when it
 holds at least as many items as the loop runs, the loop runs without its checks; otherwise the loop as it was runs,

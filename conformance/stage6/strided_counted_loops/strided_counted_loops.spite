@@ -1,0 +1,40 @@
+var console = Console()
+
+func StridedCountedLoops() {
+    var size = 0
+    while size < 5 {
+        var values = List<Integer>()
+        var index = 0
+        while index < size {
+            values.append(index * 10 + 1)
+            index = index + 1
+        }
+        var windows = window_sums(values)
+        var smoothed = smooth(values)
+        console.print("size", size, "windows", windows, "smoothed", smoothed)
+        size = size + 1
+    }
+}
+
+func window_sums(values: List<Integer>): Integer {
+    var total = 0
+    var at = 0
+    while at + 2 < values.count() {
+        total = total + values[at] + values[at + 1] * 2 + values[at + 2] * 3
+        at = at + 1
+    }
+    return total
+}
+
+func smooth(values: List<Integer>): Integer {
+    var at = 0
+    while at + 1 < values.count() {
+        values[at + 1] = values[at] + values[at + 1]
+        at = at + 1
+    }
+    var ending = values.last()
+    if ending {
+        return ending
+    }
+    return 0
+}

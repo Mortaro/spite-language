@@ -115,7 +115,7 @@ same time, so read a few percent either way as noise.
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
 | [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |
 | [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 0.96 | 1.09 |
-| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.83 | 4.86 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.82 | 5.01 |
 | [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 0.72 | 0.72 |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed |
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |

@@ -27,26 +27,29 @@ outside the list after all, and tests no presence of the `T?` beyond that.
 
 ## What to look at in highlights.c
 
-Each read in `Naive_window_total___held_0` and `Naive_rise_count___held_0` is
-`List_Integer_get_at(values_, at_)` followed by `if (__builtin_expect(!spite_temp_9.has_value, 0))
-spite_outside_list("values[at]", ...)`: once `get_at` is inlined, its own `index_ >= 0 && index_ < item_count_`
-compare is the only test, and the branch that halts is marked as never taken. No narrowing is written in
-`naive/`, and none is compiled beyond that compare. These loops are not the counted loop's shape, so unlike
-[the counted loop](../a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) they keep the
-compare per read, read `values.count()` again each pass of `window_total`, and check `at + 2` and `at + 1` for
-overflow, each a branch the expert's loops do without. `naive.c` reads the array with no compare at all (and halts
-nowhere if an index is wrong); `expert.c` does the same and vectorises both loops.
+Each read in `Naive_rise_count___held_0` is `List_Integer_get_at(values_, index_)` followed by `if
+(__builtin_expect(!spite_temp_<n>.has_value, 0)) spite_outside_list("values[index]", ...)`: once `get_at` is
+inlined, its own `index_ >= 0 && index_ < item_count_` compare is the only test, and the branch that halts is marked
+as never taken. No narrowing is written in `naive/`, and none is compiled beyond that compare: the bound is a count
+kept in a `var`, `index < count`, which proves the read but is not the counted loop's shape.
+
+`Naive_window_total___held_0` is the counted loop's shape since a counter plus a literal counts too: `while at + 2 <
+values.count()` runs while `at_ < spite_temp_<n> - 2`, with the count read once, and `values[at]`, `values[at + 1]`
+and `values[at + 2]` are `spite_temp_<m>[at_]` to `spite_temp_<m>[at_ + 2]`, with no compare and no overflow check
+on `at + 1` and `at + 2` (before, each was a `get_at` with its compare and `values.count()` was read each pass).
+What both loops still pay for is the checked arithmetic of their sums, which keeps the C compiler from vectorising
+them as it does `naive.c` and `expert.c`.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 36 216 | 176 128 |
-| naive C: `naive.c`, `clang -O2` | 7 503 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 7 447 | 140 288 |
+| Spite: `naive/`, `--optimized` | 35 861 | 176 128 |
+| naive C: `naive.c`, `clang -O2` | 7 442 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 7 156 | 140 288 |
 
-Spite takes 4.83 times naive C's time and 4.86 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=36216 naive=7503 expert=7447 -->
+Spite takes 4.82 times naive C's time and 5.01 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=35861 naive=7442 expert=7156 -->
 <!-- /timings -->

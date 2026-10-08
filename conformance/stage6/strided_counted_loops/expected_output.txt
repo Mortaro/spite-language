@@ -1,0 +1,5 @@
+size 0 windows 0 smoothed 0
+size 1 windows 0 smoothed 1
+size 2 windows 0 smoothed 12
+size 3 windows 86 smoothed 33
+size 4 windows 232 smoothed 64
