@@ -1,37 +1,36 @@
 var host_names = List<String>()
-var host_prototypes = Dictionary<String>()
-var host_slots = Dictionary<String>()
+var host_prototypes = Dictionary<String, String>()
+var host_slots = Dictionary<String, String>()
 var host_classes = List<String>()
 var host_class_identities = List<String>()
-var host_layouts = Dictionary<String>()
-var host_fields = Dictionary<String>()
-var running_fields = Dictionary<String>()
-var host_key_sites = Dictionary<Analysis.SpiteType>()
+var host_layouts = Dictionary<String, String>()
+var host_fields = Dictionary<String, String>()
+var running_fields = Dictionary<String, String>()
 var host_facts = ProgramFacts()
 var host_variants = List<String>()
 var host_instances = List<String>()
 var host_literals = List<String>()
 var host_waiting = List<String>()
-var host_slot_owners = Dictionary<String>()
+var host_slot_owners = Dictionary<String, String>()
 var split_done = false
-var host_members = Dictionary<String>()
-var host_declared = Dictionary<String>()
+var host_members = Dictionary<String, String>()
+var host_declared = Dictionary<String, String>()
 var library_bodies = List<String>()
 var library_body_names = List<String>()
-var host_hashes = Dictionary<String>()
+var host_hashes = Dictionary<String, String>()
 var stale_pieces = List<String>()
 var running_breakpoints = List<String>()
-var host_snapshot = Dictionary<String>()
+var host_snapshot = Dictionary<String, String>()
 var program_shaker = TreeShaker()
-var program_prototypes = Dictionary<String>()
+var program_prototypes = Dictionary<String, String>()
 var program_prototype_text = ""
 var generation = 0
-var running_hashes = Dictionary<String>()
+var running_hashes = Dictionary<String, String>()
 var installed = List<String>()
 var added = List<String>()
 var removed = List<String>()
 
-func record_host(prototype_text: String, bodies: String, constants: Dictionary<String>) {
+func record_host(prototype_text: String, bodies: String, constants: Dictionary<String, String>) {
     var shaker = TreeShaker()
     shaker.split_pieces(bodies)
     var piece_index = 0
@@ -161,7 +160,7 @@ func baseline_lines(
     typedefs: List<String>,
     class_names: List<String>,
     class_identities: List<String>,
-    constants: Dictionary<String>,
+    constants: Dictionary<String, String>,
 ): List<String> {
     var lines = List<String>()
     var host_lines = host_text.split("\n")
@@ -282,30 +281,7 @@ func read_host_line(kind: String, rest: String) {
         var tab = rest.index_of("\t")
         crash tab > 0
         host_snapshot[rest.slice(tab + 1, rest_length)] = rest.slice(0, tab)
-    } else if kind == "key" and space > 0 {
-        var label = rest.slice(0, space)
-        var key_type = number_key_type(label)
-        crash key_type
-        host_key_sites[rest.slice(space + 1, rest_length)] = key_type
     }
-}
-
-func number_key_type(label: String): Analysis.SpiteType? {
-    switch label {
-        "Tiny": return scalar_key('tiny_kind')
-        "Byte": return scalar_key('byte_kind')
-        "Short": return scalar_key('short_kind')
-        "UnsignedShort": return scalar_key('unsigned_short_kind')
-        "Integer": return scalar_key('integer_kind')
-        "UnsignedInteger": return scalar_key('unsigned_integer_kind')
-        "Long": return scalar_key('long_kind')
-        "UnsignedLong": return scalar_key('unsigned_long_kind')
-        _: return null
-    }
-}
-
-func scalar_key(kind: Analysis.Types.NumericKind): Analysis.SpiteType {
-    return Analysis.Types.ScalarType(kind)
 }
 
 func read_state(text: String) {
@@ -367,8 +343,8 @@ func is_changed(path: String, hash: String): Boolean {
     return true
 }
 
-func host_enum_numbers(c_name: String): Dictionary<Integer> {
-    var numbers = Dictionary<Integer>()
+func host_enum_numbers(c_name: String): Dictionary<String, Integer> {
+    var numbers = Dictionary<String, Integer>()
     var layout = host_layouts[c_name]
     if not layout {
         return numbers
@@ -415,8 +391,8 @@ func layout_problem(typedefs: List<String>, moving: List<String>): String {
     return "the attributes of {changed.join(", ")} changed, and the running program's instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that part of the change to reload the rest"
 }
 
-func new_prototypes(prototype_text: String, shaker: TreeShaker): Dictionary<String> {
-    var prototypes = Dictionary<String>()
+func new_prototypes(prototype_text: String, shaker: TreeShaker): Dictionary<String, String> {
+    var prototypes = Dictionary<String, String>()
     var lines = prototype_text.split("\n")
     var index = 0
     while index < lines.count() {
@@ -444,7 +420,7 @@ func running_declared_name(line: String, shaker: TreeShaker): String {
     return name
 }
 
-func is_bound(name: String, prototypes: Dictionary<String>, local_names: Dictionary<String>): Boolean {
+func is_bound(name: String, prototypes: Dictionary<String, String>, local_names: Dictionary<String, String>): Boolean {
     var running = host_prototypes[name]
     var prototype = prototypes[name]
     if not running or not prototype {
@@ -461,8 +437,8 @@ func split_program(prototype_text: String, bodies: String) {
     program_prototype_text = prototype_text
 }
 
-func piece_hash(piece: String, constants: Dictionary<String>): String {
-    var renamed = Dictionary<String>()
+func piece_hash(piece: String, constants: Dictionary<String, String>): String {
+    var renamed = Dictionary<String, String>()
     var hash: UnsignedLong = 1469598103934665603
     var piece_length = piece.length()
     var index = 0
@@ -489,8 +465,8 @@ func mixed_name(
     piece: String,
     start: Integer,
     end: Integer,
-    constants: Dictionary<String>,
-    renamed: Dictionary<String>,
+    constants: Dictionary<String, String>,
+    renamed: Dictionary<String, String>,
 ): UnsignedLong {
     var generated = piece.code_at(start) == 115 and end - start > 7 and piece.matches_at("spite_", start)
     if generated and holds_digit(piece, start + 6, end) {
@@ -520,7 +496,7 @@ func holds_digit(piece: String, start: Integer, end: Integer): Boolean {
     return false
 }
 
-func stable_name(token: String, constants: Dictionary<String>, renamed: Dictionary<String>): String {
+func stable_name(token: String, constants: Dictionary<String, String>, renamed: Dictionary<String, String>): String {
     if constants[token] {
         return "\"{constants[token]}\""
     }
@@ -551,7 +527,7 @@ func is_digit_code(code: Integer): Boolean {
     return code >= 48 and code <= 57
 }
 
-func changed_bodies(constants: Dictionary<String>): List<String> {
+func changed_bodies(constants: Dictionary<String, String>): List<String> {
     var changed = List<String>()
     var index = 0
     while index < program_shaker.pieces.count() {
@@ -628,8 +604,8 @@ func mentions_word(text: String, name: String): Boolean {
     return false
 }
 
-func library_hashes(constants: Dictionary<String>): Dictionary<String> {
-    var hashes = Dictionary<String>()
+func library_hashes(constants: Dictionary<String, String>): Dictionary<String, String> {
+    var hashes = Dictionary<String, String>()
     var index = 0
     while index < library_bodies.count() {
         crash library_body_names[index]
@@ -725,7 +701,7 @@ func library(
     var shaker = program_shaker
     var prototypes = program_prototypes
     var prototype_text = program_prototype_text
-    var local_names = Dictionary<String>()
+    var local_names = Dictionary<String, String>()
     var roots = List<Integer>()
     var index = 0
     while index < slot_names.count() and index < slot_owners.count() {
@@ -867,7 +843,7 @@ func library(
     return "{parts.join("\n")}\n"
 }
 
-func add_host_pieces(shaker: TreeShaker, prototypes: Dictionary<String>) {
+func add_host_pieces(shaker: TreeShaker, prototypes: Dictionary<String, String>) {
     var index = 0
     while index < host_names.count() {
         var name = host_names[index]

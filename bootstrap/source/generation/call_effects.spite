@@ -1,14 +1,14 @@
 var shape = Analysis.AstShape()
-var by_function = Dictionary<FunctionEffects>()
+var by_function = Dictionary<String, FunctionEffects>()
 var function_keys = List<String>()
-var field_classes = Dictionary<String>()
-var element_classes = Dictionary<String>()
-var return_classes = Dictionary<String>()
-var class_names = Dictionary<Boolean>()
-var plain_fields = Dictionary<Boolean>()
-var counted_field_names = Dictionary<Boolean>()
-var type_field_classes = Dictionary<String>()
-var shared_defaults = Dictionary<Boolean>()
+var field_classes = Dictionary<String, String>()
+var element_classes = Dictionary<String, String>()
+var return_classes = Dictionary<String, String>()
+var class_names = Dictionary<String, Boolean>()
+var plain_fields = Dictionary<String, Boolean>()
+var counted_field_names = Dictionary<String, Boolean>()
+var type_field_classes = Dictionary<String, String>()
+var shared_defaults = Dictionary<String, Boolean>()
 var generator: Generator? = null
 
 func study(class_files: List<Discovery.DiscoveredClass>, studying_generator: Generator) {
@@ -652,7 +652,7 @@ func pass_to_callers(changed: FunctionEffects, fresh: List<String>, waiting: Lis
     }
 }
 
-func thread_reached_classes(): Dictionary<Boolean> {
+func thread_reached_classes(): Dictionary<String, Boolean> {
     var entries = List<String>()
     var index = 0
     while index < function_keys.count() {
@@ -665,7 +665,7 @@ func thread_reached_classes(): Dictionary<Boolean> {
     return reached_classes(entries)
 }
 
-func thread_reached_functions(): Dictionary<Boolean> {
+func thread_reached_functions(): Dictionary<String, Boolean> {
     var entries = List<String>()
     var index = 0
     while index < function_keys.count() {
@@ -675,7 +675,7 @@ func thread_reached_functions(): Dictionary<Boolean> {
         add_parallel_each_entries(by_function[function_key], entries)
         index = index + 1
     }
-    var seen = Dictionary<Boolean>()
+    var seen = Dictionary<String, Boolean>()
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
@@ -690,7 +690,7 @@ func thread_reached_functions(): Dictionary<Boolean> {
     return seen
 }
 
-func writes_from_reached(class_name: String, reached: Dictionary<Boolean>): Boolean {
+func writes_from_reached(class_name: String, reached: Dictionary<String, Boolean>): Boolean {
     var index = 0
     while index < function_keys.count() {
         var key = function_keys[index]
@@ -771,9 +771,9 @@ func resolved_key(key: String): String {
     return ""
 }
 
-func reached_classes(entries: List<String>): Dictionary<Boolean> {
-    var classes = Dictionary<Boolean>()
-    var seen = Dictionary<Boolean>()
+func reached_classes(entries: List<String>): Dictionary<String, Boolean> {
+    var classes = Dictionary<String, Boolean>()
+    var seen = Dictionary<String, Boolean>()
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
@@ -791,8 +791,8 @@ func reached_classes(entries: List<String>): Dictionary<Boolean> {
     return classes
 }
 
-func reached_functions(entries: List<String>): Dictionary<Boolean> {
-    var seen = Dictionary<Boolean>()
+func reached_functions(entries: List<String>): Dictionary<String, Boolean> {
+    var seen = Dictionary<String, Boolean>()
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
@@ -809,7 +809,7 @@ func reached_functions(entries: List<String>): Dictionary<Boolean> {
 
 func reached_constructions(entries: List<String>): List<String> {
     var constructed = List<String>()
-    var seen = Dictionary<Boolean>()
+    var seen = Dictionary<String, Boolean>()
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()
@@ -909,7 +909,7 @@ func add_callee_entry(call: EffectCall, entries: List<String>) {
 
 func reached_accesses(entries: List<String>): List<String> {
     var accesses = List<String>()
-    var seen = Dictionary<Boolean>()
+    var seen = Dictionary<String, Boolean>()
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()

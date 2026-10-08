@@ -7,7 +7,7 @@ func LoneHole() {
     var named = "{counter.label.text}"
     var typed: String = "{counter.click_count.clicks}"
     show("{counter.click_count.clicks}")
-    var keyed = Dictionary<Integer>()
+    var keyed = Dictionary<String, Integer>()
     keyed["{counter.click_count.clicks}"] = 1
     var line = "clicks: "
     line = line + "{counter.click_count.clicks}"

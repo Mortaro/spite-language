@@ -1,7 +1,7 @@
 var command = ""
 var arguments = List<String>()
 var working_directory = ""
-var environment_variables = Dictionary<String>()
+var environment_variables = Dictionary<String, String>()
 var last_output = ""
 var heap = Memory.Heap()
 

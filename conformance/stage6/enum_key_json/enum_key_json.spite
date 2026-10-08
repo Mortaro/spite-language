@@ -1,0 +1,21 @@
+enum Color {
+    'red'
+    'green'
+}
+
+var console = Console()
+
+func EnumKeyJson() {
+    var by_color = Dictionary<Color, Integer>()
+    by_color['green'] = 2
+    by_color['red'] = 1
+    var writer = JsonWriter<Dictionary<Color, Integer>>()
+    var text = writer.write(by_color)
+    console.print(text)
+    var reader = JsonReader<Dictionary<Color, Integer>>()
+    var read = reader.read(text)
+    crash read
+    var green = read['green']
+    crash green
+    console.print("green", green)
+}

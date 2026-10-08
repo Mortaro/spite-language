@@ -1,7 +1,7 @@
 var console = Console()
 
 func NumberKeys() {
-    var ages = Dictionary<String>()
+    var ages = Dictionary<Integer, String>()
     ages[7] = "seven"
     ages[3] = "three"
     ages[42] = "forty-two"
@@ -29,7 +29,7 @@ func NumberKeys() {
         console.print(key, "->", ages[key])
         index = index + 1
     }
-    var distances = Dictionary<Integer>()
+    var distances = Dictionary<Long, Integer>()
     var far: Long = 5000000000
     distances[far] = 1
     distances[far + 1] = 2
@@ -53,7 +53,7 @@ func NumberKeys() {
     shelf_count = shelf.labels.count()
     var copied_keys = copied.keys().join(",")
     console.print(copied_count, shelf_count, copied_keys)
-    var many = Dictionary<Integer>()
+    var many = Dictionary<Integer, Integer>()
     var number = 0
     while number < 1000 {
         many[number * 7] = number
@@ -65,9 +65,9 @@ func NumberKeys() {
     var has_zero = many.has(0)
     var has_seven = many.has(7)
     console.print(many_count, many[6993], has_zero, has_seven)
-    var ages_writer = JsonWriter<Dictionary<String>>()
+    var ages_writer = JsonWriter<Dictionary<Integer, String>>()
     var ages_text = ages_writer.write(ages)
-    var ages_reader = JsonReader<Dictionary<String>>()
+    var ages_reader = JsonReader<Dictionary<Integer, String>>()
     var read_ages = ages_reader.read(ages_text)
     crash read_ages
     crash read_ages[42]
@@ -86,7 +86,7 @@ func key_itself(key: Integer): Integer {
     return key
 }
 
-func count_evens(counted: Dictionary<Integer>): Integer {
+func count_evens(counted: Dictionary<Long, Integer>): Integer {
     var evens = 0
     var keys = counted.keys()
     var index = 0

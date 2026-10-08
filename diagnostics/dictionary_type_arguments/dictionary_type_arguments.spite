@@ -1,0 +1,8 @@
+var console = Console()
+
+func DictionaryTypeArguments() {
+    var scores = Dictionary<Integer>()
+    var nested = Dictionary<String, Integer, Integer>()
+    var typed: Dictionary<String> = Dictionary<String, String>()
+    console.print("never compiled")
+}

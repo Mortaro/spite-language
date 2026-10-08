@@ -15,8 +15,8 @@ func key_of(index: Integer): Integer {
     return index * 7919 % 1000003
 }
 
-func make_table(count: Integer): Dictionary<Integer> {
-    var by_number = Dictionary<Integer>()
+func make_table(count: Integer): Dictionary<Integer, Integer> {
+    var by_number = Dictionary<Integer, Integer>()
     var index = 0
     while index < count {
         var key = key_of(index)
@@ -26,7 +26,7 @@ func make_table(count: Integer): Dictionary<Integer> {
     return by_number
 }
 
-func look_up(by_number: Dictionary<Integer>, count: Integer): Long {
+func look_up(by_number: Dictionary<Integer, Integer>, count: Integer): Long {
     var total: Long = 0
     var round = 0
     while round < 40 {

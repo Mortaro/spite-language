@@ -95,7 +95,7 @@ on the spot is "only a named value has memory of its own: give this value a name
   stays the private error. A serializer and `to_debug()` leave them out by testing `attribute.name`, which folds.
 - **A number's, a `Boolean`'s and a `String`'s `.attributes` is empty**: the compiler stores those values itself,
   so the fields their library classes declare to say so are not attributes a walk could read or write.
-- **A `List<T>`'s or `Dictionary<T>`'s attributes are its entries** (named by index or by key), not the fields of the
+- **A `List<T>`'s or `Dictionary<Key, Value>`'s attributes are its entries** (named by index or by key), not the fields of the
   class that stores them, so a class object's `.attributes` is empty for a collection.
 
 ## Reaching a class

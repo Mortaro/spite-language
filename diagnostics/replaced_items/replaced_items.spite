@@ -1,6 +1,6 @@
 var console = Console()
 var layouts = [Layout()]
-var counts = Dictionary<Integer>()
+var counts = Dictionary<String, Integer>()
 var lookup = Lookup()
 
 func ReplacedItems() {

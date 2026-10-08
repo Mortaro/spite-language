@@ -1,8 +1,8 @@
 func places_table(
     c_text: String,
-    owners: Dictionary<String>,
-    names: Dictionary<String>,
-    lines_of: Dictionary<Integer>,
+    owners: Dictionary<String, String>,
+    names: Dictionary<String, String>,
+    lines_of: Dictionary<String, Integer>,
 ): String {
     var shaker = TreeShaker()
     shaker.split_pieces(c_text)
@@ -73,9 +73,9 @@ func is_function_definition(piece: String, name: String): Boolean {
 
 func place_entry(
     c_name: String,
-    owners: Dictionary<String>,
-    names: Dictionary<String>,
-    lines_of: Dictionary<Integer>,
+    owners: Dictionary<String, String>,
+    names: Dictionary<String, String>,
+    lines_of: Dictionary<String, Integer>,
 ): String {
     var owner = owners[c_name]
     var name = names[c_name]

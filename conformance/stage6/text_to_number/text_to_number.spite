@@ -1,5 +1,5 @@
 var console = Console()
-var settings = Dictionary<Integer>()
+var settings = Dictionary<String, Integer>()
 
 func TextToNumber() {
     whole("42")

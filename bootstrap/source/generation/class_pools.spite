@@ -1,9 +1,9 @@
 var lines = List<String>()
-var free_lines = Dictionary<Integer>()
-var made = Dictionary<Boolean>()
-var refused = Dictionary<Boolean>()
+var free_lines = Dictionary<String, Integer>()
+var made = Dictionary<String, Boolean>()
+var refused = Dictionary<String, Boolean>()
 var pooled_classes = List<String>()
-var pooled = Dictionary<Boolean>()
+var pooled = Dictionary<String, Boolean>()
 
 # ../../../docs/optimizations.md#objects-of-one-class-sit-together
 func with_pools(types: String, bodies: String, sharing: CountSharing?): String {

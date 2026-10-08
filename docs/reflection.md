@@ -330,7 +330,7 @@ There is no root namespace object: a namespace at the top has `null` as its `.pa
 | `.owner` | the class it belongs to | `alive.owner` is `Monster` |
 | `.is_resumable` | it can reach a wait (a sleep, a file or socket read), so it is also compiled as a state machine that can pause there and be resumed ([concurrency.md](concurrency.md)) | `load_each.is_resumable` |
 | `.returned_literal` | the text literal it returns | `greeting.returned_literal` is `grr` |
-| `.accesses` | a `Dictionary<Spite.Access>` keyed by name: every attribute and argument it reads or writes | `update_each.accesses.filter_written()` |
+| `.accesses` | a `Dictionary<String, Spite.Access>` keyed by name: every attribute and argument it reads or writes | `update_each.accesses.filter_written()` |
 
 A class's `.functions` holds `Spite.FunctionDeclaration`s, which have every member above but `.owner`'s instance:
 their `.owner` is the class that declares them. An instance's `.functions` holds `Spite.Function`s bound to it, and

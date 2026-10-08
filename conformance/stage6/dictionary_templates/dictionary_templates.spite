@@ -1,7 +1,7 @@
 var console = Console()
 
 func DictionaryTemplates() {
-    var shelf = Dictionary<Book>()
+    var shelf = Dictionary<String, Book>()
     var atlas = Book("atlas", 120, true)
     shelf["atlas"] = atlas
     var poems = Book("poems", 40, false)

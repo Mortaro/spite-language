@@ -22,8 +22,8 @@ func make_names(count: Integer): List<String> {
     return names
 }
 
-func index_names(names: List<String>): Dictionary<Integer> {
-    var by_name = Dictionary<Integer>()
+func index_names(names: List<String>): Dictionary<String, Integer> {
+    var by_name = Dictionary<String, Integer>()
     var index = 0
     while index < names.count() {
         var name = names[index]
@@ -33,7 +33,7 @@ func index_names(names: List<String>): Dictionary<Integer> {
     return by_name
 }
 
-func look_up(names: List<String>, by_name: Dictionary<Integer>): Long {
+func look_up(names: List<String>, by_name: Dictionary<String, Integer>): Long {
     var total: Long = 0
     var round = 0
     while round < 20 {

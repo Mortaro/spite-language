@@ -1,6 +1,6 @@
 # Lists, dictionaries and member templates
 
-`List<T>` and `Dictionary<T>` are not built into the compiler. They are ordinary generic classes written in Spite
+`List<T>` and `Dictionary<Key, Value>` are not built into the compiler. They are ordinary generic classes written in Spite
 (`library/list.spite` and `library/dictionary.spite`) over `Memory.Heap` and `Memory.Address`, the floor
 everything else is built on. The compiler keeps only the syntax: `[1, 2, 3]`, `list[index]`, and `List<T>()`. Read
 those two files to see exactly what a list does; write your own container the same way
@@ -53,29 +53,30 @@ list has no buffer; the first element gets one of four slots, and a full buffer 
 Names say where: `append` and `prepend`, never `add`; `remove_last`, never `pop`
 ([the rule](../specs/collections.md#listt-additions)).
 
-## `Dictionary<T>`
+## `Dictionary<Key, Value>`
 
-Keys are text or whole numbers, entries keep the order they were inserted in, and `get`, `has`, `set` and `[]`
-take the same time however many keys there are, because it is a hash table over two lists. `remove` is the exception: it
-moves every later entry down, as `remove_at` does on a list. There is nothing to write for the key: a dictionary
-given text keys is keyed by text, and one given whole numbers is keyed by numbers ([below](#keyed-by-numbers)).
+A dictionary names two types: what it is keyed by, then what it holds. `Dictionary<String, Integer>` finds a count
+by a name, `Dictionary<Integer, Monster>` a monster by its id, and `Dictionary<Player, Party>` a party by the player
+itself. Entries keep the order they were inserted in, and `get`, `has`, `set` and `[]` take the same time however
+many keys there are, because it is a hash table over two lists. `remove` is the exception: it moves every later
+entry down, as `remove_at` does on a list.
 
 | Member | Result | Notes |
 |---|---|---|
-| `Dictionary<T>()` | | an empty one, with no table until the first key |
+| `Dictionary<Key, Value>()` | | an empty one, with no table until the first key |
 | `dictionary[key] = value` | | replaces the value of a key already there; it calls `set_at(key, value)`, which is only called through `[] =` |
-| `dictionary[key]` | `T?` | `null` when the key is absent; it calls `get_at(key)`, which is only called through `[]` |
+| `dictionary[key]` | `Value?` | `null` when the key is absent; it calls `get_at(key)`, which is only called through `[]` |
 | `has(key)` | `Boolean` | |
 | `remove(key)` | | nothing happens when the key is absent |
 | `count()` | `Integer` | |
-| `keys()` / `values()` | `List<String>` (or the numbers) / `List<T>` | a fresh list, in insertion order |
-| `copy()` / `deep_copy()` | `Dictionary<T>` | |
+| `keys()` / `values()` | `List<Key>` / `List<Value>` | a fresh list, in insertion order |
+| `copy()` / `deep_copy()` | `Dictionary<Key, Value>` | |
 
 ```gdscript title=dictionary_tasks/dictionary_tasks.spite entry
 var console = Console()
 
 func DictionaryTasks() {
-    var inventory = Dictionary<Integer>()
+    var inventory = Dictionary<String, Integer>()
     inventory["sword"] = 1
     inventory["potion"] = 4
     inventory["potion"] = 6
@@ -109,8 +110,9 @@ not zero. `has(key)` asks the question directly.
 
 A dictionary whose entries are known when it is written is a **dictionary literal**: each entry a key, a colon and
 a value, apart with commas or one per line, as a list literal's items are (the formatter puts a short one on one
-line). Its keys are text or whole numbers
-written out, and its value type comes from the first value, or from the declared type when there is one:
+line). Its keys are text or whole numbers written out. Stored where a dictionary is declared, it takes the declared
+key and value types; otherwise its keys are `String` or `Integer`, as its first key is, and its value type is the
+first value's:
 
 ```gdscript title=dictionary_literals/dictionary_literals.spite entry
 var console = Console()
@@ -118,7 +120,7 @@ var console = Console()
 func DictionaryLiterals() {
     var plurals = {"cactus": "cacti", "foot": "feet"}
     var squares = {1: 1, 2: 4, 3: 9}
-    var weights: Dictionary<Float> = {"feather": 0.01, "anvil": 50}
+    var weights: Dictionary<String, Float> = {"feather": 0.01, "anvil": 50}
     crash plurals["cactus"]
     crash squares[3]
     crash weights["anvil"]
@@ -130,18 +132,24 @@ cacti 9 50
 ```
 
 A key written twice is an error (`"cactus" is written twice in this dictionary: keep one entry for each key`), and
-an empty dictionary is made with `Dictionary<T>()`, since `{}` names no value type.
+an empty dictionary is made with `Dictionary<Key, Value>()`, since `{}` names no types.
 
-### Keyed by numbers
+### Any type is a key
 
-Give a dictionary whole numbers (`Integer`, `Long` or any other whole-number type) and it is keyed by them: it
-stores and hashes the number itself, never text made from it, and `keys()` answers the numbers. Which kind a
-dictionary is keyed by is worked out while compiling from every key the program gives it, wherever the dictionary
-goes: a parameter, an attribute or a generic class that receives it is keyed the same way.
+The key type is what you look up by, and the dictionary finds a key the way that type means it:
+
+- **numbers** by their value: `Dictionary<Integer, String>` stores and hashes the number itself, never text made
+  from it, and `keys()` answers the numbers. A fraction is found by its value too, so `0.0` and `-0.0` are one key,
+  and so is every `not_a_number`;
+- **text** by its bytes, and a `Boolean` by whether it is `true`;
+- **an enum value** as itself: `Dictionary<Color, Integer>` holds one entry for `'red'`, whatever its name is
+  written as;
+- **an object** as that one object: two players with the same name are two keys, and the dictionary holds each
+  key, so an object cannot be freed while it is a key of one.
 
 ```gdscript title=number_keys_tasks/number_keys_tasks.spite entry
 var console = Console()
-var names = Dictionary<String>()
+var names = Dictionary<Integer, String>()
 
 func NumberKeysTasks() {
     names[3] = "fern"
@@ -162,9 +170,37 @@ seven reed
 ids 3,7 first plus 100 103
 ```
 
-One dictionary is keyed by one kind: given a text key in one place and a number in another, even through a
-parameter, it is a compile error naming both places. A number in a key is not turned into text; to key by text, give
-text.
+```gdscript title=party_keys/player.spite
+var name = ""
+
+func Player(new_name: String) {
+    name = new_name
+}
+```
+```gdscript title=party_keys/party_keys.spite entry
+var console = Console()
+
+func PartyKeys() {
+    var ada = Player("ada")
+    var other_ada = Player("ada")
+    var parties = Dictionary<Player, String>()
+    parties[ada] = "red team"
+    crash parties[ada]
+    var other_found = parties.has(other_ada)
+    console.print(ada.name, "plays for", parties[ada], "and the other ada is found:", other_found)
+}
+```
+```output
+ada plays for red team and the other ada is found: false
+```
+
+A class that declares its own `equals` says two of its objects can be equal without being one object, and a
+dictionary keyed by it would miss the equal one, so it is a compile error: key the dictionary by what `equals`
+compares instead, an id or a name. A key given where its type is not wanted is the same mismatch as any argument,
+and the [specification](../specs/collections.md#dictionarykey-value) lists every rule and error.
+
+The key and value types are what the program means, not how it is stored: the compiler keeps a dictionary however
+is fastest, as long as every lookup answers the same ([write it plainly](write_it_plainly.md#a-class-is-what-you-mean-not-how-it-is-stored)).
 
 ## `Vector<T>`: items inline
 
@@ -610,7 +646,7 @@ sword 50
 ```
 
 `filter_<member>()` and `sort_by_<member>()` return a new list holding the same elements, each one referenced
-once more and not copied. A `Dictionary<T>` answers every template through its values: `inventory.sum_price()` is
+once more and not copied. A `Dictionary` answers every template through its values: `inventory.sum_price()` is
 `inventory.values().sum_price()`.
 
 ```gdscript title=template_mistake/repository.spite

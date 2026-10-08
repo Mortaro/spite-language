@@ -3,12 +3,12 @@ var printer = Syntax.SourcePrinter()
 var recording = false
 var reports_overflow_checks = false
 var sections = List<List<String>>()
-var holders = Dictionary<String>()
+var holders = Dictionary<String, String>()
 var pending_elements = List<Analysis.SpiteType>()
 var pending_names = List<String>()
 var pending_paths = List<String>()
 var pending_lines = List<Integer>()
-var list_sites = Dictionary<String>()
+var list_sites = Dictionary<String, String>()
 var reference_lists = List<String>()
 var reference_texts = List<String>()
 

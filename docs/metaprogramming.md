@@ -606,7 +606,7 @@ func write(value: $value_type): String {
 ```
 
 Inside such a branch the types it was built from are named after the container's own codegen values:
-`$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
+`$value_type.element_type` for a `List<$element_type>`, `$value_type.key_type` and `$value_type.value_type` for a `Dictionary<$key_type, $value_type>`
 or a `$value_type?`, and a generic class's own names for one of its instances. They are tested like `$value_type`
 itself, `else if $list_type.element_type == Float`, and fold in every branch of the chain.
 

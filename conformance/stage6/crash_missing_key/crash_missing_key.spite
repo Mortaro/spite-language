@@ -1,13 +1,13 @@
 var console = Console()
 
 func CrashMissingKey() {
-    var scores = Dictionary<Integer>()
+    var scores = Dictionary<String, Integer>()
     scores["ann"] = 0
     show(scores, "ann")
     show(scores, "bea")
 }
 
-func show(scores: Dictionary<Integer>, player: String) {
+func show(scores: Dictionary<String, Integer>, player: String) {
     crash scores[player]
     console.print(player, scores[player])
 }

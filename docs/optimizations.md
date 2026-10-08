@@ -79,7 +79,7 @@ emit nothing.
 | [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | every | fewer allocations |
 | [Allocation is the C library's, counted only where read](#allocation-is-the-c-librarys-counted-only-where-read) | every but `--debug-memory`, decided per program | nothing: `live_allocations()` still answers |
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | every | nothing but speed |
-| [A dictionary keyed by numbers hashes the numbers](#a-dictionary-keyed-by-numbers-hashes-the-numbers) | every | fewer allocations; compiling takes a second pass |
+| [A dictionary keyed by numbers hashes the numbers](#a-dictionary-keyed-by-numbers-hashes-the-numbers) | every | fewer allocations |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | every but `--hot-reload` | nothing but speed |
 | [Short text lives inside the `String`](#short-text-lives-inside-the-string) | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | every | nothing but speed; a folded call is the compiling machine's C library's answer |
@@ -939,7 +939,7 @@ the classes the changed files declare and nothing else of the program: every cla
 but every function the running program already has with the same prototype is left out, and the library reaches
 it in the running program. What compiling one class depends on in the others (the generic instances and
 functions the compiler made, which classes fit a shape, which functions can wait, which attributes are read, the
-call effects, the key kinds) comes from the manifest the build wrote beside the executable
+call effects) comes from the manifest the build wrote beside the executable
 ([repl.md](repl.md#how-it-works)). The library's C carries only the types and declarations its functions use.
 
 **When.** In every reload of a `--hot-reload` build, unless the changed code changes one of those facts (then the
@@ -1101,7 +1101,7 @@ Only when none of these applies does the singleton take [the lock](#singletons-a
 singleton
 
 var stage = 0
-var notes = Dictionary<Integer>()
+var notes = Dictionary<String, Integer>()
 
 func note(key: String) {
     notes[key] = stage
@@ -2328,23 +2328,19 @@ the dictionary would.
 
 **The case:** [benchmarks/a_dictionary_keyed_by_numbers_hashes_the_numbers](../benchmarks/a_dictionary_keyed_by_numbers_hashes_the_numbers/).
 
-**What it does.** A `Dictionary` the program gives whole-number keys
-([collections.md](collections.md#keyed-by-numbers)) is compiled as its own form of `library/dictionary.spite`, whose
+**What it does.** A `Dictionary` keyed by a whole-number type (`Dictionary<Integer, Monster>`,
+[collections.md](collections.md#any-type-is-a-key)) is compiled as its own form of `library/dictionary.spite`, whose
 bodies fold on the key's type as `Items` folds on `is_fixed_size`: its keys are a `List` of the numbers, a key is
 hashed by one multiply (Knuth's 6364136223846793005) instead of a loop over characters, and no `String` is made for a
 key, in a lookup or in the table. Where a text key keeps 31 bits of its hash in the slot beside the key's position, a
 key of 32 bits or fewer (`Integer`, `Short`, `Tiny`) keeps the key itself there, so a probe compares the slot with the
 key and never reads the list of keys; a `Long` key keeps the hash bits as text does, and is compared with the list
-only when they match. A dictionary given text keys compiles to the code it did before.
+only when they match. A key of any other type that is not text (a fraction, a `Boolean`, an enum value, an object)
+is hashed the same way from its bits, an object's being its address, and compared with the list when the bits in
+the slot match. A text-keyed dictionary compiles to the code it always did.
 
-**When.** Every build, for each dictionary whose keys are whole numbers. Which dictionaries those are is worked out
-while compiling: every place a dictionary is made or named (a `Dictionary<T>()`, an attribute, a parameter, a
-return type) is a site, sites a dictionary flows between are joined wherever the compiler checks that one
-dictionary type fits another, and a site's kind is that of the keys given to any site it is joined with. The key
-kinds are known only once the whole program has been compiled, so a program that gives some dictionary a number
-key is compiled a second time with them known (a third or more only when a dictionary's kind changes which
-generic classes are made, at most eight); a program with only text keys is compiled once, the compiler itself
-included.
+**When.** Every build, for each dictionary whose key type is a whole number. The type is written, so the form is
+chosen where the dictionary type is, and the program is compiled once.
 
 **What you notice.** Speed and allocations:
 [its case](../benchmarks/a_dictionary_keyed_by_numbers_hashes_the_numbers/), four million lookups in a dictionary of
@@ -2352,8 +2348,7 @@ included.
 count, and 17.2 ms for expert C, an open-addressed table made once at its size; the whole program
 [number_dictionary](../benchmarks/number_dictionary/) measures the same against a C programmer's open-addressed
 table. `conformance/stage6/number_keys` pins its 137 allocations, with a thousand number keys making none.
-`keys()` answers the numbers, and a mixed dictionary is a compile error. Compiling a program with number keys
-costs the second pass (reading and parsing are not repeated).
+`keys()` answers the numbers.
 
 ### Reading through a `type` without counting
 

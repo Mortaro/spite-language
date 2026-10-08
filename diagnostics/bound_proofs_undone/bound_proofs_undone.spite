@@ -15,7 +15,7 @@ func BoundProofsUndone() {
         console.print(names[index])
         index = index + 1
     }
-    var ages = Dictionary<Integer>()
+    var ages = Dictionary<Integer, Integer>()
     ages[3] = 36
     var known = ages.count()
     var key = 0

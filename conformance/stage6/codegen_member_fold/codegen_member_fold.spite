@@ -35,9 +35,9 @@ func describe_columns() {
 }
 
 func describe_ledgers() {
-    var counts = Ledger<Dictionary<Integer>>()
+    var counts = Ledger<Dictionary<String, Integer>>()
     counts.entries["apples"] = 3
-    var stock = Ledger<Dictionary<Item>>()
+    var stock = Ledger<Dictionary<String, Item>>()
     var sword = Item()
     stock.entries["first"] = sword
     var count_line = counts.describe()

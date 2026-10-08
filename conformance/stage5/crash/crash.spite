@@ -1,5 +1,5 @@
 var console = Console()
-var names = Dictionary<String>()
+var names = Dictionary<String, String>()
 
 func Crash() {
     names["ada"] = "Ada Lovelace"

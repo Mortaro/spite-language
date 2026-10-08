@@ -222,7 +222,7 @@ func _answer_fits(key: String, request: HttpRequest): Boolean {
     if not status_line or not status_line.starts_with("HTTP/1.1 101") {
         return false
     }
-    var headers = Dictionary<String>()
+    var headers = Dictionary<String, String>()
     var count = 0
     var ended = false
     while not ended {

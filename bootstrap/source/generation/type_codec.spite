@@ -58,8 +58,6 @@ func write_enum(written_enum: Analysis.Types.EnumType, written: List<String>) {
 
 func write_dictionary(dictionary: Analysis.Types.DictionaryType, written: List<String>) {
     written.append("D")
-    var site = escaped(dictionary.site)
-    written.append(site)
     var element = dictionary.element
     write_type(element, written)
     var key = dictionary.key
@@ -200,13 +198,11 @@ func read_list(): Analysis.SpiteType? {
 }
 
 func read_dictionary(): Analysis.SpiteType? {
-    var site_text = next_token()
-    var site = unescaped(site_text)
     var element = read_type()
     assert element
     var key = read_type()
     assert key
-    var dictionary_type: Analysis.SpiteType = Analysis.Types.DictionaryType(element, key, site)
+    var dictionary_type: Analysis.SpiteType = Analysis.Types.DictionaryType(element, key)
     return dictionary_type
 }
 

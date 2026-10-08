@@ -3,11 +3,11 @@ var type_shape = Analysis.TypeShape()
 var builder = CodeBuilder()
 var classes = List<Analysis.ClassInfo>()
 var classes_indexed = 0
-var class_by_qualified = Dictionary<Integer>()
-var version_notes = Dictionary<String>()
-var pinned_versions_of = Dictionary<List<String>>()
-var pinned_versions_in = Dictionary<List<String>>()
-var class_by_c_name = Dictionary<Integer>()
+var class_by_qualified = Dictionary<String, Integer>()
+var version_notes = Dictionary<String, String>()
+var pinned_versions_of = Dictionary<String, List<String>>()
+var pinned_versions_in = Dictionary<String, List<String>>()
+var class_by_c_name = Dictionary<String, Integer>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var unknown_simple_name = ""
@@ -16,7 +16,7 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
-var reaching_classes = Dictionary<Boolean>()
+var reaching_classes = Dictionary<String, Boolean>()
 var copy_table_written = false
 var weak_copy_pending_written = false
 var terminal_if: Syntax.Statements.IfStatement? = null
@@ -31,14 +31,14 @@ var crash_capture_counter = 0
 var falling_ends = List<String>()
 var symbol_names = List<String>()
 var symbol_lookup_used = false
-var symbol_positions = Dictionary<Integer>()
+var symbol_positions = Dictionary<String, Integer>()
 var reflected_bindings = List<ReflectedBinding>()
 var reflected_body = List<Syntax.Statements.Statement>()
 var reflected_element_counter = 0
 var specialisations = List<Specialisation>()
-var specialisation_names = Dictionary<String>()
+var specialisation_names = Dictionary<String, String>()
 var reflection_declarations = List<Syntax.Statements.FunctionDeclaration>()
-var reflection_declaration_positions = Dictionary<Integer>()
+var reflection_declaration_positions = Dictionary<String, Integer>()
 var constant_return_names = List<String>()
 var namespaces_known = List<String>()
 var namespaces_known_for = -1
@@ -47,7 +47,7 @@ var source_paths_used = false
 var scanning_parameter = false
 var declaring_reflected_value = false
 var scanned_body = List<Syntax.Statements.Statement>()
-var conversion_names = Dictionary<String>()
+var conversion_names = Dictionary<String, String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
 var foreign_library_headers = List<String>()
@@ -104,9 +104,9 @@ var parallel_site_places = List<String>()
 var guarded_classes = List<Analysis.ClassInfo>()
 var guarded_functions = List<Analysis.FunctionInfo>()
 var guarded_positions = List<Integer>()
-var wrapped_function_names = Dictionary<Boolean>()
+var wrapped_function_names = Dictionary<String, Boolean>()
 var read_guarded_names = List<String>()
-var reading_function_names = Dictionary<Boolean>()
+var reading_function_names = Dictionary<String, Boolean>()
 var pure_operators_known = false
 var pure_operators = false
 var coarse_holder = ""
@@ -123,7 +123,7 @@ var coarse_site_keys = List<String>()
 var coarse_site_starts = List<Integer>()
 var coarse_site_ends = List<Integer>()
 var atomic_fields = List<String>()
-var lone_atomic_answers = Dictionary<String>()
+var lone_atomic_answers = Dictionary<String, String>()
 var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
 var atomic_class_names = List<String>()
@@ -132,8 +132,8 @@ var touch_callers = List<String>()
 var touch_callees = List<String>()
 var outside_classes = List<Analysis.ClassInfo>()
 var outside_class_names = List<String>()
-var outside_written = Dictionary<Boolean>()
-var read_only_classes = Dictionary<Boolean>()
+var outside_written = Dictionary<String, Boolean>()
+var read_only_classes = Dictionary<String, Boolean>()
 var emitted_guards = List<String>()
 var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
@@ -161,17 +161,17 @@ var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
 var machine_candidate_guarded = List<Boolean>()
-var machine_guard_reached: Dictionary<Boolean>? = null
-var machine_guard_touching = Dictionary<Boolean>()
-var waiting_names = Dictionary<Boolean>()
-var value_dispatcher_names = Dictionary<String>()
+var machine_guard_reached: Dictionary<String, Boolean>? = null
+var machine_guard_touching = Dictionary<String, Boolean>()
+var waiting_names = Dictionary<String, Boolean>()
+var value_dispatcher_names = Dictionary<String, String>()
 var value_dispatcher_keys = List<String>()
 var value_dispatcher_waits = List<ValueWait>()
 var value_target_keys = List<String>()
-var value_targets_noted = Dictionary<Boolean>()
+var value_targets_noted = Dictionary<String, Boolean>()
 var value_target_classes = List<Analysis.ClassInfo>()
 var value_target_functions = List<Analysis.FunctionInfo>()
-var machine_names = Dictionary<Boolean>()
+var machine_names = Dictionary<String, Boolean>()
 var machine_queue_classes = List<Analysis.ClassInfo>()
 var machine_queue_functions = List<Analysis.FunctionInfo>()
 var machine_queue_kinds = List<String>()
@@ -202,12 +202,12 @@ var development = false
 var keeps_internals = false
 var hot_reload = false
 var in_specialised_copy = false
-var dispatched_names = Dictionary<Boolean>()
+var dispatched_names = Dictionary<String, Boolean>()
 var dispatched_owners = List<Analysis.ClassInfo>()
 var dispatched_functions = List<Analysis.FunctionInfo>()
 var dispatched_positions = List<Integer>()
 var dispatched_texts = List<String>()
-var shape_operator_names = Dictionary<Boolean>()
+var shape_operator_names = Dictionary<String, Boolean>()
 var shape_operator_unions = List<Analysis.UnionInfo>()
 var shape_operator_operators = List<Syntax.Expressions.BinaryOperator>()
 var shape_operator_positions = List<Integer>()
@@ -219,9 +219,9 @@ var hot_reload_arguments = ""
 var hot_reload_program_file = ""
 var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
-var hot_owner_index = Dictionary<String>()
+var hot_owner_index = Dictionary<String, String>()
 var hot_owner_indexed = -1
-var reload_renames = Dictionary<String>()
+var reload_renames = Dictionary<String, String>()
 var reload_renames_given = false
 var used_renames = List<String>()
 var hot_slot_displays = List<String>()
@@ -229,15 +229,15 @@ var layout_host: HotReloadLibrary? = null
 var breakpoint_sites = List<String>()
 var matched_breakpoints = List<String>()
 var emitted_breakpoints = List<String>()
-var enum_typedefs = Dictionary<String>()
-var field_signatures = Dictionary<String>()
+var enum_typedefs = Dictionary<String, String>()
+var field_signatures = Dictionary<String, String>()
 var migrating_classes = List<String>()
 var changing_layouts = List<String>()
 var migration_notes = List<String>()
 var live_slot_positions = List<Integer>()
 var live_slot_owners = List<String>()
 var live_slot_displays = List<String>()
-var seeded_class_ids = Dictionary<Integer>()
+var seeded_class_ids = Dictionary<String, Integer>()
 var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
@@ -245,7 +245,7 @@ var singleton_names = List<String>()
 var singleton_classes = List<Analysis.ClassInfo>()
 var singleton_functions = List<String>()
 var singleton_displays = List<String>()
-var singleton_argument_slots = Dictionary<Integer>()
+var singleton_argument_slots = Dictionary<String, Integer>()
 var tracked_class_names = List<String>()
 var singleton_releases = List<String>()
 var class_object_displays = List<String>()
@@ -263,34 +263,22 @@ var working_folder = ""
 var language_folder = ""
 var namespace_tree_used = false
 var run_time_kinds_used = false
-var class_object_kinds = Dictionary<String>()
+var class_object_kinds = Dictionary<String, String>()
 var namespace_object_keys = List<String>()
 var namespace_objects_emitted = 0
 var crash_map_lines = List<String>()
 var site_ordinal = 0
 var current_site_id = ""
-var site_symbols = Dictionary<String>()
+var site_symbols = Dictionary<String, String>()
 var functions_function_classes = List<Analysis.ClassInfo>()
 var dictionary_names = List<String>()
-var number_key_sites = Dictionary<Analysis.SpiteType>()
-var key_site_parents = Dictionary<String>()
-var key_sites = List<String>()
-var text_key_uses = Dictionary<KeyUse>()
-var number_key_uses = Dictionary<KeyUse>()
-var number_key_types = Dictionary<Analysis.SpiteType>()
-var learned_key_sites = Dictionary<Analysis.SpiteType>()
-var key_use_notes = Dictionary<String>()
-var learned_key_use_notes = Dictionary<String>()
-var key_sites_changed = false
-var another_pass_follows_a_change = false
-var key_flows_ignored = false
-var shape_caller_names = Dictionary<Boolean>()
-var shape_callers_by_c_name = Dictionary<ShapeCaller>()
-var shape_caller_positions = Dictionary<Integer>()
+var shape_caller_names = Dictionary<String, Boolean>()
+var shape_callers_by_c_name = Dictionary<String, ShapeCaller>()
+var shape_caller_positions = Dictionary<String, Integer>()
 var emitting_machines = false
 var shape_starters = List<ShapeCaller>()
 var renders_program = true
-var partial_snapshot = Dictionary<String>()
+var partial_snapshot = Dictionary<String, String>()
 var reload_host: HotReloadLibrary? = null
 var reload_changed_paths = List<String>()
 var reload_owners = List<String>()
@@ -301,17 +289,12 @@ var listed_function_counts = List<Integer>()
 var listed_function_positions = List<Integer>()
 var instance_lines = List<String>()
 var literal_lines = List<String>()
-var skipped_in_reload = Dictionary<Boolean>()
+var skipped_in_reload = Dictionary<String, Boolean>()
 var partial_refusal = ""
 var program_facts = ProgramFacts()
 var fact_owner = ""
-var key_site_owners = Dictionary<String>()
-var key_site_functions = Dictionary<String>()
-var key_ties = Dictionary<String>()
-var number_key_use_sites = Dictionary<String>()
-var text_key_use_sites = Dictionary<String>()
-var namespace_walks = Dictionary<NamespaceWalk>()
-var class_member_names = Dictionary<String>()
+var namespace_walks = Dictionary<String, NamespaceWalk>()
+var class_member_names = Dictionary<String, String>()
 var class_names_by_id = List<String>()
 var class_identities = List<String>()
 var current_owner = ""
@@ -320,10 +303,10 @@ var has_error = false
 var error_message = ""
 var error_lines = List<String>()
 var errors_reported = 0
-var reported_lines = Dictionary<Boolean>()
+var reported_lines = Dictionary<String, Boolean>()
 var own_errors_hidden = 0
 var package_error_lines = List<String>()
-var hidden_package_errors = Dictionary<Integer>()
+var hidden_package_errors = Dictionary<String, Integer>()
 var statement_poisoned = false
 var poisoned_names = List<String>()
 var current_function = ""
@@ -352,12 +335,12 @@ var unliteral_reported = List<String>()
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
-var constant_texts = Dictionary<String>()
+var constant_texts = Dictionary<String, String>()
 var borrow_statements = List<Syntax.Statements.Statement>()
-var folded_dictionaries = Dictionary<Syntax.Expressions.ObjectLiteralExpression>()
+var folded_dictionaries = Dictionary<String, Syntax.Expressions.ObjectLiteralExpression>()
 var borrow_index = 0
 var borrowed_names = List<String>()
-var items_sources = Dictionary<String>()
+var items_sources = Dictionary<String, String>()
 var borrow_site = ""
 var lent_argument_positions = List<String>()
 var lent_argument_sources = List<String>()
@@ -366,7 +349,7 @@ var framed_argument_positions = List<String>()
 var framing_function_value = false
 var keeping_guard_reads = false
 var held_arguments_blocked = false
-var lent_callers = Dictionary<String>()
+var lent_callers = Dictionary<String, String>()
 var lent_parameter_names = List<String>()
 var lent_parameter_caller = ""
 var argument_expected_type: Analysis.SpiteType? = null
@@ -375,7 +358,7 @@ var walked_checks = List<Syntax.Statements.Statement>()
 var walked_local_count = 0
 var framed_walked_locals = List<String>()
 var walked_check_texts = List<String>()
-var walked_statement_places = Dictionary<Boolean>()
+var walked_statement_places = Dictionary<String, Boolean>()
 var walked_read_paths = List<String>()
 var walked_read_results = List<ExpressionResult>()
 var walked_read_owned = List<Boolean>()
@@ -386,10 +369,10 @@ var walk_refused = ""
 var walk_refused_attribute = ""
 var walk_partial: Syntax.Expressions.ObjectLiteralExpression? = null
 var returned_handle_escapes = true
-var constructed_roots = Dictionary<String>()
-var lent_results = Dictionary<String>()
-var lent_result_singletons = Dictionary<String>()
-var lent_result_labels = Dictionary<String>()
+var constructed_roots = Dictionary<String, String>()
+var lent_results = Dictionary<String, String>()
+var lent_result_singletons = Dictionary<String, String>()
+var lent_result_labels = Dictionary<String, String>()
 var parallel_handover = ""
 var parallel_keeps = List<String>()
 var parallel_writes = List<String>()
@@ -405,7 +388,7 @@ var program_irregular_plurals = List<String>()
 var placement = Placement()
 var old_spellings = OldSpellings()
 var maths = MathsPrimitives()
-var maths_macros = Dictionary<Boolean>()
+var maths_macros = Dictionary<String, Boolean>()
 var frame_candidates = List<String>()
 var lent_parameters_class = ""
 var frame_variadic_allowed = false
@@ -435,8 +418,8 @@ var every_class_listed = false
 var every_class_listed_by = ""
 var instance_listed_names = List<String>()
 var instance_study_owner = ""
-var read_list_answers = Dictionary<Boolean>()
-var class_read_lists = Dictionary<String>()
+var read_list_answers = Dictionary<String, Boolean>()
+var class_read_lists = Dictionary<String, String>()
 var pending_allocator: Syntax.Statements.AssignmentStatement? = null
 var chosen_allocator_lines = List<String>()
 var allocated_classes = List<Analysis.ClassInfo>()
@@ -446,18 +429,18 @@ var copied_in_names = List<String>()
 var given_back_names = List<String>()
 var allocator_union: Analysis.UnionInfo? = null
 var allocator_read_names = List<String>()
-var framed_positions = Dictionary<Integer>()
+var framed_positions = Dictionary<String, Integer>()
 var placed_names = List<String>()
 var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
 var placed_receiver_codes = List<String>()
-var boxed_value_types = Dictionary<Analysis.SpiteType>()
-var tagged_makers = Dictionary<Boolean>()
+var boxed_value_types = Dictionary<String, Analysis.SpiteType>()
+var tagged_makers = Dictionary<String, Boolean>()
 var constant_boxes = List<String>()
 var box_release_emitted = false
-var union_release_positions = Dictionary<Integer>()
+var union_release_positions = Dictionary<String, Integer>()
 var synthetic_value_classes = List<Analysis.ClassInfo>()
-var synthetic_value_types = Dictionary<Analysis.SpiteType>()
+var synthetic_value_types = Dictionary<String, Analysis.SpiteType>()
 var attribute_object_used = false
 var attribute_object_types = List<Analysis.SpiteType>()
 var attribute_object_names = List<String>()
@@ -465,8 +448,8 @@ var attribute_objects_emitted = 0
 var shape_flow_keys = List<String>()
 var shape_flow_sources = List<String>()
 var shape_flow_targets = List<Analysis.UnionInfo>()
-var read_attributes = Dictionary<Boolean>()
-var folded_words = Dictionary<Boolean>()
+var read_attributes = Dictionary<String, Boolean>()
+var folded_words = Dictionary<String, Boolean>()
 var loaded_folders = List<String>()
 var checkout_folders = List<String>()
 var classes_resolved = false
@@ -481,7 +464,7 @@ var item_values = ItemValues()
 var item_values_on = false
 var item_function: Analysis.FunctionInfo? = null
 var item_function_scope: Scope? = null
-var item_local_terms = Dictionary<List<String>>()
+var item_local_terms = Dictionary<String, List<String>>()
 var parameter_writes = ParameterWrites()
 var writes_reasons = List<String>()
 var schema_hash = SchemaHash()
@@ -1053,10 +1036,6 @@ func generate(
     }
     if not outside_classes.is_empty() {
         finish_outside_writes()
-    }
-    settle_key_sites()
-    if key_sites_changed and another_pass_follows_a_change {
-        return ""
     }
     if not has_error {
         report_unused_attributes()
@@ -2868,40 +2847,6 @@ func instantiate_generic(
     return instantiated_with(template, types, codes, texts, label)
 }
 
-func fixed_key_types(sources: List<Analysis.SpiteType>): List<Analysis.SpiteType> {
-    var answers = List<Analysis.SpiteType>()
-    var index = 0
-    while index < sources.count() {
-        var answer = fixed_key_type(sources[index])
-        answers.append(answer)
-        index = index + 1
-    }
-    return answers
-}
-
-func fixed_key_type(spite_type: Analysis.SpiteType): Analysis.SpiteType {
-    var dictionary = type_shape.as_dictionary(spite_type)
-    if dictionary {
-        var element = dictionary.element
-        var fixed_element = fixed_key_type(element)
-        var key = dictionary.key
-        return Analysis.Types.DictionaryType(fixed_element, key, "")
-    }
-    var listed = type_shape.as_list(spite_type)
-    if listed {
-        var listed_element = listed.element
-        var fixed_listed = fixed_key_type(listed_element)
-        return list_type_of(fixed_listed)
-    }
-    var nullable = type_shape.as_nullable(spite_type)
-    if nullable {
-        var inner = nullable.inner
-        var fixed_inner = fixed_key_type(inner)
-        return nullable_type_of(fixed_inner)
-    }
-    return spite_type
-}
-
 func instantiated_with(
     template: Analysis.ClassInfo,
     types: List<Analysis.SpiteType>,
@@ -2923,9 +2868,6 @@ func instantiated_with(
     instance.entry_index = template.entry_index
     instance.codegen_names = template.codegen_names
     instance.codegen_types = types
-    if template.qualified_dotted == "Spite.Debug" or template.qualified_dotted == "Spite.DebugInstance" {
-        instance.codegen_types = fixed_key_types(types)
-    }
     instance.codegen_codes = codes
     instance.codegen_texts = texts
     instance.codegen_constraints = template.codegen_constraints
@@ -3042,6 +2984,23 @@ func refuse_unwritable(template: Analysis.ClassInfo, written: Analysis.SpiteType
     refused_serialiser = true
 }
 
+# ../../../specs/collections.md#dictionarykey-value
+func unwritable_key(key_type: Analysis.SpiteType, path: String, format: String): String {
+    var named = "its dictionary"
+    if not path.is_empty() {
+        named = "the dictionary '{path}'"
+    }
+    var shown = type_display_name(key_type)
+    if type_shape.as_class_ref(key_type) {
+        return "{named} is keyed by '{shown}' objects, each key one object's identity, which has no {format} form"
+    }
+    var textual = type_shape.as_string(key_type) or is_whole_number_type(key_type) or is_enum_type(key_type)
+    if format == "JSON" and not textual {
+        return "{named} is keyed by '{shown}', and a JSON key is text: key it by a String, a whole number or an enum value"
+    }
+    return ""
+}
+
 func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List<String>, format: String): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -3055,6 +3014,11 @@ func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List
     }
     var mapped = type_shape.as_dictionary(spite_type)
     if mapped {
+        var mapped_key = mapped.key
+        var key_problem = unwritable_key(mapped_key, path, format)
+        if not key_problem.is_empty() {
+            return key_problem
+        }
         var entry = mapped.element
         return unwritable_json(entry, path, visited, format)
     }
@@ -5129,7 +5093,7 @@ func written_enum_numbers(declaration: Syntax.Statements.EnumDeclaration): List<
     if not has_written_number(declaration) {
         return numbers
     }
-    var owners = Dictionary<String>()
+    var owners = Dictionary<String, String>()
     var next: Long = 0
     var index = 0
     while index < declaration.values.count() {
@@ -5299,8 +5263,8 @@ func enum_owner(information: Analysis.EnumInfo): Analysis.ClassInfo? {
     return find_class_by_qualified(information.owner_qualified)
 }
 
-func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
-    var numbers = Dictionary<Integer>()
+func enum_numbers(information: Analysis.EnumInfo): Dictionary<String, Integer> {
+    var numbers = Dictionary<String, Integer>()
     if information.is_numbered() {
         var index = 0
         while index < information.values.count() {
@@ -5339,7 +5303,7 @@ func enum_numbers(information: Analysis.EnumInfo): Dictionary<Integer> {
     return numbers
 }
 
-func refuse_renumbering(information: Analysis.EnumInfo, numbers: Dictionary<Integer>) {
+func refuse_renumbering(information: Analysis.EnumInfo, numbers: Dictionary<String, Integer>) {
     assert layout_host
     var running = layout_host.host_enum_numbers(information.c_name)
     var names = running.keys()
@@ -5358,7 +5322,7 @@ func refuse_renumbering(information: Analysis.EnumInfo, numbers: Dictionary<Inte
     }
 }
 
-func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<Integer>): List<String> {
+func removed_enum_values(information: Analysis.EnumInfo, numbers: Dictionary<String, Integer>): List<String> {
     var removed = List<String>()
     if not hot_reload {
         return removed
@@ -6403,8 +6367,8 @@ func namespace_walk(template: Analysis.TemplateInfo): NamespaceWalk {
 func index_namespace_walk(walk: NamespaceWalk) {
     walk.classes = walk.classes.sort_by_qualified_dotted()
     walk.member_names = member_names_of(walk.classes)
-    walk.first_positions = Dictionary<Integer>()
-    walk.last_positions = Dictionary<Integer>()
+    walk.first_positions = Dictionary<String, Integer>()
+    walk.last_positions = Dictionary<String, Integer>()
     var index = 0
     while index < walk.member_names.count() {
         var member_name = walk.member_names[index]
@@ -7898,8 +7862,28 @@ func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
             var swapped_type = c_type_name(value_type)
             return swapped_slots(swapped_type)
         }
+        "value_bits": return value_bits_body(value_type)
         _: return "return (int64_t)sizeof({c_type_name(value_type)});"
     }
+}
+
+# ../../../specs/collections.md#dictionarykey-value
+func value_bits_body(value_type: Analysis.SpiteType): String {
+    var scalar = type_shape.as_scalar(value_type)
+    if scalar {
+        if scalar.kind == 'float_kind' {
+            return "float spite_value = value_ == 0.0f ? 0.0f : value_; if (spite_value != spite_value) return 0x7fc00000ULL; uint32_t spite_bits; memcpy(&spite_bits, &spite_value, sizeof spite_bits); return (uint64_t)spite_bits;"
+        }
+        if scalar.kind == 'double_kind' {
+            return "double spite_value = value_ == 0.0 ? 0.0 : value_; if (spite_value != spite_value) return 0x7ff8000000000000ULL; uint64_t spite_bits; memcpy(&spite_bits, &spite_value, sizeof spite_bits); return spite_bits;"
+        }
+        return "return (uint64_t)value_;"
+    }
+    if is_enum_type(value_type) {
+        return "return (uint64_t)value_;"
+    }
+    var released = release_statement(value_type, "value_")
+    return "uint64_t spite_bits = (uint64_t)(uintptr_t)value_; {released} return spite_bits;"
 }
 
 func swapped_slots(c_type: String): String {
@@ -8105,14 +8089,12 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             return resolved
         }
         if name == "Dictionary" {
-            if named.arguments.count() == 2 {
-                return written_dictionary_type(named.arguments[0], named.arguments[1], current_namespace)
+            var argument_count = named.arguments.count()
+            if argument_count != 2 {
+                report_dictionary_arguments(argument_count)
+                return null
             }
-            var dictionary_element = resolve_single_type_argument(named, current_namespace)
-            if dictionary_element {
-                return dictionary_type_at(dictionary_element, named.line, named.column)
-            }
-            return null
+            return written_dictionary_type(named.arguments[0], named.arguments[1], current_namespace)
         }
         if name == "List" {
             var list_element = resolve_single_type_argument(named, current_namespace)
@@ -8268,7 +8250,7 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
         assert member_type or not segment.starts_with("argument_class(")
         if not member_type {
             report(
-                "{type_with_article(bound_type)} has no codegen value named '{segment}': List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+                "{type_with_article(bound_type)} has no codegen value named '{segment}': List<$element_type>, Dictionary<$key_type, $value_type> and $value_type? name theirs, and a generic class names its own",
             )
             return null
         }
@@ -8318,7 +8300,7 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
         assert member_type or not segment.starts_with("argument_class(")
         if not member_type {
             report(
-                "{type_with_article(bound_type)} has no codegen value named '${segment}': List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+                "{type_with_article(bound_type)} has no codegen value named '${segment}': List<$element_type>, Dictionary<$key_type, $value_type> and $value_type? name theirs, and a generic class names its own",
             )
             return null
         }
@@ -8379,8 +8361,77 @@ func written_dictionary_type(
     var written_key = resolve_generic_argument(key_argument, current_namespace)
     var written_value = resolve_generic_argument(value_argument, current_namespace)
     assert written_key and written_value
-    var written: Analysis.SpiteType = Analysis.Types.DictionaryType(written_value, written_key, "")
+    assert keyable(written_key)
+    var written: Analysis.SpiteType = Analysis.Types.DictionaryType(written_value, written_key)
     return written
+}
+
+func report_dictionary_arguments(given: Integer) {
+    report(
+        "a Dictionary names two types, its keys' and then its values', as in 'Dictionary<String, Integer>', and this one names {given}",
+    )
+}
+
+# ../../../specs/collections.md#dictionarykey-value
+func keyable(key_type: Analysis.SpiteType): Boolean {
+    var shown = type_display_name(key_type)
+    if is_whole_number_type(key_type) or type_shape.as_string(key_type) or is_enum_type(key_type) {
+        return true
+    }
+    var scalar = type_shape.as_scalar(key_type)
+    if scalar {
+        return true
+    }
+    var keyed_class = type_shape.as_class_ref(key_type)
+    if keyed_class and not keyed_class.has_signature {
+        var information = find_class_by_c_name(keyed_class.c_name)
+        if information {
+            if information.is_value_class {
+                report(
+                    "a Dictionary cannot be keyed by '{shown}': it is a value, copied wherever it goes, so it has no identity to key by; key the dictionary by a number or a String made from it",
+                )
+                return false
+            }
+            if declares_equals(information) {
+                report(
+                    "a Dictionary keyed by '{shown}' finds each key by identity, one object one key, but '{shown}' declares 'equals', so an equal '{shown}' would not be found: key the dictionary by what 'equals' compares, a number or a String",
+                )
+                return false
+            }
+            return true
+        }
+    }
+    report(
+        "a Dictionary cannot be keyed by '{shown}': a key is a number, a Boolean, a String, an enum value or an object of a class",
+    )
+    return false
+}
+
+func declares_equals(information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < discovered_classes.count() {
+        var discovered = discovered_classes[index]
+        if discovered.qualified_dotted == information.qualified_dotted and declares_function(discovered, "equals") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func declares_function(discovered: Discovery.DiscoveredClass, name: String): Boolean {
+    var statements = discovered.file.statements
+    var index = 0
+    while index < statements.count() {
+        var declaration = shape.as_function_declaration(statements[index])
+        if declaration {
+            if declaration.name == name {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func list_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
@@ -8585,9 +8636,6 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if left_dictionary {
         var right_dictionary = type_shape.as_dictionary(right_type)
         if right_dictionary {
-            if not left_dictionary.site.is_empty() and not right_dictionary.site.is_empty() {
-                join_key_sites(left_dictionary.site, right_dictionary.site)
-            }
             var left_dictionary_element = left_dictionary.element
             var right_dictionary_element = right_dictionary.element
             var left_key = left_dictionary.key
@@ -9418,136 +9466,7 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType, code: Str
         report("{null_opening(code, found_name)}, but {wanted_name} is needed: {null_advice(code)}")
         return
     }
-    assert first_name != last_name or not reported_key_kinds(from, to)
     report("{found_name} cannot be used where {wanted_name} is needed")
-}
-
-func reported_key_kinds(from: Analysis.SpiteType, to: Analysis.SpiteType): Boolean {
-    var found = type_shape.as_dictionary(from)
-    var wanted = type_shape.as_dictionary(to)
-    if not found or not wanted {
-        return false
-    }
-    var found_key = found.key
-    var wanted_key = wanted.key
-    if type_label(found_key) == type_label(wanted_key) {
-        return false
-    }
-    var shown = type_display_name(from)
-    report(
-        "{with_article(shown)} keyed by {key_kind_text(found)} cannot be used where {with_article(shown)} keyed by {key_kind_text(wanted)} is needed: a dictionary is keyed by text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart, so give both the same kind of key, or copy the entries across one by one",
-    )
-    return true
-}
-
-func key_kind_text(dictionary: Analysis.Types.DictionaryType): String {
-    var key = dictionary.key
-    var numbered = not type_shape.as_string(key)
-    var kind = "text"
-    if numbered {
-        kind = "whole numbers ({type_display_name(key)})"
-    }
-    if dictionary.site.is_empty() {
-        return "{kind}, fixed where it was made"
-    }
-    var root = key_site_root(dictionary.site)
-    if numbered and number_key_uses[root] {
-        var number_use = key_use_text(number_key_uses[root])
-        var number_ties = key_ties_text(dictionary.site, number_key_use_sites[root])
-        return "{kind}, from the key at {number_use}{number_ties}"
-    }
-    if not numbered and text_key_uses[root] {
-        var text_use = key_use_text(text_key_uses[root])
-        var text_ties = key_ties_text(dictionary.site, text_key_use_sites[root])
-        return "{kind}, from the key at {text_use}{text_ties}"
-    }
-    if key_use_notes[dictionary.site] {
-        return "{kind}, from the key at {key_use_notes[dictionary.site]}"
-    }
-    if numbered {
-        return kind
-    }
-    return "text, since nothing gives it a whole-number key"
-}
-
-func key_use_text(use: KeyUse): String {
-    return "{use.path}:{use.line} (in {use.owner}.{use.function_name})"
-}
-
-func key_ties_text(site: String, use_site: String?): String {
-    if not use_site {
-        return ""
-    }
-    var places = key_ties_between(site, use_site)
-    if places.is_empty() {
-        return ""
-    }
-    var shown = places.copy()
-    var more = ""
-    if places.count() > 4 {
-        shown.truncate(4)
-        more = " and {places.count() - 4} more"
-    }
-    return ", which reaches it through {shown.join(", ")}{more}"
-}
-
-func key_site_chain(site: String): List<String> {
-    var chain = [site]
-    var node = site
-    while key_site_parents.has(node) and key_site_parents[node] != node {
-        var parent = key_site_parents[node]
-        crash parent
-        chain.append(parent)
-        node = parent
-    }
-    return chain
-}
-
-func key_ties_between(first_site: String, second_site: String): List<String> {
-    var first_chain = key_site_chain(first_site)
-    var second_chain = key_site_chain(second_site)
-    var places = List<String>()
-    var index = 0
-    while index < first_chain.count() and not second_chain.contains(first_chain[index]) {
-        add_key_tie(places, first_chain[index])
-        index = index + 1
-    }
-    var second_places = List<String>()
-    index = 0
-    while index < second_chain.count() and not first_chain.contains(second_chain[index]) {
-        add_key_tie(second_places, second_chain[index])
-        index = index + 1
-    }
-    second_places.reverse()
-    index = 0
-    while index < second_places.count() {
-        if not places.contains(second_places[index]) {
-            places.append(second_places[index])
-        }
-        index = index + 1
-    }
-    return places
-}
-
-func add_key_tie(places: List<String>, node: String) {
-    assert key_ties[node]
-    if not places.contains(key_ties[node]) {
-        places.append(key_ties[node])
-    }
-}
-
-func note_key_uses() {
-    var index = 0
-    while index < key_sites.count() {
-        var site = key_sites[index]
-        var root = key_site_root(site)
-        if number_key_types[root] and number_key_uses[root] {
-            learned_key_use_notes[site] = key_use_text(number_key_uses[root])
-        } else if text_key_uses[root] {
-            learned_key_use_notes[site] = key_use_text(text_key_uses[root])
-        }
-        index = index + 1
-    }
 }
 
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
@@ -9674,8 +9593,7 @@ func coerce_for_store(
         var expected_inner_type = expected_type_without_nullable(expected_type)
         var expected_dictionary = type_shape.as_dictionary(expected_inner_type)
         if expected_dictionary and dictionary_literal.is_dictionary {
-            var expected_value = expected_dictionary.element
-            var made = generate_dictionary_literal(dictionary_literal, expected_value, scope, class_information)
+            var made = generate_dictionary_literal(dictionary_literal, expected_dictionary, scope, class_information)
             return made.code
         }
     }
@@ -14273,7 +14191,7 @@ func inferred_instance(
     var constructor = template_constructor(template)
     assert constructor
     assert constructor.parameters.count() == arguments_ast.count()
-    var inferred = Dictionary<Analysis.SpiteType>()
+    var inferred = Dictionary<String, Analysis.SpiteType>()
     var index = 0
     while index < constructor.parameters.count() {
         var declared = constructor.parameters[index].type_reference
@@ -14327,7 +14245,7 @@ func template_constructor(template: Analysis.ClassInfo): Syntax.Statements.Funct
 func infer_codegen_values(
     declared: Syntax.Types.Type,
     given: Analysis.SpiteType,
-    inferred: Dictionary<Analysis.SpiteType>,
+    inferred: Dictionary<String, Analysis.SpiteType>,
 ) {
     var generic_type = shape.as_generic_type(declared)
     if generic_type {
@@ -14339,6 +14257,10 @@ func infer_codegen_values(
     }
     var named = shape.as_named_type(declared)
     assert named
+    if named.path.join(".") == "Dictionary" and named.arguments.count() == 2 {
+        infer_dictionary_values(named, given, inferred)
+        return
+    }
     var declared_inner = only_type_argument(named)
     if declared_inner {
         var given_inner = container_inner_type(named, given)
@@ -14366,6 +14288,25 @@ func infer_codegen_values(
         }
         index = index + 1
     }
+}
+
+func infer_dictionary_values(
+    named: Syntax.Types.NamedType,
+    given: Analysis.SpiteType,
+    inferred: Dictionary<String, Analysis.SpiteType>,
+) {
+    var given_dictionary = type_shape.as_dictionary(given)
+    assert given_dictionary
+    var key_argument = shape.as_type_argument(named.arguments[0])
+    var value_argument = shape.as_type_argument(named.arguments[1])
+    assert key_argument and value_argument
+    if key_argument.value {
+        var given_key = given_dictionary.key
+        infer_codegen_values(key_argument.value, given_key, inferred)
+    }
+    assert value_argument.value
+    var given_value = given_dictionary.element
+    infer_codegen_values(value_argument.value, given_value, inferred)
 }
 
 func only_type_argument(named: Syntax.Types.NamedType): Syntax.Types.Type? {
@@ -18869,7 +18810,7 @@ func report_weak_across_threads() {
 # ../../../docs/concurrency.md#the-thread-pool
 func report_endless_parallel_work() {
     settle_wait_facts()
-    var reported = Dictionary<Boolean>()
+    var reported = Dictionary<String, Boolean>()
     var index = 0
     while index < parallel_site_keys.count() {
         var keys = List<String>()
@@ -18886,7 +18827,7 @@ func report_endless_parallel_work() {
     }
 }
 
-func report_endless_work(key: String, site: Integer, reported: Dictionary<Boolean>) {
+func report_endless_work(key: String, site: Integer, reported: Dictionary<String, Boolean>) {
     assert not reported.has(key)
     reported[key] = true
     var hash = key.index_of("#")
@@ -19200,7 +19141,7 @@ func add_block_condition(statement: Syntax.Statements.Statement, expressions: Li
     }
 }
 
-func weak_class_reached(reached: Dictionary<Boolean>): String {
+func weak_class_reached(reached: Dictionary<String, Boolean>): String {
     var index = 0
     while index < weak_classes.count() {
         var held = find_class_by_c_name(weak_classes[index])
@@ -20656,7 +20597,8 @@ func type_name_written(spite_type: Analysis.SpiteType, qualified: Boolean): Stri
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_type_element = dictionary_type.element
-        return "Dictionary<{type_name_written(dictionary_type_element, qualified)}>"
+        var dictionary_type_key = dictionary_type.key
+        return "Dictionary<{type_name_written(dictionary_type_key, qualified)}, {type_name_written(dictionary_type_element, qualified)}>"
     }
     var nullable_type = type_shape.as_nullable(spite_type)
     if nullable_type {
@@ -22260,16 +22202,15 @@ func generate_list_literal(
     return ExpressionResult("(\{ {lines.join(" ")} })", list_type)
 }
 
-# ../../../docs/collections.md#dictionaryt
+# ../../../docs/collections.md#dictionarykey-value
 func generate_dictionary_literal(
     literal: Syntax.Expressions.ObjectLiteralExpression,
-    element: Analysis.SpiteType,
+    dictionary: Analysis.Types.DictionaryType,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var made_type = dictionary_type_at(element, current_line, -1)
-    var dictionary = type_shape.as_dictionary(made_type)
-    crash dictionary
+    var made_type: Analysis.SpiteType = dictionary
+    var element = dictionary.element
     var dictionary_name = ensure_dictionary(dictionary)
     var container = find_class_by_c_name(dictionary_name)
     crash container
@@ -22288,7 +22229,7 @@ func generate_dictionary_literal(
             report("{entry.name} is written twice in this dictionary: keep one entry for each key")
         }
         written.append(entry.name)
-        var key_type = dictionary_key_parameter(dictionary, entry.key, scope, class_information)
+        var key_type = dictionary.key
         var key_code = coerce_for_store(entry.key, key_type, scope, class_information)
         var value_code = coerce_for_store(entry.value, element, scope, class_information)
         lines.append("{setter.c_name}({temporary}, {key_code}, {value_code});")
@@ -22308,7 +22249,18 @@ func generate_untyped_dictionary_literal(
     var probe = generate_expression(literal.fields[0].value, scope, class_information)
     rewind_temporaries(saved_counter)
     var probe_type = probe.type
-    return generate_dictionary_literal(literal, probe_type, scope, class_information)
+    var key_type = literal_key_type(literal)
+    var dictionary = Analysis.Types.DictionaryType(probe_type, key_type)
+    return generate_dictionary_literal(literal, dictionary, scope, class_information)
+}
+
+func literal_key_type(literal: Syntax.Expressions.ObjectLiteralExpression): Analysis.SpiteType {
+    var first = literal.fields.first()
+    crash first
+    if first.name.starts_with("\"") {
+        return string_type()
+    }
+    return integer_type()
 }
 
 func generate_untyped_list_literal(
@@ -22353,18 +22305,12 @@ func generate_generic_constructor(
                 crash written_type
                 return ExpressionResult("{ensure_dictionary(written_type)}___make()", written_dictionary)
             }
+            return void_result()
         }
-        if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
-            var dictionary_element = resolve_generic_argument(
-                generic_call.type_arguments[0],
-                class_information.qualified_dotted,
-            )
-            if dictionary_element {
-                var made_dictionary = dictionary_type_at(dictionary_element, generic_call.line, generic_call.column)
-                var made_type = type_shape.as_dictionary(made_dictionary)
-                crash made_type
-                return ExpressionResult("{ensure_dictionary(made_type)}___make()", made_dictionary)
-            }
+        if callee.name == "Dictionary" {
+            var argument_count = generic_call.type_arguments.count()
+            report_dictionary_arguments(argument_count)
+            return void_result()
         }
         if callee.name == "List" and generic_call.type_arguments.count() == 1 {
             var element = resolve_generic_argument(generic_call.type_arguments[0], class_information.qualified_dotted)
@@ -22690,12 +22636,7 @@ func generate_index_read(
                 return ExpressionResult(kept_value, value_type)
             }
         }
-        var key_parameter = dictionary_key_parameter(
-            object_dictionary,
-            index_expression.index,
-            scope,
-            class_information,
-        )
+        var key_parameter = dictionary_key_parameter(object_dictionary)
         var single_types = one_type(key_parameter)
         var nullable_type = nullable_type_of(value_type)
         var lookup = generate_generic_call(
@@ -22731,7 +22672,7 @@ func generate_index_read(
         )
     } else {
         report(
-            "{type_with_article(object_result_type)} is not indexed with [ ]: only a List<T> and a Dictionary<T> are",
+            "{type_with_article(object_result_type)} is not indexed with [ ]: only a List<T> and a Dictionary<K, T> are",
         )
     }
     return void_result()
@@ -22983,76 +22924,7 @@ func fixed_dictionary_type(information: Analysis.ClassInfo): Analysis.SpiteType 
     var key_index = codegen_index(information, "key_type")
     crash information.codegen_types[value_index]
     crash information.codegen_types[key_index]
-    return Analysis.Types.DictionaryType(
-        information.codegen_types[value_index],
-        information.codegen_types[key_index],
-        "",
-    )
-}
-
-func dictionary_type_at(element: Analysis.SpiteType, line: Integer, column: Integer): Analysis.SpiteType {
-    var owner = ""
-    if current_class {
-        if current_class.qualified_dotted == "Dictionary" and current_class.codegen_types.count() == 2 {
-            return fixed_dictionary_type(current_class)
-        }
-        owner = current_class.c_name
-    }
-    var site = "{owner}@{current_path}:{line}:{column}"
-    if not key_site_parents.has(site) {
-        key_site_parents[site] = site
-        key_sites.append(site)
-        key_site_owners[site] = current_owner
-        key_site_functions[site] = current_function
-    }
-    var key_type = string_type()
-    if number_key_sites[site] {
-        key_type = number_key_sites[site]
-    }
-    return Analysis.Types.DictionaryType(element, key_type, site)
-}
-
-func key_site_root(site: String): String {
-    var root = site
-    while key_site_parents.has(root) and key_site_parents[root] != root {
-        var parent = key_site_parents[root]
-        crash parent
-        root = parent
-    }
-    return root
-}
-
-func join_key_sites(left_site: String, right_site: String) {
-    assert not key_flows_ignored
-    assert not left_site.is_empty() and not right_site.is_empty()
-    var left_root = key_site_root(left_site)
-    var right_root = key_site_root(right_site)
-    assert left_root != right_root
-    key_site_parents[right_root] = left_root
-    var tied_here = key_use_here()
-    key_ties[right_root] = key_use_text(tied_here)
-    if text_key_uses[right_root] and not text_key_uses.has(left_root) {
-        text_key_uses[left_root] = text_key_uses[right_root]
-        crash text_key_use_sites[right_root]
-        text_key_use_sites[left_root] = text_key_use_sites[right_root]
-    }
-    if number_key_uses[right_root] and not number_key_uses.has(left_root) {
-        number_key_uses[left_root] = number_key_uses[right_root]
-        crash number_key_use_sites[right_root]
-        number_key_use_sites[left_root] = number_key_use_sites[right_root]
-    }
-    assert number_key_types[right_root]
-    widen_number_key(left_root, number_key_types[right_root])
-}
-
-func widen_number_key(root: String, given: Analysis.SpiteType) {
-    var widest = given
-    if number_key_types[root] {
-        if whole_number_rank(number_key_types[root]) >= whole_number_rank(given) {
-            widest = number_key_types[root]
-        }
-    }
-    number_key_types[root] = widest
+    return Analysis.Types.DictionaryType(information.codegen_types[value_index], information.codegen_types[key_index])
 }
 
 func whole_number_rank(spite_type: Analysis.SpiteType): Integer {
@@ -23084,180 +22956,8 @@ func is_whole_number_type(spite_type: Analysis.SpiteType): Boolean {
     return whole_number_rank(spite_type) >= 0
 }
 
-func key_use_here(): KeyUse {
-    return KeyUse(current_path, current_line, current_owner, current_function)
-}
-
-func dictionary_key_parameter(
-    dictionary: Analysis.Types.DictionaryType,
-    key_ast: Syntax.Expressions.Expression,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): Analysis.SpiteType {
-    var key_type = dictionary.key
-    if dictionary.site.is_empty() {
-        return key_type
-    }
-    var saved_counter = temporary_counter
-    var probe = generate_expression(key_ast, scope, class_information)
-    rewind_temporaries(saved_counter)
-    var given = probe.type
-    var root = key_site_root(dictionary.site)
-    if is_whole_number_type(given) {
-        if not key_flows_ignored {
-            if not number_key_uses.has(root) {
-                number_key_uses[root] = key_use_here()
-                number_key_use_sites[root] = dictionary.site
-            }
-            widen_number_key(root, given)
-        }
-        if type_shape.as_string(key_type) {
-            return given
-        }
-        return key_type
-    }
-    if type_shape.as_string(given) or type_shape.is_symbol(given) or is_enum_type(given) {
-        if not text_key_uses.has(root) and not key_flows_ignored {
-            text_key_uses[root] = key_use_here()
-            text_key_use_sites[root] = dictionary.site
-        }
-        return string_type()
-    }
-    return key_type
-}
-
-func settle_key_sites() {
-    if reload_host {
-        keep_host_key_kinds()
-    }
-    var index = 0
-    while index < key_sites.count() {
-        var site = key_sites[index]
-        var root = key_site_root(site)
-        if number_key_types[root] {
-            learned_key_sites[site] = number_key_types[root]
-        }
-        index = index + 1
-    }
-    if reload_host {
-        carry_unvisited_key_kinds()
-    }
-    key_sites_changed = not same_key_sites(learned_key_sites, number_key_sites)
-    note_key_uses()
-    if key_sites_changed and not another_pass_follows_a_change {
-        report_unsettled_keys()
-        return
-    }
-    assert not key_sites_changed
-    index = 0
-    while index < key_sites.count() {
-        var site = key_sites[index]
-        if key_site_root(site) == site {
-            report_mixed_keys(site)
-        }
-        index = index + 1
-    }
-}
-
-func carry_unvisited_key_kinds() {
-    var seeded = number_key_sites.keys()
-    var index = 0
-    while index < seeded.count() {
-        var site = seeded[index]
-        if not key_site_parents.has(site) {
-            crash number_key_sites[site]
-            learned_key_sites[site] = number_key_sites[site]
-        }
-        index = index + 1
-    }
-}
-
-func keep_host_key_kinds() {
-    var index = 0
-    while index < key_sites.count() {
-        var site = key_sites[index]
-        if number_key_sites[site] {
-            var root = key_site_root(site)
-            widen_number_key(root, number_key_sites[site])
-        }
-        index = index + 1
-    }
-}
-
-func report_unsettled_keys() {
-    var index = 0
-    while index < key_sites.count() {
-        var site = key_sites[index]
-        if key_label(learned_key_sites[site]) != key_label(number_key_sites[site]) {
-            var place = site.split("@").last()
-            crash place
-            var parts = place.split(":")
-            assert parts.count() >= 3
-            var line_text = parts[parts.count() - 2]
-            crash line_text
-            var line_number = line_text.to_integer()
-            crash line_number
-            current_line = line_number
-            parts.remove_last()
-            parts.remove_last()
-            current_path = parts.join(":")
-            crash key_site_owners[site]
-            crash key_site_functions[site]
-            current_owner = key_site_owners[site]
-            current_function = key_site_functions[site]
-            var learned_kind = "text"
-            if learned_key_sites[site] {
-                learned_kind = "whole numbers"
-            }
-            var decided = ""
-            if learned_key_use_notes[site] {
-                decided = ", from the key at {learned_key_use_notes[site]}"
-            }
-            report(
-                "the dictionary made here never settles on text or whole-number keys: each pass of the compiler decides it the other way (last as {learned_kind}{decided}), since what decides it flows back into it; give it a key the program itself writes, of one kind",
-            )
-            return
-        }
-        index = index + 1
-    }
-}
-
-func same_key_sites(learned: Dictionary<Analysis.SpiteType>, given: Dictionary<Analysis.SpiteType>): Boolean {
-    var same = learned.count() == given.count()
-    var sites = learned.keys()
-    var index = 0
-    while same and index < sites.count() {
-        var site = sites[index]
-        crash learned[site]
-        same = given.has(site) and key_label(given[site]) == type_label(learned[site])
-        index = index + 1
-    }
-    return same
-}
-
-func key_label(key_type: Analysis.SpiteType?): String {
-    var label = ""
-    if key_type {
-        label = type_label(key_type)
-    }
-    return label
-}
-
-func report_mixed_keys(root: String) {
-    var text_use = text_key_uses[root]
-    var number_use = number_key_uses[root]
-    assert text_use and number_use
-    current_path = number_use.path
-    current_line = number_use.line
-    current_owner = number_use.owner
-    current_function = number_use.function_name
-    var ties = ""
-    if number_key_use_sites[root] {
-        ties = key_ties_text(number_key_use_sites[root], text_key_use_sites[root])
-    }
-    report(
-        "this dictionary is given a whole-number key here and a text key at {text_use.path}:{text_use.line} (in {text_use.owner}.{text_use.function_name}){ties}: a dictionary is keyed by text or by whole numbers, never both, so give every key of it the same kind",
-    )
+func dictionary_key_parameter(dictionary: Analysis.Types.DictionaryType): Analysis.SpiteType {
+    return dictionary.key
 }
 
 func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
@@ -23313,7 +23013,7 @@ func generate_dictionary_method(
         )
     }
     if name == "set_at" {
-        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var key_parameter = dictionary_key_parameter(dictionary)
         var pair_types = two_types(key_parameter, element)
         var void_spite_type = void_type()
         return generate_generic_call(
@@ -23328,7 +23028,7 @@ func generate_dictionary_method(
         )
     }
     if name == "get_at" {
-        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var key_parameter = dictionary_key_parameter(dictionary)
         var single_types = one_type(key_parameter)
         var nullable_type = nullable_type_of(element)
         return generate_generic_call(
@@ -23376,7 +23076,7 @@ func generate_dictionary_method(
         return shared_dictionary
     }
     if name == "has" {
-        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var key_parameter = dictionary_key_parameter(dictionary)
         var single_types = one_type(key_parameter)
         var boolean_spite_type = boolean_type()
         return generate_generic_call(
@@ -23391,7 +23091,7 @@ func generate_dictionary_method(
         )
     }
     if name == "remove" {
-        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var key_parameter = dictionary_key_parameter(dictionary)
         var single_types = one_type(key_parameter)
         var void_spite_type = void_type()
         return generate_generic_call(
@@ -23473,19 +23173,6 @@ func generate_dictionary_method(
         scope,
         class_information,
     )
-}
-
-func dictionary_key_parameter_of(
-    dictionary: Analysis.Types.DictionaryType,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): Analysis.SpiteType {
-    var key_ast = arguments_ast.first()
-    if not key_ast {
-        return dictionary.key
-    }
-    return dictionary_key_parameter(dictionary, key_ast, scope, class_information)
 }
 
 func release_statement(spite_type: Analysis.SpiteType, code: String): String {
@@ -32726,12 +32413,7 @@ func generate_store(
             var dictionary_arguments = List<Syntax.Expressions.Expression>()
             dictionary_arguments.append(index_target.index)
             dictionary_arguments.append(assignment.value)
-            var key_parameter = dictionary_key_parameter(
-                indexed_dictionary,
-                index_target.index,
-                scope,
-                class_information,
-            )
+            var key_parameter = dictionary_key_parameter(indexed_dictionary)
             var element = indexed_dictionary.element
             var pair_types = two_types(key_parameter, element)
             var void_spite_type = void_type()
@@ -43107,7 +42789,7 @@ func lets_go_with_effect(held_type: Analysis.SpiteType): Boolean {
 
 func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     site_ordinal = 0
-    folded_dictionaries = Dictionary<Syntax.Expressions.ObjectLiteralExpression>()
+    folded_dictionaries = Dictionary<String, Syntax.Expressions.ObjectLiteralExpression>()
     frame_candidates.clear()
     placed_names.clear()
     placed_frames.clear()
@@ -43125,7 +42807,6 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     if not is_library_class(information) {
         report_lost_writes(function.body, information)
     }
-    key_flows_ignored = function.kept_for_prompt
     var outer_fact_owner = fact_owner
     fact_owner = information.c_name
     placement.foreign_libraries = foreign_library_attributes(information)
@@ -43236,7 +42917,6 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     close_rebindings(scope)
     builder.add_user("}")
-    key_flows_ignored = false
     fact_owner = outer_fact_owner
     into_function_active = false
     object_frames_open = false
@@ -43901,7 +43581,7 @@ func find_reading_functions(wrapped: List<Integer>) {
     )
 }
 
-func thread_reaches(information: Analysis.ClassInfo, name: String, reached: Dictionary<Boolean>): Boolean {
+func thread_reaches(information: Analysis.ClassInfo, name: String, reached: Dictionary<String, Boolean>): Boolean {
     return reached.has("{information.qualified_dotted}#{name}") or reached.has("*#{name}")
 }
 
@@ -44176,7 +43856,7 @@ func call_reads_only(
     }
     var memory = held.qualified_dotted == "TypedMemory" or held.qualified_dotted == "InlineMemory"
     if memory {
-        var reading = ["read_value", "value_bytes", "item_at", "item_bytes", "item_start"]
+        var reading = ["read_value", "value_bytes", "value_bits", "item_at", "item_bytes", "item_start"]
         return reading.contains(member.name)
     }
     if not held.is_singleton or not held.is_stateless_singleton or is_library_class(held) {
@@ -44267,9 +43947,9 @@ func no_operator_functions(): Boolean {
     return true
 }
 
-func state_touching_functions(): Dictionary<Boolean> {
-    var touching = Dictionary<Boolean>()
-    var own_names = Dictionary<Boolean>()
+func state_touching_functions(): Dictionary<String, Boolean> {
+    var touching = Dictionary<String, Boolean>()
+    var own_names = Dictionary<String, Boolean>()
     var index = 0
     while index < guarded_functions.count() {
         var function = guarded_functions[index]
@@ -44303,7 +43983,7 @@ func state_touching_functions(): Dictionary<Boolean> {
     return touching
 }
 
-func spread_touches(touching: Dictionary<Boolean>) {
+func spread_touches(touching: Dictionary<String, Boolean>) {
     var spreading = true
     while spreading {
         spreading = false
@@ -44352,7 +44032,7 @@ func line_touches_state(
     information: Analysis.ClassInfo,
     changing: List<String>,
     caller: String,
-    own_names: Dictionary<Boolean>,
+    own_names: Dictionary<String, Boolean>,
 ): Boolean {
     if line.contains("spite_singleton_{information.c_name}") {
         return true
@@ -44377,7 +44057,7 @@ func self_touches(
     after: String,
     changing: List<String>,
     caller: String,
-    own_names: Dictionary<Boolean>,
+    own_names: Dictionary<String, Boolean>,
 ): Boolean {
     if after.starts_with("->") {
         var after_length = after.length()
@@ -44467,7 +44147,7 @@ func report_endless_locked_loop(information: Analysis.ClassInfo, function: Analy
 }
 
 func report_locked_waits(wrapped: List<Integer>) {
-    var locked_keys = Dictionary<String>()
+    var locked_keys = Dictionary<String, String>()
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
@@ -44500,7 +44180,7 @@ func report_waits_in(
     whole: List<Syntax.Statements.Statement>,
     information: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
-    locked_keys: Dictionary<String>,
+    locked_keys: Dictionary<String, String>,
 ) {
     var index = 0
     while index < statements.count() {
@@ -44531,7 +44211,7 @@ func report_joined_parallel(
     whole: List<Syntax.Statements.Statement>,
     information: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
-    locked_keys: Dictionary<String>,
+    locked_keys: Dictionary<String, String>,
 ) {
     crash declared.value
     var called = shape.as_call(declared.value)
@@ -44552,7 +44232,7 @@ func report_returned_parallel(
     returned: Syntax.Statements.ReturnStatement,
     information: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
-    locked_keys: Dictionary<String>,
+    locked_keys: Dictionary<String, String>,
 ) {
     assert returned.value
     var called = shape.as_call(returned.value)
@@ -44570,7 +44250,7 @@ func report_locked_join(
     line: Integer,
     information: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
-    locked_keys: Dictionary<String>,
+    locked_keys: Dictionary<String, String>,
 ) {
     var site = parallel_site_at(line, information, function)
     assert site >= 0
@@ -46287,8 +45967,8 @@ func report_unusable_rename(information: Analysis.ClassInfo, old_name: String, n
     )
 }
 
-func signature_types(signature: String): Dictionary<String> {
-    var types = Dictionary<String>()
+func signature_types(signature: String): Dictionary<String, String> {
+    var types = Dictionary<String, String>()
     var parts = signature.split(";")
     var index = 0
     while index < parts.count() {
@@ -46831,7 +46511,7 @@ func live_holders_of(item: Analysis.ClassInfo): List<Analysis.ClassInfo> {
 }
 
 func read_reload_renames(text: String) {
-    reload_renames = Dictionary<String>()
+    reload_renames = Dictionary<String, String>()
     reload_renames_given = text.starts_with("given")
     var lines = text.split("\n")
     var index = 1
@@ -46971,7 +46651,7 @@ func slotted_support(text: String, owner: String, display: String): String {
 
 func slot_every_helper() {
     var state = static_state_names()
-    var slotted_names = Dictionary<Boolean>()
+    var slotted_names = Dictionary<String, Boolean>()
     var index = 0
     while index < hot_slot_names.count() {
         var slotted_name = hot_slot_names[index]
@@ -47000,8 +46680,8 @@ func slot_every_helper() {
     }
 }
 
-func static_state_names(): Dictionary<Boolean> {
-    var state = Dictionary<Boolean>()
+func static_state_names(): Dictionary<String, Boolean> {
+    var state = Dictionary<String, Boolean>()
     note_static_state(builder.typedefs, state)
     note_static_state(builder.prototypes, state)
     note_static_state(builder.support_bodies, state)
@@ -47009,7 +46689,7 @@ func static_state_names(): Dictionary<Boolean> {
     return state
 }
 
-func note_static_state(texts: List<String>, state: Dictionary<Boolean>) {
+func note_static_state(texts: List<String>, state: Dictionary<String, Boolean>) {
     var shaker = TreeShaker()
     var index = 0
     while index < texts.count() {
@@ -47064,7 +46744,11 @@ func static_variable_of(line: String, shaker: TreeShaker): String {
     return name
 }
 
-func slotted_helpers(text: String, state: Dictionary<Boolean>, slotted_names: Dictionary<Boolean>): String {
+func slotted_helpers(
+    text: String,
+    state: Dictionary<String, Boolean>,
+    slotted_names: Dictionary<String, Boolean>,
+): String {
     var lines = text.split("\n")
     var shaker = TreeShaker()
     var result = List<String>()
@@ -47117,7 +46801,7 @@ func slotted_helpers(text: String, state: Dictionary<Boolean>, slotted_names: Di
     return result.join("\n")
 }
 
-func helper_signature(line: String, shaker: TreeShaker, slotted_names: Dictionary<Boolean>): String {
+func helper_signature(line: String, shaker: TreeShaker, slotted_names: Dictionary<String, Boolean>): String {
     if line.starts_with("static") or line.starts_with("#") or line.starts_with("typedef") or line.starts_with(" ") {
         return ""
     }
@@ -47150,7 +46834,7 @@ func helper_signature(line: String, shaker: TreeShaker, slotted_names: Dictionar
     return signature
 }
 
-func holds_state(text: String, state: Dictionary<Boolean>): Boolean {
+func holds_state(text: String, state: Dictionary<String, Boolean>): Boolean {
     var lines = text.split("\n")
     var line_index = 1
     while line_index < lines.count() {
@@ -47194,7 +46878,12 @@ func is_identifier_code(code: Integer): Boolean {
     return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
-func slotted_helper(line: String, signature: String, shaker: TreeShaker, slotted_names: Dictionary<Boolean>): String {
+func slotted_helper(
+    line: String,
+    signature: String,
+    shaker: TreeShaker,
+    slotted_names: Dictionary<String, Boolean>,
+): String {
     var open = signature.index_of("(")
     var head = signature.slice(0, open)
     var head_length = head.length()
@@ -47560,15 +47249,6 @@ func baseline_manifest(host_text: String, reload: HotReloadLibrary): String {
 }
 
 func analysis_manifest_lines(): List<String> {
-    var key_lines = List<String>()
-    var sites = number_key_sites.keys()
-    var index = 0
-    while index < sites.count() {
-        var site = sites[index]
-        crash number_key_sites[site]
-        key_lines.append("key {type_label(number_key_sites[site])} {site}")
-        index = index + 1
-    }
     var fact_lines = snapshot_manifest_lines()
     var signed = field_signatures.keys()
     var signed_index = 0
@@ -47623,12 +47303,7 @@ func analysis_manifest_lines(): List<String> {
         fact_lines.append("owner {hot_slot_names[owner_index]} {hot_slot_owners[owner_index]}")
         owner_index = owner_index + 1
     }
-    var fact_index = 0
-    while fact_index < fact_lines.count() {
-        key_lines.append(fact_lines[fact_index])
-        fact_index = fact_index + 1
-    }
-    return key_lines
+    return fact_lines
 }
 
 func program_source_paths(): List<String> {
@@ -47775,7 +47450,7 @@ func is_local_migration_piece(name: String): Boolean {
 
 func add_reached_classes(reload: HotReloadLibrary, owners: List<String>) {
     var changed = reload.changed_bodies(constant_texts)
-    var seen = Dictionary<Boolean>()
+    var seen = Dictionary<String, Boolean>()
     var index = 0
     while index < changed.count() {
         var changed_name = changed[index]
@@ -47800,7 +47475,12 @@ func add_reached_classes(reload: HotReloadLibrary, owners: List<String>) {
     }
 }
 
-func add_callers_of_static(reload: HotReloadLibrary, name: String, changed: List<String>, seen: Dictionary<Boolean>) {
+func add_callers_of_static(
+    reload: HotReloadLibrary,
+    name: String,
+    changed: List<String>,
+    seen: Dictionary<String, Boolean>,
+) {
     var callers = reload.pieces_mentioning(name)
     var index = 0
     while index < callers.count() {
@@ -47821,7 +47501,7 @@ func hot_owner_of(piece_name: String): String {
     }
     if hot_owner_indexed != hot_slot_names.count() {
         hot_owner_indexed = hot_slot_names.count()
-        hot_owner_index = Dictionary<String>()
+        hot_owner_index = Dictionary<String, String>()
         var index = 0
         while index < hot_slot_names.count() and index < hot_slot_owners.count() {
             var slot_name = hot_slot_names[index]
@@ -49610,7 +49290,7 @@ func replay_instance(record: String) {
             element = types[1]
             key = types[0]
         }
-        var dictionary_type = Analysis.Types.DictionaryType(element, key, "")
+        var dictionary_type = Analysis.Types.DictionaryType(element, key)
         ensure_dictionary(dictionary_type)
         return
     }
@@ -49769,7 +49449,7 @@ func partial_problem(host: HotReloadLibrary): String {
     if not interface_problem.is_empty() {
         return interface_problem
     }
-    return changed_key_kind()
+    return ""
 }
 
 func changed_enum_values(host: HotReloadLibrary): String {
@@ -49786,7 +49466,7 @@ func changed_enum_values(host: HotReloadLibrary): String {
     return ""
 }
 
-func changed_interface(host: HotReloadLibrary, snapshot: Dictionary<String>): String {
+func changed_interface(host: HotReloadLibrary, snapshot: Dictionary<String, String>): String {
     var index = 0
     while index < classes.count() {
         var information = classes[index]
@@ -50002,7 +49682,7 @@ func changed_write_answer(host: HotReloadLibrary): String {
     return ""
 }
 
-func changed_snapshot(host_snapshot: Dictionary<String>, snapshot: Dictionary<String>): String {
+func changed_snapshot(host_snapshot: Dictionary<String, String>, snapshot: Dictionary<String, String>): String {
     var keys = snapshot.keys()
     var index = 0
     while index < keys.count() {
@@ -50027,25 +49707,10 @@ func changed_snapshot(host_snapshot: Dictionary<String>, snapshot: Dictionary<St
     return ""
 }
 
-func changed_key_kind(): String {
-    var index = 0
-    while index < key_sites.count() {
-        var site = key_sites[index]
-        var at = site.index_of("@")
-        var site_owner = site.slice(0, at)
-        var owned = at > 0 and reload_owners.contains(site_owner)
-        if not owned and key_label(learned_key_sites[site]) != key_label(number_key_sites[site]) {
-            return "the keys of the dictionary made at {site} changed kind"
-        }
-        index = index + 1
-    }
-    return ""
-}
-
-func analysis_snapshot(): Dictionary<String> {
-    var snapshot = Dictionary<String>()
+func analysis_snapshot(): Dictionary<String, String> {
+    var snapshot = Dictionary<String, String>()
     var digest = ProgramFacts()
-    var outside = Dictionary<List<String>>()
+    var outside = Dictionary<String, List<String>>()
     var index = 0
     while index < call_effects.function_keys.count() {
         var key = call_effects.function_keys[index]
@@ -50103,7 +49768,7 @@ func analysis_snapshot(): Dictionary<String> {
     return snapshot
 }
 
-func note_outside_writes(key: String, effects: FunctionEffects, outside: Dictionary<List<String>>) {
+func note_outside_writes(key: String, effects: FunctionEffects, outside: Dictionary<String, List<String>>) {
     var hash = key.index_of("#")
     var writer = key.slice(0, hash)
     assert writer != "*"
@@ -50125,7 +49790,7 @@ func note_outside_writes(key: String, effects: FunctionEffects, outside: Diction
     }
 }
 
-func add_interface_snapshot(snapshot: Dictionary<String>, digest: ProgramFacts) {
+func add_interface_snapshot(snapshot: Dictionary<String, String>, digest: ProgramFacts) {
     var index = 0
     while index < classes.count() {
         var information = classes[index]
@@ -52504,11 +52169,8 @@ func folds_dictionary_local(
     var probe_counter = temporary_counter
     var probe = generate_expression(first.value, scope, class_information)
     rewind_temporaries(probe_counter)
-    var key_type = string_type()
-    if not first.name.starts_with("\"") {
-        key_type = integer_type()
-    }
-    var folded_type: Analysis.SpiteType = Analysis.Types.DictionaryType(probe.type, key_type, "")
+    var key_type = literal_key_type(literal)
+    var folded_type: Analysis.SpiteType = Analysis.Types.DictionaryType(probe.type, key_type)
     scope.declare(declaration.name, folded_type)
     scope.mark_used(declaration.name)
     folded_dictionaries[declaration.name] = literal

@@ -99,7 +99,7 @@ The details:
   name is provisional): the 64-bit FNV-1a hash, as a signed `Long`, of the
   walk's text: the class's qualified name, then `name:type` for each attribute the bytes carry (not `_...`, and
   not one holding a singleton), in
-  order, joined by `;` inside `{ }`, a nested class written the same way, `List<T>`, `Dictionary<T>`, `T?`, an
+  order, joined by `;` inside `{ }`, a nested class written the same way, `List<T>`, `Dictionary<Key, Value>`, `T?`, an
   enum as its name and `(` its values joined by `,` `)`, a class already being written by its name alone, and any
   other type by its name. It is a bodiless declaration the compiler supplies, a C macro that is the constant,
   so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the

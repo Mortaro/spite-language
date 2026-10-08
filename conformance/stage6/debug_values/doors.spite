@@ -1,1 +1,1 @@
-var opened = Dictionary<Boolean>()
+var opened = Dictionary<String, Boolean>()

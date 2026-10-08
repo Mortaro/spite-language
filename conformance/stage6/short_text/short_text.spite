@@ -35,7 +35,7 @@ func ShortText() {
     label = fifteen.slice(0, 3)
     var joined = names.join(",")
     console.print(joined, label)
-    var counts = Dictionary<Integer>()
+    var counts = Dictionary<String, Integer>()
     counts["{label}1"] = 1
     counts[sixteen] = 2
     var short_count = counts["abc1"]

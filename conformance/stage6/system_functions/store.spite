@@ -2,7 +2,7 @@ singleton
 
 generic $component_type
 
-var components = Dictionary<$component_type>()
+var components = Dictionary<Integer, $component_type>()
 
 func insert(entity: Integer, component: $component_type) {
     components[entity] = component

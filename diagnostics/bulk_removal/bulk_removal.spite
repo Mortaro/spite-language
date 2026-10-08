@@ -51,7 +51,7 @@ func keep_past_removal(velocities: Vector<Velocity>) {
 }
 
 func remove_from_dictionary() {
-    var scores = Dictionary<Integer>()
+    var scores = Dictionary<String, Integer>()
     scores["ada"] = 3
     scores.remove_where(is_small)
 }

@@ -25,7 +25,7 @@ var answer = ""
 var reported = false
 var swaps = Reload()
 var program = Program()
-var compiled_files = Dictionary<String>()
+var compiled_files = Dictionary<String, String>()
 var settled_for_request = false
 var breakpoints = List<String>()
 var prompts = 0
@@ -388,12 +388,12 @@ func settled(): Boolean {
     return same
 }
 
-func files_seen(): Dictionary<String> {
+func files_seen(): Dictionary<String, String> {
     var running = program_file()
     var base = running_base(running)
     var state = File("{base}.reload_files").read()
     crash state
-    var seen = Dictionary<String>()
+    var seen = Dictionary<String, String>()
     var lines = state.split("\n")
     var index = 0
     while index < lines.count() {

@@ -1,7 +1,7 @@
-var reasons = Dictionary<String>()
-var settled = Dictionary<Boolean>()
-var studied = Dictionary<Boolean>()
-var studying = Dictionary<Boolean>()
+var reasons = Dictionary<String, String>()
+var settled = Dictionary<String, Boolean>()
+var studied = Dictionary<String, Boolean>()
+var studying = Dictionary<String, Boolean>()
 var round_keys = List<String>()
 var grew = false
 
@@ -9,7 +9,7 @@ func answer(generator: Generator, owner: Analysis.ClassInfo, function: Analysis.
     grew = true
     while grew {
         grew = false
-        studied = Dictionary<Boolean>()
+        studied = Dictionary<String, Boolean>()
         round_keys.clear()
         summarize(generator, owner, function)
     }
@@ -125,6 +125,7 @@ func reads_only(name: String): Boolean {
         "to_type"
         "trailing_zero_count"
         "value_attributes"
+        "value_bits"
         "value_bytes"
         "value_functions"
         "watcher_entry"

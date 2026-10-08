@@ -10,7 +10,7 @@ func OperatorFunctionCall() {
     var shelf = [1, 2]
     shelf.set_at(0, 3)
     var first = shelf.get_at(0)
-    var ages = Dictionary<Integer>()
+    var ages = Dictionary<String, Integer>()
     var found = ages.get_at("ann")
     ages.set_at("bea", 7)
     var kind = point.get_type()

@@ -25,7 +25,7 @@ func DebugValues() {
     var sizes = [1, 2]
     var crates = [Crate(), Crate()]
     console.debug(sizes, crates)
-    var labels = Dictionary<Badge>()
+    var labels = Dictionary<String, Badge>()
     labels["first"] = Badge("gold")
     console.debug(labels)
     console.debug(hero.class)

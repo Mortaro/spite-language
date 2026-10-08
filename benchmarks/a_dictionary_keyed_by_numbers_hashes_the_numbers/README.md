@@ -1,16 +1,14 @@
 # A dictionary keyed by numbers hashes the numbers
 
-A `Dictionary` the program gives whole-number keys is compiled as its own form of the library's dictionary: its
-keys are a `List` of the numbers, a key is hashed by one multiply, and a slot's key is compared directly, with no
-`String` made for any key. Which dictionaries are keyed by numbers is worked out while compiling, from the keys the
-program's own code gives them.
+A `Dictionary` keyed by a whole-number type is compiled as its own form of the library's dictionary: its keys are a
+`List` of the numbers, a key is hashed by one multiply, and a slot's key is compared directly, with no `String`
+made for any key.
 
 - The optimisation: [docs/optimizations.md](../../docs/optimizations.md#a-dictionary-keyed-by-numbers-hashes-the-numbers).
-- The proof: [A dictionary's key kind](../../docs/proofs.md#a-dictionarys-key-kind-is-decided-while-compiling).
 
 ## The four forms
 
-- [`naive/`](naive/): a `Dictionary<Integer>` of 100 000 entries keyed by spread-out numbers (`index * 7919 %
+- [`naive/`](naive/): a `Dictionary<Integer, Integer>` of 100 000 entries keyed by spread-out numbers (`index * 7919 %
   1000003`), and 40 rounds of 100 000 lookups, a few of each round for keys that are not there.
 - [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: a chained hash table, the key
   modulo the bucket count for a bucket, a `malloc`ed entry per key.

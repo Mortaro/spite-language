@@ -31,7 +31,7 @@ func PassedFunctions() {
     var labels = people.map_shouted_names().filter(is_short)
     var joined_labels = labels.join(", ")
     console.print(joined_labels)
-    var team = Dictionary<Person>()
+    var team = Dictionary<String, Person>()
     var grace = Person("Grace", 85)
     team["lead"] = grace
     team.each(introduce)

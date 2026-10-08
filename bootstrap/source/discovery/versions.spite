@@ -1,10 +1,10 @@
 var paths = Paths()
 var versioned = List<String>()
-var library_pins = Dictionary<String>()
-var commits = Dictionary<List<String>>()
-var sites = Dictionary<String>()
-var displays = Dictionary<String>()
-var defined_by = Dictionary<List<String>>()
+var library_pins = Dictionary<String, String>()
+var commits = Dictionary<String, List<String>>()
+var sites = Dictionary<String, String>()
+var displays = Dictionary<String, String>()
+var defined_by = Dictionary<String, List<String>>()
 
 func note_pin(library: String, identity: String, display: String, full_commit: String, site: String) {
     library_pins["{library}|{identity}"] = full_commit

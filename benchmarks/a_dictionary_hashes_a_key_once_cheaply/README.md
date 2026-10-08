@@ -10,7 +10,7 @@ only when those bits match. A slower hash, or comparing the whole text at every 
 
 ## The four forms
 
-- [`naive/`](naive/): 5 000 names (`"entity_{index}"`), a `Dictionary<Integer>` from each name to a number, and 20
+- [`naive/`](naive/): 5 000 names (`"entity_{index}"`), a `Dictionary<String, Integer>` from each name to a number, and 20
   rounds of 100 000 lookups of names spread over the list, written as Spite reads: `if by_name[name] { total =
   total + by_name[name] }`.
 - [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: each name on the heap, and the

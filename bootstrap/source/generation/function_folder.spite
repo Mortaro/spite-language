@@ -1,19 +1,19 @@
 var pieces = List<String>()
 var names = List<String>()
 var function_pieces = List<Integer>()
-var function_index = Dictionary<Integer>()
-var file_names = Dictionary<Boolean>()
-var literal_values = Dictionary<String>()
-var struct_index = Dictionary<Integer>()
+var function_index = Dictionary<String, Integer>()
+var file_names = Dictionary<String, Boolean>()
+var literal_values = Dictionary<String, String>()
+var struct_index = Dictionary<String, Integer>()
 var struct_classes = List<Integer>()
 var headers = List<String>()
-var replacements = Dictionary<String>()
-var casts = Dictionary<Boolean>()
+var replacements = Dictionary<String, String>()
+var casts = Dictionary<String, Boolean>()
 var main_text = ""
 var pointer_lines = List<String>()
 var last_header = ""
 var folded_count = 0
-var defined_names = Dictionary<Boolean>()
+var defined_names = Dictionary<String, Boolean>()
 
 # ../../../docs/optimizations.md#identical-functions-are-folded-into-one
 func fold(typedef_text: String, bodies: String, main_function: String): String {
@@ -232,7 +232,7 @@ func normalized(function: Integer, references: List<Integer>): String {
 
 func normalized_text(piece: String, own: String, references: List<Integer>): String {
     var parts = List<String>()
-    var locals = Dictionary<Integer>()
+    var locals = Dictionary<String, Integer>()
     var evaluated = List<Boolean>()
     var opened = false
     var index = 0
@@ -278,7 +278,7 @@ func normalized_text(piece: String, own: String, references: List<Integer>): Str
     return parts.join(" ")
 }
 
-func classified(name: String, own: String, references: List<Integer>, locals: Dictionary<Integer>): String {
+func classified(name: String, own: String, references: List<Integer>, locals: Dictionary<String, Integer>): String {
     if name == own {
         return "@0"
     }
@@ -302,7 +302,7 @@ func classified(name: String, own: String, references: List<Integer>, locals: Di
     return local_token(name, locals)
 }
 
-func local_token(name: String, locals: Dictionary<Integer>): String {
+func local_token(name: String, locals: Dictionary<String, Integer>): String {
     var stem_end = numbered_stem_end(name)
     if stem_end < 0 {
         return name
@@ -381,7 +381,7 @@ func refined_key(
 }
 
 func grouped(keys: List<String>, classes: List<Integer>): Integer {
-    var groups = Dictionary<Integer>()
+    var groups = Dictionary<String, Integer>()
     var index = 0
     while index < keys.count() {
         var key = keys[index]
@@ -400,7 +400,7 @@ func grouped(keys: List<String>, classes: List<Integer>): Integer {
 }
 
 func choose_kept(classes: List<Integer>) {
-    var kept_by_group = Dictionary<Integer>()
+    var kept_by_group = Dictionary<String, Integer>()
     var index = 0
     while index < classes.count() {
         var group_key = classes[index].to_string()

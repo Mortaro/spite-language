@@ -1,7 +1,7 @@
 var method = "GET"
 var path = "/"
 var version = "HTTP/1.1"
-var headers = Dictionary<String>()
+var headers = Dictionary<String, String>()
 var body = ""
 var connection = Socket()
 

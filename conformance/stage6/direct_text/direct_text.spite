@@ -37,7 +37,7 @@ func DirectText() {
     names.append(badge)
     var joined = names.join(", ")
     console.print(joined)
-    var by_name = Dictionary<Integer>()
+    var by_name = Dictionary<String, Integer>()
     by_name[mood] = 1
     by_name[badge] = 2
     var keys = by_name.keys()

@@ -43,10 +43,10 @@ func get_returned_literal(): String {
     return _returned_literal
 }
 
-func get_accesses(): Dictionary<Spite.Access> {
+func get_accesses(): Dictionary<String, Spite.Access> {
     crash _accessed_names
     crash _accessed_classes
-    var accesses = Dictionary<Spite.Access>()
+    var accesses = Dictionary<String, Spite.Access>()
     var entries = _accessed.split(";")
     var index = 0
     while index < _accessed_names.count() {

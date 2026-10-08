@@ -1,0 +1,5 @@
+var name = ""
+
+func Player(new_name: String) {
+    name = new_name
+}

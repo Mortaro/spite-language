@@ -600,6 +600,8 @@ func typed_memory_members(): List<String> {
         "written per value type by the generator"
         "func swap_values(address: Memory.Address, first_index: Integer, second_index: Integer)"
         "written per value type by the generator"
+        "func value_bits(value: $value_type): UnsignedLong"
+        "written per value type by the generator"
     ]
 }
 

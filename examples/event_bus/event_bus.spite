@@ -24,7 +24,7 @@ func log_event(event: Event) {
 }
 
 func report(counter: Counter) {
-    var totals = Dictionary<Integer>()
+    var totals = Dictionary<String, Integer>()
     var index = 0
     while index < counter.names.count() {
         var name = counter.names[index]

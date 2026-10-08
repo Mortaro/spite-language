@@ -103,13 +103,13 @@ func test_values_that_are_not_classes() {
     var list_read = list_reader.read(" [4, 5] ")
     crash list_read
     crash list_read.count() == 2
-    var roster = Dictionary<Sailor>()
+    var roster = Dictionary<String, Sailor>()
     var ada = Sailor("Ada")
     roster["first"] = ada
-    var sailors = JsonWriter<Dictionary<Sailor>>()
+    var sailors = JsonWriter<Dictionary<String, Sailor>>()
     var roster_text = sailors.write(roster)
     crash roster_text == "\{\"first\":\{\"name\":\"Ada\",\"knots\":[]}}"
-    var roster_reader = JsonReader<Dictionary<Sailor>>()
+    var roster_reader = JsonReader<Dictionary<String, Sailor>>()
     var roster_read = roster_reader.read(roster_text)
     crash roster_read
     crash roster_read["first"]

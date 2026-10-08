@@ -526,24 +526,24 @@ int32_t used_slots_;
 #define spite_site_24() "spite.crash\t36a6df9c"
 #define spite_site_25() "library/dictionary.spite:261 in Dictionary.index_of_key"
 #define spite_site_26() "library/dictionary.spite:271 in Dictionary.find_slot"
-#define spite_site_27() "library/dictionary.spite:277 in Dictionary.find_slot"
-#define spite_site_28() "library/dictionary.spite:281 in Dictionary.find_slot"
-#define spite_site_29() "library/dictionary.spite:289 in Dictionary.place"
-#define spite_site_30() "library/dictionary.spite:292 in Dictionary.place"
-#define spite_site_31() "library/dictionary.spite:295 in Dictionary.place"
-#define spite_site_32() "library/dictionary.spite:297 in Dictionary.place"
-#define spite_site_33() "library/dictionary.spite:302 in Dictionary.place"
-#define spite_site_34() "library/dictionary.spite:318 in Dictionary.make_room"
-#define spite_site_35() "library/dictionary.spite:325 in Dictionary.rebuild_slots"
-#define spite_site_36() "library/dictionary.spite:326 in Dictionary.rebuild_slots"
-#define spite_site_37() "library/dictionary.spite:331 in Dictionary.rebuild_slots"
-#define spite_site_38() "library/dictionary.spite:336 in Dictionary.rebuild_slots"
-#define spite_site_39() "library/dictionary.spite:341 in Dictionary.rebuild_slots"
-#define spite_site_40() "library/dictionary.spite:354 in Dictionary.hash_of"
-#define spite_site_41() "library/dictionary.spite:372 in Dictionary.home_slot"
-#define spite_site_42() "library/dictionary.spite:376 in Dictionary.fragment_of"
-#define spite_site_43() "library/dictionary.spite:380 in Dictionary.next_slot"
-#define spite_site_44() "library/dictionary.spite:383 in Dictionary.next_slot"
+#define spite_site_27() "library/dictionary.spite:287 in Dictionary.find_slot"
+#define spite_site_28() "library/dictionary.spite:291 in Dictionary.find_slot"
+#define spite_site_29() "library/dictionary.spite:299 in Dictionary.place"
+#define spite_site_30() "library/dictionary.spite:302 in Dictionary.place"
+#define spite_site_31() "library/dictionary.spite:305 in Dictionary.place"
+#define spite_site_32() "library/dictionary.spite:307 in Dictionary.place"
+#define spite_site_33() "library/dictionary.spite:312 in Dictionary.place"
+#define spite_site_34() "library/dictionary.spite:328 in Dictionary.make_room"
+#define spite_site_35() "library/dictionary.spite:335 in Dictionary.rebuild_slots"
+#define spite_site_36() "library/dictionary.spite:336 in Dictionary.rebuild_slots"
+#define spite_site_37() "library/dictionary.spite:341 in Dictionary.rebuild_slots"
+#define spite_site_38() "library/dictionary.spite:346 in Dictionary.rebuild_slots"
+#define spite_site_39() "library/dictionary.spite:351 in Dictionary.rebuild_slots"
+#define spite_site_40() "library/dictionary.spite:364 in Dictionary.hash_of"
+#define spite_site_41() "library/dictionary.spite:387 in Dictionary.home_slot"
+#define spite_site_42() "library/dictionary.spite:391 in Dictionary.fragment_of"
+#define spite_site_43() "library/dictionary.spite:395 in Dictionary.next_slot"
+#define spite_site_44() "library/dictionary.spite:398 in Dictionary.next_slot"
 static SpiteString spite_symbol_1 = { (int64_t)0x797469746e656469ULL, (int64_t)0x0700000000000000ULL };
 Memory_Heap* spite_singleton_Memory_Heap(void);
 TypedMemory__String* spite_singleton_TypedMemory__String(void);
@@ -2015,10 +2015,12 @@ int32_t slot_ = Dictionary_Integer_home_slot(self, hash_);
 int32_t stored_ = SpiteMemory_Address_read_integer(self->slots_, SpiteInteger_to_long(({ int32_t spite_temp_183 = slot_; int32_t spite_temp_184 = 8; int32_t spite_temp_185; if (__builtin_expect(__builtin_mul_overflow(spite_temp_183, spite_temp_184, &spite_temp_185), 0)) spite_overflowed("slot * 8", "an Integer", "*", (int64_t)spite_temp_183, (int64_t)spite_temp_184, spite_site_26()); spite_temp_185; })));
 while (((stored_ != 0))) {
 {
+{
 if ((((stored_ > 0))) && (((SpiteMemory_Address_read_integer(self->slots_, SpiteInteger_to_long(({ int32_t spite_temp_186 = ({ int32_t spite_temp_187 = slot_; int32_t spite_temp_188 = 8; int32_t spite_temp_189; if (__builtin_expect(__builtin_mul_overflow(spite_temp_187, spite_temp_188, &spite_temp_189), 0)) spite_overflowed("slot * 8", "an Integer", "*", (int64_t)spite_temp_187, (int64_t)spite_temp_188, spite_site_27()); spite_temp_189; }); int32_t spite_temp_190 = 4; int32_t spite_temp_191; if (__builtin_expect(__builtin_add_overflow(spite_temp_186, spite_temp_190, &spite_temp_191), 0)) spite_overflowed("slot * 8 + 4", "an Integer", "+", (int64_t)spite_temp_186, (int64_t)spite_temp_190, spite_site_27()); spite_temp_191; }))) == fragment_))) && ((({ SpiteString spite_temp_192 = List_String_get_at(self->entry_keys_, (stored_ - 1)); bool spite_equal = ((!SPITE_STRING_IS_NULL(spite_temp_192))) ? (({ SpiteString spite_temp_193 = spite_temp_192; SpiteString spite_temp_194 = key_; bool spite_temp_195 = SpiteString_equals(spite_temp_193, SpiteString___retain(spite_temp_194)); spite_temp_195; })) : false; SpiteString___release(spite_temp_192); spite_equal; })))) {
 int32_t spite_temp_196 = slot_;
 SpiteString___release(key_);
 return spite_temp_196;
+}
 }
 }
 slot_ = Dictionary_Integer_next_slot(self, slot_);
@@ -2283,13 +2285,13 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Dictionary_Integer_drop, "library/dictionary.spite\tDictionary", "drop", 250},
 {(const void*)&Dictionary_Integer_index_of_key, "library/dictionary.spite\tDictionary", "index_of_key", 256},
 {(const void*)&Dictionary_Integer_find_slot, "library/dictionary.spite\tDictionary", "find_slot", 264},
-{(const void*)&Dictionary_Integer_place, "library/dictionary.spite\tDictionary", "place", 286},
-{(const void*)&Dictionary_Integer_make_room, "library/dictionary.spite\tDictionary", "make_room", 317},
-{(const void*)&Dictionary_Integer_rebuild_slots, "library/dictionary.spite\tDictionary", "rebuild_slots", 323},
-{(const void*)&Dictionary_Integer_hash_of, "library/dictionary.spite\tDictionary", "hash_of", 347},
-{(const void*)&Dictionary_Integer_home_slot, "library/dictionary.spite\tDictionary", "home_slot", 369},
-{(const void*)&Dictionary_Integer_fragment_of, "library/dictionary.spite\tDictionary", "fragment_of", 375},
-{(const void*)&Dictionary_Integer_next_slot, "library/dictionary.spite\tDictionary", "next_slot", 379},
+{(const void*)&Dictionary_Integer_place, "library/dictionary.spite\tDictionary", "place", 296},
+{(const void*)&Dictionary_Integer_make_room, "library/dictionary.spite\tDictionary", "make_room", 327},
+{(const void*)&Dictionary_Integer_rebuild_slots, "library/dictionary.spite\tDictionary", "rebuild_slots", 333},
+{(const void*)&Dictionary_Integer_hash_of, "library/dictionary.spite\tDictionary", "hash_of", 357},
+{(const void*)&Dictionary_Integer_home_slot, "library/dictionary.spite\tDictionary", "home_slot", 384},
+{(const void*)&Dictionary_Integer_fragment_of, "library/dictionary.spite\tDictionary", "fragment_of", 390},
+{(const void*)&Dictionary_Integer_next_slot, "library/dictionary.spite\tDictionary", "next_slot", 394},
 {(const void*)&List_Console_Printable_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&TypedMemory__Console_Printable_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&main, "-\t-", "main", 0},

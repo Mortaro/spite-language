@@ -13,7 +13,7 @@ field case with a direct read, but that is an optimisation, not something the wr
 requires of a member is its **arity and its return type**, never whether it is stored or computed.
 
 The templates, what each answers and what it requires of the member are [the table on the page](../docs/collections.md#member-templates-loops-you-do-not-write),
-which is normative; a `List<T>` of a class and a `Dictionary<T>` of a class answer all of them. These, together
+which is normative; a `List<T>` of a class and a `Dictionary` whose values are of a class answer all of them. These, together
 with `while` and the passed functions below, cover the cases a `for` loop covers elsewhere. This is why a list of
 components renders with nothing new in the language: `todos.map_renders()` calls `render()` on every element and
 collects the results, exactly as `todos.map_titles()` collects a field.
@@ -38,7 +38,7 @@ element's member and checks [the table](../docs/collections.md#member-templates-
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
 names a program calls are compiled. A `--repl`/`--repl-port` build compiles every template that fits every
 element class of a list the loop can reach, and lists them as that list's functions, so `monsters.sum_health()`
-works at the prompt. `Dictionary<T>` answers the same names through its values (`inventory.sum_price()` is
+works at the prompt. A `Dictionary` answers the same names through its values (`inventory.sum_price()` is
 `inventory.values().sum_price()`), and a program's own `list.spite` reopens `List` to add a template of its own,
 as its `dictionary.spite` reopens `Dictionary` (over `Spite.AttributeDeclaration<$value_type>`).
 A template there with a plain `member: Symbol` would range over `List`'s own attributes, its buffer, and answer
@@ -172,87 +172,71 @@ Names say where: `add` does not, so it is `append` (and `prepend`); `pop()` is `
 does not say where: write 'append' to add at the end, or 'prepend' at the start`, and `List has no method 'pop':
 write 'remove_last()', or 'remove_first()' to take from the start` (`diagnostics/old_list_names`).
 
-## Dictionary\<T\>
+## Dictionary\<Key, Value\>
 
-Insertion-ordered, keyed by text or by whole numbers; its members are [the table under
-`Dictionary<T>`](../docs/collections.md#dictionaryt), which is normative. `dictionary[key]` is `get_at(key)`, a `T?` that is `null` for an
-absent key, and `dictionary[key] = value` is `set_at(key, value)`, the same functions as every other `[]`.
-`keys()` and `values()` answer fresh copies, in insertion order.
+Insertion-ordered, keyed by its `Key` type; its members are [the table under
+`Dictionary<Key, Value>`](../docs/collections.md#dictionarykey-value), which is normative. `dictionary[key]` is
+`get_at(key)`, a `Value?` that is `null` for an absent key, and `dictionary[key] = value` is `set_at(key, value)`,
+the same functions as every other `[]`. `keys()` answers a fresh `List<Key>` and `values()` a fresh `List<Value>`,
+in insertion order; `copy()` and `deep_copy()` answer a `Dictionary<Key, Value>`, and `deep_copy()` copies the
+values and keeps the same keys, so an object key stays the one object.
+
+**The type names both.** `Dictionary` takes exactly two type arguments, the key type then the value type, in a
+written type and in `Dictionary<Key, Value>()` alike. Any other count is `a Dictionary names two types, its keys'
+and then its values', as in 'Dictionary<String, Integer>', and this one names 1`
+(`diagnostics/dictionary_type_arguments`). Nothing about the key is inferred from how the dictionary is used: a
+key given to `[]`, `[] =`, `get_at`, `set_at`, `has` or `remove` is an argument of type `Key`, cast to it as any
+argument is ([casting](values_and_types.md#casting)), and a key that does not fit is the ordinary mismatch error.
+Two dictionary types are the same type when both their key types and their value types are.
+
+**What can be a key**, and how it is found (one key per value the type tells apart):
+
+- a whole number (`Tiny`, `Byte`, `Short`, `UnsignedShort`, `Integer`, `UnsignedInteger`, `Long`, `UnsignedLong`)
+  by its value: stored and hashed as the number, with no `String` made for it, in a lookup or in the table;
+- a `Float` or a `Double` by its value: `0.0` and `-0.0` are one key, and every `not_a_number` is one key, the first
+  one stored being the key `keys()` answers;
+- a `String` by its bytes, and a `Boolean` by its value;
+- an enum value as that value, whatever text its name is;
+- an object of a class by its identity: one object is one key, and an equal-looking object is another key. The
+  dictionary holds each key it stores (it counts as one more reference), so an object cannot be freed, and its
+  memory reused by another, while it is a key.
+
+Anything else is `a Dictionary cannot be keyed by 'Integer?': a key is a number, a Boolean, a String, an enum value
+or an object of a class` (a nullable, a union, a shape, a function value, a `Symbol`), and a value class is `a
+Dictionary cannot be keyed by '<class>': it is a value, copied wherever it goes, so it has no identity to key by;
+key the dictionary by a number or a String made from it`. **A class that declares `equals`** (in any file that
+declares or reopens it) cannot be a key, since finding keys by identity would miss an object `equals` calls equal:
+`a Dictionary keyed by 'Date' finds each key by identity, one object one key, but 'Date' declares 'equals', so an
+equal 'Date' would not be found: key the dictionary by what 'equals' compares, a number or a String`
+(`diagnostics/equals_keys`).
+
+The key and value types are the program's intention, not its storage
+([write it plainly](write_it_plainly.md#a-class-is-what-you-mean-not-how-it-is-stored)): the compiler may hash,
+number, sort or fold a dictionary away by any heuristic, as long as every operation answers what the rules above
+say.
 
 **A dictionary literal** is `{` then entries apart with commas or newlines (a last comma allowed), each a key, `:`
-and a value, then `}`. A key is a text literal or a whole-number literal, and the first key decides which: a brace
-that opens on a name is an object literal instead. The entries are set in the order written; the value type is the
-declared type's when the literal is stored where a `Dictionary<T>` is declared, and the first value's otherwise.
-The same key twice is `"key" is written twice in this dictionary: keep one entry for each key`, and a text key and
-a number key in one literal are the mixed-key error below. `{}` is an empty object literal, never a dictionary:
-an empty dictionary is `Dictionary<T>()`.
+and a value, then `}`. A key is a text literal or a whole-number literal: a brace that opens on a name is an object
+literal instead. The entries are set in the order written. Stored where a `Dictionary<Key, Value>` is declared, the
+literal has that type and each key and value is cast to it; otherwise its key type is `String` when its first key
+is text and `Integer` when it is a number, and its value type is the first value's. The same key twice is `"key" is
+written twice in this dictionary: keep one entry for each key`. `{}` is an empty object literal, never a
+dictionary: an empty dictionary is `Dictionary<Key, Value>()`.
 
-**The key kind is decided while compiling.** Each dictionary is keyed by text or by whole numbers, never both, and nothing is written for
-it: `Dictionary<T>` stays the one spelling.
-
-- The keys the program gives a dictionary decide it: the key of `[]`, `[] =`, `set`, `get`, `has` and
-  `remove`. A `String`, a symbol or an enum value is a text key (an enum value becomes its name); a
-  `Tiny`, `Byte`, `Short`, `UnsignedShort`, `Integer`, `UnsignedInteger`, `Long` or `UnsignedLong` is a number
-  key. A dictionary given no key at all is keyed by text.
-- The kind follows the dictionary wherever it goes, like its value type: a local it is assigned to, a parameter it
-  is passed to, an attribute that holds it, a function that returns it, a list of dictionaries, and a generic
-  class it is handed to (`BinaryWriter<Shelf>`, `BinaryReader<Shelf>`). A key given anywhere along that path
-  decides it for all of them.
-- One dictionary given a text key and a number key is a compile error at the number key, naming the text key's
-  place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):
-  a dictionary is keyed by text or by whole numbers, never both, so give every key of it the same kind`, with the
-  places that tied the two before the colon when they were given to different dictionaries (below;
-  `diagnostics/mixed_dictionary_keys`).
-- **Only the program's own flows decide it.** The descriptions
-  the compiler writes for `to_debug()` (`Spite.Debug<T>` and `Spite.DebugInstance<T>`, one of each per type for
-  the whole program) take a dictionary as the kind it already has and never tie it to another. Otherwise every
-  `Dictionary<String>` attribute of every class described would pass through the one `Spite.Debug<Dictionary<String>>`
-  and be tied to all the others, so a number key given to one would change the kind of an unrelated one, and
-  removing code that made some class be described would change what compiled
-  (`conformance/stage6/debug_dictionary_keys`).
-  The same holds for the member templates a build compiles only so the prompt can call them (a `--repl`,
-  `--repl-port` or `--hot-reload` build, [on the page](../docs/collections.md#how-the-member-templates-are-written)): `map_<members>` over a
-  dictionary attribute appends it to the one `List<Dictionary<String>>` of the program, so each such template would
-  tie every dictionary attribute of every listed class together, and a `--hot-reload` build of a large game would
-  fail with a kind its `--optimized` build never had. A template kept for the prompt neither ties dictionaries nor
-  gives one a key; one the program calls does both (`conformance/stage6/kept_templates`). The kinds are the same in
-  every build of one program.
-- **Two kinds that meet are named.** Where a dictionary of one kind is given where one of the other kind is
-  wanted, the error says which is which and what decided each, rather than naming two `Dictionary<String>`s:
-  `a Dictionary<String> keyed by whole numbers (Long), from the key at engine/columns.spite:47 (in
-  Columns.name_of_header) cannot be used where a Dictionary<String> keyed by text, from the key at
-  engine/recipes/cache_reader.spite:25 (in Recipes.CacheReader.fingerprint_of) is needed: a dictionary is keyed by
-  text or by whole numbers, decided while compiling by the keys it is given, and these two were decided apart --
-  give both the same kind of key, or copy the entries across one by one`. A kind nothing decided reads `text,
-  since nothing gives it a whole-number key`. **A key that reaches a dictionary through others names the way it
-  came**: when the deciding key was given to another dictionary tied to this one,
-  the kind (here and in the mixed-keys error above) adds `, which reaches it through <file>:<line> (in
-  <class>.<function>), ...`, each place that tied two of them (an assignment, an argument, a return), up to four
-  and `and N more`. So a dictionary tied to an unrelated one by code the reader never wrote, such as a template kept
-  for the prompt, says how the far key got there.
-- The error that a dictionary never settles names the class and function that make it, not whichever function the
-  compiler read last.
-- **The kinds always settle, or it is an error.** They are found by compiling again with what the last pass
-  learned, at most eight times; a program whose kinds are still changing then is a compile error at a dictionary
-  that keeps changing, `the dictionary made here never settles on text or whole-number keys: each pass of the
-  compiler decides it the other way (last as whole numbers, from the key at ...), since what decides it flows
-  back into it; give it a key the program itself writes, of one kind`, never whatever the last pass compiled.
-- A number-keyed dictionary's key type is the widest whole-number type any of its keys has (`Integer` keys and one
-  `Long` key make a `Long`-keyed dictionary); a narrower key is widened as an argument is. `keys()` answers a
-  `List` of that type, and `copy()` and `deep_copy()` are keyed the same way.
-- A number key is stored and hashed as the number: no `String` is made for it, in a lookup or in the table.
-  Everything else is as for text keys: insertion order, `null` for an absent key, `remove` moving later entries
-  down, the member templates through the values (`conformance/stage6/number_keys`).
-- Written as JSON, a number key is the number in quotes (`{"7":"SEVEN"}`), and reading JSON into a number-keyed
-  dictionary reads each key's text as the number. Binary bytes carry the number as its type is written, and
-  `schema()` counts the key's type in, so text-keyed and number-keyed dictionaries have different schemas.
+**Written out.** As JSON, a key is text: a `String` key is the text, a whole-number key is the number in quotes
+(`{"7":"SEVEN"}`), an enum key is its name, and reading JSON reads each key's text back as the key type. A JSON
+writer or reader of a dictionary keyed by anything else is an error at the `JsonWriter` or `JsonReader`: `its
+dictionary is keyed by 'Float', and a JSON key is text: key it by a String, a whole number or an enum value`.
+Binary bytes carry each key as its type is written, and `schema()` counts the key's type in, so dictionaries with
+different key types have different schemas. No format writes an object key, which is an identity:
+`its dictionary is keyed by 'Player' objects, each key one object's identity, which has no binary form`.
 
 It is a hash table over two ordered lists:
 `get`, `has`, `set` and `[]` take the same time however many keys there are, and `remove` takes time in
 proportion to the dictionary's size. An empty dictionary allocates no table.
 
 The member templates, declared in `library/dictionary.spite`, and the passed-function forms work on a
-`Dictionary<T>` through a copy of its values, as they do on a `List<T>`, all but `remove_where`: removing from
+`Dictionary` through a copy of its values, as they do on a `List<T>`, all but `remove_where`: removing from
 that copy would change nothing, so `remove_where_<member>()` and `remove_where(f)` on a dictionary are an error
 naming `remove(key)`. To walk keys and values together, use `while` over `dictionary.keys()` and read
 `dictionary[key]`.

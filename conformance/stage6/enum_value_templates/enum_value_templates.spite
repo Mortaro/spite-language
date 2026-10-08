@@ -31,7 +31,7 @@ func EnumValueTemplates() {
     var angry = pets.filter_angry()
     var angry_count = angry.count()
     console.print("calm:", calm, "angry:", angry_count)
-    var shelf = Dictionary<Post>()
+    var shelf = Dictionary<String, Post>()
     shelf["first"] = first
     shelf["second"] = second
     var shelved = shelf.count_published()

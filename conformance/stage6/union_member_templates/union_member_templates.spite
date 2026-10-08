@@ -29,7 +29,7 @@ func UnionMemberTemplates() {
     var left = entries.count()
     var only_files = entries.all_files()
     console.print("without folders:", left, only_files)
-    var tasks = Dictionary<Task>()
+    var tasks = Dictionary<String, Task>()
     var sweep = Task("sweep", true)
     tasks["sweep"] = sweep
     var cook = Task("cook", false)

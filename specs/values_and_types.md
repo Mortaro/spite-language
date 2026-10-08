@@ -106,8 +106,8 @@ arithmetic is done in, so it would wrap: write the number itself, 4287102976, wh
 `diagnostics/wider_right_operand`. Both checks happen while compiling and change nothing in what is emitted.
 
 **Anything with a `to_string()` casts to text.** Where a `String` (or a
-`String?`) is wanted (assignment, `var name: String = value`, an argument, a `return`, a `Dictionary` key that
-is not a whole number (a whole-number key keys the dictionary by numbers)) and
+`String?`) is wanted (assignment, `var name: String = value`, an argument, a `return`, the key of a
+`Dictionary<String, Value>`) and
 the value is not text, it becomes text through its `to_string()`, the conversion a text hole makes: a number, a
 `Boolean`, an enum value (its name), a class object (`Spite.Class`, its name) and an object of any class that
 declares `func to_string(): String`. `label.text = clicks` with an `Integer` `clicks` stores `"42"`, and
@@ -155,7 +155,7 @@ they are built on are [the table at the top of the page](../docs/values_and_type
 An integer literal defaults to `Integer`; one too large to fit becomes a `Long` instead. A decimal literal
 defaults to `Float`. All of them follow the same right-side-casts-toward-left-side rule as everything else
 (`var tiny: Tiny = some_integer_variable` narrows with an ordinary cast); a value that does not fit the narrower
-type halts, as [Arithmetic that does not fit halts](../docs/values_and_types.md#arithmetic-that-does-not-fit-halts) says, rather than wrapping or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
+type halts, as [Arithmetic that does not fit halts](../docs/values_and_types.md#arithmetic-that-does-not-fit-halts) says, rather than wrapping or saturating. `List<T>`, `Dictionary<Key, Value>`, `T?`, and generics all work
 with every numeric type; so does `String` conversion both ways: text is read as a number through `String`'s one
 `to_<name>()` method per type, `to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`,
 `to_unsigned_short()`, `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`, each answering a
@@ -481,7 +481,7 @@ a member of the value's union is an error, since the answer could only be false 
 A generic class is named with its codegen values and no parentheses, `found == Storage<$component_type>`:
 only the right side of `==`/`!=` reads that form, and anywhere
 else it is an error saying to call it. Tested through a `type`, a class that fits is admitted to the shape
-by the test itself, so a value read back from a `Dictionary<AnyStorage>` can be narrowed before this function
+by the test itself, so a value read back from a `Dictionary<String, AnyStorage>` can be narrowed before this function
 has stored one (`conformance/stage6/generic_class_test`).
 **A codegen value bound to a class is a class test too**: inside `Fetch<$wanted_type>`, `if item == $wanted_type { found = item }` narrows `item`
 to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its

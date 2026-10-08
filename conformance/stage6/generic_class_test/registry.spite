@@ -4,4 +4,4 @@ type AnyStorage {
     clear()
 }
 
-var storages = Dictionary<AnyStorage>()
+var storages = Dictionary<String, AnyStorage>()

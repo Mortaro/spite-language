@@ -31,7 +31,7 @@ REPL can look at any of it.
 | `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes, with their maths (`square_root()`, `sine()`, `Float.pi`, ...) | [values_and_types.md](values_and_types.md#numbers-are-classes), [maths](values_and_types.md#maths-functions) |
 | `Nothing`, `Anything` | what a function returns when it returns nothing; the empty `type` every class fits | [functions_and_operators.md](../specs/functions_and_operators.md#calling-one) |
 | `Number` | the `type` every number class fits: its operators and `to_long()`, `to_double()` | [values_and_types.md](values_and_types.md#every-number-fits-number) |
-| `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
+| `List<T>`, `Dictionary<Key, Value>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
 | `FileSystemWatcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
@@ -451,7 +451,7 @@ output build finished
 |---|---|---|
 | `Process(command, arguments)` | | `arguments` is a `List<String>`, each one argument of the child, quoted for you (below) |
 | `working_directory` | `String` | the folder the child runs in; `""`, the default, is the program's own |
-| `environment_variables` | `Dictionary<String>` | variables set for the child alone, on top of the program's own: `process.environment_variables["LOG"] = "1"` |
+| `environment_variables` | `Dictionary<String, String>` | variables set for the child alone, on top of the program's own: `process.environment_variables["LOG"] = "1"` |
 | `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start; on Linux and macOS, a child a signal ended answers 128 plus the signal's number, as a shell reports it) |
 | `output()` | `String` | what it wrote to its standard output, valid after `run()` |
 | `run_attached()` | `Integer` | runs it with the program's own terminal, so what it writes and reads is the user's, and answers its exit code, read as `run()` reads it |

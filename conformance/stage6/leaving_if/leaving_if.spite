@@ -1,6 +1,6 @@
 var console = Console()
 var names = ["ada", "bo"]
-var prices = Dictionary<Integer>()
+var prices = Dictionary<String, Integer>()
 var handle = -1
 
 func LeavingIf() {

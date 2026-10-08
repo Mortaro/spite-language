@@ -122,7 +122,7 @@ a lint error.
 
 **An `if` that only returns the default is an `assert`.** In a function returning nothing, a `T?`, or a `List`,
 `Dictionary`, `Vector` or `Items`, an `if` with no `else` whose whole body is one `return` of the function's
-default (`null`; an empty collection, `List<T>()`, `Dictionary<T>()`, `Vector<T>()`, `Items<T>()` or `[]`, in a
+default (`null`; an empty collection, `List<T>()`, `Dictionary<Key, Value>()`, `Vector<T>()`, `Items<T>()` or `[]`, in a
 function returning one; or a bare `return` in a function returning nothing) is a compile error wherever it stands in
 the function, inside a `while` or a nested `if` included, and the message names the `assert` of the opposite
 condition:
@@ -228,7 +228,7 @@ How a read is proven:
   `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`. `names.count() != 0`
   and `not names.is_empty()` prove `names[0]` the same way
   (`conformance/stage6/count_bound_proofs`). A count proves indices of a `List` only: a `Dictionary`'s keys need
-  not be `0` to `count() - 1`, so after `crash names.count() == 1` a number-keyed `names[0]` is still a `T?`
+  not be `0` to `count() - 1`, so after `crash names.count() == 1` a `Dictionary<Integer, Value>`'s `names[0]` is still a `Value?`
   (`diagnostics/count_proves_no_key`).
 - **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
   `crash`, an `if`, or a `while` proves `names[index]` in what follows (the loop body, for a `while`) and

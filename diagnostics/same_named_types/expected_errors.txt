@@ -1,2 +1,2 @@
 diagnostics/same_named_types/recipes/cook_task.spite:10: error: a List<Recipes.CookTask.Buildable> cannot be used where a List<Recipes.Cookbook.Buildable> is needed (in Recipes.CookTask.run)
-diagnostics/same_named_types/recipes/cook_task.spite:13: error: a Dictionary<Recipes.CookTask.Buildable> cannot be used where a Dictionary<Recipes.Cookbook.Buildable> is needed (in Recipes.CookTask.run)
+diagnostics/same_named_types/recipes/cook_task.spite:13: error: a Dictionary<String, Recipes.CookTask.Buildable> cannot be used where a Dictionary<String, Recipes.Cookbook.Buildable> is needed (in Recipes.CookTask.run)

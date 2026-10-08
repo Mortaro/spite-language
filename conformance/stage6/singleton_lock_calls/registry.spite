@@ -1,6 +1,6 @@
 singleton
 
-var sizes = Dictionary<Integer>()
+var sizes = Dictionary<String, Integer>()
 var added = 0
 var last = ""
 

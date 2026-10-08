@@ -324,7 +324,7 @@ func Channel(channel_number: Integer) {
 var console = Console()
 var news = Channel(1)
 var music = Channel(2)
-var volumes = Dictionary<Integer>()
+var volumes = Dictionary<String, Integer>()
 var station = "city"
 
 func ReplRadio() {
