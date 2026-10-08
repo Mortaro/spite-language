@@ -26,11 +26,11 @@ int32_t Naive_rise_count___held_0(Naive* self, List_Integer* values_, int32_t th
     while (((index_ < count_))) {
         int32_t value_ = ({ int32_t spite_temp_16 = index_; if (__builtin_expect(spite_temp_16 >= (values_)->item_count_, 0)) spite_outside_list("values[index]", spite_site_2()); ((int32_t*)(intptr_t)(values_)->items_)[spite_temp_16]; });
         if (((({ int32_t spite_temp_17 = value_; int32_t spite_temp_18 = previous_; int32_t spite_temp_19; if (__builtin_expect(__builtin_sub_overflow(spite_temp_17, spite_temp_18, &spite_temp_19), 0)) spite_overflowed("value - previous", "an Integer", "-", (int64_t)spite_temp_17, (int64_t)spite_temp_18, spite_site_3()); spite_temp_19; }) > threshold_))) {
-            rises_ = ({ int32_t spite_temp_20 = rises_; int32_t spite_temp_21 = 1; int32_t spite_temp_22; if (__builtin_expect(__builtin_add_overflow(spite_temp_20, spite_temp_21, &spite_temp_22), 0)) spite_overflowed("rises + 1", "an Integer", "+", (int64_t)spite_temp_20, (int64_t)spite_temp_21, spite_site_4()); spite_temp_22; });
+            rises_ = (rises_ + 1);
         }
         previous_ = value_;
         index_ = (index_ + 1);
     }
-    int32_t spite_temp_23 = rises_;
-    return spite_temp_23;
+    int32_t spite_temp_20 = rises_;
+    return spite_temp_20;
 }
