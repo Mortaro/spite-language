@@ -113,7 +113,12 @@ it. Tree shaking and every other whole-program step run before any output is wri
   too. It is written only when asked: without the flag the compiler records nothing and the program built is the
   same. It starts with `# Optimisation report` and a sentence naming the program, then has one `## <section>
   (<count>)` per optimisation, in this order: `Lists that hold references`, `Lists not in the frame`, `Objects not
-  in the frame`, `Copies not elided`; a section with nothing in it says `None.`. Each entry is one line,
+  in the frame`, `Copies not elided`, `Overflow checks kept`; a section with nothing in it says `None.`. An overflow
+  check kept is `` `<operation>` keeps its overflow check: <why> ``, the why naming the operand that `can be any value
+  <a type> holds, and nothing proves a smaller range for it`, or each operand's range (`'<operand>' runs from <lowest>
+  to <highest>`, or `'<operand>' is <value>` where the text is not the number itself) joined by `and`, then `so the
+  answer may not fit in <a type>` (`its negation may not fit` for a `-` in front), or that `a --repl, --repl-port or
+  --hot-reload build proves no ranges, since code may run between two steps`. Each entry is one line,
   `- [<path>:<line>](<path from the report's folder>#L<line>): <what> ...: <why>`, the path as error messages
   print it; entries are sorted by path and line, a place reported twice (a generic function compiled per class) is
   listed once, and a place only in functions tree shaking removed is not listed. A list type is listed once, at the

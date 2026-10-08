@@ -19,7 +19,7 @@ void Naive_Naive(Naive* self) {
     List_Velocity* velocities_ = List_Velocity___make();
     int32_t index_ = 0;
     while (((index_ < 1000))) {
-        Position* position_ = Position___make(index_, ({ int32_t spite_temp_1 = index_; int32_t spite_temp_2 = 2; int32_t spite_temp_3; if (__builtin_expect(__builtin_mul_overflow(spite_temp_1, spite_temp_2, &spite_temp_3), 0)) spite_overflowed("index * 2", "an Integer", "*", (int64_t)spite_temp_1, (int64_t)spite_temp_2, spite_site_1()); spite_temp_3; }));
+        Position* position_ = Position___make(index_, (index_ * 2));
         List_Position_append(positions_, Position___retain(position_));
         Velocity* velocity_ = Velocity___make((index_ % 7), (index_ % 5));
         List_Velocity_append(velocities_, Velocity___retain(velocity_));
@@ -27,9 +27,9 @@ void Naive_Naive(Naive* self) {
         Velocity___release(velocity_);
         Position___release(position_);
     }
-    int32_t across_ = ({ int32_t spite_temp_4 = List_Position_sum_across(positions_); int32_t spite_temp_5 = spite_folded_List_Velocity_sum_across(velocities_); int32_t spite_temp_6; if (__builtin_expect(__builtin_add_overflow(spite_temp_4, spite_temp_5, &spite_temp_6), 0)) spite_overflowed("positions.sum_across() + velocities.sum_across()", "an Integer", "+", (int64_t)spite_temp_4, (int64_t)spite_temp_5, spite_site_2()); spite_temp_6; });
-    int32_t down_ = ({ int32_t spite_temp_7 = List_Position_sum_down(positions_); int32_t spite_temp_8 = spite_folded_List_Velocity_sum_down(velocities_); int32_t spite_temp_9; if (__builtin_expect(__builtin_add_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("positions.sum_down() + velocities.sum_down()", "an Integer", "+", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_3()); spite_temp_9; });
-    int32_t items_ = ({ int32_t spite_temp_10 = spite_folded_List_Position_count(positions_); int32_t spite_temp_11 = spite_folded_List_Velocity_count(velocities_); int32_t spite_temp_12; if (__builtin_expect(__builtin_add_overflow(spite_temp_10, spite_temp_11, &spite_temp_12), 0)) spite_overflowed("positions.count() + velocities.count()", "an Integer", "+", (int64_t)spite_temp_10, (int64_t)spite_temp_11, spite_site_4()); spite_temp_12; });
+    int32_t across_ = ({ int32_t spite_temp_1 = List_Position_sum_across(positions_); int32_t spite_temp_2 = spite_folded_List_Velocity_sum_across(velocities_); int32_t spite_temp_3; if (__builtin_expect(__builtin_add_overflow(spite_temp_1, spite_temp_2, &spite_temp_3), 0)) spite_overflowed("positions.sum_across() + velocities.sum_across()", "an Integer", "+", (int64_t)spite_temp_1, (int64_t)spite_temp_2, spite_site_1()); spite_temp_3; });
+    int32_t down_ = ({ int32_t spite_temp_4 = List_Position_sum_down(positions_); int32_t spite_temp_5 = spite_folded_List_Velocity_sum_down(velocities_); int32_t spite_temp_6; if (__builtin_expect(__builtin_add_overflow(spite_temp_4, spite_temp_5, &spite_temp_6), 0)) spite_overflowed("positions.sum_down() + velocities.sum_down()", "an Integer", "+", (int64_t)spite_temp_4, (int64_t)spite_temp_5, spite_site_2()); spite_temp_6; });
+    int32_t items_ = ({ int32_t spite_temp_7 = spite_folded_List_Position_count(positions_); int32_t spite_temp_8 = spite_folded_List_Velocity_count(velocities_); int32_t spite_temp_9; if (__builtin_expect(__builtin_add_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("positions.count() + velocities.count()", "an Integer", "+", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_3()); spite_temp_9; });
     List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[6]; int32_t spite_framed_1_count = 0;
     Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_1_box)); spite_framed_1_items[1] = spite_tagged_SpiteInteger(across_); spite_framed_1_items[2] = spite_tagged_object(0, ((void*)&spite_lit_2_box)); spite_framed_1_items[3] = spite_tagged_SpiteInteger(down_); spite_framed_1_items[4] = spite_tagged_object(0, ((void*)&spite_lit_3_box)); spite_framed_1_items[5] = spite_tagged_SpiteInteger(items_); spite_framed_1_count = 6; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 6); }));
     for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
@@ -42,9 +42,9 @@ int32_t List_Position_sum_across(List_Position* self) {
     int32_t index_ = 0;
     while (((index_ < self->item_count_))) {
         Position* item_ = ((Position**)(intptr_t)self->items_)[index_];
-        total_ = ({ int32_t spite_temp_13 = total_; int32_t spite_temp_14 = (item_)->across_; int32_t spite_temp_15; if (__builtin_expect(__builtin_add_overflow(spite_temp_13, spite_temp_14, &spite_temp_15), 0)) spite_overflowed("total + item.attributes[member]", "an Integer", "+", (int64_t)spite_temp_13, (int64_t)spite_temp_14, spite_site_5()); spite_temp_15; });
+        total_ = ({ int32_t spite_temp_10 = total_; int32_t spite_temp_11 = (item_)->across_; int32_t spite_temp_12; if (__builtin_expect(__builtin_add_overflow(spite_temp_10, spite_temp_11, &spite_temp_12), 0)) spite_overflowed("total + item.attributes[member]", "an Integer", "+", (int64_t)spite_temp_10, (int64_t)spite_temp_11, spite_site_4()); spite_temp_12; });
         index_ = (index_ + 1);
     }
-    int32_t spite_temp_16 = total_;
-    return spite_temp_16;
+    int32_t spite_temp_13 = total_;
+    return spite_temp_13;
 }

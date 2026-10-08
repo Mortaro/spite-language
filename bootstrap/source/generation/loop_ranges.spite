@@ -1,0 +1,24 @@
+var passes_known = false
+var most_passes: Long = 0
+var summed_names = List<String>()
+var summed_lowest = List<Long>()
+var summed_highest = List<Long>()
+
+# ../../../docs/proofs.md#a-range-proves-arithmetic-fits
+func sum_into(name: String, start: NumberRange) {
+    summed_names.append(name)
+    summed_lowest.append(start.lowest)
+    summed_highest.append(start.highest)
+}
+
+func start_of_sum(name: String): NumberRange? {
+    var index = 0
+    while index < summed_names.count() {
+        if summed_names[index] == name {
+            crash summed_lowest[index] and summed_highest[index]
+            return NumberRange(summed_lowest[index], summed_highest[index])
+        }
+        index = index + 1
+    }
+    return null
+}

@@ -33,6 +33,11 @@ var loop_condition_known = false
 var kept_read_codes = List<String>()
 var last_check_text = ""
 var last_check_line = 0
+var range_names = List<String>()
+var range_lowest = List<Long>()
+var range_highest = List<Long>()
+var loop_ranges: LoopRanges? = null
+var entered_loop: LoopRanges? = null
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -101,6 +106,7 @@ func counted_items_of(key: String): String {
 }
 
 func declare(name: String, spite_type: Analysis.SpiteType) {
+    forget_range_here(name)
     entry_names.append(name)
     entry_types.append(spite_type)
     entry_used.append(false)
@@ -766,6 +772,75 @@ func loop_reads_override(name: String): Boolean {
 func know_loop_condition(text: String) {
     loop_condition_text = text
     loop_condition_known = true
+}
+
+# ../../../docs/proofs.md#a-range-proves-arithmetic-fits
+func set_range(name: String, range: NumberRange?) {
+    forget_range_here(name)
+    range_names.append(name)
+    if range {
+        range_lowest.append(range.lowest)
+        range_highest.append(range.highest)
+        return
+    }
+    range_lowest.append(1)
+    range_highest.append(0)
+}
+
+func forget_range_here(name: String) {
+    var index = range_names.count() - 1
+    while index >= 0 {
+        if range_names[index] == name {
+            range_names.remove_at(index)
+            range_lowest.remove_at(index)
+            range_highest.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
+func range_of(name: String): NumberRange? {
+    var index = range_names.count() - 1
+    while index >= 0 {
+        if range_names[index] == name {
+            var low = range_lowest[index]
+            var high = range_highest[index]
+            crash low and high
+            assert low <= high
+            return NumberRange(low, high)
+        }
+        index = index - 1
+    }
+    assert not entry_names.contains(name)
+    assert parent
+    return parent.range_of(name)
+}
+
+func assign_range(name: String, range: NumberRange?) {
+    set_range(name, range)
+    assert not entry_names.contains(name)
+    assert parent
+    parent.widen_range(name, range)
+}
+
+func widen_range(name: String, range: NumberRange?) {
+    var seen = range_of(name)
+    var widened: NumberRange? = null
+    if seen and range {
+        widened = seen.joined(range)
+    }
+    set_range(name, widened)
+    assert not entry_names.contains(name)
+    assert parent
+    parent.widen_range(name, range)
+}
+
+func innermost_loop(): Scope? {
+    if is_loop {
+        return this
+    }
+    assert parent
+    return parent.innermost_loop()
 }
 
 func remove_last_entry(name: String) {

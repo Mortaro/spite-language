@@ -290,6 +290,16 @@ joins; `while index < bound` with a known bound gives `[0, bound - 1]`, so `inde
 `Integer`. Plugs into `proven_to_fit` after the existing test; every kept check still reported. Open: the cost of
 cloning intervals per block, one table of every number type's limits.
 
+**Built 2026-10-08** (Claude, branch `proven-ranges`): `range_refusal` beside `proven_to_fit`, a range per local in
+`Scope` (`set_range`, `assign_range`, which widens every enclosing scope up to the declaring one, so a branch never
+needs cloning), `enter_loop_ranges` before a loop's condition (counters, any other local widened with the loop's
+own locals at their type's range, passes from a counter stepped once a pass, totals of one term a pass), and every
+kept check in `--optimization-report`. The compiler's own C went from 1 513 to 1 263 checks. The cases' hot loops
+did not move: `arithmetic_is_checked_in_every_build` (20.7 to 19.9 ms, noise), `a_proven_read_tests_only_its_bounds`
+(33.9 to 34.4), `report_over_records` (315 to 324) and `smaller_ones` (26.9 to 26.7), since what they add up is an
+`Integer` list item or an attribute, which no local range bounds: the next steps are attribute ranges (every write
+in the program, like `item_values.spite`) and the speculate-and-replay loop below.
+
 Measured 2026-10-08 (Claude, for `benchmarks/arithmetic_is_checked_in_every_build`, whose sum an interval cannot
 bound): **speculate, then replay.** A counted loop whose body only reads plain lists and assigns plain locals can
 run once with every check turned into a flag (`wrapped |= x > INT32_MAX / 3 || x < INT32_MIN / 3`) and each

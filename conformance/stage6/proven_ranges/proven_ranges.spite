@@ -1,0 +1,48 @@
+var console = Console()
+
+func ProvenRanges() {
+    var values = List<Integer>()
+    var index = 0
+    while index < 1000 {
+        values.append(index * 7 % 13 - 5)
+        index = index + 1
+    }
+    var total: Long = 0
+    var at = 0
+    while at < values.count() {
+        total = total + values[at] * 3
+        at = at + 1
+    }
+    var squares = 0
+    var step = 0
+    while step < 100 {
+        var level = step.clamp(0, 50)
+        squares = squares + level * level
+        step = step + 1
+    }
+    var seed: Long = 7
+    var round = 0
+    while round < 50 {
+        seed = seed * 48271 % 2147483647
+        round = round + 1
+    }
+    var rises = 0
+    var previous = 0
+    var position = 0
+    while position < values.count() {
+        var value = values[position]
+        if value > previous {
+            rises = rises + 1
+        }
+        previous = value
+        position = position + 1
+    }
+    console.print(total, squares, seed, rises)
+    var grown = 1
+    var times = 0
+    while times < 40 {
+        grown = grown * 3
+        times = times + 1
+    }
+    console.print("never printed", grown)
+}

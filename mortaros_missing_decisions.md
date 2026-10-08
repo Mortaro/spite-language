@@ -150,6 +150,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   `String`, a whole number or an enum; no format writes an object key; the binary schema text keeps its old
   spelling, so binary files written before still read. Why: a JSON key is text, and an object's identity does not
   survive a file.
+- **D542, ranges drop overflow checks**: the compiler works out the range of every whole-number local (from
+  literals, assignments, remainders, `clamp`, counts and the conditions in force, widened at each loop's entry) and
+  leaves out a check its ranges prove can never fire, such as a `Long` total of `Integer` items over a list; every
+  check that stays is listed in `--optimization-report` with the ranges it found. Why: D360 asks for each proven
+  check to go, and the proof is made entirely while compiling. Attributes and list items keep their type's range
+  for now (another function could change them).
 
 ## Open
 

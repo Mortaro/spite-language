@@ -130,10 +130,11 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 ### Arithmetic (D359, D360, D357, D369 item 249)
 
 - **N2 The rest of the checks proven away** (D360; proofs.md "Arithmetic that does not fit halts"). A counter
-  stepped by one under a `<` or `>` and constants are built; still to drop: indexes already bounded (`index * 4`
-  under `index < count`), known ranges (a `bits_and(255)` put into a `Byte`, a `% n` result), attributes whose
-  proofs survive calls (`call_effects.spite`), and a sum the C compiler could vectorise; what stays is listed in M4's
-  report. Update docs/proofs.md and docs/optimizations.md. **M.** Benchmarks measured on `--optimized` builds only.
+  stepped by one under a `<` or `>`, constants and the ranges of locals (bounded indexes, `% n`, `clamp`, totals of
+  one term a pass, "A range proves arithmetic fits") are built, and what stays is listed in the report; still to
+  drop: a `bits_and(255)` put into a `Byte` and every value put into a narrower name, attributes' ranges (every write
+  in the program, and proofs that survive calls, `call_effects.spite`), and an `Integer` sum of list items (R6's
+  speculate and replay). Update docs/proofs.md and docs/optimizations.md. **M.** Benchmarks measured on `--optimized` builds only.
 
 ### Memory (D352, D354, D380, D369 item 173, D147, D178)
 

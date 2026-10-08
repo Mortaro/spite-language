@@ -16,6 +16,7 @@ func OptimizationReport() {
     var spot_count = spots.count()
     console.print(joined, badge_count, spot_count)
     for_each_kept()
+    kept_checks()
     print_report()
 }
 
@@ -45,6 +46,18 @@ func for_each_kept() {
         console.print(described, total)
         index = index + 1
     }
+}
+
+func kept_checks() {
+    var total: Long = 0
+    var product = 1
+    var index = 0
+    while index < badges.count() {
+        total = total + index
+        product = product * 3
+        index = index + 1
+    }
+    console.print(total, product)
 }
 
 func remember(kept: Spot) {

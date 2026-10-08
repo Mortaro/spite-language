@@ -421,7 +421,10 @@ compiler.
 1. **Drop the overflow checks a sum provably cannot need** (Rule 4's first half): a `Long` total of `Integer` terms
    added once per pass of a loop bounded by a list's count, and ranges from `%`, `clamp`, `minimum`. Small, needs no
    layout change, and every `sum_` template and report loop gets it: measured 3.9 to 7 times on a column already,
-   and it is what every later vector loop needs first. **This is the first optimisation to build.**
+   and it is what every later vector loop needs first. **This is the first optimisation to build.** Built
+   2026-10-08 for locals ([optimizations.md](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked)):
+   `report_over_records`' profit sum is now a plain `Long` addition, but its `Integer` products of attributes keep
+   their checks until attributes have ranges.
 2. **Per-loop field sets** in `--optimization-report`: for every list, the fields each loop reads and writes, its
    pattern and whether anything uses an item whole. No code changes; it is the data every layout rule needs, and
    shows on real programs (the engine, the compiler) where Rule 1 would apply.

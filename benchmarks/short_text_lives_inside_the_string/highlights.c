@@ -65,11 +65,11 @@ int32_t Naive_checksum___held_0(Naive* self, List_String* labels_) {
     int32_t index_ = 0;
     while (((index_ < List_String_count(labels_)))) {
         SpiteString label_ = ({ SpiteString spite_temp_6 = List_String_get_at(labels_, index_); if (__builtin_expect(!((!SPITE_STRING_IS_NULL(spite_temp_6))), 0)) spite_outside_list("labels[index]", spite_site_1()); spite_temp_6; });
-        int32_t last_ = ({ int32_t spite_temp_7 = SpiteString_length(label_); int32_t spite_temp_8 = 1; int32_t spite_temp_9; if (__builtin_expect(__builtin_sub_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("label.length() - 1", "an Integer", "-", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_2()); spite_temp_9; });
-        total_ = ({ int32_t spite_temp_10 = ({ int32_t spite_temp_11 = total_; int32_t spite_temp_12 = SpiteString_length(label_); int32_t spite_temp_13; if (__builtin_expect(__builtin_add_overflow(spite_temp_11, spite_temp_12, &spite_temp_13), 0)) spite_overflowed("total + label.length()", "an Integer", "+", (int64_t)spite_temp_11, (int64_t)spite_temp_12, spite_site_3()); spite_temp_13; }); int32_t spite_temp_14 = SpiteString_code_at(label_, last_); int32_t spite_temp_15; if (__builtin_expect(__builtin_add_overflow(spite_temp_10, spite_temp_14, &spite_temp_15), 0)) spite_overflowed("total + label.length() + label.code_at(last)", "an Integer", "+", (int64_t)spite_temp_10, (int64_t)spite_temp_14, spite_site_3()); spite_temp_15; });
+        int32_t last_ = (SpiteString_length(label_) - 1);
+        total_ = ({ int32_t spite_temp_7 = ({ int32_t spite_temp_8 = total_; int32_t spite_temp_9 = SpiteString_length(label_); int32_t spite_temp_10; if (__builtin_expect(__builtin_add_overflow(spite_temp_8, spite_temp_9, &spite_temp_10), 0)) spite_overflowed("total + label.length()", "an Integer", "+", (int64_t)spite_temp_8, (int64_t)spite_temp_9, spite_site_2()); spite_temp_10; }); int32_t spite_temp_11 = SpiteString_code_at(label_, last_); int32_t spite_temp_12; if (__builtin_expect(__builtin_add_overflow(spite_temp_7, spite_temp_11, &spite_temp_12), 0)) spite_overflowed("total + label.length() + label.code_at(last)", "an Integer", "+", (int64_t)spite_temp_7, (int64_t)spite_temp_11, spite_site_2()); spite_temp_12; });
         index_ = (index_ + 1);
         SpiteString___release(label_);
     }
-    int32_t spite_temp_16 = total_;
-    return spite_temp_16;
+    int32_t spite_temp_13 = total_;
+    return spite_temp_13;
 }

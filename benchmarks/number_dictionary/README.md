@@ -22,7 +22,9 @@ them for keys that are not there, against an open-addressing table in C. It lean
 The keys are numbers, so `Dictionary_Integer_by_Integer_get_at` hashes the number itself, with no text made, and
 a probe compares the key kept in its slot. The lookup is made once: `if scores[key]` keeps what it found in
 `spite_temp_<n>`, and `scores[key]` in the sum is `spite_temp_<n>.value`, as `naive.c` keeps its pointer. Before
-both, the case took 3.79 times naive C's time. Every `index * 7`, `index * 3` and `+` is checked.
+both, the case took 3.79 times naive C's time. `index * 7` and `index * 3` carry no check, since `index` stays below
+500 000 ([a range proves it](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked)); the sums'
+`+` are checked, as their totals are kept across rounds.
 
 ## Timings
 

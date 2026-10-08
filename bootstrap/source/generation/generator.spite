@@ -11363,7 +11363,7 @@ func binary_after_left(
     if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
         var right_scope = Scope(scope)
         if binary.operator == 'logical_and' {
-            narrow_proven_indices(binary.left, right_scope)
+            narrow_proven_indices(binary.left, right_scope, class_information)
         }
         var right_position = builder.user_count()
         var right_marks = wait_mark_counters.count()
@@ -11400,6 +11400,7 @@ func binary_after_left(
     }
     var right_code = ""
     var left_code = left.code
+    var right_type = left_type
     var held = List<String>()
     var releases = List<String>()
     var comparing = is_boolean_result_operator(binary.operator)
@@ -11413,7 +11414,7 @@ func binary_after_left(
         right_code = coerce_for_store(binary.right, left_type, scope, class_information)
     } else {
         var right = generate_joined(binary.right, scope, class_information)
-        var right_type = right.type
+        right_type = right.type
         var right_value = right.code
         if comparing and owns(right, binary.right) and type_needs_drop(right_type) {
             var right_held = next_temporary()
@@ -11444,7 +11445,7 @@ func binary_after_left(
     if not checked.is_empty() {
         code = checked
     }
-    var guarded = checked_overflow(binary, left_code, right_code, left_type, scope)
+    var guarded = checked_overflow(binary, left_code, right_code, left_type, right_type, scope, class_information)
     if not guarded.is_empty() {
         code = guarded
     }
@@ -11592,7 +11593,9 @@ func checked_overflow(
     left_code: String,
     right_code: String,
     left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
     scope: Scope,
+    class_information: Analysis.ClassInfo,
 ): String {
     if binary.operator != 'add' and binary.operator != 'subtract' and binary.operator != 'multiply' {
         return ""
@@ -11607,10 +11610,15 @@ func checked_overflow(
     if not is_checked_whole_kind(scalar.kind) {
         return ""
     }
-    var failure = overflow_failure(scalar.kind)
+    var refusal = range_refusal(binary, left_type, right_type, scope, class_information)
+    if refusal.is_empty() {
+        return ""
+    }
     var printer = Syntax.SourcePrinter()
     var expression: Syntax.Expressions.Expression = binary
     var written = printer.source_expression(expression)
+    optimization_report.overflow_check_kept(current_function_c_name, current_path, current_line, written, refusal)
+    var failure = overflow_failure(scalar.kind)
     var c_type = c_type_name(left_type)
     var left_value = next_temporary()
     var right_value = next_temporary()
@@ -11644,6 +11652,935 @@ func proven_to_fit(binary: Syntax.Expressions.BinaryExpression, scope: Scope): B
         return false
     }
     return scope.holds_room("~-[{counter.name}]")
+}
+
+# ../../../docs/proofs.md#a-range-proves-arithmetic-fits
+func ranges_proven(): Boolean {
+    return not hot_reload and not read_evaluate_print_loop and remote_loop_port == 0
+}
+
+func range_refusal(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if not ranges_proven() {
+        return "a --repl, --repl-port or --hot-reload build proves no ranges, since code may run between two steps"
+    }
+    var scalar = whole_kind_of(left_type)
+    crash scalar
+    crash binary.left
+    crash binary.right
+    var printer = Syntax.SourcePrinter()
+    var left_text = printer.source_expression(binary.left)
+    var right_text = printer.source_expression(binary.right)
+    var type_name = type_display_name(left_type)
+    var shown_type = with_article(type_name)
+    var left = operand_range(binary.left, left_type, scalar.kind, scope, class_information)
+    if not left {
+        return "'{left_text}' can be any value {shown_type} holds, and nothing proves a smaller range for it"
+    }
+    var right = operand_range(binary.right, right_type, scalar.kind, scope, class_information)
+    if not right {
+        return "'{right_text}' can be any value {shown_type} holds, and nothing proves a smaller range for it"
+    }
+    var answer = combined_range(binary.operator, left, right)
+    if answer and fits_kind(answer, scalar.kind) {
+        return ""
+    }
+    var described = List<String>()
+    describe_operand(left_text, left, described)
+    describe_operand(right_text, right, described)
+    var operands = described.join(" and ")
+    return "{operands}, so the answer may not fit in {shown_type}"
+}
+
+func describe_operand(text: String, range: NumberRange, described: List<String>) {
+    var value: String = range.lowest
+    if range.lowest != range.highest {
+        described.append("'{text}' runs from {range.lowest} to {range.highest}")
+    } else if text != value {
+        described.append("'{text}' is {value}")
+    }
+}
+
+func negation_refusal(
+    operand: Syntax.Expressions.Expression,
+    operand_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if not ranges_proven() {
+        return "a --repl, --repl-port or --hot-reload build proves no ranges, since code may run between two steps"
+    }
+    var scalar = whole_kind_of(operand_type)
+    crash scalar
+    var printer = Syntax.SourcePrinter()
+    var negated_text = printer.source_expression(operand)
+    var type_name = type_display_name(operand_type)
+    var shown_type = with_article(type_name)
+    var known = operand_range(operand, operand_type, scalar.kind, scope, class_information)
+    if not known {
+        return "'{negated_text}' can be any value {shown_type} holds, and nothing proves a smaller range for it"
+    }
+    var negated = known.negated()
+    if fits_kind(negated, scalar.kind) {
+        return ""
+    }
+    return "'{negated_text}' runs from {known.lowest} to {known.highest}, so its negation may not fit in {shown_type}"
+}
+
+func operand_range(
+    expression: Syntax.Expressions.Expression,
+    actual_type: Analysis.SpiteType,
+    kind: Analysis.Types.NumericKind,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    var known = value_range(expression, scope, class_information)
+    if not known {
+        var actual = whole_kind_of(actual_type)
+        assert actual
+        known = kind_range(actual.kind)
+    }
+    assert known
+    if fits_kind(known, kind) {
+        return known
+    }
+    return kind_range(kind)
+}
+
+func combined_range(operator: Syntax.Expressions.BinaryOperator, left: NumberRange, right: NumberRange): NumberRange? {
+    if operator == 'add' {
+        return left.plus(right)
+    }
+    if operator == 'subtract' {
+        return left.minus(right)
+    }
+    assert operator == 'multiply'
+    return left.times(right)
+}
+
+func kind_range(kind: Analysis.Types.NumericKind): NumberRange? {
+    assert is_checked_whole_kind(kind) and kind != 'long_kind' and kind != 'unsigned_long_kind'
+    var lowest = kind_lowest(kind)
+    var highest = kind_highest(kind)
+    return NumberRange(lowest, highest)
+}
+
+func fits_kind(range: NumberRange, kind: Analysis.Types.NumericKind): Boolean {
+    if kind == 'long_kind' {
+        return true
+    }
+    if kind == 'unsigned_long_kind' {
+        return range.lowest >= 0
+    }
+    var lowest = kind_lowest(kind)
+    var highest = kind_highest(kind)
+    return range.within(lowest, highest)
+}
+
+func whole_kind_of(spite_type: Analysis.SpiteType?): Analysis.Types.ScalarType? {
+    assert spite_type
+    var scalar = type_shape.as_scalar(spite_type)
+    assert scalar
+    assert is_checked_whole_kind(scalar.kind)
+    return scalar
+}
+
+func is_ranged_local(name: String, scope: Scope): Boolean {
+    if name == "self" or name == "this" {
+        return false
+    }
+    if reflected_binding(name) {
+        return false
+    }
+    var declared = scope.unnarrowed_type(name)
+    if not declared {
+        return false
+    }
+    if not whole_kind_of(declared) {
+        return false
+    }
+    return true
+}
+
+func value_range(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    var spite_type = range_type_of(expression, scope, class_information)
+    var scalar = whole_kind_of(spite_type)
+    assert scalar
+    var computed = computed_range(expression, scalar.kind, scope, class_information)
+    if computed and fits_kind(computed, scalar.kind) {
+        return computed
+    }
+    return kind_range(scalar.kind)
+}
+
+func computed_range(
+    expression: Syntax.Expressions.Expression,
+    kind: Analysis.Types.NumericKind,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    var literal = shape.as_integer_literal(expression)
+    if literal {
+        var exact = NumberRange(literal.value, literal.value)
+        return exact.bounded(literal.value, literal.value)
+    }
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        assert is_ranged_local(identifier.name, scope)
+        return scope.range_of(identifier.name)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        assert unary.operator == 'negate' and unary.operand
+        var negated = value_range(unary.operand, scope, class_information)
+        assert negated
+        return negated.negated()
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        assert binary.left and binary.right
+        return binary_range(binary.operator, binary.left, binary.right, kind, scope, class_information)
+    }
+    var call = shape.as_call(expression)
+    assert call
+    assert call.callee
+    var called = shape.as_member(call.callee)
+    assert called
+    assert called.object
+    return call_range(called.name, called.object, call.arguments, kind, scope, class_information)
+}
+
+func binary_range(
+    operator: Syntax.Expressions.BinaryOperator,
+    left_expression: Syntax.Expressions.Expression,
+    right_expression: Syntax.Expressions.Expression,
+    kind: Analysis.Types.NumericKind,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    var left = fitted_range(left_expression, kind, scope, class_information)
+    var right = fitted_range(right_expression, kind, scope, class_information)
+    if operator == 'modulo' {
+        if left {
+            return left.remainder_by(right)
+        }
+        assert right
+        var below = right.largest_magnitude() - 1
+        if below < 0 {
+            below = 0
+        }
+        var upper = NumberRange(0, below)
+        var lower = upper.negated()
+        return upper.joined(lower)
+    }
+    assert left
+    if operator == 'divide' {
+        return left.divided_by(right)
+    }
+    assert right
+    assert operator == 'add' or operator == 'subtract' or operator == 'multiply'
+    return combined_range(operator, left, right)
+}
+
+func fitted_range(
+    expression: Syntax.Expressions.Expression,
+    kind: Analysis.Types.NumericKind,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    var known = value_range(expression, scope, class_information)
+    assert known
+    if fits_kind(known, kind) {
+        return known
+    }
+    return kind_range(kind)
+}
+
+func call_range(
+    name: String,
+    receiver: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    kind: Analysis.Types.NumericKind,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    if name == "count" or name == "length" {
+        return NumberRange(0, 2147483647)
+    }
+    if name == "to_long" or name == "to_integer" {
+        return value_range(receiver, scope, class_information)
+    }
+    var value = fitted_range(receiver, kind, scope, class_information)
+    if name == "absolute" {
+        assert value
+        assert value.lowest > kind_lowest(kind) or not is_signed_kind(kind)
+        var largest = value.largest_magnitude()
+        var flipped = value.negated()
+        var zero = NumberRange(0, 0)
+        var spread = zero.joined(value)
+        var both = spread.joined(flipped)
+        return both.narrowed(0, largest)
+    }
+    var first = arguments.first()
+    assert first
+    var other = fitted_range(first, kind, scope, class_information)
+    if name == "minimum" {
+        assert value and other
+        var smaller_low = value.lowest.minimum(other.lowest)
+        var smaller_high = value.highest.minimum(other.highest)
+        return NumberRange(smaller_low, smaller_high)
+    }
+    if name == "maximum" {
+        assert value and other
+        var larger_low = value.lowest.maximum(other.lowest)
+        var larger_high = value.highest.maximum(other.highest)
+        return NumberRange(larger_low, larger_high)
+    }
+    assert name == "clamp" and other
+    var last = arguments.last()
+    assert last
+    var high = fitted_range(last, kind, scope, class_information)
+    assert high
+    var clamped_low = other.lowest.minimum(high.lowest)
+    return NumberRange(clamped_low, high.highest)
+}
+
+func range_type_of(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var literal = shape.as_integer_literal(expression)
+    if literal {
+        if literal.value >= -2147483648 and literal.value <= 2147483647 {
+            return integer_type()
+        }
+        return long_type()
+    }
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        return named_value_type(identifier.name, scope, class_information)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        assert unary.operator == 'negate' and unary.operand
+        return range_type_of(unary.operand, scope, class_information)
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        assert binary.left
+        var arithmetic = binary.operator == 'add' or binary.operator == 'subtract' or binary.operator == 'multiply'
+        assert arithmetic or binary.operator == 'divide' or binary.operator == 'modulo'
+        return range_type_of(binary.left, scope, class_information)
+    }
+    var member = shape.as_member(expression)
+    if member {
+        assert member.object
+        var owner_type = range_type_of(member.object, scope, class_information)
+        assert owner_type
+        return attribute_type_of(owner_type, member.name)
+    }
+    var index = shape.as_index(expression)
+    if index {
+        assert index.object
+        var listed_type = range_type_of(index.object, scope, class_information)
+        assert listed_type
+        var listed = type_shape.as_list(listed_type)
+        assert listed
+        return listed.element
+    }
+    var call = shape.as_call(expression)
+    assert call
+    assert call.callee
+    var called = shape.as_member(call.callee)
+    assert called
+    assert called.object
+    var receiver_type = range_type_of(called.object, scope, class_information)
+    assert receiver_type
+    return called_range_type(called.name, receiver_type, call.arguments)
+}
+
+func called_range_type(
+    name: String,
+    receiver_type: Analysis.SpiteType,
+    arguments: List<Syntax.Expressions.Expression>,
+): Analysis.SpiteType? {
+    if name == "count" and arguments.is_empty() {
+        if type_shape.as_list(receiver_type) or type_shape.as_dictionary(receiver_type) {
+            return integer_type()
+        }
+        assert vector_class_of(receiver_type)
+        return integer_type()
+    }
+    if name == "length" and arguments.is_empty() {
+        assert type_shape.as_string(receiver_type)
+        return integer_type()
+    }
+    assert whole_kind_of(receiver_type)
+    if name == "to_long" and arguments.is_empty() {
+        return long_type()
+    }
+    if name == "to_integer" and arguments.is_empty() {
+        return integer_type()
+    }
+    var takes = 0
+    if name == "minimum" or name == "maximum" {
+        takes = 1
+    } else if name == "clamp" {
+        takes = 2
+    } else {
+        assert name == "absolute"
+    }
+    assert arguments.count() == takes
+    return receiver_type
+}
+
+func named_value_type(name: String, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType? {
+    assert not reflected_binding(name)
+    if name == "self" {
+        var self_type: Analysis.SpiteType = Analysis.Types.ClassRefType(class_information.c_name)
+        return self_type
+    }
+    var local_type = scope.written_type(name)
+    if local_type {
+        return local_type
+    }
+    var field = class_information.find_field(name)
+    assert field
+    return field.type
+}
+
+func attribute_type_of(owner_type: Analysis.SpiteType, name: String): Analysis.SpiteType? {
+    var owner_reference = type_shape.as_class_ref(owner_type)
+    assert owner_reference
+    var owner = find_class_by_c_name(owner_reference.c_name)
+    assert owner
+    var field = owner.find_field(name)
+    assert field
+    return field.type
+}
+
+func narrow_ranges(binary: Syntax.Expressions.BinaryExpression, scope: Scope, class_information: Analysis.ClassInfo) {
+    assert ranges_proven()
+    crash binary.left
+    crash binary.right
+    narrow_side(binary.left, binary.operator, binary.right, binary.left, scope, class_information)
+    var mirrored = mirrored_comparison(binary.operator)
+    narrow_side(binary.right, mirrored, binary.left, binary.left, scope, class_information)
+}
+
+func mirrored_comparison(operator: Syntax.Expressions.BinaryOperator): Syntax.Expressions.BinaryOperator {
+    switch operator {
+        'less': return 'greater'
+        'less_equal': return 'greater_equal'
+        'greater': return 'less'
+        'greater_equal': return 'less_equal'
+        _: return operator
+    }
+}
+
+func narrow_side(
+    named_expression: Syntax.Expressions.Expression,
+    operator: Syntax.Expressions.BinaryOperator,
+    bound_expression: Syntax.Expressions.Expression,
+    compared_expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var named = shape.as_identifier(named_expression)
+    assert named
+    assert is_ranged_local(named.name, scope)
+    var compared_type = range_type_of(compared_expression, scope, class_information)
+    var compared = whole_kind_of(compared_type)
+    assert compared
+    var current = value_range(named_expression, scope, class_information)
+    assert current
+    assert fits_kind(current, compared.kind)
+    var bound = fitted_range(bound_expression, compared.kind, scope, class_information)
+    assert bound
+    var lowest = current.lowest
+    var highest = current.highest
+    if operator == 'less' {
+        highest = bound.highest - 1
+    } else if operator == 'less_equal' {
+        highest = bound.highest
+    } else if operator == 'greater' {
+        lowest = bound.lowest + 1
+    } else if operator == 'greater_equal' {
+        lowest = bound.lowest
+    } else {
+        assert operator == 'equal'
+        lowest = bound.lowest
+        highest = bound.highest
+    }
+    var narrowed = current.narrowed(lowest, highest)
+    scope.set_range(named.name, narrowed)
+}
+
+func declare_range(declaration: Syntax.Statements.VariableDeclaration, start: NumberRange?, scope: Scope) {
+    if not is_ranged_local(declaration.name, scope) {
+        scope.set_range(declaration.name, null)
+        return
+    }
+    var declared_type = scope.unnarrowed_type(declaration.name)
+    var declared = whole_kind_of(declared_type)
+    crash declared
+    if start and fits_kind(start, declared.kind) {
+        scope.set_range(declaration.name, start)
+        return
+    }
+    var limits = kind_range(declared.kind)
+    scope.set_range(declaration.name, limits)
+}
+
+func ranged_target(assignment: Syntax.Statements.AssignmentStatement, scope: Scope): String {
+    if not ranges_proven() {
+        return ""
+    }
+    crash assignment.target
+    var named = shape.as_identifier(assignment.target)
+    if not named {
+        return ""
+    }
+    if not is_ranged_local(named.name, scope) {
+        return ""
+    }
+    return named.name
+}
+
+func assigned_range(
+    name: String,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    var declared_type = scope.unnarrowed_type(name)
+    var declared = whole_kind_of(declared_type)
+    crash declared
+    var reached = value_range(value, scope, class_information)
+    if reached and fits_kind(reached, declared.kind) {
+        return reached
+    }
+    return kind_range(declared.kind)
+}
+
+func prepare_sum(
+    name: String,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var loop = scope.innermost_loop()
+    assert loop
+    assert loop.loop_ranges
+    assert loop.loop_ranges.passes_known
+    var passes = loop.loop_ranges.most_passes
+    var start = loop.loop_ranges.start_of_sum(name)
+    assert start
+    var declared_type = scope.unnarrowed_type(name)
+    var declared = whole_kind_of(declared_type)
+    crash declared
+    var terms = summed_terms(value, name, declared.kind, scope, class_information)
+    assert terms
+    var earlier = passes - 1
+    if earlier < 0 {
+        earlier = 0
+    }
+    var repeats = NumberRange(0, earlier)
+    var added = repeats.times(terms)
+    assert added
+    var reached = start.plus(added)
+    assert reached
+    scope.set_range(name, reached)
+}
+
+func summed_terms(
+    value: Syntax.Expressions.Expression,
+    name: String,
+    kind: Analysis.Types.NumericKind,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    if is_identifier_named(value, name) {
+        return NumberRange(0, 0)
+    }
+    var binary = shape.as_binary(value)
+    assert binary
+    assert binary.left and binary.right
+    assert binary.operator == 'add' or binary.operator == 'subtract'
+    var before = summed_terms(binary.left, name, kind, scope, class_information)
+    assert before
+    var term = fitted_range(binary.right, kind, scope, class_information)
+    assert term
+    if binary.operator == 'add' {
+        return before.plus(term)
+    }
+    return before.minus(term)
+}
+
+func is_sum_of(value: Syntax.Expressions.Expression, name: String): Boolean {
+    if is_identifier_named(value, name) {
+        return true
+    }
+    var binary = shape.as_binary(value)
+    if not binary {
+        return false
+    }
+    if binary.operator != 'add' and binary.operator != 'subtract' {
+        return false
+    }
+    crash binary.left
+    crash binary.right
+    var mentioned = List<String>()
+    collect_mentioned_names(binary.right, mentioned)
+    if mentioned.contains(name) {
+        return false
+    }
+    return is_sum_of(binary.left, name)
+}
+
+func enter_loop_ranges(
+    while_statement: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    scope.entered_loop = null
+    assert ranges_proven()
+    crash while_statement.condition
+    var writes = List<LoopWrite>()
+    var declared = List<String>()
+    collect_loop_writes(while_statement.body, writes, declared, false, true, scope)
+    var names = List<String>()
+    var index = 0
+    while index < writes.count() {
+        var write = writes[index]
+        if not names.contains(write.target) {
+            names.append(write.target)
+        }
+        index = index + 1
+    }
+    var hidden = names.copy()
+    var declared_index = 0
+    while declared_index < declared.count() {
+        var declared_name = declared[declared_index]
+        if is_ranged_local(declared_name, scope) and not hidden.contains(declared_name) {
+            hidden.append(declared_name)
+        }
+        declared_index = declared_index + 1
+    }
+    var starts = Scope(null)
+    var hidden_index = 0
+    while hidden_index < hidden.count() {
+        var hidden_name = hidden[hidden_index]
+        var seen = scope.range_of(hidden_name)
+        starts.set_range(hidden_name, seen)
+        scope.set_range(hidden_name, null)
+        hidden_index = hidden_index + 1
+    }
+    var ranges = LoopRanges()
+    var heads = Scope(null)
+    var name_index = 0
+    while name_index < names.count() {
+        var name = names[name_index]
+        var own = writes_named(name, writes)
+        var start = starts.range_of(name)
+        var head: NumberRange? = null
+        if not declared.contains(name) {
+            head = loop_head_range(name, own, start, declared, while_statement.condition, scope, class_information)
+            note_sum(name, own, start, ranges)
+            note_passes(name, own, start, while_statement.condition, scope, class_information, ranges)
+        }
+        heads.set_range(name, head)
+        name_index = name_index + 1
+    }
+    var restore_index = 0
+    while restore_index < hidden.count() {
+        var restored = hidden[restore_index]
+        if names.contains(restored) {
+            var head_range = heads.range_of(restored)
+            scope.assign_range(restored, head_range)
+        } else {
+            var start_range = starts.range_of(restored)
+            scope.set_range(restored, start_range)
+        }
+        restore_index = restore_index + 1
+    }
+    scope.entered_loop = ranges
+}
+
+func start_loop_body(body_scope: Scope) {
+    assert body_scope.parent
+    body_scope.loop_ranges = body_scope.parent.entered_loop
+}
+
+func collect_loop_writes(
+    statements: List<Syntax.Statements.Statement>,
+    writes: List<LoopWrite>,
+    declared: List<String>,
+    in_inner_loop: Boolean,
+    in_body: Boolean,
+    scope: Scope,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_writes(statements[index], writes, declared, in_inner_loop, in_body, scope)
+        index = index + 1
+    }
+}
+
+func collect_statement_writes(
+    statement: Syntax.Statements.Statement,
+    writes: List<LoopWrite>,
+    declared: List<String>,
+    in_inner_loop: Boolean,
+    in_body: Boolean,
+    scope: Scope,
+) {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            if target and is_ranged_local(target.name, scope) {
+                var write = LoopWrite(target.name, statement.value, in_inner_loop, in_body)
+                writes.append(write)
+            }
+        }
+        Syntax.Statements.VariableDeclaration: {
+            if not declared.contains(statement.name) {
+                declared.append(statement.name)
+            }
+        }
+        Syntax.Statements.IfStatement: {
+            collect_loop_writes(statement.then_branch, writes, declared, in_inner_loop, false, scope)
+            collect_loop_writes(statement.else_branch, writes, declared, in_inner_loop, false, scope)
+        }
+        Syntax.Statements.WhileStatement: collect_loop_writes(statement.body, writes, declared, true, false, scope)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var each_case = statement.cases[case_index]
+                collect_loop_writes(each_case.body, writes, declared, in_inner_loop, false, scope)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func writes_named(name: String, writes: List<LoopWrite>): List<LoopWrite> {
+    var own = List<LoopWrite>()
+    var index = 0
+    while index < writes.count() {
+        var write = writes[index]
+        if write.target == name {
+            own.append(write)
+        }
+        index = index + 1
+    }
+    return own
+}
+
+func counter_steps(name: String, own: List<LoopWrite>, upward: Boolean): Long {
+    var steps: Long = 0
+    var index = 0
+    while index < own.count() {
+        var write = own[index]
+        crash write.value
+        var step = counter_step(name, write.value, upward)
+        if step < 0 {
+            return -1
+        }
+        steps = steps + step
+        index = index + 1
+    }
+    return steps
+}
+
+func counter_step(name: String, value: Syntax.Expressions.Expression, upward: Boolean): Long {
+    var binary = shape.as_binary(value)
+    if not binary {
+        return -1
+    }
+    crash binary.left
+    crash binary.right
+    var wanted: Syntax.Expressions.BinaryOperator = 'subtract'
+    if upward {
+        wanted = 'add'
+    }
+    if binary.operator != wanted or not is_identifier_named(binary.left, name) {
+        return -1
+    }
+    var step = shape.as_integer_literal(binary.right)
+    if not step {
+        return -1
+    }
+    if step.value < 0 or step.value > 2147483647 {
+        return -1
+    }
+    return step.value
+}
+
+func mentions_any(expression: Syntax.Expressions.Expression, names: List<String>): Boolean {
+    var mentioned = List<String>()
+    collect_mentioned_names(expression, mentioned)
+    var index = 0
+    while index < mentioned.count() {
+        if names.contains(mentioned[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func loop_head_range(
+    name: String,
+    own: List<LoopWrite>,
+    start: NumberRange?,
+    declared: List<String>,
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NumberRange? {
+    assert start
+    var kind_type = scope.unnarrowed_type(name)
+    var kind = whole_kind_of(kind_type)
+    crash kind
+    var up = counter_steps(name, own, true)
+    if up >= 0 {
+        var highest = kind_highest(kind.kind)
+        var bound = counter_bound(name, condition, true, scope, class_information)
+        if bound and not own.any_in_inner_loop() {
+            highest = highest.minimum(bound + up)
+        }
+        highest = highest.maximum(start.highest)
+        return start.bounded(start.lowest, highest)
+    }
+    var down = counter_steps(name, own, false)
+    if down >= 0 {
+        var lowest = kind_lowest(kind.kind)
+        var lowest_bound = counter_bound(name, condition, false, scope, class_information)
+        if lowest_bound and not own.any_in_inner_loop() {
+            lowest = lowest.maximum(lowest_bound - down)
+        }
+        lowest = lowest.minimum(start.lowest)
+        return start.bounded(lowest, start.highest)
+    }
+    var joined = start
+    var index = 0
+    while index < own.count() {
+        var write = own[index]
+        crash write.value
+        assert not mentions_any(write.value, declared)
+        var reached = assigned_range(name, write.value, scope, class_information)
+        assert reached
+        joined = joined.joined(reached)
+        index = index + 1
+    }
+    return joined
+}
+
+func counter_bound(
+    name: String,
+    condition: Syntax.Expressions.Expression,
+    upward: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Long? {
+    var binary = shape.as_binary(condition)
+    assert binary
+    assert binary.left and binary.right
+    if binary.operator == 'logical_and' {
+        var left_bound = counter_bound(name, binary.left, upward, scope, class_information)
+        var right_bound = counter_bound(name, binary.right, upward, scope, class_information)
+        if left_bound and right_bound {
+            if upward {
+                return left_bound.minimum(right_bound)
+            }
+            return left_bound.maximum(right_bound)
+        }
+        if left_bound {
+            return left_bound
+        }
+        return right_bound
+    }
+    assert is_identifier_named(binary.left, name)
+    var kind_type = scope.unnarrowed_type(name)
+    var kind = whole_kind_of(kind_type)
+    assert kind
+    var bound = fitted_range(binary.right, kind.kind, scope, class_information)
+    assert bound
+    if upward and binary.operator == 'less' {
+        return bound.highest - 1
+    }
+    if upward and binary.operator == 'less_equal' {
+        return bound.highest
+    }
+    if not upward and binary.operator == 'greater' {
+        return bound.lowest + 1
+    }
+    assert not upward and binary.operator == 'greater_equal'
+    return bound.lowest
+}
+
+func note_sum(name: String, own: List<LoopWrite>, start: NumberRange?, ranges: LoopRanges) {
+    assert start
+    assert own.count() == 1
+    var write = own[0]
+    crash write.value
+    assert not write.in_inner_loop and not is_identifier_named(write.value, name)
+    assert is_sum_of(write.value, name)
+    ranges.sum_into(name, start)
+}
+
+func note_passes(
+    name: String,
+    own: List<LoopWrite>,
+    start: NumberRange?,
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    ranges: LoopRanges,
+) {
+    assert start
+    assert own.count() == 1
+    var write = own[0]
+    crash write.value
+    assert write.in_body and not write.in_inner_loop
+    var passes: Long = -1
+    var up = counter_step(name, write.value, true)
+    if up >= 1 {
+        var highest = counter_bound(name, condition, true, scope, class_information)
+        assert highest
+        passes = 0
+        if highest >= start.lowest {
+            passes = (highest - start.lowest) / up + 1
+        }
+    }
+    var down = counter_step(name, write.value, false)
+    if down >= 1 {
+        var lowest = counter_bound(name, condition, false, scope, class_information)
+        assert lowest
+        passes = 0
+        if start.highest >= lowest {
+            passes = (start.highest - lowest) / down + 1
+        }
+    }
+    assert passes >= 0
+    if not ranges.passes_known or passes < ranges.most_passes {
+        ranges.passes_known = true
+        ranges.most_passes = passes
+    }
 }
 
 func overflow_builtin(operator: Syntax.Expressions.BinaryOperator): String {
@@ -12737,7 +13674,7 @@ func generate_unary(
         }
     }
     if unary.operator == 'negate' {
-        var negated = checked_negation(unary, operand.code, operand_type)
+        var negated = checked_negation(unary, operand.code, operand_type, scope, class_information)
         if not negated.is_empty() {
             return ExpressionResult(negated, operand_type)
         }
@@ -12752,6 +13689,8 @@ func checked_negation(
     unary: Syntax.Expressions.UnaryExpression,
     code: String,
     operand_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
 ): String {
     var scalar = type_shape.as_scalar(operand_type)
     if not scalar {
@@ -12764,10 +13703,15 @@ func checked_negation(
     if shape.as_integer_literal(unary.operand) {
         return ""
     }
-    var failure = overflow_failure(scalar.kind)
+    var refusal = negation_refusal(unary.operand, operand_type, scope, class_information)
+    if refusal.is_empty() {
+        return ""
+    }
     var printer = Syntax.SourcePrinter()
     var expression: Syntax.Expressions.Expression = unary
     var source_text = printer.source_expression(expression)
+    optimization_report.overflow_check_kept(current_function_c_name, current_path, current_line, source_text, refusal)
+    var failure = overflow_failure(scalar.kind)
     var operation = escape_c_string(source_text)
     var c_type = c_type_name(operand_type)
     var value = next_temporary()
@@ -26638,6 +27582,22 @@ func generate_variable_declaration(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
+    var start: NumberRange? = null
+    var ranged = ranges_proven()
+    if ranged and declaration.value {
+        start = value_range(declaration.value, scope, class_information)
+    }
+    store_declaration(declaration, scope, class_information)
+    if ranged {
+        declare_range(declaration, start, scope)
+    }
+}
+
+func store_declaration(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
     scope.forget_room(declaration.name)
     assert declaration.value
     report_replaced_item(declaration, scope, class_information)
@@ -32589,6 +33549,25 @@ func generate_assignment(
 ) {
     assert assignment.target
     assert assignment.value
+    var ranged = ranged_target(assignment, scope)
+    var reached: NumberRange? = null
+    if not ranged.is_empty() {
+        prepare_sum(ranged, assignment.value, scope, class_information)
+        reached = assigned_range(ranged, assignment.value, scope, class_information)
+    }
+    store_assignment(assignment, scope, class_information)
+    if not ranged.is_empty() {
+        scope.assign_range(ranged, reached)
+    }
+}
+
+func store_assignment(
+    assignment: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert assignment.target
+    assert assignment.value
     if assigns_number_constant(assignment.target, class_information) {
         mark_names_used_in(assignment.value, scope)
         return
@@ -36354,7 +37333,7 @@ func generate_unfolded_if(
         generate_plain_if(if_statement, scope, class_information, function_information)
         if leaves {
             var kept = negated_condition(if_statement.condition)
-            narrow_proven_indices(kept, scope)
+            narrow_proven_indices(kept, scope, class_information)
         }
     }
 }
@@ -36456,7 +37435,7 @@ func generate_leaving_if(
     var side_index = 0
     while side_index < plain_sides.count() {
         var kept = negated_condition(plain_sides[side_index])
-        narrow_proven_indices(kept, scope)
+        narrow_proven_indices(kept, scope, class_information)
         side_index = side_index + 1
     }
 }
@@ -36506,7 +37485,7 @@ func generate_plain_if(
     check_condition(if_statement.condition, condition_result, "if", scope)
     builder.add_user("if ({owned_truth(condition_result, if_statement.condition)}) \{")
     var proven_scope = Scope(scope)
-    narrow_proven_indices(if_statement.condition, proven_scope)
+    narrow_proven_indices(if_statement.condition, proven_scope, class_information)
     generate_block_in_scope(if_statement.then_branch, proven_scope, class_information, function_information)
     builder.add_user("}")
     if if_statement.has_else_branch {
@@ -38902,7 +39881,11 @@ func check_condition(
     }
 }
 
-func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scope) {
+func narrow_proven_indices(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
     var negated = shape.as_unary(condition)
     if negated {
         narrow_not_empty(negated, scope)
@@ -38913,10 +39896,11 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
     crash binary.left
     crash binary.right
     if binary.operator == 'logical_and' {
-        narrow_proven_indices(binary.left, scope)
-        narrow_proven_indices(binary.right, scope)
+        narrow_proven_indices(binary.left, scope, class_information)
+        narrow_proven_indices(binary.right, scope, class_information)
         return
     }
+    narrow_ranges(binary, scope, class_information)
     narrow_not_negative(binary, scope)
     narrow_width_room(binary, scope)
     narrow_area_room(binary, scope)
@@ -39856,11 +40840,13 @@ func generate_while_loop(
     function_information: Analysis.FunctionInfo,
 ) {
     assert while_statement.condition
+    enter_loop_ranges(while_statement, scope, class_information)
     var guard = try_nullable_guard(while_statement.condition, scope, class_information)
     if guard {
         builder.add_user("while ({guard.guard_code}) \{")
         var narrowed_body = Scope(scope)
         narrowed_body.is_loop = true
+        start_loop_body(narrowed_body)
         var guarded_text = condition_source(while_statement)
         narrowed_body.know_loop_condition(guarded_text)
         narrow_by_guard(narrowed_body, guard, "'while {guard.name}'")
@@ -39887,9 +40873,10 @@ func generate_while_loop(
     }
     var body_scope = Scope(scope)
     body_scope.is_loop = true
+    start_loop_body(body_scope)
     var condition_text = condition_source(while_statement)
     body_scope.know_loop_condition(condition_text)
-    narrow_proven_indices(while_statement.condition, body_scope)
+    narrow_proven_indices(while_statement.condition, body_scope, class_information)
     narrow_loop_counter(while_statement.condition, body_scope, function_information)
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     add_loop_check_point(class_information)
@@ -40498,12 +41485,14 @@ func generate_counted_loop(
     if others.is_empty() or asserts_in(while_statement.body) {
         var body_scope = Scope(scope)
         body_scope.is_loop = true
+        start_loop_body(body_scope)
         count_reached_items(body_scope, key, listed, counter.name, reach, items)
         generate_counted_body(truth, while_statement, body_scope, class_information, function_information)
         return
     }
     var fast_scope = Scope(scope)
     fast_scope.is_loop = true
+    start_loop_body(fast_scope)
     count_reached_items(fast_scope, key, listed, counter.name, reach, items)
     var fits = List<String>()
     var index = 0
@@ -40523,6 +41512,7 @@ func generate_counted_loop(
     builder.add_user("} else \{")
     var slow_scope = Scope(scope)
     slow_scope.is_loop = true
+    start_loop_body(slow_scope)
     count_reached_items(slow_scope, key, listed, counter.name, reach, items)
     generate_counted_body(truth, while_statement, slow_scope, class_information, function_information)
     builder.add_user("}")
@@ -40563,7 +41553,7 @@ func generate_counted_body(
         builder.add_user("#pragma clang fp contract(fast) reassociate(on)")
         builder.add_user("#endif")
     }
-    narrow_proven_indices(while_statement.condition, body_scope)
+    narrow_proven_indices(while_statement.condition, body_scope, class_information)
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     add_loop_check_point(class_information)
     builder.add_user("}")
@@ -41643,7 +42633,7 @@ func and_side_test(
     }
     var side_result = generate_joined(side, then_scope, class_information)
     check_condition(side, side_result, "if", then_scope)
-    narrow_proven_indices(side, then_scope)
+    narrow_proven_indices(side, then_scope, class_information)
     return "({owned_truth(side_result, side)})"
 }
 
@@ -41719,7 +42709,7 @@ func generate_assert_statement(
         crash_parts = parts
         declare_crash_parts(declarations_at)
         check_asserted_condition(assert_statement, condition_result, scope)
-        narrow_proven_indices(assert_statement.value, scope)
+        narrow_proven_indices(assert_statement.value, scope, class_information)
     }
     if not assert_statement.is_crash and function_information.is_constructor {
         report(

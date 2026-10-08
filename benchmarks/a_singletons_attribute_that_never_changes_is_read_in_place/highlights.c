@@ -10,11 +10,11 @@ int64_t Reader_read_round(Reader* self, int32_t rows_, int32_t round_) {
         if (!(({ List_Box* spite_temp_9 = (self->shelf_)->boxes_; int32_t spite_temp_10 = place_; (spite_temp_10 >= 0 && spite_temp_10 < (spite_temp_9)->item_count_) && ((((Box**)(intptr_t)(spite_temp_9)->items_)[spite_temp_10]) != 0); }))) {
             spite_failed_1(place_, self, rows_, round_, total_, row_);
         }
-        total_ = ({ int64_t spite_temp_11 = total_; int64_t spite_temp_12 = SpiteInteger_to_long((({ List_Box* spite_temp_13 = (self->shelf_)->boxes_; int32_t spite_temp_14 = place_; if (__builtin_expect(spite_temp_14 < 0 || spite_temp_14 >= (spite_temp_13)->item_count_, 0)) spite_outside_list("shelf.boxes[place]", spite_site_2()); ((Box**)(intptr_t)(spite_temp_13)->items_)[spite_temp_14]; }))->weight_); int64_t spite_temp_15; if (__builtin_expect(__builtin_add_overflow(spite_temp_11, spite_temp_12, &spite_temp_15), 0)) spite_overflowed("total + shelf.boxes[place].weight", "a Long", "+", (int64_t)spite_temp_11, (int64_t)spite_temp_12, spite_site_2()); spite_temp_15; });
+        total_ = (total_ + SpiteInteger_to_long((({ List_Box* spite_temp_11 = (self->shelf_)->boxes_; int32_t spite_temp_12 = place_; if (__builtin_expect(spite_temp_12 < 0 || spite_temp_12 >= (spite_temp_11)->item_count_, 0)) spite_outside_list("shelf.boxes[place]", spite_site_2()); ((Box**)(intptr_t)(spite_temp_11)->items_)[spite_temp_12]; }))->weight_));
         row_ = (row_ + 1);
     }
-    int64_t spite_temp_16 = total_;
-    return spite_temp_16;
+    int64_t spite_temp_13 = total_;
+    return spite_temp_13;
 }
 
 int32_t Shelf_count(Shelf* self) {

@@ -204,9 +204,10 @@ keep the low bits of the answer (`UnsignedInteger 4000000000.wrapping_multiply(3
 (`conformance/stage6/wrapping_functions`). The hashes and codecs of the library (`Dictionary`'s and the
 allocation table's hash, `Sha256`, `Argon2`, `Noise`) call them where they wrap on purpose. A constant expression
 that overflows is still a compile error, and `/` and `%` keep the check described next. The compiler leaves the
-check out of `counter + 1` while a `<` on the local `counter` is in force, out of `counter - 1` while a `>` is, and
+check out of `counter + 1` while a `<` on the local `counter` is in force, out of `counter - 1` while a `>` is,
 out of arithmetic on constants ([proofs.md](../docs/proofs.md#arithmetic-that-does-not-fit-halts),
-`conformance/stage6/counter_room`); what the rest costs is measured in
+`conformance/stage6/counter_room`), and out of any operation whose operands' ranges prove the answer fits
+([below](#a-range-proves-a-check-unneeded)); what the rest costs is measured in
 [optimizations.md](../docs/optimizations.md#arithmetic-is-checked-in-every-build).
 
 **Division by zero follows Go.** A whole-number `/` or `%` whose divisor is zero halts
@@ -231,6 +232,64 @@ back to the exact same value) rather than a fixed number of digits, so an ordina
 on a 32-bit `Float`, never `0.100000001`. A value whose shortest digits would need an exponent prints with
 `%.17g` (`%.9g` for `Float`) instead, as `1e+21` or `1.0000000000000001e-05`; infinity prints `inf` and not a
 number prints `nan` on every platform.
+
+#### A range proves a check unneeded
+
+The overflow check of a `+`, `-` or `*` on whole numbers, and of a `-` in front of one, is left out where the
+compiler proves while compiling that the answer fits the type the operation is done in. Leaving it out changes
+nothing a program can observe but speed: the operator is the same, and only a check that could never fire goes.
+The proof is a **range** for each operand, from which the answer's range follows (the sum of the ends for `+`, the
+ends crossed for `-`, the smallest and largest of the four products for `*`); the check is left out when that range
+lies inside the operation's type.
+
+- **Where ranges come from.** A whole-number literal is its own range. A local or a parameter of a whole-number
+  type (not a `T?`) has a range at each point of its function: a parameter starts with its type's; a `var` takes
+  its value's, cut to its type; each assignment replaces it with the new value's. An operand that is none of these
+  has its type's range and nothing narrower: an attribute, the item of a list, the answer of a call, since a call
+  or another pass could change them, and a `Long` or an `UnsignedLong` without a narrower range has none, so an
+  operation with one keeps its check. A few answers are narrower than their type: `count()` of a `List`, a
+  `Dictionary`, a `Vector` or an `Items`, and `length()` of a `String`, run from 0 to 2147483647; `x % n` is
+  smaller in size than `n`, no larger than `x`, and has `x`'s sign; `x / n` with `n` a constant is `x`'s range divided;
+  `x / y` is no larger in size than `x`; `minimum`, `maximum`, `clamp` and `absolute` of a whole number bound
+  their answers by their operands' ranges; `to_long()` and `to_integer()` keep their receiver's range. A right
+  side is cast to the left side's type first, so where its range does not fit that type it has the type's range.
+  The compiler works with ranges below 2 to the 62nd in size; an answer that could be larger is not proven,
+  whatever its type.
+- **Conditions narrow.** Where `x < e`, `x <= e`, `x > e`, `x >= e` or `x == e` is known to hold, either way round,
+  with `x` a local or a parameter, `x`'s range is cut by `e`'s: inside a `while` or an `if` whose condition says
+  so, after an `assert` or a `crash` of it, on the right of an `and`, and after an `if` that leaves, by the
+  condition turned around (`if count > 9 { return }` leaves `count` at most 9). An `or`, a `!=` and an `else`
+  narrow nothing.
+- **Branches join.** A local assigned inside an `if`, an `else` or a case of a `switch` leaves it with a range
+  that covers what it held before and every value assigned to it there.
+- **Loops widen first.** Before a `while`'s condition is compiled, every local its body assigns anywhere, nested
+  loops included, gets a range that holds at the start of every pass: a counter only ever stepped up by constants
+  (`index = index + 1`) keeps the floor it entered with, and when the condition has `index < bound` or
+  `index <= bound` on one side of its `and`s and no nested loop steps it, it stays at most the bound's largest
+  value plus its steps (the same downwards for a counter stepped down under `>` or `>=`); any other local takes
+  the range covering what it entered with and every value assigned to it in the loop with the loop's own locals
+  at their types' ranges. A local the body also declares again, or assigns from a name the body declares, takes
+  its type's range.
+- **Passes are counted.** A loop whose body steps a counter exactly once, as one of the body's own statements
+  (not inside an `if`, a `switch` or a nested loop), by a constant `c` of 1 or more, under `counter < bound` or
+  `counter <= bound` in its condition, runs at most `(last - first) / c + 1` passes, where `first` is the smallest
+  value the counter enters with and `last` the largest the condition lets through (one below the bound's largest
+  for `<`), and the same downwards under `>` or `>=`, whatever the body does: nothing else can step the counter, and
+  a pass that stops early (a `return`, an `assert`, a `crash`) leaves the loop.
+- **A total adds at most one term a pass.** A local assigned exactly once in such a loop, outside any nested loop,
+  as `total = total + a - b ...` with terms that do not name `total`, holds before that assignment its range at
+  the loop's start plus between none and one fewer than the passes of the terms' range. A `Long` total of `Integer`
+  terms over a list's items cannot overflow, since the count is an `Integer`.
+- **Not in builds that can run code between two steps.** A `--repl`, `--repl-port` or `--hot-reload` build proves
+  no ranges and keeps every check but the counter's and the constants'.
+- **Every check kept is reported.** `--optimization-report` lists each operation whose check stays, with the
+  operand whose range is unknown or the ranges that do not prove it:
+  `` `product * 3` keeps its overflow check: 'product' runs from -2147483648 to 2147483647, so the answer may not
+  fit in an Integer `` (`conformance/stage6/optimization_report`).
+
+A value put into a narrower name keeps its check (`spite: 200, an Integer, does not fit in a Tiny`), whatever its
+range. `conformance/stage6/proven_ranges` computes sums, steps and remainders whose checks are left out and halts on
+a product that grows every pass.
 
 ### Numbers are classes, and `this`
 

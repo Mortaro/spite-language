@@ -1,7 +1,6 @@
 var type_shape = Analysis.TypeShape()
 var printer = Syntax.SourcePrinter()
 var recording = false
-var reports_overflow_checks = false
 var sections = List<List<String>>()
 var holders = Dictionary<String, String>()
 var pending_elements = List<Analysis.SpiteType>()
@@ -22,16 +21,13 @@ func OptimizationReport() {
 }
 
 func titles(): List<String> {
-    var shown = [
+    return [
         "Lists that hold references"
         "Lists not in the frame"
         "Objects not in the frame"
         "Copies not elided"
+        "Overflow checks kept"
     ]
-    if reports_overflow_checks {
-        shown.append("Overflow checks kept")
-    }
-    return shown
 }
 
 func entries(section: Integer): List<String> {
@@ -252,7 +248,7 @@ func copy_kept(holder: String, path: String, line: Integer, copied: String, reas
 }
 
 func overflow_check_kept(holder: String, path: String, line: Integer, operation: String, reason: String) {
-    if recording and reports_overflow_checks {
+    if recording {
         record(4, holder, path, line, "`{operation}` keeps its overflow check: {reason}")
     }
 }

@@ -18,10 +18,10 @@ int64_t Naive_characters(Naive* self, int32_t count_) {
     int32_t index_ = 0;
     while (((index_ < count_))) {
         SpiteString shown_ = Naive_label(self, (index_ % 50));
-        total_ = ({ int64_t spite_temp_7 = total_; int64_t spite_temp_8 = SpiteInteger_to_long(SpiteString_length(shown_)); int64_t spite_temp_9; if (__builtin_expect(__builtin_add_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("total + shown.length()", "a Long", "+", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_1()); spite_temp_9; });
+        total_ = (total_ + SpiteInteger_to_long(SpiteString_length(shown_)));
         index_ = (index_ + 1);
         SpiteString___release(shown_);
     }
-    int64_t spite_temp_10 = total_;
-    return spite_temp_10;
+    int64_t spite_temp_7 = total_;
+    return spite_temp_7;
 }

@@ -75,9 +75,9 @@ void Sine_render(Sine* self) {
         self->phase_ = (({ int32_t spite_temp_32 = self->phase_; int32_t spite_temp_33 = 7; int32_t spite_temp_34; if (__builtin_expect(__builtin_add_overflow(spite_temp_32, spite_temp_33, &spite_temp_34), 0)) spite_overflowed("phase + 7", "an Integer", "+", (int64_t)spite_temp_32, (int64_t)spite_temp_33, spite_site_10()); spite_temp_34; }) % 1000);
         int32_t folded_ = self->phase_;
         if (((folded_ > 500))) {
-            folded_ = ({ int32_t spite_temp_35 = 1000; int32_t spite_temp_36 = folded_; int32_t spite_temp_37; if (__builtin_expect(__builtin_sub_overflow(spite_temp_35, spite_temp_36, &spite_temp_37), 0)) spite_overflowed("1000 - folded", "an Integer", "-", (int64_t)spite_temp_35, (int64_t)spite_temp_36, spite_site_11()); spite_temp_37; });
+            folded_ = (1000 - folded_);
         }
-        self->level_ = ({ int64_t spite_temp_38 = self->level_; int64_t spite_temp_39 = SpiteInteger_to_long(folded_); int64_t spite_temp_40; if (__builtin_expect(__builtin_add_overflow(spite_temp_38, spite_temp_39, &spite_temp_40), 0)) spite_overflowed("level + folded", "a Long", "+", (int64_t)spite_temp_38, (int64_t)spite_temp_39, spite_site_12()); spite_temp_40; });
+        self->level_ = ({ int64_t spite_temp_35 = self->level_; int64_t spite_temp_36 = SpiteInteger_to_long(folded_); int64_t spite_temp_37; if (__builtin_expect(__builtin_add_overflow(spite_temp_35, spite_temp_36, &spite_temp_37), 0)) spite_overflowed("level + folded", "a Long", "+", (int64_t)spite_temp_35, (int64_t)spite_temp_36, spite_site_11()); spite_temp_37; });
         sample_ = (sample_ + 1);
     }
 }

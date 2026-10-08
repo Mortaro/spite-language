@@ -81,6 +81,7 @@ emit nothing.
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | every | nothing but speed |
 | [A dictionary keyed by numbers hashes the numbers](#a-dictionary-keyed-by-numbers-hashes-the-numbers) | every | fewer allocations |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | every but `--hot-reload` | nothing but speed |
+| [Arithmetic a range proves is not checked](#arithmetic-a-range-proves-is-not-checked) | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed; `--optimization-report` lists every check kept |
 | [Short text lives inside the `String`](#short-text-lives-inside-the-string) | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | every but the inspectable ones | fewer allocations |
@@ -2514,14 +2515,84 @@ hash written with them costs what it did with the wrapping operator. The check i
 ([proofs.md](proofs.md#arithmetic-that-does-not-fit-halts)). A call between the comparison and the step keeps it
 out, whatever the call does, since no call can change a local or a parameter's number: `apply(scorer.score, index)`
 before `index = index + 1`, a call through a function value, leaves the step plain. In the compiler's own C these remove 1 145 of its
-2 595 checks. What you can observe: a halt instead of a wrapped answer, and a loop whose sum the C compiler
+2 595 checks. It is left out too wherever the ranges the compiler works out for the operands prove the answer fits
+([below](#arithmetic-a-range-proves-is-not-checked)), which in the compiler's own C removes 250 of the 1 513 checks
+the counter's proof leaves. What you can observe: a halt instead of a wrapped answer, and a loop whose sum the C compiler
 vectorised before may no longer be vectorised, since each addition can now stop the program. **Cost, measured** in
 [its case](../benchmarks/arithmetic_is_checked_in_every_build/): 400 rounds of adding up `value * 3 + round` over
-100 000 numbers take 21.7 ms, against 3.3 ms for naive C and for expert C, whose unchecked sums the C compiler
-vectorises. Where a loop does more than add, the checks cost a few percent; the whole programs
+100 000 numbers take 19.9 ms, against 3.1 ms for naive C and 2.8 ms for expert C, whose unchecked sums the C compiler
+vectorises: no range bounds `values[index]`, a number the list was given somewhere else, so every round's checks stay. Where a loop does more than add, the checks cost a few percent; the whole programs
 [number_dictionary](../benchmarks/number_dictionary/), [text_building](../benchmarks/text_building/),
 [sorting](../benchmarks/sorting/), [vector_maths](../benchmarks/vector_maths/) and
 [particles](../benchmarks/particles/) are built with them and timed against C.
+
+### Arithmetic a range proves is not checked
+
+**The case:** [benchmarks/report_over_records](../benchmarks/report_over_records/), whose profit sum and
+fingerprints are `Long` totals of `Integer` terms.
+
+**What it does.** The compiler works out, while compiling, the range of values every whole-number local and
+parameter can hold at each point of a function, and leaves the overflow check out of a `+`, `-`, `*` or a `-` in
+front of a number whose answer, worked out from the ranges of its operands, fits its type. The operator is the same
+plain C operator the check was wrapped around; only the compare and the branch that could never be taken go.
+
+The ranges come from what the code says: a literal; a `var` and every assignment to it; a remainder by a constant
+(`seed % 16` runs from -15 to 15, and from 0 to 15 when `seed` is never negative); a division by a constant;
+`minimum`, `maximum`, `clamp` and `absolute`; a `count()` or `length()`, which is never negative; and a condition
+in force, so inside `if value < 10` the value is at most 9, and inside `while index < values.count()` the index is
+below the largest count. A loop gives every local it assigns a range that holds on every pass before its condition
+is even compiled: a counter only stepped up keeps its starting floor and, under a `<` on it, its bound plus its
+steps; anything else is widened to what its assignments can give whatever the loop's own locals hold. A loop whose
+counter is stepped once a pass, as one of the body's own statements, under a `<` on it, runs at most a known number
+of passes, and a total added to once a pass, `total = total + term`, then holds at most that many terms: a `Long`
+total of `Integer` terms over a list, whose count is an `Integer`, can never overflow, so its addition is plain.
+An attribute, an item of a list and the answer of a call have their type's range and nothing narrower, since
+another function or another pass could change them. The rules in full, with what narrows and what does not, are in
+[values_and_types.md](../specs/values_and_types.md#a-range-proves-a-check-unneeded).
+
+**When.** Every build but `--repl`, `--repl-port` and `--hot-reload`, which can run code between two steps of a
+loop. Where a range does not prove it, the check stays, and `--optimization-report` lists it with the ranges it
+found ("`'product' runs from -2147483648 to 2147483647, so the answer may not fit in an Integer`").
+
+**Example.** No operation below is checked: the remainder and the clamp bound their answers, the counters stay
+under their loops' bounds, and each total adds at most as many terms as its loop has passes, so the loop over
+`prices` is a plain sum the C compiler can vectorise.
+
+```gdscript title=proven_sum/proven_sum.spite entry
+var console = Console()
+
+func ProvenSum() {
+    var prices = List<Integer>()
+    var index = 0
+    while index < 1000 {
+        prices.append(index % 250 * 4)
+        index = index + 1
+    }
+    var total: Long = 0
+    var at = 0
+    while at < prices.count() {
+        total = total + prices[at]
+        at = at + 1
+    }
+    var hours = 0
+    var week = 0
+    while week < 52 {
+        var shift = week.clamp(0, 6) + 8
+        hours = hours + shift * 5
+        week = week + 1
+    }
+    console.print(total, hours)
+}
+```
+```output
+498000 3535
+```
+
+**What you notice.** Nothing but speed: the halt where an answer does not fit is unchanged, since the check is left
+out only where it could never fire. In [its case](../benchmarks/report_over_records/), the profit of each region in
+each quarter is a `Long` sum of `Integer` terms and its additions are plain, as are the seed's multiplication and
+remainders and the fingerprint's `Long` sums; the `Integer` products of the attributes stay checked, so the time
+is what it was (an attribute's range is its type's). The compiler's own C loses 250 of its 1 513 checks.
 
 ### Short text lives inside the `String`
 

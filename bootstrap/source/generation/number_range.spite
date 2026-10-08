@@ -1,0 +1,134 @@
+var lowest: Long = 0
+var highest: Long = 0
+
+func NumberRange(starting_lowest: Long, starting_highest: Long) {
+    lowest = starting_lowest
+    highest = starting_highest
+}
+
+# ../../../docs/proofs.md#a-range-proves-arithmetic-fits
+func reach(): Long {
+    return 4611686018427387903
+}
+
+func bounded(low: Long, high: Long): NumberRange? {
+    var limit = reach()
+    assert low >= -limit and high <= limit and low <= high
+    return NumberRange(low, high)
+}
+
+func plus(other: NumberRange): NumberRange? {
+    var low = lowest + other.lowest
+    var high = highest + other.highest
+    return bounded(low, high)
+}
+
+func minus(other: NumberRange): NumberRange? {
+    var low = lowest - other.highest
+    var high = highest - other.lowest
+    return bounded(low, high)
+}
+
+func negated(): NumberRange {
+    return NumberRange(-highest, -lowest)
+}
+
+func times(other: NumberRange): NumberRange? {
+    assert safe_product(lowest, other.lowest) and safe_product(lowest, other.highest)
+    assert safe_product(highest, other.lowest) and safe_product(highest, other.highest)
+    var first = lowest * other.lowest
+    var second = lowest * other.highest
+    var third = highest * other.lowest
+    var fourth = highest * other.highest
+    var low_pair = first.minimum(second)
+    var low_other = third.minimum(fourth)
+    var high_pair = first.maximum(second)
+    var high_other = third.maximum(fourth)
+    var low = low_pair.minimum(low_other)
+    var high = high_pair.maximum(high_other)
+    return bounded(low, high)
+}
+
+func safe_product(left: Long, right: Long): Boolean {
+    if left == 0 or right == 0 {
+        return true
+    }
+    var left_size = magnitude(left)
+    var right_size = magnitude(right)
+    return left_size <= reach() / right_size
+}
+
+func magnitude(value: Long): Long {
+    if value < 0 {
+        return -value
+    }
+    return value
+}
+
+func largest_magnitude(): Long {
+    var low = magnitude(lowest)
+    var high = magnitude(highest)
+    return low.maximum(high)
+}
+
+func remainder_by(divisor: NumberRange?): NumberRange {
+    var limit = largest_magnitude()
+    if divisor {
+        var below = divisor.largest_magnitude() - 1
+        if below < 0 {
+            below = 0
+        }
+        limit = limit.minimum(below)
+    }
+    return signed_like(limit)
+}
+
+func signed_like(limit: Long): NumberRange {
+    var low = -limit
+    var high = limit
+    if lowest >= 0 {
+        low = 0
+    }
+    if highest <= 0 {
+        high = 0
+    }
+    low = low.maximum(lowest)
+    high = high.minimum(highest)
+    return NumberRange(low, high)
+}
+
+func divided_by(divisor: NumberRange?): NumberRange {
+    if divisor {
+        if divisor.lowest == divisor.highest and divisor.lowest > 0 {
+            var low = lowest / divisor.lowest
+            var high = highest / divisor.lowest
+            return NumberRange(low, high)
+        }
+        if divisor.lowest == divisor.highest and divisor.lowest < 0 {
+            var flipped_low = highest / divisor.lowest
+            var flipped_high = lowest / divisor.lowest
+            return NumberRange(flipped_low, flipped_high)
+        }
+    }
+    var limit = largest_magnitude()
+    return NumberRange(-limit, limit)
+}
+
+func joined(other: NumberRange): NumberRange {
+    var low = lowest.minimum(other.lowest)
+    var high = highest.maximum(other.highest)
+    return NumberRange(low, high)
+}
+
+func narrowed(low: Long, high: Long): NumberRange {
+    var narrowed_low = lowest.maximum(low)
+    var narrowed_high = highest.minimum(high)
+    if narrowed_low > narrowed_high {
+        return NumberRange(lowest, highest)
+    }
+    return NumberRange(narrowed_low, narrowed_high)
+}
+
+func within(low: Long, high: Long): Boolean {
+    return lowest >= low and highest <= high
+}

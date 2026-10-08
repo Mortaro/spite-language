@@ -13,13 +13,13 @@ int32_t Pipeline_price(Pipeline* self, int32_t amount_) {
             total_ = ({ int32_t spite_temp_6 = total_; int32_t spite_temp_7 = (total_ / 5); int32_t spite_temp_8; if (__builtin_expect(__builtin_add_overflow(spite_temp_6, spite_temp_7, &spite_temp_8), 0)) spite_overflowed("total + total / 5", "an Integer", "+", (int64_t)spite_temp_6, (int64_t)spite_temp_7, spite_site_4()); spite_temp_8; });
         }
         if ((((void)((({ Nullable_Pipeline_Step spite_temp_9 = List_Pipeline_Step_get_at(self->steps_, index_); if (__builtin_expect(!spite_temp_9.has_value, 0)) spite_outside_list("steps[index]", spite_site_5()); spite_temp_9.value; }) == Pipeline_Step_rounding)), 0))) {
-            total_ = ({ int32_t spite_temp_10 = (total_ / 100); int32_t spite_temp_11 = 100; int32_t spite_temp_12; if (__builtin_expect(__builtin_mul_overflow(spite_temp_10, spite_temp_11, &spite_temp_12), 0)) spite_overflowed("total / 100 * 100", "an Integer", "*", (int64_t)spite_temp_10, (int64_t)spite_temp_11, spite_site_6()); spite_temp_12; });
+            total_ = ((total_ / 100) * 100);
         }
-        if ((((void)((({ Nullable_Pipeline_Step spite_temp_13 = List_Pipeline_Step_get_at(self->steps_, index_); if (__builtin_expect(!spite_temp_13.has_value, 0)) spite_outside_list("steps[index]", spite_site_7()); spite_temp_13.value; }) == Pipeline_Step_coupon)), 0))) {
-            total_ = ({ int32_t spite_temp_14 = total_; int32_t spite_temp_15 = 50; int32_t spite_temp_16; if (__builtin_expect(__builtin_sub_overflow(spite_temp_14, spite_temp_15, &spite_temp_16), 0)) spite_overflowed("total - 50", "an Integer", "-", (int64_t)spite_temp_14, (int64_t)spite_temp_15, spite_site_8()); spite_temp_16; });
+        if ((((void)((({ Nullable_Pipeline_Step spite_temp_10 = List_Pipeline_Step_get_at(self->steps_, index_); if (__builtin_expect(!spite_temp_10.has_value, 0)) spite_outside_list("steps[index]", spite_site_6()); spite_temp_10.value; }) == Pipeline_Step_coupon)), 0))) {
+            total_ = ({ int32_t spite_temp_11 = total_; int32_t spite_temp_12 = 50; int32_t spite_temp_13; if (__builtin_expect(__builtin_sub_overflow(spite_temp_11, spite_temp_12, &spite_temp_13), 0)) spite_overflowed("total - 50", "an Integer", "-", (int64_t)spite_temp_11, (int64_t)spite_temp_12, spite_site_7()); spite_temp_13; });
         }
         index_ = (index_ + 1);
     }
-    int32_t spite_temp_17 = total_;
-    return spite_temp_17;
+    int32_t spite_temp_14 = total_;
+    return spite_temp_14;
 }
