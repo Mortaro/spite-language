@@ -113,3 +113,33 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   'sensor' is never read: remove it`, since specs/style.md counts a walk that reads only an attribute's name and
   class as its description, not a read. But the attributes are the wire format the schema hashes, so removing one
   changes the schema. Should `schema()` (and any walk that hashes or prints the description) count as a read?
+- **305, bytes: a fresh list or a list the program keeps** ([proposal](design/proposals/plain_bytes_and_foreign_structs.md#questions-for-mortaro)).
+  A file or socket read answers a fresh `List<Byte>`, as `UdpSocket` does, and the compiler reuses the block; or it
+  appends to a list the program passes. Recommendation: a fresh list, the reuse as stage 5 work. Blocks the engine
+  leaving `Memory` for bytes.
+- **306, big-endian reads**: `read_integer_big_endian(position)` beside `read_integer(position)`, a byte-order
+  argument, or only little-endian reads and `bytes_reversed()`. Recommendation: the named twin, no option argument.
+- **307, two ways to read a header**: keep `BinaryReader<T>().read_from(bytes, position)` for a record and
+  `bytes.read_integer(position)` for one number, or keep only one. Recommendation: keep both, they read different
+  things.
+- **308, memory C hands out** (a mapped GPU buffer): a library class `ForeignBytes(address, count)` with bounds
+  checked writes, or it stays on the `Memory` floor inside bindings. Recommendation: `ForeignBytes`.
+- **309, inline and pointer in a foreign struct**: a `type` attribute is the struct inline and a `type?` a pointer
+  (`null` for NULL), or every `type` attribute is a pointer, or a marker class. Recommendation: `type` inline,
+  `type?` pointer.
+- **310, a value C writes through a pointer argument** (a created handle, a count): a one-attribute `type`, which
+  works today; a number `var` passed by address when a header says so; or a one-item list. Recommendation: the
+  one-attribute `type`.
+- **311, a fixed-length array inside a struct** (`char deviceName[256]`): the one new syntax. `List<MemoryType>(32)`
+  and `String(256)`, a number generic argument `List<MemoryType, 32>`, or one attribute per item.
+  Recommendation: the length in parentheses, only in a `type` that crosses into C.
+- **312, C keeping a pointer past the call** (a sound buffer): out of scope, or a library class like
+  `ForeignCallback` holding a list whose size no line may change while held. Recommendation: the class, built when a
+  binding needs it.
+- **313, `Boolean` and enum widths in a foreign struct**: 32 bits each (as a callback takes a `Boolean`), or their
+  Spite widths. Recommendation: 32 bits; the Spite widths read a wrong value silently when a binding forgets (D244).
+- **314, the address forms of `File`, `Socket` and `BinaryReader`**: removed from programs now (private to
+  `library/`), or moved to the `Optimizer` namespace later (D506). Recommendation: removed now, one way to read a
+  file.
+- **315, the count naming rule**: an attribute `<list>_count` directly before a list is written by the compiler;
+  or any number before a list; or no declared count. Recommendation: the named `<list>_count`.

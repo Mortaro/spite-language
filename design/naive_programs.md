@@ -167,7 +167,7 @@ Language gaps it found, and what was decided (under D509, D512):
   (stage 6, W1); until then asset loading keeps its `Parallel` on the naive branch.
 - **File and socket bytes come only through `Memory.Address`**, and **foreign structs holding pointers or
   arrays** have no plain declaration: both stay `Memory` until the library gives a plain form (a bytes value
-  and a foreign struct declaration); queued as library work.
+  and a foreign struct declaration); queued as library work ([proposal](proposals/plain_bytes_and_foreign_structs.md)).
 - **Thread affinity of operating system handles** is an engine convention: the compiler must learn it (a class
   pinned to its creating thread is already a fact D505 reads) before it runs systems at once.
 - **Stages stay** in the engine: queued commands flush between stages as today, so when systems see each other's
@@ -467,6 +467,12 @@ read with their reading function, and passed on by a held parameter.
 | stress tick, split build | 42.3 ms | 36.7 ms |
 | physics step | 12.5 ms | 12.0 ms |
 | the case, ten million calls | 28.4 ms | 5.4 ms |
+
+### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
+
+The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a
+`List<Byte>` with reads by position, and a foreign struct holding text, pointers and arrays becomes a `type`. Proposed,
+with its questions (305 to 315): [plain_bytes_and_foreign_structs.md](proposals/plain_bytes_and_foreign_structs.md).
 
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
