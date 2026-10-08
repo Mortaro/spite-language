@@ -43,11 +43,11 @@ reads the value out of `entry_values_` with a range check, where `expert.c` keep
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 50 903 | 186 368 |
-| naive C: `naive.c`, `clang -O2` | 26 957 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 22 341 | 139 264 |
+| Spite: `naive/`, `--optimized` | 40 309 | 186 368 |
+| naive C: `naive.c`, `clang -O2` | 17 468 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 16 373 | 139 264 |
 
-Spite takes 1.89 times naive C's time and 2.28 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=50903 naive=26957 expert=22341 -->
+Spite takes 2.31 times naive C's time and 2.46 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=40309 naive=17468 expert=16373 -->
 <!-- /timings -->
