@@ -106,4 +106,8 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 
 ## Open
 
-None.
+- **Does a binary schema read the attributes it describes?** A class seen only through `BinaryWriter<T>` and its
+  `schema()` (`benchmarks/a_binary_schema_is_a_constant` with the writes taken out) is refused: `the attribute
+  'sensor' is never read: remove it`, since specs/style.md counts a walk that reads only an attribute's name and
+  class as its description, not a read. But the attributes are the wire format the schema hashes, so removing one
+  changes the schema. Should `schema()` (and any walk that hashes or prints the description) count as a read?

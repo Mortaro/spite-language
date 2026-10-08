@@ -38886,6 +38886,8 @@ func generate_while_loop(
         builder.add_user("while ({guard.guard_code}) \{")
         var narrowed_body = Scope(scope)
         narrowed_body.is_loop = true
+        var guarded_text = condition_source(while_statement)
+        narrowed_body.know_loop_condition(guarded_text)
         narrow_by_guard(narrowed_body, guard, "'while {guard.name}'")
         generate_block_in_scope(while_statement.body, narrowed_body, class_information, function_information)
         add_loop_check_point(class_information)
@@ -38910,10 +38912,17 @@ func generate_while_loop(
     }
     var body_scope = Scope(scope)
     body_scope.is_loop = true
+    var condition_text = condition_source(while_statement)
+    body_scope.know_loop_condition(condition_text)
     narrow_proven_indices(while_statement.condition, body_scope)
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     add_loop_check_point(class_information)
     builder.add_user("}")
+}
+
+func condition_source(while_statement: Syntax.Statements.WhileStatement): String {
+    crash while_statement.condition
+    return Syntax.SourcePrinter().source_expression(while_statement.condition)
 }
 
 func counted_loop_list(

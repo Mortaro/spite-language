@@ -11,6 +11,7 @@ func CallUndoesProof() {
     passing()
     keeping()
     looping()
+    looping_on_it()
 }
 
 func forgetting() {
@@ -47,6 +48,14 @@ func looping() {
         console.print(target.name)
         forget_target()
         index = index + 1
+    }
+}
+
+func looping_on_it() {
+    assert target
+    while target.name != "dragon" {
+        forget_target()
+        crash target
     }
 }
 

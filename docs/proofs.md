@@ -190,7 +190,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   proof beneath it from that line. Assigning the path itself a value that cannot be null keeps its own narrowing;
   "cannot be null" is a constructor, a literal, an arithmetic expression, or a name or path whose type is not `T?`.
   Inside a `while`, undoing a proof made before the loop and read in it is an error, since the next pass would read
-  it unproven.
+  it unproven; read in it means named by the loop's condition or read in the body before what undid it, so a body
+  that proves it again after the call and before reading it is accepted.
 - **Buys.** A narrowing never outlives what it narrowed.
 - **Falls back.** Prove it again after the assignment, or narrow inside the loop. Note that a call answering a plain
   `T` counts as "may be null" here: `box = make_box()` un-narrows `box` even when `make_box(): Box`.

@@ -207,7 +207,11 @@ whole is: `crash names[position] and ages[position]` proves both elements, as tw
   condition is tested again before every pass, and a store that may be null undoes it for the rest of the pass, so
   `while current { ... current = current.next }` walks a chain with no `assert` inside (`examples/linked_walk`).
 - Inside a `while`, undoing a narrowing that was made before the loop *and read inside it* is an error, because
-  the next pass would read it unproven: narrow it inside the loop instead (`diagnostics/path_narrow_loop`).
+  the next pass would read it unproven: narrow it inside the loop instead (`diagnostics/path_narrow_loop`). A read
+  counts when the loop's condition names it, or when the body reads it before what undid it; a body that proves it
+  again after what undid it and before reading it (`record_hit()`, then `crash target`, then `target.hurt(3)`)
+  reads it proven on every pass, and is accepted (`conformance/stage6/proof_again_in_loop`,
+  `diagnostics/call_undoes_proof`).
 
 
 **Reading with `[]` answers `T?`.** `names[index]` and `table["key"]` may

@@ -27,6 +27,9 @@ var counted_items = List<String>()
 var site_paths = List<String>()
 var site_texts = List<String>()
 var kept_read_paths = List<String>()
+var overrides_read_from_outside = List<String>()
+var loop_condition_text = ""
+var loop_condition_known = false
 var kept_read_codes = List<String>()
 var last_check_text = ""
 var last_check_line = 0
@@ -298,7 +301,11 @@ func lookup_override(name: String): String? {
         index = index - 1
     }
     if parent {
-        return parent.lookup_override(name)
+        var answered = parent.lookup_override(name)
+        if is_loop and answered and not overrides_read_from_outside.contains(name) {
+            overrides_read_from_outside.append(name)
+        }
+        return answered
     }
     return null
 }
@@ -716,11 +723,49 @@ func forget_override(name: String, below_a_loop: Boolean): Boolean {
         index = index - 1
     }
     if parent {
-        if parent.forget_override(name, below_a_loop or is_loop) {
+        var crossing = below_a_loop
+        if is_loop and loop_reads_override(name) {
+            crossing = true
+        }
+        if parent.forget_override(name, crossing) {
             crossed_a_loop = true
         }
     }
     return crossed_a_loop
+}
+
+func loop_reads_override(name: String): Boolean {
+    if not loop_condition_known {
+        return true
+    }
+    if overrides_read_from_outside.contains(name) {
+        return true
+    }
+    var text_length = loop_condition_text.length()
+    var name_length = name.length()
+    var at = 0
+    while at + name_length <= text_length {
+        var starts = true
+        if at > 0 {
+            var before = loop_condition_text.code_at(at - 1)
+            starts = not is_name_code(before)
+        }
+        var ends = true
+        if at + name_length < text_length {
+            var after = loop_condition_text.code_at(at + name_length)
+            ends = not is_name_code(after)
+        }
+        if starts and ends and loop_condition_text.slice(at, at + name_length) == name {
+            return true
+        }
+        at = at + 1
+    }
+    return false
+}
+
+func know_loop_condition(text: String) {
+    loop_condition_text = text
+    loop_condition_known = true
 }
 
 func remove_last_entry(name: String) {

@@ -982,10 +982,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   given back one by one when its list goes (an_allocator_set_after_construction_is_where_the_object_is_made); a
   `List`'s `drop` tests for an arena while the program runs even in a program that makes none, and base64's digit
   writer counts its alphabet text per digit (reading_an_address_is_one_machine_operation); a class seen only through
-  `BinaryWriter<T>` and `schema()` has its attributes reported as never read (a_binary_schema_is_a_constant); the
-  optimisation report lists `library/allocation_table.spite:83` in builds whose C has no allocation table
-  (other_optimisations); a loop that proves `target` again after a call that may clear it, before every read, is
-  still refused as reading it unproven on the next pass (proofs_that_survive_a_call); the length of a reflection
+  `BinaryWriter<T>` and `schema()` has its attributes reported as never read (a_binary_schema_is_a_constant), as
+  [specs/style.md](../specs/style.md) says of a walk that reads only an attribute's name and class, though a schema
+  is what the attributes are for (a question for Mortaro); the length of a reflection
   name known while compiling is not folded (short_symbols_are_inline_text); a program's `.crashes` file lists some
   sites twice (a_crashs_report_is_kept_out_of_the_way); reads in a row hand only `fread` to the helper thread, so on
   cached files the overlapped reads are slower than reading in turn (reads_in_a_row_overlap); a singleton that never changes is still read with atomic loads

@@ -188,7 +188,8 @@ third c after b
 Assigning to a narrowed path, or to anything it reads through, undoes the narrowing from that point on:
 `current = current.next` above stores a `Node?` into `current`, and the loop's condition proves it again before
 the next pass. Inside a `while`, undoing a narrowing that was made *before* the loop and is read inside it is an
-error, because the next pass would read it unproven: narrow it inside the loop instead.
+error, because the next pass would read it unproven: narrow it inside the loop instead. A body that narrows it
+again after what undid it, before reading it, reads it narrowed on every pass, and is accepted.
 
 Narrow the name or the path itself, never a copy of it: a local that only copies a value so it can be narrowed
 is an error.

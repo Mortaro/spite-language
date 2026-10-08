@@ -1,0 +1,26 @@
+var target: Monster? = null
+var hits = 0
+
+func hunt(): Integer {
+    crash target
+    var rounds = 0
+    while still_alive() {
+        record_hit()
+        crash target
+        target.hurt(3)
+        rounds = rounds + 1
+    }
+    return rounds
+}
+
+func still_alive(): Boolean {
+    crash target
+    return target.health > 0
+}
+
+func record_hit() {
+    hits = hits + 1
+    if hits < 0 {
+        target = null
+    }
+}
