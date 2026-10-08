@@ -121,7 +121,7 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   `length_of(tracks[first])` read the item in its slot with no count, the call only where it cannot change the
   list. Why: the list holds the item through the use, so the count was two writes for nothing (a stress tick 27.3
   ms to 25.9).
-- **D539, the bytes half of D536 as built, confirm after the speed goal**: what Claude chose beyond the proposal.
+- **D540, the bytes half of D536 as built, confirm after the speed goal**: what Claude chose beyond the proposal.
   (a) `File.read_bytes()` answers `null` when fewer bytes arrive than the size said; `read_bytes_at` reads up to
   `count` and halts on a negative position or count. (b) A `Socket` keeps one 64 KB receive block and copies what
   arrived into a fresh list per read (the compiler does not reuse a let-go list's block yet). (c) The library keeps

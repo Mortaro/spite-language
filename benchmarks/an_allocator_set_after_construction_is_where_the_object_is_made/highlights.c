@@ -31,7 +31,7 @@ int32_t Naive_one_round(Naive* self, int32_t round_) {
 Particle* Particle___make_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address, int32_t starting_position_, int32_t starting_speed_) {
     Particle* self = (Particle*)(intptr_t)spite_address;
     self->header.ref_count = 1;
-    self->header.class_id = 109;
+    self->header.class_id = 110;
     Particle___init(self);
     self->spite_allocator = spite_allocator;
     self->spite_give_back = spite_give_back;

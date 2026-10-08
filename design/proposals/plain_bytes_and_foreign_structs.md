@@ -1,6 +1,6 @@
 # Plain bytes and plain foreign structs
 
-**Status (2026-10-08, D536):** adopted by Mortaro (`List<Byte>` for bytes); items 305 to 315 decided as recommended, to confirm after the speed goal. The bytes half (Part 1 and item 308) is built (D539); the foreign structs half is not.
+**Status (2026-10-08, D536):** adopted by Mortaro (`List<Byte>` for bytes); items 305 to 315 decided as recommended, to confirm after the speed goal. The bytes half (Part 1 and item 308) is built (D540); the foreign structs half is not.
 
 A proposal (every rule here is proposed by Claude, unconfirmed) for the two language gaps the naive engine found
 that keep it on the `Memory` floor (D506, D512; [naive_programs.md](../naive_programs.md#stage-1-results-2026-10-07)):

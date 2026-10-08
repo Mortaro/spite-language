@@ -2747,7 +2747,9 @@ proven count, a list literal's indices, the effects of calls, a bound past the i
 or a count kept in a `var`) needs nothing written. It also costs no presence test of the `T?`: the compiler reads the
 element through the collection's `get_at` and takes the value directly, with one branch the C compiler is told is
 never taken, which halts naming the read if the index was outside the list after all (a bound proves only the top of
-an index, so a counter that went negative is caught, [failure.md](failure.md#reading-with--answers-t)). A read inside
+an index, so a counter that went negative is caught, [failure.md](failure.md#reading-with--answers-t)). When the
+index is also known not to be negative (a local only ever set to a literal of 0 or more, or stepped up by one), a
+read of a `List` of numbers is the item itself, `items[index_]`, behind the one compare of its top. A read inside
 a counted loop ([above](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked)) proves both ends and
 is a plain indexed load, `spite_temp[index_]`, with no call and no test at all (`counted_loops`), and the two loops
 of [that section's case](../benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/)
@@ -2798,8 +2800,9 @@ compare of its low end. `bytes[index]` on a list of numbers gets the same single
 to be negative.
 
 **What you notice.** Speed only. [Its case](../benchmarks/a_number_read_from_bytes_is_one_load/) decodes 100 000
-big-endian records 300 times; its README has the times against naive C, which puts each number together byte by
-byte, and expert C, which loads and swaps.
+big-endian records 300 times in 41.1 ms, against 54.5 ms for naive C, which puts each number together byte by byte,
+and 33.0 ms for expert C, which loads and swaps over a `restrict` block; what is left is the checked arithmetic of the
+sum.
 
 ### A walked `crash` line's read is the row's read
 

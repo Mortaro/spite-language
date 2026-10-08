@@ -23,7 +23,7 @@ void Meter__true_add(Meter__true* self, int32_t value_) {
 void Naive_measure___held_0_1_2(Naive* self, List_Integer* values_, Meter__false* plain_, Meter__true* squared_) {
     int32_t index_ = 0;
     while (((index_ < List_Integer_count(values_)))) {
-        int32_t value_ = ({ Nullable_Integer spite_temp_10 = List_Integer_get_at(values_, index_); if (__builtin_expect(!spite_temp_10.has_value, 0)) spite_outside_list("values[index]", spite_site_3()); spite_temp_10.value; });
+        int32_t value_ = ({ int32_t spite_temp_10 = index_; if (__builtin_expect(spite_temp_10 >= (values_)->item_count_, 0)) spite_outside_list("values[index]", spite_site_3()); ((int32_t*)(intptr_t)(values_)->items_)[spite_temp_10]; });
         Meter__false_add(plain_, value_);
         Meter__true_add(squared_, value_);
         index_ = (index_ + 1);

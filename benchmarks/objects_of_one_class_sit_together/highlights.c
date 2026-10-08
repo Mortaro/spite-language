@@ -27,7 +27,7 @@ static inline void Point___pool_give(Point* self) {
 Point* Point___allocate(void) {
     Point* self = Point___pool_take();
     self->header.ref_count = 1;
-    self->header.class_id = 110;
+    self->header.class_id = 111;
     Point___init(self);
     #ifdef SPITE_TRACKS_Point
     spite_track_Point(self);
@@ -38,7 +38,7 @@ Point* Point___allocate(void) {
 Note* Note___allocate(void) {
     Note* self = Note___pool_take();
     self->header.ref_count = 1;
-    self->header.class_id = 109;
+    self->header.class_id = 110;
     Note___init(self);
     #ifdef SPITE_TRACKS_Note
     spite_track_Note(self);

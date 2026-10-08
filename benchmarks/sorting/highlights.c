@@ -60,7 +60,7 @@ void Naive_sort___held_0(Naive* self, List_Integer* numbers_, int32_t low_, int3
             while (((((lower_ < List_Integer_count(numbers_))) && ((({ Nullable_Integer spite_temp_28 = List_Integer_get_at(numbers_, lower_); if (__builtin_expect(!spite_temp_28.has_value, 0)) spite_outside_list("numbers[lower]", spite_site_7()); spite_temp_28.value; }) < pivot_))))) {
                 lower_ = (lower_ + 1);
             }
-            while (((((((upper_ >= 0)) && ((upper_ < List_Integer_count(numbers_))))) && ((({ Nullable_Integer spite_temp_29 = List_Integer_get_at(numbers_, upper_); if (__builtin_expect(!spite_temp_29.has_value, 0)) spite_outside_list("numbers[upper]", spite_site_8()); spite_temp_29.value; }) > pivot_))))) {
+            while (((((((upper_ >= 0)) && ((upper_ < List_Integer_count(numbers_))))) && ((({ int32_t spite_temp_29 = upper_; if (__builtin_expect(spite_temp_29 >= (numbers_)->item_count_, 0)) spite_outside_list("numbers[upper]", spite_site_8()); ((int32_t*)(intptr_t)(numbers_)->items_)[spite_temp_29]; }) > pivot_))))) {
                 upper_ = ({ int32_t spite_temp_30 = upper_; int32_t spite_temp_31 = 1; int32_t spite_temp_32; if (__builtin_expect(__builtin_sub_overflow(spite_temp_30, spite_temp_31, &spite_temp_32), 0)) spite_overflowed("upper - 1", "an Integer", "-", (int64_t)spite_temp_30, (int64_t)spite_temp_31, spite_site_9()); spite_temp_32; });
             }
             if (((lower_ <= upper_))) {

@@ -11,7 +11,7 @@ struct Particle {
 Particle* Particle___allocate(void) {
     Particle* self = Particle___pool_take();
     self->header.ref_count = 1;
-    self->header.class_id = 109;
+    self->header.class_id = 110;
     Particle___init(self);
     #ifdef SPITE_TRACKS_Particle
     spite_track_Particle(self);

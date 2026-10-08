@@ -18,7 +18,7 @@ void spite_track_Lamp(Lamp* self) {
 Lamp* Lamp___allocate(void) {
     Lamp* self = Lamp___pool_take();
     self->header.ref_count = 1;
-    self->header.class_id = 110;
+    self->header.class_id = 111;
     Lamp___init(self);
     #ifdef SPITE_TRACKS_Lamp
     spite_track_Lamp(self);
@@ -29,7 +29,7 @@ Lamp* Lamp___allocate(void) {
 Door* Door___allocate(void) {
     Door* self = Door___pool_take();
     self->header.ref_count = 1;
-    self->header.class_id = 109;
+    self->header.class_id = 110;
     Door___init(self);
     #ifdef SPITE_TRACKS_Door
     spite_track_Door(self);

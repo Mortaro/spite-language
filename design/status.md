@@ -554,7 +554,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `Socket` (`read_bytes()`, `read_bytes_now()`, `write_bytes`, `write_bytes_now`); `List<Byte>` reads, appends and
   writes every number with big-endian twins and `append_bytes`; `ForeignBytes`; the address forms are compile errors
   in programs; the width-aware read proofs, the `<=` bound, the non-negative position, the area guard and counted
-  loops stepping by a record. The choices taken under D509 are in mortaros_missing_decisions.md (D539).
+  loops stepping by a record. The choices taken under D509 are in mortaros_missing_decisions.md (D540).
 - Not built (item 305's second half): a read answers a fresh list every time, one allocation per read; the compiler
   does not yet reuse the block of a list let go before the next read at the same place, and
   `--optimization-report` does not name the allocation.
