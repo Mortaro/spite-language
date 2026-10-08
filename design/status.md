@@ -879,6 +879,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   (`candidates[index].count()`, `changes.stamp_written(headers[index], entity)`), is still counted; the
   optimisation report does not yet say why a write-back was kept or a read counted.
 
+### An attribute a call cannot assign is passed without counting
+
+- Built (decided by Claude under D509, to confirm; D531). Not built: a path with a `[]` read in it but a
+  template's attribute (`candidates[index].count()`, an item used at once, is pair B1t); a link through a
+  singleton or a getter; a shape's parameter when the callee would be compiled once per class (it keeps the count,
+  so its per-class copies are not lost); telling one object's attribute from another's of the same class (a callee
+  assigning `pair.left` of any `Pair` keeps the count for every `Pair`); the naive engine's
+  `store_attributes(current, entity)` still counts `current`, and the optimisation report does not yet say why an
+  argument was counted.
+
 ### A list item read only to test it is not counted
 
 - Built (pair B3 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).

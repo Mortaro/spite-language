@@ -1362,6 +1362,90 @@ beside the ordinary one for each set of positions a program passes this way (abo
 compiling itself), and the ordinary one is shaken out when nothing else calls it. Allocations and results are the
 same (`conformance/stage6/held_arguments`: a bag passed on, kept, returned and assigned over).
 
+### An attribute a call cannot assign is passed without counting
+
+**The case:** [benchmarks/an_attribute_a_call_cannot_assign_is_passed_without_counting](../benchmarks/an_attribute_a_call_cannot_assign_is_passed_without_counting/).
+
+**What it does.** [The held argument](#an-argument-its-caller-holds-is-passed-without-counting) is not only a
+name: an attribute of the object a function runs on (`amounts`), or a path of attributes from it or from a name the
+caller holds (`customer.terms`, `row.position`), is passed to a call without counting it when nothing the call can
+run assigns any attribute along that path. The object that holds the attribute keeps holding the same value for the
+whole call, so the count added for the callee and taken away when it returns is two writes for nothing.
+
+```gdscript title=held_attributes/invoice.spite
+var amounts = List<Integer>()
+var customer = Customer()
+
+func add(amount: Integer) {
+    amounts.append(amount)
+}
+
+func due(): Integer {
+    return total_of(amounts) - discount_of(customer.terms)
+}
+
+func total_of(values: List<Integer>): Integer {
+    var total = 0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index]
+        index = index + 1
+    }
+    return total
+}
+
+func discount_of(terms: Terms): Integer {
+    return terms.discount
+}
+```
+```gdscript title=held_attributes/customer.spite
+var terms = Terms()
+```
+```gdscript title=held_attributes/terms.spite
+var discount = 15
+```
+```gdscript title=held_attributes/held_attributes.spite entry
+var console = Console()
+
+func HeldAttributes() {
+    var invoice = Invoice()
+    invoice.add(120)
+    invoice.add(80)
+    var due = invoice.due()
+    console.print("due", due)
+}
+```
+```output
+due 185
+```
+
+Neither `total_of` nor `discount_of`, nor anything they call, assigns `Invoice.amounts`, `Invoice.customer` or
+`Customer.terms`, so both go to their `___held_0` copies with the attribute read in place:
+
+```c
+Invoice_total_of___held_0(self, self->amounts_)
+Invoice_discount_of___held_0(self, (self->customer_)->terms_)
+```
+
+where they were `Invoice_total_of(self, List_Integer___retain(self->amounts_))` and the same for `terms`. What a call
+can assign is read from the call effects every function already has, followed through every call it makes: an
+attribute assigned anywhere it reaches (`current = Pair()` two calls down) keeps the count, and so does a call
+whose effects are not known. A path may end in an attribute of a shape (a template's `row.attributes[attribute]`),
+which is then read with the shape's reading function that takes no count. A function's held parameter is held
+for the calls it makes in turn, so a chain of calls passes one object down without counting it at any step.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
+function a `Concurrent` runs, for a call to a program's own function, as for a held name. The path is attributes
+only (no `[]` read but a template's attribute, no getter, no call), from the object the function runs on or from a
+name the caller holds, each attribute after the first in a class of the program's own that is not a singleton; a value its parameter may
+take as a shape that the callee would otherwise compile once per class keeps its count, so the per-class copy is not
+lost. Not for text, unions of values or a variadic list.
+
+**What you notice.** Speed. The naive engine's stress test, whose matchers pass their own `rows` list and their
+`current` row to the functions that fill and store it, and each row's components to the slot that fetches and
+stores them, ticks in 30.5 ms instead of 36.0 as one C file (36.7 instead of 42.3 split); its physics step takes
+12.0 ms instead of 12.5.
+
 ### A singleton's attribute that never changes is read in place
 
 **The case:** [benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place](../benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place/).

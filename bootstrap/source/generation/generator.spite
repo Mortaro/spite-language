@@ -12910,7 +12910,8 @@ func generate_argument_list(
                 )
             }
             var held_type = held_result.type
-            var held_code = cast(held_result.code, held_type, expected_types[index])
+            var held_read = held_read_code(held_result, arguments_ast[index])
+            var held_code = cast(held_read, held_type, expected_types[index])
             result.append(held_code)
         } else if framed_code.is_empty() {
             borrow_site = "argument:{callee}"
@@ -15550,12 +15551,25 @@ func held_variant_name(
     }
     var candidates = List<Integer>()
     var framed_candidates = List<Integer>()
+    var path_candidates = List<Integer>()
+    var path_candidate_dependencies = List<String>()
     var index = 0
     while index < arguments_ast.count() {
         var index_text = index.to_string()
         if not lent_argument_positions.contains(index_text) {
+            var path_dependencies = held_path_dependencies(
+                arguments_ast[index],
+                expected_types[index],
+                scope,
+                class_information,
+            )
             if held_by_caller(arguments_ast[index], expected_types[index], scope) {
                 candidates.append(index)
+            } else if not path_dependencies.is_empty() {
+                candidates.append(index)
+                path_candidates.append(index)
+                var joined_dependencies = path_dependencies.join(" ")
+                path_candidate_dependencies.append(joined_dependencies)
             } else if frameable_function_value(arguments_ast[index], expected_types[index], scope, class_information) {
                 candidates.append(index)
                 framed_candidates.append(index)
@@ -15582,6 +15596,12 @@ func held_variant_name(
     }
     var positions = List<String>()
     var framed = List<String>()
+    var callee_effects = List<String>()
+    var effects_known = false
+    if not path_candidates.is_empty() {
+        effects_known = not call_effects.effects_key(owner.qualified_dotted, original.name).is_empty()
+        callee_effects = call_effects.effects_of(owner.qualified_dotted, original.name)
+    }
     var candidate_index = 0
     while candidate_index < candidates.count() {
         var position = candidates[candidate_index]
@@ -15589,6 +15609,18 @@ func held_variant_name(
         var parameter_name = original.parameters[position].name
         var position_text = position.to_string()
         var fits = not assigns_name(original.body, parameter_name) and not original.lent_parameters.contains(parameter_name)
+        crash expected_types[position]
+        var shaped_type = type_shape.as_union(expected_types[position])
+        if fits and shaped_type {
+            fits = guards_singleton(owner, original) or not dispatches_shapes(owner, original)
+        }
+        var path_at = path_candidates.index_of(position)
+        if fits and path_at {
+            crash path_candidate_dependencies[path_at]
+            var dependency_text = path_candidate_dependencies[path_at]
+            var dependencies = dependency_text.split(" ")
+            fits = effects_known and not path_changed_by(dependencies, callee_effects)
+        }
         if fits and framed_candidates.contains(position) {
             fits = block_only_calls(original.body, parameter_name)
             if fits {
@@ -15969,16 +16001,149 @@ func held_by_caller(argument: Syntax.Expressions.Expression, expected_type: Anal
     if not identifier {
         return false
     }
-    if not type_needs_drop(expected_type) or type_shape.as_union(expected_type) or type_shape.as_string(expected_type) {
-        return false
-    }
-    if type_shape.is_arguments(expected_type) {
+    if not holdable_type(expected_type) {
         return false
     }
     if not scope.borrow_source(identifier.name).is_empty() or not scope.row_source(identifier.name).is_empty() {
         return false
     }
     return scope.holds_for_call(identifier.name)
+}
+
+# ../../../docs/optimizations.md#an-attribute-a-call-cannot-assign-is-passed-without-counting
+func held_path_dependencies(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var unheld = List<String>()
+    if not holdable_type(expected_type) {
+        return unheld
+    }
+    var path_argument = argument
+    var indexed = shape.as_index(argument)
+    if indexed {
+        if not is_bound_member_index(indexed) {
+            return unheld
+        }
+        path_argument = bound_member_expression(indexed)
+    }
+    var names = List<String>()
+    var walked = path_argument
+    var member = shape.as_member(walked)
+    while member {
+        crash member.object
+        names.prepend(member.name)
+        walked = member.object
+        member = shape.as_member(walked)
+    }
+    var root = shape.as_identifier(walked)
+    if not root {
+        return unheld
+    }
+    var current: Analysis.SpiteType? = null
+    var root_local = scope.unnarrowed_type(root.name)
+    if root_local {
+        if names.is_empty() or not scope.holds_for_call(root.name) {
+            return unheld
+        }
+        if not scope.borrow_source(root.name).is_empty() or not scope.row_source(root.name).is_empty() {
+            return unheld
+        }
+        current = scope.written_type(root.name)
+    } else {
+        var root_field = class_information.find_field(root.name)
+        if not root_field or class_information.find_function("get_{root.name}") {
+            return unheld
+        }
+        current = root_field.type
+    }
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var owner = held_path_class(current)
+        if owner {
+            var field = owner.find_field(name)
+            if not field or owner.find_function("get_{name}") or owner.is_singleton or is_library_class(owner) {
+                return unheld
+            }
+            current = field.type
+        } else {
+            var last_index = names.count() - 1
+            var shaped_field = held_shape_field(current, name, index == last_index)
+            if not shaped_field {
+                return unheld
+            }
+            current = shaped_field
+        }
+        index = index + 1
+    }
+    var path = operand_text(path_argument)
+    if path.is_empty() or path.contains("[") or path.contains("(") {
+        return unheld
+    }
+    return proof_dependencies(path, scope, class_information)
+}
+
+func held_shape_field(spite_type: Analysis.SpiteType?, name: String, last: Boolean): Analysis.SpiteType? {
+    assert spite_type
+    assert last and type_shape.as_union(spite_type) and holdable_type(spite_type)
+    var shaped = shape_of(spite_type)
+    assert shaped
+    var shaped_field = shape_field_type(shaped, name)
+    assert shaped_field
+    assert type_shape.as_class_ref(shaped_field)
+    return shaped_field
+}
+
+func held_read_code(held_result: ExpressionResult, argument: Syntax.Expressions.Expression): String {
+    if held_result.peek_union {
+        return peeked_code(held_result)
+    }
+    if owns(held_result, argument) {
+        report("internal: an argument passed as held was read with a count of its own; this is a compiler bug")
+    }
+    return held_result.code
+}
+
+func holdable_type(expected_type: Analysis.SpiteType): Boolean {
+    if not type_needs_drop(expected_type) or type_shape.as_string(expected_type) or type_shape.is_arguments(expected_type) {
+        return false
+    }
+    var union_type = type_shape.as_union(expected_type)
+    if not union_type {
+        return true
+    }
+    var shaped = find_union_by_c_name(union_type.c_name)
+    if not shaped {
+        return false
+    }
+    return shaped.is_shape and not shaped.is_tagged
+}
+
+func held_path_class(spite_type: Analysis.SpiteType?): Analysis.ClassInfo? {
+    assert spite_type
+    assert not type_shape.as_nullable(spite_type)
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref
+    return find_class_by_c_name(class_ref.c_name)
+}
+
+func path_changed_by(dependencies: List<String>, effects: List<String>): Boolean {
+    var effect_index = 0
+    while effect_index < effects.count() {
+        var effect = effects[effect_index]
+        var index = 0
+        while index < dependencies.count() {
+            if dependency_changes(effect, dependencies[index]) {
+                return true
+            }
+            index = index + 1
+        }
+        effect_index = effect_index + 1
+    }
+    return false
 }
 
 func assigns_name(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
@@ -42363,6 +42528,7 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
             declare_lent_parameter(parameter.name, parameter_type, function.lent_sources, scope)
         } else if function.held_parameters.contains(parameter.name) {
             scope.declare(parameter.name, parameter_type)
+            scope.held_names.append(parameter.name)
         } else if type_needs_drop(parameter_type) {
             scope.declare_owned(parameter.name, parameter_type)
         } else {

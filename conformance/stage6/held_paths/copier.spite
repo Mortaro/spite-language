@@ -1,0 +1,58 @@
+var marks = List<Integer>()
+var current = Pair()
+var shelf = Shelf()
+
+func Copier() {
+    var index = 0
+    while index < 10 {
+        marks.append(index)
+        index = index + 1
+    }
+}
+
+func copy_one(at: Integer): Integer {
+    fill_into(current, at)
+    return weigh(current.left, marks)
+}
+
+func fill_into(pair: Pair, at: Integer) {
+    pair.left = shelf.book_at(at, pair.left)
+}
+
+func weigh(book: Book, counted: List<Integer>): Integer {
+    return book.pages + counted.count()
+}
+
+func replace_current(): Integer {
+    current.left = shelf.book_at(7, current.left)
+    return read_after_replacing(current)
+}
+
+func read_after_replacing(pair: Pair): Integer {
+    current = Pair()
+    return pair.left.pages
+}
+
+func renew_left(): Integer {
+    current.left = shelf.book_at(5, current.left)
+    return read_after_renewing(current.left)
+}
+
+func read_after_renewing(book: Book): Integer {
+    current.left = Book()
+    return book.pages
+}
+
+func replace_through_a_call(): Integer {
+    current.left = shelf.book_at(3, current.left)
+    return read_after_a_call(current)
+}
+
+func read_after_a_call(pair: Pair): Integer {
+    forget_current()
+    return pair.left.pages
+}
+
+func forget_current() {
+    current = Pair()
+}

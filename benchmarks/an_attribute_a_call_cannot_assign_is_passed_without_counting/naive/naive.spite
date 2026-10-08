@@ -1,0 +1,11 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var meter = Meter()
+    var start = clock.elapsed_nanoseconds()
+    var total = meter.measure_all(10000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}

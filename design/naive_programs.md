@@ -441,6 +441,33 @@ can run on another thread names keeps no lock and no atomic attribute.
 
 Every singleton of the stress program but the recipe cookbook (which the cook task calls) loses its lock.
 
+**The counts left, measured again after the locks** (base 34.5 ms that round). The largest self time was now in
+releases: the four component classes' releases 15.7% of the tick, `List<Integer>` releases 7.7%. Three hand edits
+of the counts the runner's calls add for their callees:
+
+| Hand edit | Stress tick |
+|---|---|
+| none | 34.5 ms |
+| the matcher's `rows` passed to `match_into` uncounted | 34.5 ms |
+| each component passed to `Slot.fetch` and `Slot.store` uncounted (`row.attributes[attribute]`) | 32.6 ms |
+| the row passed down `fill`, `fill_into`, `fill_attributes` and each `fill_<attribute>` uncounted | 32.4 ms |
+| all three | 29.2 ms |
+
+Each is an attribute, or a path of attributes, passed to a call that cannot assign it: the general rule is built
+below. With the same edits on top of F and M (the fused loop and the single match) the tick is 23.0 ms; W and R are
+still the largest parts of what is left.
+
+**Built: an attribute a call cannot assign is passed without counting** (D531): the held argument extended from
+names to attributes and paths of attributes, checked against the callee's call effects, through shapes' attributes
+read with their reading function, and passed on by a held parameter.
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file | 36.0 ms | 30.5 ms |
+| stress tick, split build | 42.3 ms | 36.7 ms |
+| physics step | 12.5 ms | 12.0 ms |
+| the case, ten million calls | 28.4 ms | 5.4 ms |
+
 ### Stage 2: effects as a language-level fact (medium, foundation)
 
 D505's proof reads the generated C. Every later pair needs the same facts earlier and finer: for every function,

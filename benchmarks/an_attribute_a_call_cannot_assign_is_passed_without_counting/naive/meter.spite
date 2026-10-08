@@ -1,0 +1,33 @@
+var readings = List<Integer>()
+var settings = Settings()
+
+func Meter() {
+    var index = 0
+    while index < 16 {
+        readings.append(index)
+        index = index + 1
+    }
+}
+
+func measure_all(count: Integer): Integer {
+    var total = 0
+    var index = 0
+    while index < count {
+        total = total + measure(index)
+        index = index + 1
+    }
+    return total
+}
+
+func measure(at: Integer): Integer {
+    return reading_at(readings, at % 16) + offset_of(settings.limits)
+}
+
+func reading_at(values: List<Integer>, at: Integer): Integer {
+    crash values[at]
+    return values[at]
+}
+
+func offset_of(limits: Limits): Integer {
+    return limits.offset
+}

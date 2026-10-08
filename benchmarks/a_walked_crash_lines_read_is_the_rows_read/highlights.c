@@ -2,7 +2,7 @@
  * functions.txt names, copied out by scripts/cases/extract.sh, indented, and with the compiler's own numbered
  * names numbered again from 1. check.sh compares it with what the compiler writes now. */
 
-void Runner__Mover_Moving_run(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_) {
+void Runner__Mover_Moving_run___held_0(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_) {
     int32_t entity_ = 0;
     while (((entity_ < entity_count_))) {
         List_Integer_clear(self->found_);
@@ -39,5 +39,4 @@ void Runner__Mover_Moving_run(Runner__Mover_Moving* self, Mover* system_, int32_
         }
         entity_ = (entity_ + 1);
     }
-    Mover___release(system_);
 }

@@ -1,0 +1,18 @@
+var console = Console()
+var copier = Copier()
+
+func HeldPaths() {
+    var index = 0
+    var total = 0
+    while index < 20 {
+        total = total + copier.copy_one(index % 10)
+        index = index + 1
+    }
+    console.print("copied", total)
+    var replaced = copier.replace_current()
+    console.print("read the pair it replaced", replaced)
+    var renewed = copier.renew_left()
+    console.print("read the book it renewed", renewed)
+    var through = copier.replace_through_a_call()
+    console.print("read the pair a call replaced", through)
+}

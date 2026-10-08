@@ -1,0 +1,18 @@
+singleton
+
+var books = List<Book>()
+
+func Shelf() {
+    var index = 0
+    while index < 10 {
+        var book = Book()
+        book.pages = index * 10
+        books.append(book)
+        index = index + 1
+    }
+}
+
+func book_at(at: Integer, old: Book): Book {
+    crash books[at]
+    return books[at]
+}

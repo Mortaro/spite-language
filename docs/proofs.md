@@ -109,6 +109,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Lent arguments](#an-item-lent-to-a-call) | no count on the argument | refused, saying why |
 | [A list element lent to a row](#a-list-element-lent-to-a-row) | no count, one lock per block | the counted call |
 | [Held arguments](#an-argument-its-caller-holds-is-passed-uncounted) | no count on the argument | the counted call |
+| [Held attributes](#an-attribute-a-call-cannot-assign-is-passed-uncounted) | no count on an attribute passed to a call | the counted call |
 | [A singleton attribute that never changes](#a-singleton-attribute-that-never-changes-is-read-in-place) | no count, no lock | the counted, locked read |
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
 | [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back | the write |
@@ -834,6 +835,29 @@ have moved.
 - **See.** [optimizations.md: An argument its caller holds is passed without
   counting](optimizations.md#an-argument-its-caller-holds-is-passed-without-counting);
   `conformance/stage6/held_arguments`.
+
+### An attribute a call cannot assign is passed uncounted
+
+- **Proves.** An attribute, or a path of attributes, keeps the same value for the whole of a call, so the object
+  holding it holds the argument and counting it for the callee adds nothing.
+- **Rule.** The argument is an attribute of the object the function runs on (`amounts`), or a path of attributes
+  from it or from a name the caller holds (`customer.terms`, `row.position`, a template's
+  `row.attributes[attribute]`): attributes only, no getter, each after the first in a class of the program's own
+  that is not a singleton, the last possibly an attribute of a shape. The callee's call effects, which include
+  everything it calls, assign none of those attributes (`field:Class#name`, or any attribute of any class), and
+  are known. Otherwise as [for a name](#an-argument-its-caller-holds-is-passed-uncounted): a program function with
+  a body, not a constructor, that never assigns the parameter. A parameter of a shape type is held only where the
+  callee would not have been compiled once per class. A held parameter is itself held for the calls the callee
+  makes.
+- **Buys.** One retain and one release per argument: [its
+  case](../benchmarks/an_attribute_a_call_cannot_assign_is_passed_without_counting/), and a stress tick of the
+  naive engine 36.0 to 30.5 ms.
+- **Falls back.** The counted call, when the callee may assign an attribute along the path anywhere it reaches,
+  when its effects are not known, for text, unions of values and variadic lists, and in the builds and copies the
+  held name leaves out.
+- **See.** [optimizations.md: An attribute a call cannot assign is passed without
+  counting](optimizations.md#an-attribute-a-call-cannot-assign-is-passed-without-counting);
+  `conformance/stage6/held_paths`.
 
 ### A singleton attribute that never changes is read in place
 

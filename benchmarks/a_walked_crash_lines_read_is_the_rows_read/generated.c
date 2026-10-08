@@ -696,12 +696,12 @@ int64_t Vector__Position_sum_place(Vector__Position* self);
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value);
 void Column__Position_insert___held_1(Column__Position* self, int32_t entity_, Position* value_);
 void Column__Velocity_insert___held_1(Column__Velocity* self, int32_t entity_, Velocity* value_);
+void Runner__Mover_Moving_run___held_0(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_);
 void Entity___init(Entity* self);
 void Entity_Entity(Entity* self, int32_t new_id_);
 void Mover___init(Mover* self);
 Mover* Mover___allocate(void);
 Mover* Mover___make(void);
-static inline Mover* Mover___retain(Mover* self);
 static inline void Mover___release(Mover* self);
 void Mover___free(Mover* self);
 Position* Mover_Moving___peek_position(Mover_Moving self);
@@ -753,8 +753,8 @@ Runner__Mover_Moving* Runner__Mover_Moving___allocate(void);
 Runner__Mover_Moving* Runner__Mover_Moving___make(void);
 static inline void Runner__Mover_Moving___release(Runner__Mover_Moving* self);
 void Runner__Mover_Moving___free(Runner__Mover_Moving* self);
-void Runner__Mover_Moving_run(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_);
 void Runner__Mover_Moving_note(Runner__Mover_Moving* self, int32_t dense_);
+void Runner__Mover_Moving_run___held_0(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_);
 void Column__Position___init(Column__Position* self);
 Column__Position* Column__Position___allocate(void);
 Column__Position* Column__Position___make(void);
@@ -1302,10 +1302,6 @@ return self;
 }
 Mover* Mover___make(void) {
 Mover* self = Mover___allocate();
-return self;
-}
-static inline Mover* Mover___retain(Mover* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
 }
 static inline void Mover___release(Mover* self) {
@@ -2119,7 +2115,7 @@ Velocity___release(velocity_);
 void Naive_run_ticks(Naive* self, int32_t count_) {
 int32_t tick_ = 0;
 while (((tick_ < count_))) {
-Runner__Mover_Moving_run(self->runner_, Mover___retain(self->mover_), self->entity_count_);
+Runner__Mover_Moving_run___held_0(self->runner_, self->mover_, self->entity_count_);
 tick_ = (tick_ + 1);
 }
 }
@@ -2266,7 +2262,7 @@ void TypedMemory__Integer_release_value(TypedMemory__Integer* self, int64_t addr
 int64_t TypedMemory__Integer_value_bytes(TypedMemory__Integer* self) {
 return (int64_t)sizeof(int32_t);
 }
-void Runner__Mover_Moving_run(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_) {
+void Runner__Mover_Moving_run___held_0(Runner__Mover_Moving* self, Mover* system_, int32_t entity_count_) {
 int32_t entity_ = 0;
 while (((entity_ < entity_count_))) {
 List_Integer_clear(self->found_);
@@ -2303,7 +2299,6 @@ Mover_update_each___lent_0(system_, row_);
 }
 entity_ = (entity_ + 1);
 }
-Mover___release(system_);
 }
 static SPITE_CRASH_REPORT void spite_failed_3(int32_t entity_count_, int32_t entity_, Runner__Mover_Moving* self) {
 spite_crash_begin();
@@ -2660,7 +2655,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Mover___init, "-\t-", "Mover___init", 0},
 {(const void*)&Mover___allocate, "-\t-", "Mover___allocate", 0},
 {(const void*)&Mover___make, "-\t-", "Mover___make", 0},
-{(const void*)&Mover___retain, "-\t-", "Mover___retain", 0},
 {(const void*)&Mover___release, "-\t-", "Mover___release", 0},
 {(const void*)&Mover___free, "-\t-", "Mover___free", 0},
 {(const void*)&Position___init, "-\t-", "Position___init", 0},
@@ -2780,7 +2774,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&TypedMemory__Integer_write_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
 {(const void*)&TypedMemory__Integer_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&TypedMemory__Integer_value_bytes, "bootstrap/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
-{(const void*)&Runner__Mover_Moving_run, "benchmarks/a_walked_crash_lines_read_is_the_rows_read/naive/runner.spite\tRunner", "run", 6},
+{(const void*)&Runner__Mover_Moving_run___held_0, "benchmarks/a_walked_crash_lines_read_is_the_rows_read/naive/runner.spite\tRunner", "run", 6},
 {(const void*)&spite_failed_3, "-\t-", "spite_failed_3", 0},
 {(const void*)&spite_failed_4, "-\t-", "spite_failed_4", 0},
 {(const void*)&spite_failed_5, "-\t-", "spite_failed_5", 0},

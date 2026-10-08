@@ -1,0 +1,4 @@
+copied 1100
+read the pair it replaced 70
+read the book it renewed 50
+read the pair a call replaced 30
