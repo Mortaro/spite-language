@@ -945,6 +945,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `store_attributes(current, entity)` still counts `current`, and the optimisation report does not yet say why an
   argument was counted.
 
+### Storing an object into a list counts it only when it changes the slot
+
+- Built (decided by Claude under D509, to confirm; D544). Not built: B2b itself, proving while compiling that a
+  store writes back what an earlier call read (the naive engine's runner still runs the whole per-attribute path
+  to the store, only its counts are gone); a value made or computed in the store; a `Dictionary`; an attribute
+  assigned the object it already holds (`row.position = position`), which still counts.
+
 ### An item passed to a call that cannot change its list is not counted
 
 - Built (pair B1t of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm;

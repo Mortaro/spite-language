@@ -871,7 +871,8 @@ if ! grep -q "^if (SPITE_PLAIN_COUNT_DOWN(self->header.ref_count) > 0) return;$"
   echo "FAILED: plain_counts should count Point and List<Point> plainly, Summer atomically, and inline every release"; exit 1
 fi
 # An item written back to its own slot is not written, and its read is not counted (pair B2): slot_write_backs's
-# moved() and bump_third() write nothing back, while replaced(), reversed() and the others keep the counted write.
+# moved() and bump_third() write nothing back, while replaced(), reversed() and the others keep the counted write
+# (reversed()'s in place, counted only when the slot holds another point, D544).
 write_backs="$work/slot_write_backs.c"
 "$work/generation_two.exe" conformance/stage6/slot_write_backs --check --c-source --c-path="$write_backs" > /dev/null 2>&1 || {
   echo "FAILED: slot_write_backs does not write its C"; exit 1; }
@@ -887,7 +888,7 @@ reversed_body=$(function_body reversed)
 if [ -z "$moved_body" ] || echo "$moved_body" | grep -qE "List_Point_set_at|List_Point_get_at|Point___release\(point_\)" \
    || ! echo "$moved_body" | grep -q "((Point\*\*)(intptr_t)" \
    || [ -z "$third_body" ] || echo "$third_body" | grep -qE "List_Point_set_at|Point___release\(maybe_\)" \
-   || ! echo "$reversed_body" | grep -q "List_Point_set_at(self->points_, 0, Point___retain(first_));"; then
+   || ! echo "$reversed_body" | grep -q "Point___retain(spite_temp_[0-9]*); Point___release(spite_temp_[0-9]*); } }"; then
   echo "FAILED: slot_write_backs should drop moved()'s and bump_third()'s write-backs and counts, and keep reversed()'s"; exit 1
 fi
 # A list item read only to test it is not counted (pair B3): tested_items's tests read the slot, never a counted item.
@@ -1065,6 +1066,14 @@ if ! grep -q "Library_weigh___held_0(self, ({ List_Shelf\* " "$items_at_once" \
    || grep -q "List_Integer___release" <(sed -n '/^int32_t Library_count_first(Library\* self) {$/,/^}$/p' "$items_at_once" | grep -v "path_narrowed"); then
   echo "FAILED: items_at_once should pass and read shelves' items uncounted, and count the ones a call may remove or replace"; exit 1
 fi
+# D544: an object a caller holds is stored into a list with no count when the slot already holds it.
+stored_in_place="$work/stored_in_place.c"
+"$work/generation_two.exe" conformance/stage6/stored_in_place --check --c-source --c-path="$stored_in_place" > /dev/null 2>&1 || {
+  echo "FAILED: stored_in_place does not write its C"; exit 1; }
+if ! grep -q "^void Rack_place___held_1(Rack\* self, int32_t at_, Crate\* crate_) {$" "$stored_in_place" \
+   || sed -n '/^void Rack_place___held_1(.*{$/,/^}$/p' "$stored_in_place" | grep -q "List_Crate_set_at"; then
+  echo "FAILED: stored_in_place should store a held crate in its slot directly, counting it only when the slot changes"; exit 1
+fi
 attribute_reads="$work/singleton_attribute_reads.c"
 "$work/generation_two.exe" conformance/stage6/singleton_attribute_reads --check --c-source --c-path="$attribute_reads" > /dev/null 2>&1 || {
   echo "FAILED: singleton_attribute_reads does not write its C"; exit 1; }
@@ -1072,7 +1081,7 @@ if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) 
    || ! grep -q "Registry___outside_read_enter(); Board\* " "$attribute_reads"; then
   echo "FAILED: singleton_attribute_reads should read names in place and current under the lock"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, nor an attribute the call cannot assign, nor an item used at once, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic, a release is inline, objects a list holds come from their class's pool"
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, nor an attribute the call cannot assign, nor an item used at once, nor an object stored back into the slot that holds it, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic, a release is inline, objects a list holds come from their class's pool"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no zero check for it (it keeps
 # the check that the smallest Integer divided by -1 does not fit, D359).

@@ -905,7 +905,9 @@ have moved.
   function with a body, called by name, not a constructor, that never assigns that parameter; the parameter is a
   class, list or dictionary (not text, a union or variadic); the call passes every parameter. The call goes to
   `<name>___held_<positions>`, which does not let those parameters go.
-- **Buys.** One retain and one release per argument, atomic with threads: [its
+- **Buys.** One retain and one release per argument, atomic with threads, and a store of such a name into a list
+  item written in place, counted only when the slot held another object
+  ([optimizations.md](optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot)): [its
   case](../benchmarks/an_argument_its_caller_holds_is_passed_without_counting/) runs in 13.5 ms against naive C's
   38.2 ms, which counts the list in every function it is handed to.
 - **Falls back.** The counted call: in `--hot-reload`, `--repl`, `--repl-port` and `--development` builds, the

@@ -1,0 +1,20 @@
+var console = Console()
+var rack = Rack()
+
+func StoredInPlace() {
+    var first = Crate()
+    first.weight = 5
+    var second = Crate()
+    second.weight = 7
+    rack.place(0, first)
+    rack.place(1, second)
+    rack.place(0, first)
+    rack.place(1, first)
+    rack.place(2, second)
+    var total = rack.total()
+    console.print("total", total)
+    rack.place(0, second)
+    rack.place(1, second)
+    var again = rack.total()
+    console.print("again", again)
+}

@@ -196,6 +196,7 @@ same time, so read a few percent either way as noise.
 | [smaller_ones](smaller_ones/) | 2.45 | 3.02 |
 | [sorting](sorting/) | 1.20 | 7.52 |
 | [spreadsheet_recalculation](spreadsheet_recalculation/) | 1.11 | 6.88 |
+| [storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot](storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot/) | 1.34 | 2.03 |
 | [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 0.17 | 11.38 |
 | [text_building](text_building/) | 1.77 | 15.48 |
 | [text_joined_in_one_piece](text_joined_in_one_piece/) | 0.37 | 10.37 |

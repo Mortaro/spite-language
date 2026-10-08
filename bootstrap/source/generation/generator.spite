@@ -17222,6 +17222,67 @@ func item_member_reads_only(element: Analysis.SpiteType, member_name: String, ca
     return not element_class.find_function("get_{member_name}")
 }
 
+# ../../../docs/optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot
+func held_store_code(
+    index_target: Syntax.Expressions.IndexExpression,
+    value: Syntax.Expressions.Expression?,
+    list_result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if not value or not slot_proofs_allowed(class_information) {
+        return ""
+    }
+    crash index_target.object
+    crash index_target.index
+    if not plain_path(index_target.object) or not plain_index(index_target.index) or owns(list_result, index_target.object) {
+        return ""
+    }
+    var list_type = list_result.type
+    var listed = type_shape.as_list(list_type)
+    if not listed {
+        return ""
+    }
+    var element = listed.element
+    if type_shape.as_nullable(element) or type_shape.as_union(element) {
+        return ""
+    }
+    var class_reference = type_shape.as_class_ref(element)
+    var listed_item = type_shape.as_list(element)
+    if not class_reference and not listed_item {
+        return ""
+    }
+    if class_reference {
+        if class_reference.has_signature {
+            return ""
+        }
+    }
+    if not held_by_caller(value, element, scope) {
+        return ""
+    }
+    var value_result = generate_expression(value, scope, class_information)
+    if owns(value_result, value) {
+        return ""
+    }
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(index_target.index, integer_spite_type, scope, class_information)
+    var list_temporary = next_temporary()
+    var index_temporary = next_temporary()
+    var old_temporary = next_temporary()
+    var value_temporary = next_temporary()
+    var item = list_item_code(element, list_temporary, index_temporary)
+    var outside = "{index_temporary} < 0 || {index_temporary} >= ({list_temporary})->item_count_"
+    ensure_index_check()
+    var printer = Syntax.SourcePrinter()
+    var target_source = printer.source_expression(index_target)
+    var target_text = escape_c_string(target_source)
+    var where = located(current_path, current_line, current_owner, current_function)
+    var element_c = c_type_name(element)
+    var retained = retain_call(element, value_temporary)
+    var released = release_call(element, old_temporary)
+    return "\{ {c_type_name(list_type)} {list_temporary} = {list_result.code}; int32_t {index_temporary} = {index_code}; {element_c} {value_temporary} = {value_result.code}; if (__builtin_expect({outside}, 0)) spite_outside_list(\"{target_text}\", {where}); {element_c} {old_temporary} = {item}; if ({old_temporary} != {value_temporary}) \{ {item} = {retained}; {released}; } }"
+}
+
 func held_read_code(held_result: ExpressionResult, argument: Syntax.Expressions.Expression): String {
     if held_result.peek_union {
         return peeked_code(held_result)
@@ -33857,6 +33918,17 @@ func generate_store(
         }
         var indexed_list = type_shape.as_list(indexed_result_type)
         if indexed_list {
+            var stored_in_place = held_store_code(
+                index_target,
+                assignment.value,
+                indexed_result,
+                scope,
+                class_information,
+            )
+            if not stored_in_place.is_empty() {
+                builder.add_user(stored_in_place)
+                return
+            }
             var set_arguments = List<Syntax.Expressions.Expression>()
             set_arguments.append(index_target.index)
             set_arguments.append(assignment.value)

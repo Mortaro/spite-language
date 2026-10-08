@@ -483,6 +483,41 @@ slot in place.
 | stress tick, one C file (medians of nine) | 27.3 ms | 25.9 ms |
 | the case, ten million passes | 23.9 ms | 20.7 ms |
 
+**Built: storing an object into a list counts it only when it changes the slot** (D544), the run-time form of the
+write-back measured above (J): `values[row] = value` from a held name is written in place, the slot compared with
+the new object and counted only when it changes. It is a test the run makes because whether `store` writes back
+what `fill` read is what B2b would have to prove across the runner's calls, and that proof is not built.
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file (medians of nine, a busy machine) | 38.0 ms | 33.3 ms |
+| stress tick, split build | 45.7 ms | 43.3 ms |
+| physics step | 16.2 ms | 16.1 ms |
+| the case, ten million stores | 39.6 ms | 9.8 ms |
+
+**What is left of the hand edit, and why it is not built yet.** Four general optimisations are built in this pass;
+the parts of the gap still open are each a proof about the runner as a whole, not a rule about one call:
+
+- **R, the row kept in locals with the system inlined** (the largest part left, about 6 ms of a 28 ms tick): the
+  row is `Row.current`, an attribute of a singleton that lives for the whole program, filled by template calls
+  through `cursor`, read by the system through a shape, and stored back. Scalar replacement needs the object to be
+  short-lived; making it so needs the runner's calls inlined into one body at the Spite level (pair C4) and
+  `cursor`'s values followed through them, which is partial evaluation (S1 step 2 and beyond), not escape analysis.
+- **W, the rest of the write-back** (about 3 ms after the stored-in-place store): `store_attribute`'s path to the
+  store (cursor, `headers[position]`, still counted because a generic class's own list is not told apart per
+  instance, `Slot.store`, the asserts). B2b proper needs `values[found]` in `store` proven to be what `fill` read
+  across the system call: the same partial evaluation, since `found` is `rows[cursor]` in both.
+- **F and M, L8b's fused loop and its single match** (about 4 ms): the candidate list is a `List<List<Integer>>`
+  attribute of the runner, built by `gather_arguments` and decoded by `combinations` and `choose`, so the producer
+  and consumer are not one list read once in order by the next loop, the shape L8 can fuse. Fusing it needs the
+  argument count known (one argument, so one candidate list and `choose(c)` reading `candidates[0][c]`), which is
+  again a fact of the configuration the runner was built for.
+- **K and the matcher reduced to one lookup** (about 0.8 and 5 ms): S1 step 2, designed above.
+
+So the next step is S1 step 2 with C4 across the runner's calls: one copy of `run_<phase>_each` per configuration,
+with the template calls inlined, in which R, W, F, M and K all become the existing per-call rules applied to one
+body.
+
 ### Seventh pass: systems on several cores (2026-10-08)
 
 Engine `naive` at 81b0e20, Spite from 1afb00d9, the same machine (busy with other sessions: the processor sat

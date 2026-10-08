@@ -1,0 +1,46 @@
+var crates = List<Crate>()
+var light = Crate()
+var heavy = Crate()
+
+func Rack() {
+    light.weight = 2
+    heavy.weight = 9
+    var index = 0
+    while index < 16 {
+        crates.append(light)
+        index = index + 1
+    }
+}
+
+func restock(count: Integer): Integer {
+    var changed = 0
+    var index = 0
+    while index < count {
+        var at = index % 16
+        if index % 64 == 0 {
+            changed = changed + place(at, heavy)
+        } else {
+            changed = changed + place(at, light)
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func place(at: Integer, crate: Crate): Integer {
+    crash crates[at]
+    var before = crates[at].weight
+    crates[at] = crate
+    if before == crate.weight {
+        return 0
+    }
+    return 1
+}
+
+func total(): Integer {
+    return crates.sum(weight_of)
+}
+
+func weight_of(crate: Crate): Integer {
+    return crate.weight
+}

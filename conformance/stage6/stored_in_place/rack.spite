@@ -1,0 +1,22 @@
+var crates = List<Crate>()
+
+func Rack() {
+    var index = 0
+    while index < 3 {
+        var empty = Crate()
+        crates.append(empty)
+        index = index + 1
+    }
+}
+
+func place(at: Integer, crate: Crate) {
+    crates[at] = crate
+}
+
+func total(): Integer {
+    return crates.sum(weight_of)
+}
+
+func weight_of(crate: Crate): Integer {
+    return crate.weight
+}

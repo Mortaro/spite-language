@@ -161,6 +161,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   check that stays is listed in `--optimization-report` with the ranges it found. Why: D360 asks for each proven
   check to go, and the proof is made entirely while compiling. Attributes and list items keep their type's range
   for now (another function could change them).
+- **D544, a store counts only when it changes the slot**: `crates[at] = crate` from a name the function holds
+  compares the slot with the new object and counts only when they differ. Why: a component written back to the slot
+  it came from paid four counts on one object (a stress tick 38.0 ms to 33.3 on a busy machine). It is a test at run
+  time, since only the run knows whether the slot holds the object; proving it while compiling (pair B2b) is not
+  built. The cost to confirm: an index outside the list is reported as the read `crates[at]` rather than by the
+  list's `set_at`.
 
 ## Open
 

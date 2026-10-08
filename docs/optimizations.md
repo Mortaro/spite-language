@@ -1449,6 +1449,96 @@ lost. Not for text, unions of values or a variadic list.
 stores them, ticks in 30.5 ms instead of 36.0 as one C file (36.7 instead of 42.3 split); its physics step takes
 12.0 ms instead of 12.5.
 
+### Storing an object into a list counts it only when it changes the slot
+
+**The case:** [benchmarks/storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot](../benchmarks/storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot/).
+
+**What it does.** `list[index] = crate`, where the function holds `crate` for the whole call (its own parameter, or
+a local it owns), is written in place instead of calling the list's `set_at`: the index is checked, the slot's
+object is compared with the new one, and only when they differ is the new one counted, stored, and the old one let
+go. A store of the object the slot already holds, the common case of reading an item, changing its attributes and
+writing it back from another function, then changes no count at all.
+
+```gdscript title=stored_in_place/rack.spite
+var crates = List<Crate>()
+
+func Rack() {
+    var index = 0
+    while index < 3 {
+        var empty = Crate()
+        crates.append(empty)
+        index = index + 1
+    }
+}
+
+func place(at: Integer, crate: Crate) {
+    crates[at] = crate
+}
+
+func total(): Integer {
+    return crates.sum(weight_of)
+}
+
+func weight_of(crate: Crate): Integer {
+    return crate.weight
+}
+```
+```gdscript title=stored_in_place/crate.spite
+var weight = 0
+```
+```gdscript title=stored_in_place/stored_in_place.spite entry
+var console = Console()
+var rack = Rack()
+
+func StoredInPlace() {
+    var first = Crate()
+    first.weight = 5
+    var second = Crate()
+    second.weight = 7
+    rack.place(0, first)
+    rack.place(1, second)
+    rack.place(0, first)
+    rack.place(1, first)
+    rack.place(2, second)
+    var total = rack.total()
+    console.print("total", total)
+    rack.place(0, second)
+    rack.place(1, second)
+    var again = rack.total()
+    console.print("again", again)
+}
+```
+```output
+total 17
+again 21
+```
+
+`place` compiles its store to:
+
+```c
+{ List_Crate* list = self->crates_; int32_t at = at_; Crate* stored = crate_; if (__builtin_expect(at < 0 || at >= (list)->item_count_, 0)) spite_outside_list("crates[at]", ...); Crate* old = ((Crate**)(intptr_t)(list)->items_)[at]; if (old != stored) { ((Crate**)(intptr_t)(list)->items_)[at] = Crate___retain(stored); Crate___release(old); } }
+```
+
+where it was `List_Crate_set_at(self->crates_, at_, Crate___retain(crate_))`, which let go of the old crate, counted
+the new one again and let go of its own parameter: four counts per store, all on one object when the slot already
+held it. Whether the slot holds the same object is known only while the program runs (the compiler has no way to see
+that `place(0, first)` stores what an earlier call put there), so this is a test the run makes; it replaces calls the
+store made anyway, and when the objects differ it makes two counts where it made four. The new object is stored
+before the old one is let go, so a `drop()` the old object runs sees the list already holding the new one.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
+function a `Concurrent` runs, in a class of the program's own, for a `List` named by a path of names and attributes,
+at an index that is a name, a number or a sum or difference of those, whose item is a class or a list (not text, a
+union, a nullable item or a function value), stored from a name the function holds. Not for a value that is made or
+computed in the store itself (`crates[at] = Crate()`, `crates[at] = pick()`), which the list's `set_at` takes as it
+is, nor for a `Dictionary`.
+
+**What you notice.** Speed, and a different report for an index outside the list: `crates[at]` is named as the read
+outside the list, where `set_at`'s own check reported it before. The case's ten million stores take 9.8 ms instead of
+39.6. The naive engine's runner writes each component back into its column with `values[row] = value` after a
+system changed it in place, and its stress tick goes from 38.0 to 33.3 ms as one C file (45.7 to 43.3 split; medians
+of nine on a busy machine).
+
 ### An item passed to a call that cannot change its list is not counted
 
 **The case:** [benchmarks/an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](../benchmarks/an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/).
