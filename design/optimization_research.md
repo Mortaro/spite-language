@@ -359,6 +359,134 @@ headerless; whether compute shares the renderer's device; the decimal rule for d
 flagged a discrepancy to check: navigation's `next_stamp` zeroes 16.8 MB per query, which does not fit the measured
 11,905 queries a second.
 
+**R13 experiment, the first GPU run (2026-10-08).** Research only, nothing built into the compiler. The work of
+`benchmarks/a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked`, written by hand in C over
+Vulkan compute: `vulkan-1.dll` loaded at run time, four GLSL kernels compiled ahead to SPIR-V with the Vulkan SDK's
+`glslangValidator -V --target-env vulkan1.3` (the engine package's shader recipe), both lists in device-local memory
+for all rounds. `from` is uploaded once; each round is the scale pass (one item per thread), then the sum pass (1,024
+groups of 256 threads each add a strided slice and reduce it in shared memory to one partial sum, then one group adds
+the 1,024 partials into that round's slot); the 2,000 sums are read back once and turned into quarters on the CPU.
+Variants: a fused pass (scale and add up in one kernel, like `expert.c`); one submission and fence wait per round
+(what a CPU that needs each round's sum before the next would do); everything recorded into one command buffer and
+submitted once; and the data moved every round (`from` uploaded before the passes and `into` read back after them).
+
+How measured: Windows 11, AMD Ryzen 9 5950X (16 cores, 32 logical processors), NVIDIA GeForce RTX 3090 (24 GB,
+discrete, driver 610.88, Vulkan 1.4.341), clang 19.1.5. CPU forms: Spite `naive/` built `--optimized` by
+`.spite/spite_development.exe`, `naive.c` and `expert.c` at `-O2` and at `-O3 -march=native`, each program timing
+its own rounds as `benchmarks/run.sh` does, best of five runs (three at 10,000,000 items). GPU: the same clock from
+the first upload to the last read back, device setup left out as the CPU forms leave out filling the lists, best of
+five repeats in one process (three at 1,000,000 and 10,000,000); GPU busy time from timestamp queries. Sizes change
+only the item count; rounds stay 2,000. Two other sessions were compiling the whole time, so the CPU numbers are
+slower than the case's own timings (Spite 56 ms here, 39.5 ms there) and ratios are good to about 20%. The GPU was
+warmed by an earlier run; the table of fixed costs shows what a cold one costs.
+
+At the case's size, 100,000 items (400 KB a list):
+
+| form | total µs | µs per round | total in quarters |
+|---|---|---|---|
+| Spite `naive/`, `--optimized` | 56,023 | 28.0 | 3,899,940,000 |
+| `naive.c`, `-O2` | 211,509 | 105.8 | 3,899,940,000 |
+| `naive.c`, `-O3 -march=native` | 194,029 | 97.0 | 3,899,940,000 |
+| `expert.c`, `-O2` | 20,922 | 10.5 | 3,899,940,000 |
+| `expert.c`, `-O3 -march=native` | 20,250 | 10.1 | 3,899,940,000 |
+| GPU, two passes, one submission | 22,697 | 11.4 | 3,899,940,000 |
+| GPU, fused pass, one submission | 17,872 | 8.9 | 3,899,940,000 |
+| GPU, two passes, a wait per round | 149,117 | 74.6 | 3,899,940,000 |
+| GPU, fused pass, a wait per round | 143,635 | 71.8 | 3,899,940,000 |
+| GPU, two passes, data moved every round | 237,104 | 118.6 | 3,899,940,000 |
+
+Microseconds per round across sizes ("not run" where that form was not timed at that size):
+
+| items | Spite `--optimized` | `naive.c -O2` | `expert.c -O3 -march=native` | GPU two passes, one submission | GPU fused, one submission | GPU two passes, a wait per round | GPU data moved every round |
+|---|---|---|---|---|---|---|---|
+| 10,000 | 1.6 | not run | 0.8 | 10.9 | 8.3 | 71.5 | not run |
+| 30,000 | 4.3 | not run | 2.5 | 11.4 | 8.4 | 72.1 | not run |
+| 100,000 | 28.0 | 105.8 | 10.1 | 11.4 | 8.9 | 74.6 | 118.6 |
+| 300,000 | 48.1 | not run | 25.3 | 12.9 | 9.3 | 72.9 | not run |
+| 1,000,000 | 296.7 | 1,025.7 | 104.7 | 22.7 | 15.8 | 86.5 | 472.5 |
+| 10,000,000 | 7,862.7 | 11,091.9 | 1,651.6 | 177.6 | 124.1 | 242.9 | 3,954.8 |
+
+Fixed costs of the GPU, warm unless said:
+
+| what | cost |
+|---|---|
+| setup: load `vulkan-1.dll`, instance, device, buffers, four pipelines | 218 to 241 ms (723 and 921 ms on the first two runs of the night) |
+| empty submission and fence wait | 47 to 56 µs |
+| one tiny dispatch, submission and fence wait | 56 to 68 µs |
+| GPU busy per round, two passes (3 dispatches, 3 barriers), 10,000 items | 8.0 µs |
+| GPU busy per round, fused (2 dispatches, 2 barriers), 10,000 items | 6.4 µs |
+| GPU busy per round, fused, 10,000,000 items (80 MB read and written) | 121 µs, about 660 GB/s |
+| a cold device, the first run: a wait per round | 4,162 µs a round, empty submission 322 µs |
+| moving both lists every round, 10,000,000 items (80 MB) | about 3.8 ms, about 21 GB/s |
+
+Spinning on the fence instead of a blocking wait changed nothing once the device was warm; the 4 ms rounds of the
+first run were the device's low power state, which a wait per round kept falling back into.
+
+The decimal sum. The case's promise that "a sum is exact in any order" holds only at its own size: at 10x and
+100x the sums pass 2^24 quarters and every order rounds differently. The exact total is computed in integers (every
+item is a whole number of quarters); "correctly rounded" is the exact sum of each round rounded once to the nearest
+`Float`:
+
+| items | form | total in quarters | minus the exact total |
+|---|---|---|---|
+| 1,000,000 | exact, and correctly rounded | 38,999,964,000 | 0 |
+| 1,000,000 | GPU, every variant | 38,999,964,000 | 0 |
+| 1,000,000 | Spite `--optimized` | 38,999,964,000 | 0 |
+| 1,000,000 | `expert.c`, both flags | 38,999,964,000 | 0 |
+| 1,000,000 | `naive.c`, both flags | 39,005,970,000 | +6,006,000 |
+| 10,000,000 | exact | 389,999,928,000 | 0 |
+| 10,000,000 | correctly rounded | 389,999,936,000 | +8,000 |
+| 10,000,000 | GPU, every variant | 389,999,936,000 | +8,000 |
+| 10,000,000 | Spite `--optimized` | 390,047,976,000 | +48,048,000 |
+| 10,000,000 | `expert.c`, both flags | 390,047,984,000 | +48,056,000 |
+| 10,000,000 | `naive.c`, both flags | 387,810,048,000 | -2,189,880,000 |
+
+Everything matches bit for bit at the case's size and at 300,000 and below. Above it, the difference is the order of
+summation and nothing else: the scaled items are small whole quarters, exact under any rounding, so fused
+multiply-add (which glslang leaves to the driver, emitting a separate multiply and add) cannot show, and Vulkan
+requires `Float` addition and multiplication to be correctly rounded. The GPU's fixed tree (strided partial sums, then
+pairwise in shared memory) was the most accurate form of all: equal to the correctly rounded sum at every size,
+because a tree's error grows with the depth, not the count. The CPU forms already disagree with one another today:
+Spite's reassociated sum and `expert.c`'s eight lanes differ by 8,000 quarters at 10,000,000, and `naive.c`'s
+in-order sum is 0.56% low. The GPU result is the same on every run, since the tree's shape is fixed by the group
+count, not by timing.
+
+In passing: Spite `--optimized` at 10,000,000 items is 4.8 times `expert.c`, against 2.8 times at 1,000,000. Two
+passes over `into` once it no longer fits the cache explain part of it, not all; worth a look by the loop work.
+
+**Conclusion.** At the case's size the idea barely lives. Resident and submitted once for all 2,000 rounds, the GPU
+matches single-threaded `expert.c` (11.4 against 10.1 µs a round; the fused pass 8.9) and is 2.5 times faster than
+Spite, and only under two conditions the compiler must prove or arrange: no round's result is read by the CPU before
+the next round (here the sums only feed `total`, read after the loop, so they can stay on the device and come back
+once), and the 220 ms of device setup is paid by something else (a program whose whole run is 40 ms cannot pay it;
+a game that already has a device can). The floor is about 8 µs of GPU time a round for three dispatches with their
+barriers, and about 55 µs for every trip from the CPU to the GPU and back.
+
+The crossover: submitted once for all rounds, between 30,000 and 100,000 items against Spite, and just over 100,000
+against `expert.c` (just under it for the fused pass); with a wait per round, between 300,000 and 1,000,000. Above
+it the GPU keeps paying for as long as the lists fit in device memory (24 GB here): at 10,000,000 items the fused
+pass is 13 times `expert.c` and 63 times Spite, because the CPU is bound by its memory (`expert.c` moves 80 MB a
+round at about 48 GB/s) while the device runs near its own. It stops paying below about 50,000 items (the dispatch
+floor), for any program too short to repay setup, and whenever the data moves every round: moving both lists each
+round lost at every size (12, 4.5 and 2.4 times slower than `expert.c` at 100,000, 1,000,000 and 10,000,000), since
+this loop does two operations for every eight bytes it would move. So the threshold R13 named, passes over resident
+data, needs two more terms: the number of CPU round trips (which batching all rounds into one submission removes)
+and a fixed setup cost that only a long run or a shared device repays. Fusing the scale and the sum into one kernel
+saved another 20 to 30% at every size; the compiler should fuse passes it moves to the device, as `expert.c` does by
+hand.
+
+What the decimal rule needs. Reassociating a recognised reduction is already allowed, and this run shows it is the
+only place GPU and CPU results differed. The rule should state four things: (1) a reduction may be summed in any
+fixed order, including a tree, and the order is fixed by the compiled program, never by timing (no atomic `Float`
+additions, which would make a result change from run to run with nothing to tell the user, a silent failure under
+D244); (2) whether contraction into fused multiply-add is allowed in both forms, since the driver may contract a
+multiply and an add the CPU form keeps apart; (3) denormals: devices may flush them to zero, so either the rule allows
+it or a kernel needs a device that preserves them (`shaderDenormPreserveFloat32`) and keeps the CPU form otherwise;
+(4) maths functions: Vulkan's built-in `sin`, `exp` and the rest have looser error bounds than the C library, so a
+result must not depend on where it ran. The cheapest answer that keeps zero runtime is for the compiler to emit the
+same maths functions as code into both forms (tree-shaken like any other function), so only reductions may differ,
+and those are already a decimal's last bits.
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
