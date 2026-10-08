@@ -135,7 +135,7 @@ same time, so read a few percent either way as noise.
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
 | [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |
 | [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 0.96 | 1.09 |
-| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.82 | 5.06 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 4.88 | 4.84 |
 | [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 0.72 | 0.72 |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed |
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
@@ -156,7 +156,7 @@ same time, so read a few percent either way as noise.
 | [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
 | [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.59 | 12.89 |
 | [appending_to_text_in_place](appending_to_text_in_place/) | 0.00 | 0.84 |
-| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 5.01 | 9.94 |
+| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 6.41 | 7.00 |
 | [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | 0.74 | 9.15 |
 | [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | 0.14 | 1.62 |
 | [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 0.83 | 1.55 |
@@ -185,13 +185,13 @@ same time, so read a few percent either way as noise.
 | [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed |
 | [removing_many_at_once](removing_many_at_once/) | 3.42 | 3.96 |
 | [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed |
-| [report_over_records](report_over_records/) | 0.55 | 16.03 |
+| [report_over_records](report_over_records/) | 0.52 | 15.51 |
 | [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed |
 | [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 0.16 | 2.86 |
 | [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 0.30 | 13.29 |
 | [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 0.08 | 3.30 |
 | [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed |
-| [smaller_ones](smaller_ones/) | 2.48 | 2.52 |
+| [smaller_ones](smaller_ones/) | 2.45 | 3.02 |
 | [sorting](sorting/) | 1.20 | 7.52 |
 | [spreadsheet_recalculation](spreadsheet_recalculation/) | 1.11 | 6.88 |
 | [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 0.17 | 11.38 |
