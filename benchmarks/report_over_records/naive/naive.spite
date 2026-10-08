@@ -1,0 +1,54 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var sales = List<Sale>()
+    var seed: Long = 42
+    var index = 0
+    while index < environment.records {
+        seed = seed * 48271 % 2147483647
+        var sale = Sale(seed)
+        sales.append(sale)
+        index = index + 1
+    }
+    var units = sales.sum_quantity()
+    var by_cell: Long = 0
+    var cell = 0
+    while cell < 64 {
+        var region = cell / 4
+        var quarter = cell % 4
+        var profit = profit_of(sales, region, quarter)
+        by_cell = by_cell + profit * (cell + 1)
+        cell = cell + 1
+    }
+    var fingerprints = sales.sum_fingerprint()
+    crash sales[0]
+    var first = sales[0]
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print(
+        "units",
+        units,
+        "by region and quarter",
+        by_cell,
+        "fingerprints",
+        fingerprints,
+        "first",
+        first.customer,
+    )
+    console.error("microseconds {microseconds}")
+}
+
+func profit_of(sales: List<Sale>, region: Integer, quarter: Integer): Long {
+    var profit: Long = 0
+    var index = 0
+    while index < sales.count() {
+        var sale = sales[index]
+        if sale.region == region and sale.day / 92 == quarter {
+            profit = profit + sale.quantity * (sale.price - sale.cost)
+        }
+        index = index + 1
+    }
+    return profit
+}

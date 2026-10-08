@@ -1,0 +1,6 @@
+struct Pixel
+List_Pixel_each_brighten
+Pixel_brighten
+Pixel_brightened
+Naive_histogram_of___held_0
+List_Pixel_sum_weight

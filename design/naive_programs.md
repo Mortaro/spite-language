@@ -500,6 +500,8 @@ the compiler's own tree (and keeping the C reading as a cross-check while both e
 - **Splitting components and systems**: a component whose fields are read by disjoint systems becomes several
   columns; a system whose body has independent halves becomes several systems that stage 3 and D505 run at once.
 - Retires the engine's hand column headers, parallel arrays per field and swap-remove code.
+- Measured for programs that are not games, with the rules a compiler could prove and a build order:
+  [proposals/data_oriented_layout.md](proposals/data_oriented_layout.md) (2026-10-08).
 
 ### Stage 5: memory placed by the compiler (medium, D501's order)
 

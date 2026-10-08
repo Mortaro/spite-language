@@ -1,0 +1,24 @@
+var id = 0
+var placed_at: Long = 0
+var customer = 0
+var product = 0
+var quantity = 0
+var price = 0
+var region = 0
+var status = 0
+
+func Order(made_id: Integer, seed: Long) {
+    id = made_id
+    placed_at = seed
+    customer = seed / 3 % 50000
+    product = seed / 7 % 2000
+    quantity = seed % 9 + 1
+    price = seed / 11 % 500 + 100
+    region = seed % 16
+    status = seed / 13 % 4
+}
+
+func audit(): Long {
+    var total: Long = customer
+    return total + product * 3 + region * 5 + status * 7
+}
