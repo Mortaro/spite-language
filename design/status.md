@@ -14,7 +14,8 @@ when a page gains a rule that is not built yet, add it here.
 The page teaches D506, D507 and D508 as the language; most of what it says the compiler does is not built. The
 plan and its order are [naive_programs.md](naive_programs.md), the work items [naive_programs_pairs.md](naive_programs_pairs.md).
 
-- Built: calls in a row run at once (D505, see concurrency below), placement in the frame, proven reads, tree
+- Built: calls in a row run at once (D505, see concurrency below), a loop over a list of different classes run
+  the same way (D539), placement in the frame, proven reads, tree
   shaking, singleton lock elision. Not built: independent loops run in parallel, reductions, layout chosen by the
   compiler (structure of arrays, hot and cold splitting, field order and cache-line alignment), waiting arranged by
   the compiler outside a `Concurrent`, frame arenas, rings and deferred freeing.
@@ -464,6 +465,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   arguments, including rows that mix light and heavy calls. Not built: calls with arguments, telling two objects
   of one class apart, and a cost model finer than "reaches a loop".
   The conditions beyond D505 itself are proposed by Claude, unconfirmed.
+- D539, a loop over a list of different classes runs them at once: built for `list.each_function()` and
+  `list.each(own_function)` over a `List` of a `type`, with the table of classes decided while compiling and the
+  classes read at run time. Not built: a loop written as a `while`, and count disciplines per group (every class
+  an overlapped call counts is counted atomically, as with `Parallel`). The naive engine's stage loop is reached
+  but stays in order: `Runner<Move>` and `Runner<Regenerate>` both write a `Profile.Timing`, the stamps of a
+  `ColumnIndex` and the items of `List<Integer>`s reached through parameters, which the per-class facts cannot tell
+  apart.
 - Section was tagged implemented on Windows. The names and mechanism are decided; several details were only "proposed by Claude, unconfirmed": the written-handle-type rule covering only the declaration that starts the work (handle element types in `List<Parallel<Integer>>()` and parameters are still written), `finished`, `finished_value()` (name provisional, D216), `class`/`attributes`/`functions` staying a handle's own members, comparing handles (nothing has needed a way to compare the handles themselves), the debug text of handles, default-made handles, the `Concurrent` holding its function only while it runs, `Atomic<T>` (names provisional, D205/D214), and all of the ThreadPool, Lock, ThreadSlot and ThreadLocal shapes.
 - `Concurrent` is described as for "IO, sleeps, database calls later": no database classes exist yet.
 - Compiler-supplied members still have bodies written in C inside the compiler: `ThreadPool.entry_address()` and `address()`, `Concurrent._start_frame()`, `_frame_result()` and `_free_frame()`, `Scheduler.step_frame(frame)` and `release_work(frame)`. D147 decides that no compiler-supplied function stays bodiless and no Spite body holds C; turning them into Spite over the backend's primitives is not built. The page now states the rule as if done.
@@ -894,6 +902,14 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   assigning `pair.left` of any `Pair` keeps the count for every `Pair`); the naive engine's
   `store_attributes(current, entity)` still counts `current`, and the optimisation report does not yet say why an
   argument was counted.
+
+### An item passed to a call that cannot change its list is not counted
+
+- Built (pair B1t of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm;
+  D538). Not built: a `Dictionary` entry; a computed index (`list[index + 1]`); an item used as the receiver of a
+  program function (only a list's reading functions and attribute reads are uncounted); an item whose read is not
+  yet proven; telling apart lists of a generic class's own item per instance (the named item's limit, which keeps
+  `store_attribute`'s `headers[position]` counted in the naive engine).
 
 ### A list item read only to test it is not counted
 

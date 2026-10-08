@@ -155,6 +155,8 @@ var overlap_allowed = false
 var generating_overlap = false
 var listed_ended_in_return = false
 var overlap_groups = 0
+var row_groups = 0
+var row_sites = List<RowSite>()
 var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
@@ -1021,6 +1023,9 @@ func generate(
     finish_wait_questions()
     if overlap_groups > 0 {
         finish_overlap_groups()
+    }
+    if row_groups > 0 {
+        finish_row_groups()
     }
     if parallel_used {
         finish_singleton_guards()
@@ -12924,17 +12929,13 @@ func generate_argument_list(
             result.append(lent_code)
         } else if held_at >= 0 {
             var framed = position_in(framed_positions, index) >= 0
-            framing_function_value = framed
-            var held_result = generate_expression(arguments_ast[index], scope, class_information)
-            if framed and framing_function_value {
-                framing_function_value = false
-                report(
-                    "internal: the function value passed here was to be made in the frame and was not; this is a compiler bug",
-                )
-            }
-            var held_type = held_result.type
-            var held_read = held_read_code(held_result, arguments_ast[index])
-            var held_code = cast(held_read, held_type, expected_types[index])
+            var held_code = held_argument_code(
+                arguments_ast[index],
+                expected_types[index],
+                framed,
+                scope,
+                class_information,
+            )
             result.append(held_code)
         } else if framed_code.is_empty() {
             borrow_site = "argument:{callee}"
@@ -15576,6 +15577,7 @@ func held_variant_name(
     var framed_candidates = List<Integer>()
     var path_candidates = List<Integer>()
     var path_candidate_dependencies = List<String>()
+    var item_candidates = List<Integer>()
     var index = 0
     while index < arguments_ast.count() {
         var index_text = index.to_string()
@@ -15593,6 +15595,9 @@ func held_variant_name(
                 path_candidates.append(index)
                 var joined_dependencies = path_dependencies.join(" ")
                 path_candidate_dependencies.append(joined_dependencies)
+            } else if held_item_argument(arguments_ast[index], expected_types[index], scope, class_information) {
+                candidates.append(index)
+                item_candidates.append(index)
             } else if frameable_function_value(arguments_ast[index], expected_types[index], scope, class_information) {
                 candidates.append(index)
                 framed_candidates.append(index)
@@ -15621,8 +15626,9 @@ func held_variant_name(
     var framed = List<String>()
     var callee_effects = List<String>()
     var effects_known = false
+    var callee_key = call_effects.effects_key(owner.qualified_dotted, original.name)
     if not path_candidates.is_empty() {
-        effects_known = not call_effects.effects_key(owner.qualified_dotted, original.name).is_empty()
+        effects_known = not callee_key.is_empty()
         callee_effects = call_effects.effects_of(owner.qualified_dotted, original.name)
     }
     var candidate_index = 0
@@ -15636,6 +15642,9 @@ func held_variant_name(
         var shaped_type = type_shape.as_union(expected_types[position])
         if fits and shaped_type {
             fits = guards_singleton(owner, original) or not dispatches_shapes(owner, original)
+        }
+        if fits and item_candidates.contains(position) {
+            fits = held_item_keeps(arguments_ast[position], callee_key, scope, class_information)
         }
         var path_at = path_candidates.index_of(position)
         if fits and path_at {
@@ -16120,6 +16129,183 @@ func held_shape_field(spite_type: Analysis.SpiteType?, name: String, last: Boole
     return shaped_field
 }
 
+# ../../../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted
+func held_item_argument(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if not slot_proofs_allowed(class_information) or not holdable_type(expected_type) {
+        return false
+    }
+    if type_shape.as_union(expected_type) {
+        return false
+    }
+    var read = shape.as_index(argument)
+    if not read {
+        return false
+    }
+    crash read.object
+    crash read.index
+    if not plain_path(read.object) or operand_text(read.object).is_empty() {
+        return false
+    }
+    if not shape.as_identifier(read.index) and not shape.as_integer_literal(read.index) {
+        return false
+    }
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    if not list_type {
+        return false
+    }
+    var listed = type_shape.as_list(list_type)
+    if not listed {
+        return false
+    }
+    var element = listed.element
+    if type_shape.as_nullable(element) {
+        return false
+    }
+    if type_shape.as_list(element) {
+        return true
+    }
+    var class_reference = type_shape.as_class_ref(element)
+    if not class_reference {
+        return false
+    }
+    return not class_reference.has_signature
+}
+
+func held_item_keeps(
+    argument: Syntax.Expressions.Expression,
+    callee_key: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if callee_key.is_empty() {
+        return false
+    }
+    var read = shape.as_index(argument)
+    crash read
+    var watch = slot_watch_for("", read, argument, scope, class_information)
+    if not watch {
+        return false
+    }
+    return slot_key_holds(watch, callee_key) and slot_watch_settles(watch)
+}
+
+func held_item_code(
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var read = shape.as_index(argument)
+    crash read
+    crash read.object
+    crash read.index
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    crash list_type
+    var listed = type_shape.as_list(list_type)
+    crash listed
+    var list_code = generate_expression(read.object, scope, class_information)
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(read.index, integer_spite_type, scope, class_information)
+    var list_temporary = next_temporary()
+    var index_temporary = next_temporary()
+    var item = list_item_code(listed.element, list_temporary, index_temporary)
+    var outside = "{index_temporary} < 0 || {index_temporary} >= ({list_temporary})->item_count_"
+    ensure_index_check()
+    var printer = Syntax.SourcePrinter()
+    var read_source = printer.source_expression(argument)
+    var read_text = escape_c_string(read_source)
+    var where = located(current_path, current_line, current_owner, current_function)
+    return "(\{ {c_type_name(list_type)} {list_temporary} = {list_code.code}; int32_t {index_temporary} = {index_code}; if (__builtin_expect({outside}, 0)) spite_outside_list(\"{read_text}\", {where}); {item}; })"
+}
+
+func held_argument_code(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    framed: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var item_argument = shape.as_index(argument)
+    if item_argument and held_item_argument(argument, expected_type, scope, class_information) {
+        var item_code = held_item_code(argument, scope, class_information)
+        return cast(item_code, expected_type, expected_type)
+    }
+    framing_function_value = framed
+    var held_result = generate_expression(argument, scope, class_information)
+    if framed and framing_function_value {
+        framing_function_value = false
+        report(
+            "internal: the function value passed here was to be made in the frame and was not; this is a compiler bug",
+        )
+    }
+    var held_type = held_result.type
+    var held_read = held_read_code(held_result, argument)
+    return cast(held_read, held_type, expected_type)
+}
+
+# ../../../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted
+func item_object_uncounted(
+    object_ast: Syntax.Expressions.Expression,
+    generated: ExpressionResult,
+    member_name: String,
+    calls: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert slot_proofs_allowed(class_information)
+    var generated_type = generated.type
+    assert not type_shape.as_nullable(generated_type) and owns(generated, object_ast)
+    var read = shape.as_index(object_ast)
+    assert read
+    crash read.object
+    crash read.index
+    assert plain_path(read.object) and not operand_text(read.object).is_empty()
+    assert shape.as_identifier(read.index) or shape.as_integer_literal(read.index)
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    assert list_type
+    var listed = type_shape.as_list(list_type)
+    assert listed
+    var element = listed.element
+    assert not type_shape.as_nullable(element)
+    assert types_equal(element, generated_type)
+    assert item_member_reads_only(element, member_name, calls)
+    var item_code = held_item_code(object_ast, scope, class_information)
+    var item = ExpressionResult(item_code, element)
+    item.owning_override = false
+    return item
+}
+
+func item_member_reads_only(element: Analysis.SpiteType, member_name: String, calls: Boolean): Boolean {
+    if calls {
+        var reading = ["count", "is_empty", "get_at", "first", "last", "contains", "index_of"]
+        var listed_item = type_shape.as_list(element)
+        if not listed_item {
+            return false
+        }
+        return reading.contains(member_name)
+    }
+    var class_reference = type_shape.as_class_ref(element)
+    if not class_reference {
+        return false
+    }
+    if class_reference.has_signature {
+        return false
+    }
+    var element_class = find_class_by_c_name(class_reference.c_name)
+    if not element_class {
+        return false
+    }
+    var field = element_class.find_field(member_name)
+    if not field {
+        return false
+    }
+    return not element_class.find_function("get_{member_name}")
+}
+
 func held_read_code(held_result: ExpressionResult, argument: Syntax.Expressions.Expression): String {
     if held_result.peek_union {
         return peeked_code(held_result)
@@ -16424,6 +16610,17 @@ func generate_method_call(
     }
     var object_counter = temporary_counter
     var generated_member_object = member_object_in_frame(object_ast, member.name, scope, class_information)
+    var uncounted_receiver = item_object_uncounted(
+        object_ast,
+        generated_member_object,
+        member.name,
+        true,
+        scope,
+        class_information,
+    )
+    if uncounted_receiver {
+        generated_member_object = uncounted_receiver
+    }
     var object_result = as_text(generated_member_object)
     var object_result_type = object_result.type
     var handle = joinable_handle(object_result_type)
@@ -22411,6 +22608,18 @@ func generate_index_read(
     var proven = not read_path.is_empty() and scope.is_path_narrowed(read_path)
     var present = not read_path.is_empty() and scope.is_present_narrowed(read_path)
     var object_result = generate_expression(index_expression.object, scope, class_information)
+    crash index_expression.object
+    var uncounted_list = item_object_uncounted(
+        index_expression.object,
+        object_result,
+        "get_at",
+        true,
+        scope,
+        class_information,
+    )
+    if uncounted_list {
+        object_result = uncounted_list
+    }
     var arguments_ast = List<Syntax.Expressions.Expression>()
     arguments_ast.append(index_expression.index)
     var object_result_type = object_result.type
@@ -25116,6 +25325,17 @@ func generate_member_read_raw(
     }
     var object_counter = temporary_counter
     var object_result = generate_member_object(member.object, scope, class_information)
+    var uncounted_object = item_object_uncounted(
+        member.object,
+        object_result,
+        member.name,
+        false,
+        scope,
+        class_information,
+    )
+    if uncounted_object {
+        object_result = uncounted_object
+    }
     var object_result_type = object_result.type
     var handle = joinable_handle(object_result_type)
     if handle {
@@ -32816,7 +33036,22 @@ func generate_statement_list(
     var overlapped_reads = List<String>()
     while index < statements.count() {
         var overlapping = overlap_run(statements, index, scope, class_information)
-        if overlapping >= 2 {
+        var row: RowSite? = null
+        if overlapping < 2 {
+            row = row_each_site(statements[index], scope, class_information)
+        }
+        if row {
+            join_overlapped_reads(overlapped_reads, scope)
+            index = emit_row_each(
+                statements,
+                index,
+                row,
+                overlapped_reads,
+                scope,
+                class_information,
+                function_information,
+            )
+        } else if overlapping >= 2 {
             join_overlapped_reads(overlapped_reads, scope)
             emit_overlap_group(statements, index, overlapping, scope, class_information, function_information)
             listed_ended_in_return = false
@@ -33009,6 +33244,192 @@ func overlap_run(
         index = index + 1
     }
     return count
+}
+
+# ../../../docs/optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once
+func row_each_site(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): RowSite? {
+    assert overlap_allowed and not generating_overlap and not class_information.is_singleton
+    assert not current_path.starts_with("library/")
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement and expression_statement.value
+    var call = shape.as_call(expression_statement.value)
+    assert call and call.callee
+    var callee = shape.as_member(call.callee)
+    assert callee and callee.object
+    var receiver_text = operand_text(callee.object)
+    assert not receiver_text.is_empty() and not receiver_text.contains("(") and not receiver_text.contains("[")
+    var member_name = row_each_member(callee.name, call.arguments, class_information)
+    assert not member_name.is_empty()
+    var saved_counter = temporary_counter
+    var receiver = generate_expression(callee.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    assert not owns(receiver, callee.object) and not receiver.code.contains("(\{")
+    var receiver_type = receiver.type
+    var listed = type_shape.as_list(receiver_type)
+    assert listed
+    var element = listed.element
+    var element_union = type_shape.as_union(element)
+    assert element_union
+    var information = find_union_by_c_name(element_union.c_name)
+    assert information and information.is_shape
+    var wanted = find_required_function(information, member_name)
+    assert wanted
+    var parameter_types = shape_call_parameter_types(information, member_name)
+    var returned = shape_call_return_type(information, member_name)
+    assert parameter_types.is_empty() and type_shape.is_void(returned)
+    var list_class = list_class_of(element)
+    var site = RowSite(information.c_name, member_name, list_class.c_name)
+    site.path = current_path
+    site.line = statement_line(statement)
+    return site
+}
+
+func row_each_member(
+    name: String,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): String {
+    if name.starts_with("each_") and arguments.is_empty() {
+        var name_length = name.length()
+        return name.slice(5, name_length)
+    }
+    if name != "each" or arguments.count() != 1 {
+        return ""
+    }
+    var passed = shape.as_identifier(arguments[0])
+    if not passed or is_library_class(class_information) {
+        return ""
+    }
+    var function = class_information.find_function(passed.name)
+    if not function or function.parameters.count() != 1 or function.body.count() != 1 {
+        return ""
+    }
+    var parameter = function.parameters[0]
+    var body_statement = shape.as_expression_statement(function.body[0])
+    if not body_statement or not body_statement.value {
+        return ""
+    }
+    var call = shape.as_call(body_statement.value)
+    if not call or not call.callee or not call.arguments.is_empty() {
+        return ""
+    }
+    var member = shape.as_member(call.callee)
+    if not member or not member.object {
+        return ""
+    }
+    var receiver = shape.as_identifier(member.object)
+    if not receiver or receiver.name != parameter.name {
+        return ""
+    }
+    return member.name
+}
+
+func emit_row_each(
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    site: RowSite,
+    overlapped_reads: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Integer {
+    row_groups = row_groups + 1
+    var group = row_groups
+    var list_class = find_class_by_c_name(site.list_c_name)
+    crash list_class
+    var run = row_run_function(list_class, site.member_name)
+    crash run
+    site.run_c_name = run.c_name
+    row_sites.append(site)
+    var statement = statements[start]
+    var expression_statement = shape.as_expression_statement(statement)
+    crash expression_statement
+    crash expression_statement.value
+    var call = shape.as_call(expression_statement.value)
+    crash call
+    crash call.callee
+    var callee = shape.as_member(call.callee)
+    crash callee
+    crash callee.object
+    var saved_counter = temporary_counter
+    var receiver = generate_expression(callee.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    site.list_code = receiver.code
+    var threads_before = builder.threads
+    var parallel_before = parallel_used
+    var marks_name = "spite_row_{group}_marks"
+    builder.add_user("/*spite_row_{group} begin*/")
+    builder.add_user("\{ int64_t {marks_name}[64];")
+    builder.add_user("/*spite_row_{group} fits*/")
+    builder.add_user("if (0) \{")
+    var inner = Scope(scope)
+    var marks_type = address_type()
+    inner.declare(marks_name, marks_type)
+    inner.mark_used(marks_name)
+    inner.set_override(marks_name, "((int64_t)(intptr_t){marks_name})")
+    var marks_argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(marks_name)
+    var run_arguments = List<Syntax.Expressions.Expression>()
+    run_arguments.append(marks_argument)
+    generating_overlap = true
+    var parameter_types = parameter_types_of(run.parameters)
+    var run_return_type = run.return_type
+    var run_code = generate_generic_call(
+        run.c_name,
+        receiver,
+        callee.object,
+        run_arguments,
+        parameter_types,
+        run_return_type,
+        inner,
+        class_information,
+    )
+    builder.add_user("{run_code.code};")
+    emit_scope_drops(inner, false)
+    generating_overlap = false
+    builder.threads = threads_before
+    parallel_used = parallel_before
+    builder.add_user("} else \{")
+    builder.add_user("/*spite_row_{group} serial*/")
+    var next = generate_listed_statement(
+        statements,
+        start,
+        overlapped_reads,
+        scope,
+        class_information,
+        function_information,
+    )
+    builder.add_user("/*spite_row_{group} serial end*/")
+    builder.add_user("}}")
+    builder.add_user("/*spite_row_{group} end*/")
+    return next
+}
+
+func row_run_function(list_class: Analysis.ClassInfo, member_name: String): Analysis.FunctionInfo? {
+    var run_name = "spite_row_{member_name}"
+    var existing = list_class.find_function(run_name)
+    if existing {
+        return existing
+    }
+    var piece_name = "{run_name}_piece"
+    var piece_lines = List<String>()
+    piece_lines.append("func {piece_name}(first: Integer, end: Integer) \{")
+    piece_lines.append("    var index = first")
+    piece_lines.append("    while index < end \{")
+    piece_lines.append("        var item = {chain_item_read(list_class)}")
+    piece_lines.append("        item.{member_name}()")
+    piece_lines.append("        index = index + 1")
+    piece_lines.append("    }")
+    piece_lines.append("}")
+    piece_lines.append("")
+    var piece_source = piece_lines.join("\n")
+    var piece = register_fused_function(list_class, piece_source, piece_name)
+    crash piece
+    var run_source = "func {run_name}(marks: Memory.Address) \{\n    var pool = ThreadPool()\n    pool.run_marked({piece_name}, item_count, marks)\n}\n"
+    return register_fused_function(list_class, run_source, run_name)
 }
 
 func overlap_candidate(
@@ -33280,6 +33701,230 @@ func overlap_item_number(group: Integer, line: String): Integer {
     var number = digits.to_integer()
     crash number
     return number
+}
+
+# ../../../docs/optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once
+func finish_row_groups() {
+    var facts = OverlapFacts()
+    facts.read_program(
+        builder.typedefs,
+        builder.prototypes,
+        builder.support_bodies,
+        builder.user_bodies,
+        builder.main_lines,
+    )
+    var group = 1
+    while group <= row_groups {
+        crash row_sites[group - 1]
+        var site = row_sites[group - 1]
+        var condition = row_condition(facts, site, group)
+        settle_row_group(group, condition)
+        group = group + 1
+    }
+}
+
+func settle_row_group(group: Integer, condition: String) {
+    var begin = "/*spite_row_{group} begin*/"
+    var position = 0
+    while position < builder.user_bodies.count() {
+        var line = builder.user_at(position)
+        if line == begin {
+            settle_row_at(group, position, condition)
+        }
+        position = position + 1
+    }
+}
+
+func settle_row_at(group: Integer, start: Integer, condition: String) {
+    var fits = "/*spite_row_{group} fits*/"
+    var serial = "/*spite_row_{group} serial*/"
+    var serial_end = "/*spite_row_{group} serial end*/"
+    var end = "/*spite_row_{group} end*/"
+    var fits_at = row_marker_after(start, fits)
+    var serial_at = row_marker_after(start, serial)
+    var serial_end_at = row_marker_after(serial_at, serial_end)
+    var end_at = row_marker_after(serial_end_at, end)
+    var function_lines = enclosing_function_lines(start)
+    if condition.is_empty() or inside_coarse_loop(function_lines) {
+        blank_user_range(start, serial_at + 1)
+        blank_user_range(serial_end_at, end_at + 1)
+        return
+    }
+    builder.replace_user(start, "")
+    builder.replace_user(fits_at, "")
+    builder.replace_user(fits_at + 1, "if ({condition}) \{")
+    builder.replace_user(serial_at, "")
+    builder.replace_user(serial_end_at, "")
+    builder.replace_user(end_at, "")
+    builder.threads = true
+    note_fact("flag threads")
+    parallel_used = true
+    note_fact("flag parallel_used")
+}
+
+func row_marker_after(start: Integer, marker: String): Integer {
+    var position = start
+    while position < builder.user_bodies.count() and builder.user_at(position) != marker {
+        position = position + 1
+    }
+    crash position < builder.user_bodies.count()
+    return position
+}
+
+func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
+    var dispatcher = "{site.shape_c_name}___call_{site.member_name}"
+    var lines = facts.bodies[dispatcher]
+    if not lines or wait_facts.may_wait(dispatcher) {
+        return ""
+    }
+    var ids = List<String>()
+    var targets = List<String>()
+    var tagged = false
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var marker = "->class_id == "
+        if line.contains(".tag == ") {
+            marker = ".tag == "
+            tagged = true
+        }
+        var at = line.index_of(marker)
+        var open = line.index_of(") \{ ")
+        if at > 0 and open > at {
+            var digits_start = at + marker.length()
+            var digits = line.slice(digits_start, open)
+            ids.append(digits)
+            var rest_start = open + 4
+            var line_length = line.length()
+            var rest = line.slice(rest_start, line_length)
+            var call_open = rest.index_of("(")
+            var target_name = rest.slice(0, call_open)
+            targets.append(target_name)
+        }
+        index = index + 1
+    }
+    var count = ids.count()
+    if count < 2 or count > 64 {
+        return ""
+    }
+    var member_facts = List<OverlapFact>()
+    var usable = List<Boolean>()
+    var heavy = List<Boolean>()
+    index = 0
+    while index < count {
+        crash targets[index]
+        var target = targets[index]
+        var called = ["{target}(spite_row_item);"]
+        var no_context = List<String>()
+        var fact = facts.statement_fact(called, no_context)
+        member_facts.append(fact)
+        var fits_row = not wait_facts.may_wait(target) and not row_writes_list(facts, fact, site.list_c_name)
+        if fits_row and not weak_classes.is_empty() {
+            fits_row = not row_reaches_weak(target, site.member_name)
+        }
+        usable.append(fits_row)
+        heavy.append(fits_row and fact.loops)
+        index = index + 1
+    }
+    var table = List<String>()
+    var useful = false
+    var first = 0
+    while first < count {
+        var row = List<String>()
+        var second = 0
+        while second < count {
+            var together = first != second and usable[first] == true and usable[second] == true
+            if together {
+                crash member_facts[first]
+                crash member_facts[second]
+                together = facts.independent(member_facts[first], member_facts[second])
+            }
+            if together and heavy[first] == true and heavy[second] == true {
+                useful = true
+            }
+            if together {
+                row.append("1")
+            } else {
+                row.append("0")
+            }
+            second = second + 1
+        }
+        table.append("\{{row.join(", ")}}")
+        first = first + 1
+    }
+    if not useful {
+        return ""
+    }
+    var weights = List<String>()
+    var cases = List<String>()
+    index = 0
+    while index < count {
+        if heavy[index] == true {
+            weights.append("1")
+        } else {
+            weights.append("0")
+        }
+        var id = ids[index]
+        cases.append("case {id}: spite_row_k = {index}; break;")
+        index = index + 1
+    }
+    var items = "spite_row_list->items_"
+    var read_class = "((SpiteHeader*)(((void**)(intptr_t){items})[spite_row_i]))->class_id"
+    if tagged {
+        read_class = "((SpiteTagged*)(intptr_t){items})[spite_row_i].tag"
+    }
+    var parts = List<String>()
+    parts.append("(\{ {site.list_c_name}* spite_row_list = {site.list_code};")
+    parts.append("static const unsigned char spite_row_table[{count}][{count}] = \{{table.join(", ")}};")
+    parts.append("static const unsigned char spite_row_heavy[{count}] = \{{weights.join(", ")}};")
+    parts.append(
+        "int32_t spite_row_n = spite_row_list->item_count_; int32_t spite_row_seen[64]; int32_t spite_row_heavies = 0;",
+    )
+    parts.append("bool spite_row_ok = spite_row_n >= 2 && spite_row_n <= {count};")
+    parts.append("for (int32_t spite_row_i = 0; spite_row_ok && spite_row_i < spite_row_n; spite_row_i++) \{")
+    parts.append("int32_t spite_row_k = -1;")
+    parts.append("switch ({read_class}) \{ {cases.join(" ")} default: break; }")
+    parts.append("spite_row_ok = spite_row_k >= 0;")
+    parts.append(
+        "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0;",
+    )
+    parts.append(
+        "if (spite_row_ok) \{ spite_row_seen[spite_row_i] = spite_row_k; spite_row_{group}_marks[spite_row_i] = spite_row_heavy[spite_row_k]; spite_row_heavies += spite_row_heavy[spite_row_k]; }",
+    )
+    parts.append("}")
+    parts.append("spite_row_ok && spite_row_heavies >= 2; })")
+    return parts.join(" ")
+}
+
+func row_reaches_weak(target: String, member_name: String): Boolean {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if target == "{information.c_name}_{member_name}" {
+            var keys = ["{information.qualified_dotted}#{member_name}"]
+            var reached = call_effects.reached_classes(keys)
+            var weak_name = weak_class_reached(reached)
+            return not weak_name.is_empty()
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func row_writes_list(facts: OverlapFacts, fact: OverlapFact, list_c_name: String): Boolean {
+    var written = fact.writes.keys()
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        if key == "raw" or key == "unknown" or key.starts_with("io") {
+            return true
+        }
+        if facts.keys_touch(key, "c:{list_c_name}|*") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func overlap_jobs(facts: OverlapFacts, steps: List<OverlapFact>): List<Boolean> {

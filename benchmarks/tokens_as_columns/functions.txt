@@ -1,0 +1,5 @@
+struct Token
+Naive_tokenized
+List_Token_count_identifier
+Naive_total_of_numbers___held_0
+List_Token_sum_checksum

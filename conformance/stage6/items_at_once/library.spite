@@ -1,0 +1,53 @@
+var shelves = List<Shelf>()
+var sizes = List<List<Integer>>()
+
+func Library() {
+    var index = 0
+    while index < 3 {
+        var shelf = Shelf()
+        shelf.label = index + 1
+        shelf.books.append(index * 10)
+        shelves.append(shelf)
+        var size = List<Integer>()
+        size.append(index)
+        sizes.append(size)
+        index = index + 1
+    }
+}
+
+func weigh_all(): Integer {
+    crash shelves[1]
+    crash shelves[2]
+    return weigh(shelves[1]) + weigh(shelves[2])
+}
+
+func weigh(shelf: Shelf): Integer {
+    return shelf.label * 100
+}
+
+func count_first(): Integer {
+    crash shelves[0]
+    crash sizes[2]
+    crash sizes[2][0]
+    return shelves[0].books.count() + sizes[2].count() + sizes[2][0]
+}
+
+func drop_first(): Integer {
+    crash shelves[0]
+    return read_after_dropping(shelves[0])
+}
+
+func read_after_dropping(shelf: Shelf): Integer {
+    shelves.remove_at(0)
+    return shelf.label
+}
+
+func replace_second(): Integer {
+    crash shelves[1]
+    return read_after_replacing(shelves[1])
+}
+
+func read_after_replacing(shelf: Shelf): Integer {
+    shelves[1] = Shelf()
+    return shelf.label
+}

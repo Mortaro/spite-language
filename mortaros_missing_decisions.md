@@ -117,6 +117,15 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   such as `BinaryWriter<T>.schema()`, counts as reading those attributes, since they are the wire format; (b) of the
   two ways to ask whether a class's objects can be stored inline, `is_fixed_size` stays (it says what the class is,
   not which container holds it, D520) and `fits_vector()` goes.
+- **D538, an item used at once is not counted**: `plays[at].count()`, `tracks[first].seconds` and
+  `length_of(tracks[first])` read the item in its slot with no count, the call only where it cannot change the
+  list. Why: the list holds the item through the use, so the count was two writes for nothing (a stress tick 27.3
+  ms to 25.9).
+- **D539, a loop over a list of different classes runs them at once**: `systems.each_update()` over a list of a
+  `type` runs its elements on the pool when the table of classes decided while compiling allows every two of them,
+  with the classes read when the loop starts (a branch between two compiled forms), instead of the unrolling pair
+  T4b proposed. Why: the naive engine builds its stages at run time from strings, so their order is not known while
+  compiling; the table needs no order (the case's three voices 257 ms to 91).
 
 ## Open
 

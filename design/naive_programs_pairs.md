@@ -60,6 +60,7 @@ loop.
 | S1 step 1: a test against a value a list only its class fills never holds is decided while compiling (stress 39.0 to 35.4 ms a tick as one C file, 41.9 to 41.3 split, physics 9.2 to 8.9 ms) | [optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling), [proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills) |
 | Singleton locks only where another thread reaches: the walk over the written-out C (C5's) decides locks and atomic attributes again, so a function made into a value no thread calls no longer locks its singleton (stress 43.3 to 36.9 ms a tick as one C file, 50.3 to 42.7 split, physics 13.4 to 12.6 ms) | [optimizations](../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock), [proofs](../docs/proofs.md#no-other-thread-touches-a-singleton) |
 | B1 for attributes passed to calls: an attribute, or a path of attributes, that nothing the call can run assigns is passed held, a shape's attribute through its reading function, a held parameter held again for the calls it makes (stress 36.0 to 30.5 ms a tick as one C file, 42.3 to 36.7 split, physics 12.5 to 12.0 ms) | [optimizations](../docs/optimizations.md#an-attribute-a-call-cannot-assign-is-passed-without-counting), [proofs](../docs/proofs.md#an-attribute-a-call-cannot-assign-is-passed-uncounted) |
+| B1t: an item used at once (passed to a call that cannot change its list, read for an attribute, or asked a list's reading function) is read in its slot with no count (stress 27.3 to 25.9 ms a tick as one C file) | [optimizations](../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-used-at-once-is-not-counted) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
 
 ## Threads
@@ -72,9 +73,24 @@ loop.
 | T4 | two systems called in a row | D505 per field, not per class, from stage 2's effect summary | overlapped | in order | hand stages | |
 | T5 | a system's body with two halves touching disjoint fields | the halves share nothing written | two pieces overlapped like T4 | one piece | | |
 | T6 | any of T1 to T3 | cost: body estimate times count above a threshold | the parallel form only above it, one branch on count if the count is unknown | serial | hand grain sizes | |
-| T4b | `for runner in runners { runner.run() }` over a list never changed after it is built | the list's element classes and order are known while compiling | unrolled into a row of calls, then T4 applies | the loop | a stage's hand row of calls | |
+| T4b | `for runner in runners { runner.run() }` over a list never changed after it is built | the list's element classes and order are known while compiling | unrolled into a row of calls, then T4 applies | the loop | a stage's hand row of calls | **built** in the form below (D539) |
 | T8 | a loop sharing one scratch every pass overwrites before reading | each pass writes the scratch before it reads it | a private scratch per band, then T1 | serial | per-thread searchers | |
 | T7 | a shared id counter `next_id = next_id + 1` | the counter is the only shared state of the writers | atomic, or a range handed to each band | lock | locked id counter | |
+
+T4b is **built** as a table instead of an unrolling (D539,
+[optimizations](../docs/optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once),
+[proofs](../docs/proofs.md#classes-in-a-list-that-share-nothing-written)). The naive engine's stages are filled at
+run time by comparing the strings each runner reports (`place` and `conflicts` in `App`), so neither their count
+nor their order is known while compiling, and an unrolling would need the setup evaluated while compiling. Instead
+the compiler decides, for every two classes the list's `type` can reach, whether their calls are independent, and
+the loop reads its elements' classes at run time against that table. The engine's stage loop is reached and stays
+in order: the two stress systems both write a `Profile.Timing` (`timing.record` in `run_once`), the `stamps` of a
+`ColumnIndex` (found through `Columns.headers` by name) and the items of `List<Integer>`s passed as parameters, which
+the per-class facts count as one. Measured by hand on the stress C (one file, `clang -O3`), overlapping the two on a
+raw thread took the update stage from about 30.5 to 17.5 ms with the counts left as they were, and the tick to
+about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). So the next steps
+for the engine are facts that tell objects of one class apart where each runner owns its own (an attribute made for
+its object and never assigned again), and count disciplines per group of overlapped calls (S4).
 
 ## Layout
 
@@ -105,7 +121,7 @@ loop.
 | # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
 |---|---|---|---|---|---|---|
 | B1 | `var row = list[index]` then `row` passed to calls, compared or kept (reading and writing its attributes, and passing it to calls, is built, above) | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | per generic instance: a write into `Column<$T>.values` is not this list when no instance's item is this list's item |
-| B1t | `list[index].count()`, `f(list[index])`: an item read with `[]` and used at once | the call it is used by cannot write the list | the slot's pointer passed, no count | counted read | | |
+| B1t | `list[index].count()`, `f(list[index])`: an item read with `[]` and used at once | the call it is used by cannot write the list | the slot's pointer passed, no count | counted read | | **built** (above) |
 | B3 | `crash list[index]`, `assert list[index]` or `if list[index]` before reading the item | the read is used only for the test, and nothing runs between the read and the test | the slot's pointer tested, no retain and release (with B1 for the read that follows, when it holds) | the counted read | | **built** (above); a `Dictionary` entry and an attribute tested through an item (`crash rows[i].owner`) are not |
 | B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | |
 | B2c | `var row = list[i].copy()`, changed, `list[i] = row` | no other name holds the stored object (L1's proof) | the slot changed in place, no copy | copy and write back | | |

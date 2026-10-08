@@ -1,0 +1,113 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+var words = ["alpha", "beta", "gamma", "delta", "value", "count", "index", "total"]
+var symbols = ["+", "=", "(", ")", ";", "*"]
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var source = written(environment.pieces)
+    var tokens = tokenized(source)
+    var identifiers = tokens.count_identifier()
+    var numbers = tokens.count_number()
+    var symbol_count = tokens.count_symbol()
+    var number_total = total_of_numbers(tokens)
+    var checksums = tokens.sum_checksum()
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print(
+        "identifiers",
+        identifiers,
+        "numbers",
+        numbers,
+        "symbols",
+        symbol_count,
+        "number total",
+        number_total,
+        "checksums",
+        checksums,
+    )
+    console.error("microseconds {microseconds}")
+}
+
+func written(pieces: Integer): String {
+    var source = ""
+    var seed: Long = 7
+    var index = 0
+    while index < pieces {
+        seed = seed * 48271 % 2147483647
+        var choice = seed % 3
+        var picked: Integer = seed / 3 % 8
+        var piece = piece_of(choice, picked, seed)
+        source = "{source}{piece} "
+        if index % 12 == 11 {
+            source = "{source}\n"
+        }
+        index = index + 1
+    }
+    return source
+}
+
+func piece_of(choice: Long, picked: Integer, seed: Long): String {
+    if choice == 0 {
+        crash words[picked]
+        return words[picked]
+    }
+    if choice == 1 {
+        var number = seed / 24 % 100000
+        return number.to_string()
+    }
+    var symbol_index = picked % 6
+    crash symbols[symbol_index]
+    return symbols[symbol_index]
+}
+
+func tokenized(source: String): List<Token> {
+    var tokens = List<Token>()
+    var length = source.length()
+    var line = 1
+    var position = 0
+    while position < length {
+        var code = source.code_at(position)
+        var first = position
+        if code == 10 {
+            line = line + 1
+            position = position + 1
+        } else if code == 32 {
+            position = position + 1
+        } else if code >= 97 and code <= 122 {
+            var hash: Long = 0
+            while position < length and source.code_at(position) >= 97 and source.code_at(position) <= 122 {
+                hash = (hash * 31 + source.code_at(position)) % 1000000007
+                position = position + 1
+            }
+            var identifier = Token('identifier', first, position - first, line, hash)
+            tokens.append(identifier)
+        } else if code >= 48 and code <= 57 {
+            var number: Long = 0
+            while position < length and source.code_at(position) >= 48 and source.code_at(position) <= 57 {
+                number = number * 10 + source.code_at(position) - 48
+                position = position + 1
+            }
+            var digits = Token('number', first, position - first, line, number)
+            tokens.append(digits)
+        } else {
+            position = position + 1
+            var symbol = Token('symbol', first, 1, line, code)
+            tokens.append(symbol)
+        }
+    }
+    return tokens
+}
+
+func total_of_numbers(tokens: List<Token>): Long {
+    var total: Long = 0
+    var index = 0
+    while index < tokens.count() {
+        var token = tokens[index]
+        if token.kind == 'number' {
+            total = total + token.value
+        }
+        index = index + 1
+    }
+    return total
+}

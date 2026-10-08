@@ -1,0 +1,26 @@
+enum TokenKind {
+    'identifier'
+    'number'
+    'symbol'
+}
+
+var kind: TokenKind = 'symbol'
+var start = 0
+var length = 0
+var line = 0
+var value: Long = 0
+
+func Token(made_kind: TokenKind, made_start: Integer, made_length: Integer, made_line: Integer, made_value: Long) {
+    kind = made_kind
+    start = made_start
+    length = made_length
+    line = made_line
+    value = made_value
+}
+
+func checksum(): Long {
+    var total: Long = start
+    total = total + length * 7 + line * 13
+    total = total + value % 1000
+    return total
+}

@@ -1,0 +1,15 @@
+var level: Long = 0
+var phase = 0
+
+func render() {
+    var sample = 0
+    while sample < 30000000 {
+        phase = (phase + 11) % 1000
+        if phase < 500 {
+            level = level + 3
+        } else {
+            level = level + 1
+        }
+        sample = sample + 1
+    }
+}

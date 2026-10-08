@@ -69,6 +69,25 @@ builds from one C file and from translation units
 optimisation level's speed is in
 [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/#each-optimisation-level).
 
+## Data-oriented cases
+
+Five cases measure layouts the compiler does not choose yet, in programs that are not games, for
+[design/proposals/data_oriented_layout.md](../design/proposals/data_oriented_layout.md). Each has two more hand
+forms beside `expert.c`, where the best layout is not obvious: `expert_aos.c` keeps the records inline in one array
+of structs and `expert_soa.c` keeps them as columns, both with `naive.c`'s loops, while `expert.c` is the best by
+hand. Every form takes its size as a setting (`--records=N` and the like), and the proposal's `cases.sh` times them
+all at five sizes:
+
+- [report_over_records](report_over_records/): two million sales of eight fields, summed by one field, five fields
+  in 64 filtered passes, and all eight.
+- [tokens_as_columns](tokens_as_columns/): a text of a million and a half pieces tokenised into a list of tokens,
+  then counted and summed.
+- [image_filter_over_planes](image_filter_over_planes/): 2048 by 2048 pixels brightened, given contrast and
+  measured; interleaved channels against planes.
+- [spreadsheet_recalculation](spreadsheet_recalculation/): a million cells recalculated twenty times from two
+  gathered operands each.
+- [records_sorted_by_one_field](records_sorted_by_one_field/): two million orders sorted by time and walked twice.
+
 ## Running them
 
 ```
@@ -111,6 +130,7 @@ same time, so read a few percent either way as noise.
 | [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 0.83 | 4.70 |
 | [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 0.73 | 11.40 |
 | [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 1.08 | 1.17 |
+| [a_loop_over_a_list_of_different_classes_runs_them_at_once](a_loop_over_a_list_of_different_classes_runs_them_at_once/) | 0.32 | 0.94 |
 | [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | 0.25 | 2.23 |
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
 | [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |
@@ -121,7 +141,7 @@ same time, so read a few percent either way as noise.
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
 | [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 3.62 | 8.06 |
 | [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 4.45 | 6.75 |
-| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.60 | 47.73 |
+| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.18 | 9.14 |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 0.17 | 3.18 |
 | [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 0.69 | 1.37 |
 | [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 0.75 | 1.07 |
@@ -132,6 +152,7 @@ same time, so read a few percent either way as noise.
 | [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 0.35 | 19.23 |
 | [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 1.01 | 1.69 |
 | [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 1.06 | 8.64 |
+| [an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/) | 1.06 | 8.97 |
 | [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
 | [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.59 | 12.89 |
 | [appending_to_text_in_place](appending_to_text_in_place/) | 0.00 | 0.84 |
@@ -147,6 +168,7 @@ same time, so read a few percent either way as noise.
 | [game_maths](game_maths/) | 1.24 | 1.60 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed |
+| [image_filter_over_planes](image_filter_over_planes/) | 0.46 | 4.86 |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 0.91 | 4.64 |
 | [number_dictionary](number_dictionary/) | 2.98 | 5.55 |
 | [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 0.49 | 4.82 |
@@ -158,10 +180,12 @@ same time, so read a few percent either way as noise.
 | [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 3.36 | 3.29 |
 | [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 2.80 | 5.21 |
 | [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 1.41 | 1.56 |
+| [records_sorted_by_one_field](records_sorted_by_one_field/) | 0.85 | 6.61 |
 | [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 0.96 | 4.75 |
 | [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed |
 | [removing_many_at_once](removing_many_at_once/) | 3.42 | 3.96 |
 | [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed |
+| [report_over_records](report_over_records/) | 0.55 | 16.03 |
 | [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed |
 | [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 0.16 | 2.86 |
 | [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 0.30 | 13.29 |
@@ -169,6 +193,7 @@ same time, so read a few percent either way as noise.
 | [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed |
 | [smaller_ones](smaller_ones/) | 2.48 | 2.52 |
 | [sorting](sorting/) | 1.20 | 7.52 |
+| [spreadsheet_recalculation](spreadsheet_recalculation/) | 1.11 | 6.88 |
 | [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 0.17 | 11.38 |
 | [text_building](text_building/) | 1.77 | 15.48 |
 | [text_joined_in_one_piece](text_joined_in_one_piece/) | 0.37 | 10.37 |
@@ -178,6 +203,7 @@ same time, so read a few percent either way as noise.
 | [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | 1.44 | 1.48 |
 | [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 0.07 | 11.44 |
 | [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 0.53 | 5.65 |
+| [tokens_as_columns](tokens_as_columns/) | 0.84 | 1.55 |
 | [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed |
 | [vector_maths](vector_maths/) | 1.30 | 1.70 |
 | [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed |

@@ -389,6 +389,12 @@ order, while a `Physics` and an `Audio` overlap. The exact conditions are in
 [the rules](../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) ("Calls in a row run at once"), and
 [optimizations.md](optimizations.md#calls-in-a-row-run-at-once) shows one.
 
+A loop over a list of different objects is the same row, built while the program runs: `systems.each_update()`
+over a `List<System>` holding a `Physics`, an `Animation` and an `Audio` runs the three at once when their classes
+share nothing written, and in order otherwise. The compiler decides which classes may run together while compiling;
+the loop only looks at which objects the list holds when it starts. A list holding two objects of one class runs
+in order ([optimizations.md](optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once)).
+
 ### The thread pool
 
 `ThreadPool()` (`library/thread_pool.spite`, a singleton) starts a worker thread for every core but one (the

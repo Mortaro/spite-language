@@ -116,7 +116,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back | the write |
 | [An item a name holds from its list](#an-item-a-name-holds-from-its-list-is-not-counted) | no count on the read, none on the calls it is passed to | the counted read |
 | [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
+| [An item used at once](#an-item-used-at-once-is-not-counted) | no count for one use | the counted read |
 | [A list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) | a test against a value it never holds decided while compiling | the test runs |
+| [Calls that share nothing written](#calls-that-share-nothing-written) | a row of calls runs at once | in order, as written |
+| [Classes in a list that share nothing written](#classes-in-a-list-that-share-nothing-written) | a loop over different classes runs them at once | in order, as written |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
@@ -959,6 +962,25 @@ have moved.
 - **See.** [optimizations.md: A list item read only to test it is not
   counted](optimizations.md#a-list-item-read-only-to-test-it-is-not-counted); `conformance/stage6/tested_items`.
 
+### An item used at once is not counted
+
+- **Proves.** A list keeps holding an item for the whole of one use of it, so the item needs no count of its own
+  for that use.
+- **Rule.** The item is `list[index]` of a `List`, the list named by a path of names and attributes, the index a
+  name or a number, the item a class or a list (not text, a union, a nullable item or a function value), the read
+  already proven, in a class of the program's own. Read for an attribute (no getter), or asked a list's `count`,
+  `is_empty`, `get_at`, `first`, `last`, `contains` or `index_of`, nothing of the program's runs during the use.
+  Passed to a call, the callee's call effects must not write into a list it could be, shrink or reorder one, assign
+  an attribute along the list's path or its index, or let go of a value it is handed, and it must reach no wait,
+  thread or file ([the named item's facts](#an-item-a-name-holds-from-its-list-is-not-counted)).
+- **Buys.** The item read in its slot, its bounds checked, with no count up and down: the naive engine's stress tick
+  27.3 to 25.9 ms.
+- **Falls back.** The counted read: a `Dictionary` entry, a computed index, an item used as the receiver of any
+  other function, a call that may change the list, and the builds and copies the held argument leaves out.
+- **See.** [optimizations.md: An item passed to a call that cannot change its list is not
+  counted](optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted);
+  `conformance/stage6/items_at_once`.
+
 ### A list only its class fills holds only what it fills
 
 - **Proves.** Every item a list ever holds, at any moment of the run, is one of a few values the compiler can list.
@@ -996,6 +1018,24 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 - **Falls back.** Calls that touch the same thing, print, wait or call through a function value run in order, as
   written. To overlap two calls, give each its own class and its own lists.
 - **Shows it.** [optimizations.md](optimizations.md#calls-in-a-row-run-at-once).
+
+### Classes in a list that share nothing written
+
+- **Proves.** For every two classes a list of a `type` can hold, the function a loop calls on each element reads
+  and writes nothing the other's writes, through every function each one reaches, by the same reckoning as
+  [Calls that share nothing written](#calls-that-share-nothing-written); and neither writes the list.
+- **Rule.** [concurrency.md](concurrency.md#calls-in-a-row-run-at-once): the table of which classes may run
+  together is decided while compiling, one row and one column per class the `type`'s call can reach. When the loop
+  runs, it reads the class of each element, a few comparisons against the table, and runs the elements at once
+  only when no two share a class, every two are in the table together and at least two of them reach a loop.
+- **Buys.** A loop over a list of different objects (`systems.each_update()`) runs them on the thread pool at once,
+  with no `Parallel` written, whatever order and count the list has when it runs.
+- **Falls back.** A list holding two objects of one class, or two classes that touch the same thing, print, wait,
+  call through a function value or change the list, runs in order, as written. A table with no two classes that
+  could run together is never written, and the loop is the plain loop. To let two elements overlap, give each its
+  own class and its own lists.
+- **Shows it.** [optimizations.md](optimizations.md#a-loop-over-a-list-of-different-classes-runs-them-at-once);
+  `conformance/stage6/row_of_classes`.
 
 ### No other thread counts a class
 

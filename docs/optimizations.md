@@ -1446,6 +1446,93 @@ lost. Not for text, unions of values or a variadic list.
 stores them, ticks in 30.5 ms instead of 36.0 as one C file (36.7 instead of 42.3 split); its physics step takes
 12.0 ms instead of 12.5.
 
+### An item passed to a call that cannot change its list is not counted
+
+**The case:** [benchmarks/an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](../benchmarks/an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/).
+
+**What it does.** A list item used at once, without a name, is read from its slot without counting it: passed to
+a call that cannot change the list (`length_of(tracks[first])`), read for one of its attributes
+(`tracks[first].seconds`), or asked one of a list's reading functions when the item is itself a list
+(`plays[at].count()`, `plays[at][0]`). The list holds the item through all of it, so a count up and down around
+the use is two writes for nothing.
+
+```gdscript title=items_used_at_once/playlist.spite
+var tracks = List<Track>()
+var plays = List<List<Integer>>()
+
+func add(seconds: Integer) {
+    var track = Track()
+    track.seconds = seconds
+    tracks.append(track)
+    var heard = List<Integer>()
+    heard.append(seconds / 2)
+    plays.append(heard)
+}
+
+func longer_of(first: Integer, second: Integer): Integer {
+    crash tracks[first]
+    crash tracks[second]
+    if tracks[first].seconds > tracks[second].seconds {
+        return length_of(tracks[first])
+    }
+    return length_of(tracks[second])
+}
+
+func length_of(track: Track): Integer {
+    return track.seconds
+}
+
+func times_heard(at: Integer): Integer {
+    crash plays[at]
+    return plays[at].count()
+}
+```
+```gdscript title=items_used_at_once/track.spite
+var seconds = 0
+```
+```gdscript title=items_used_at_once/items_used_at_once.spite entry
+var console = Console()
+
+func ItemsUsedAtOnce() {
+    var playlist = Playlist()
+    playlist.add(185)
+    playlist.add(240)
+    var longest = playlist.longer_of(0, 1)
+    var heard = playlist.times_heard(1)
+    console.print("longest", longest, "heard", heard)
+}
+```
+```output
+longest 240 heard 1
+```
+
+Each item is the slot's pointer, read after the index is checked against the list:
+
+```c
+Playlist_length_of___held_0(self, ({ List_Track* list = self->tracks_; int32_t at = first_; if (__builtin_expect(at < 0 || at >= (list)->item_count_, 0)) spite_outside_list("tracks[first]", ...); ((Track**)(intptr_t)(list)->items_)[at]; }))
+List_Integer_count(({ ... ((List_Integer**)(intptr_t)(list)->items_)[at]; }))
+```
+
+where each was `List_Track_get_at` with the item counted and let go after. A call the item is passed to goes to
+the copy that takes it held, and only when nothing it can reach writes into that list, shrinks or reorders it,
+assigns an attribute along the list's path or its index, or lets go of what its slots hold
+([the same facts](#an-item-a-name-holds-from-its-list-is-not-counted) a named item needs), so
+`read_after_dropping(shelves[0])`, which removes `shelves[0]`, still counts it. An attribute read or a list's
+`count`, `is_empty`, `get_at` (`[]`), `first`, `last`, `contains` or `index_of` runs nothing of the program's in
+between, so it needs no facts at all.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
+function a `Concurrent` runs, in a class of the program's own, for an item of a `List` named by a path of names and
+attributes, at an index that is a name or a number, whose item is a class or a list (not text, a union, a nullable
+item or a function value), and only where the read is already proven (narrowed, or by a bound). Not for a
+`Dictionary` entry, an index that is computed, an attribute with a getter, or an item used as the receiver of any
+other function.
+
+**What you notice.** Speed. The naive engine's runner reads each candidate list of its systems with
+`candidates[index].count()` and `candidates[index][picked]` for every entity, and stamps every column through
+`changes.stamp_written(headers[index], entity)`: its stress tick goes from 27.3 to 25.9 ms as one C file (medians of
+nine).
+
 ### A singleton's attribute that never changes is read in place
 
 **The case:** [benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place](../benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place/).
@@ -2997,6 +3084,84 @@ whose rows all stay in order never starts the thread pool for them.
 over 200 000 entities, runs both at once. A program in which some row overlaps counts atomically the classes the
 overlapped calls count, as every program with threads does
 ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)). Nothing a program prints changes.
+
+### A loop over a list of different classes runs them at once
+
+**The case:** [benchmarks/a_loop_over_a_list_of_different_classes_runs_them_at_once](../benchmarks/a_loop_over_a_list_of_different_classes_runs_them_at_once/).
+
+**What it does.** A loop that calls one function on every element of a list of a `type`, `voices.each_render()`,
+runs the elements on the thread pool at once when their classes share nothing one of them writes
+([concurrency.md](concurrency.md#calls-in-a-row-run-at-once)). It is [calls in a row](#calls-in-a-row-run-at-once)
+for a row the program builds while it runs: the compiler cannot know which objects the list will hold, so it
+works out, for every two classes the `type`'s call reaches, whether the two calls are independent, from the code of
+every function each one reaches, and writes that down as a small table. The loop reads its elements' classes when
+it starts (a few comparisons) and runs them at once only when the table allows every two of them; otherwise it is
+the loop as written.
+
+```gdscript title=row_of_voices/sine.spite
+var level: Long = 0
+var phase = 0
+
+func render() {
+    var sample = 0
+    while sample < 3000000 {
+        phase = (phase + 7) % 1000
+        level = level + phase
+        sample = sample + 1
+    }
+}
+```
+```gdscript title=row_of_voices/saw.spite
+var level: Long = 0
+var phase = 0
+
+func render() {
+    var sample = 0
+    while sample < 3000000 {
+        phase = (phase + 13) % 1000
+        level = level + phase % 97
+        sample = sample + 1
+    }
+}
+```
+```gdscript title=row_of_voices/row_of_voices.spite entry
+type Voice {
+    render()
+}
+
+var console = Console()
+var sine = Sine()
+var saw = Saw()
+var voices = List<Voice>()
+
+func RowOfVoices() {
+    voices.append(sine)
+    voices.append(saw)
+    voices.each_render()
+    console.print(sine.level, saw.level)
+}
+```
+```output
+1498500000 140985000
+```
+
+`sine.render()` runs on a worker while `saw.render()` runs on the program's own thread, and the `print` waits for
+both. A list holding the same voice twice, or a voice that prints or reads another's `level`, runs in order.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, for the loops the rules allow. When no two
+classes the list could hold may run together, the table is never written and the loop is the plain loop, so a
+program that does not have such a loop carries none of it.
+
+**Why at run time.** Which objects a list holds is known only once the program has built it, and a program often
+builds it from what it reads or computes (an engine sorts its systems into stages by what each says it touches).
+So only the reading of the classes and the table's look-ups run, a few comparisons each time the loop starts; which
+classes may run together, which of them are worth a thread, and the code of both forms are all decided while
+compiling.
+
+**What you notice.** Speed, when the calls are big enough, and the same output. A program whose loop can run at
+once counts atomically the classes the overlapped calls count, as every program with threads does
+([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), also on the times the table sends it in
+order.
 
 ### A crash's report is kept out of the way
 

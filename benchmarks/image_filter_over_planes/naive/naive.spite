@@ -1,0 +1,53 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var pixels = List<Pixel>()
+    var seed: Long = 11
+    var index = 0
+    while index < environment.pixels {
+        seed = seed * 48271 % 2147483647
+        var pixel = Pixel(seed)
+        pixels.append(pixel)
+        index = index + 1
+    }
+    pixels.each_brighten()
+    pixels.each_contrast()
+    var histogram = histogram_of(pixels)
+    var bright = pixels.count_is_bright()
+    var weights = pixels.sum_weight()
+    var spread = spread_of(histogram)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("spread", spread, "bright", bright, "weights", weights)
+    console.error("microseconds {microseconds}")
+}
+
+func histogram_of(pixels: List<Pixel>): List<Integer> {
+    var histogram = List<Integer>()
+    var level = 0
+    while level < 256 {
+        histogram.append(0)
+        level = level + 1
+    }
+    var index = 0
+    while index < pixels.count() {
+        var pixel = pixels[index]
+        var luminance = pixel.luminance()
+        crash histogram[luminance]
+        histogram[luminance] = histogram[luminance] + 1
+        index = index + 1
+    }
+    return histogram
+}
+
+func spread_of(histogram: List<Integer>): Long {
+    var spread: Long = 0
+    var level = 0
+    while level < histogram.count() {
+        spread = spread + histogram[level] * (level % 7 + 1)
+        level = level + 1
+    }
+    return spread
+}

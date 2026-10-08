@@ -11,6 +11,14 @@ function (the wrong case, or an abbreviation such as `msg` for `message`) is a c
 
 **Why Spite:** [WHY.md](WHY.md) for people, [WHY_AI.md](WHY_AI.md) for language models choosing a language.
 
+**Built mostly by AI, decided by a person.** Nearly all of Spite's code, docs and tests are written by AI agents,
+and every rule of the language is decided by its author, Mortaro. That is the experiment, not a shortcut: a
+language meant to be written by AI is best designed by watching AI write it. Every mistake an agent makes is a
+guardrail the language is missing, and it becomes a rule the compiler enforces, so the next writer, human or model,
+cannot make it. Nothing is accepted because it looks right: the specification is normative, every decision is
+logged with its reason, and every claim is a program the test suite runs.
+[Written by AI, decided by a person](WHY.md#written-by-ai-decided-by-a-person) says more.
+
 Rust has Rustaceans; Spite has morons. A moron is anyone who writes Spite (people, AI agents and the language's
 own author), said with affection, and the language is built so a moron's code still comes out right and fast. In
 practice:
