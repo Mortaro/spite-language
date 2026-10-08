@@ -66,6 +66,16 @@ Research questions: how to represent "the same value in two shapes" in the compi
 (access counts, cache-line footprints, write sharing); how to prove the conversion points preserve every observable
 result (identity, `==`, reflection, `--debug-memory` counts).
 
+## Learning from test runs (D530)
+
+A profiling build records what only a run can know, and the next build reads it to pick among proven-equivalent
+forms. Candidates: list sizes (frame array or heap, ring capacity, band count for T1), branch frequencies (hot and
+cold layout, which configuration S1 specialises first), dictionary key sets and densities (D529: array, perfect
+hash, sorted table, folded), how often a phase converts between two shapes of one list (S3), which waiting calls
+overlap in practice (W1). Questions: how to keep the profile small and stable under code changes (key choices by
+source position and name, drop entries that no longer match); how a test suite or a benchmark doubles as the
+profiling run; how to show in `--optimization-report` what a profile changed.
+
 ## Threads and parallelism
 
 - **Independent loops in bands.** Idea: a loop whose passes write only their own item runs on the pool. Proof:

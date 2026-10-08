@@ -61,8 +61,22 @@ what is written, how often, and what the rest of the program needs to see. Two l
 memory in different shapes, and one object can be a different shape at different points of the program. What
 stays the same everywhere is what the program computes.
 
+The same goes for a collection's types. `Dictionary<Player, Party>` says what you mean: find a party from a
+player. It does not say how. The compiler may hash players by identity, number them and keep a plain array, sort a
+small table, or find that the dictionary is only ever read with three known keys and fold it away. Whatever it
+picks, every lookup answers what yours would.
+
 This is why you should not shape a class for speed. Group fields by what they mean; the compiler groups them by
 how they are used.
+
+## Learning from a test run
+
+Some choices depend on how a program is really used: how long its lists grow, which branch is taken, which keys a
+dictionary sees. Where the code alone does not settle it, you can run the program once in a profiling build on
+real work. It writes down what it saw, and the next build reads that and picks the forms that fit. Every form it
+can pick is one the compiler has already proven gives the same result, so a profile from another day, another
+machine or no profile at all changes how fast the program runs, never what it does. The shipped program carries
+none of the recording.
 
 ## No runtime, so it runs anywhere
 

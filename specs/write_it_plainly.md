@@ -17,6 +17,12 @@ is the bug.
   (each list, each loop, each point of the program), not one per class: it may split a class into several, merge
   an object into its owner, keep one list in different shapes in different places with a conversion between
   them, or restructure a procedural program into passes over columns, whenever the result is the same.
+- A collection's generic types state what it holds and how it is looked up, not how it is stored: keys may be
+  hashed, numbered, sorted or folded away, whatever is fastest, as long as every operation answers the same.
+- A profiling build records how a program is used (counts, branch frequencies, sizes, keys seen) and writes it to
+  the program's profile file. A later build may read that file to choose among forms the compiler has proven
+  equivalent. A build's result never depends on the profile: only its speed does, so a stale or missing profile is
+  never wrong. The profiling build is the only one that records anything; no other build carries the recording.
 - A plain program written with lists, loops and classes must be able to reach the speed of the same program
   written with `Concurrent`, `Parallel` and `Memory` by hand. Where it does not, the compiler is wrong.
 

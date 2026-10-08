@@ -8,6 +8,9 @@ when a page gains a rule that is not built yet, add it here.
 
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 
+- D530, learning from a test run: not built (no profiling build, no profile file, no choice reads one).
+- D529, collection types as intention: the compiler still stores each `Dictionary` one way (a hash table).
+
 The page teaches D506, D507 and D508 as the language; most of what it says the compiler does is not built. The
 plan and its order are [naive_programs.md](naive_programs.md), the work items [naive_programs_pairs.md](naive_programs_pairs.md).
 

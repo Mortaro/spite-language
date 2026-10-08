@@ -103,6 +103,8 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   `discount_of(customer.terms)` passes the attribute held, as a local already was, when nothing the call reaches
   assigns any attribute along the path. Why: each such argument was a count up and a count down on an object the
   attribute kept alive anyway (a stress tick 36.0 ms to 30.5; the case 28.4 ms to 5.4, as fast as its naive C).
+- **D530, the profile**: a text file beside the entry file, committed with the program so builds are
+  reproducible; `--optimization-report` names every choice it made; the profiling flag's name is provisional.
 
 ## Open
 
