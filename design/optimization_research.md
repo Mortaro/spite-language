@@ -76,6 +76,32 @@ overlap in practice (W1). Questions: how to keep the profile small and stable un
 source position and name, drop entries that no longer match); how a test suite or a benchmark doubles as the
 profiling run; how to show in `--optimization-report` what a profile changed.
 
+## Data-oriented design for any program (Mortaro, 2026-10-08)
+
+Mortaro: be very aware of data-driven design. A point of ECS is to use the CPU cache instead of RAM; a lot of code
+that is not meant to be ECS can be compiled into data-driven loops and SIMD, and the compiler must prove when each
+form is best, for general-purpose programs, before the own backend, which must know CPUs better.
+
+- **The forms to choose between, per use (D520).** Array of objects (today), array of structures inline, structure
+  of arrays, hybrid (AoSoA: blocks of 4, 8 or 16 of each field, matching vector lanes), hot and cold split, and
+  index lists over a column (a filtered subset kept as indices instead of copies).
+- **What decides it, and what must be proven.** The access pattern of every loop over the data (which fields,
+  in what order, sequential or gathered), the working set against the cache sizes of the target (L1, L2, L3 per
+  core, line size), the write pattern (two threads writing one line), how often a whole object is needed at once
+  (passing it, printing it, `==`), and the conversion cost at phase boundaries (S3). The proofs are the ones S2
+  needs (no whole-object use crosses the split) plus a cost model of memory traffic: bytes touched per pass for
+  each form, from the loops' field sets and the counts (known, proven, or profiled, D530).
+- **SIMD.** After SoA, a loop over plain fields with no cross-lane dependence becomes vector code: lanes from the
+  target (SSE, AVX2, AVX-512, NEON), masks for an `if` in the body, gathers where an index list is read, a
+  remainder loop. The C backend can lean on the C compiler's vectoriser given `restrict` and aligned columns; the
+  own backend must do it itself, so the proof (no alias, no dependence, lane-safe operations, the decimal rule)
+  has to be explicit in the compiler, not left to the C compiler.
+- **Not only games.** Parsing (a column of token kinds and a column of offsets), text processing (byte columns),
+  databases and reports (columns of records), image and audio (planes and channels), simulations, compilers
+  themselves (the Spite compiler's own lists of nodes are a candidate).
+- **Measure it.** Every pair here gets a case in `benchmarks/` that is not a game (D521): naive Spite, naive C
+  written with objects, expert C written data-oriented by hand.
+
 ## The GPU, without the moron ever thinking about it (Mortaro, 2026-10-08)
 
 Mortaro: research using the GPU where it makes sense, with no program ever mentioning it; a possible "compile
