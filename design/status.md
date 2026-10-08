@@ -586,6 +586,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [collections.md](../docs/collections.md)
 
+- D528, `Dictionary<Key, Value>` with any key type (objects by identity): not built. The library, compiler, docs,
+  specs, skills and every program still use `Dictionary<T>` with the key kind inferred (D224). One migration.
+
 - D510 (item 280): `each_<member>(...)` passing extra arguments to the member on every element. Not documented on the
   page and not built; `BinaryFormat`'s plural walk and backlog J1's binary half wait on it.
 

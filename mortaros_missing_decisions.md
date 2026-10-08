@@ -97,6 +97,8 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   pauses, then yields to the system between looks. Why: under four threads the plain compare-and-swap loop took
   113 ms against 21.5 for C behind a critical section; backing off takes 7.7, faster than a system lock at every
   thread count measured (1, 2, 4, 8).
+- **D528, object keys**: an object key is keyed by identity; a class with its own `equals` used as a key is a
+  compile error until keying by `equals` is built; `Boolean` keys are allowed.
 
 ## Open
 
