@@ -1049,8 +1049,21 @@ fi
 held_paths="$work/held_paths.c"
 "$work/generation_two.exe" conformance/stage6/held_paths --check --c-source --c-path="$held_paths" > /dev/null 2>&1 || {
   echo "FAILED: held_paths does not write its C"; exit 1; }
-if ! grep -q "Copier_weigh___held_0_1(self, (self->current_)->left_, self->marks_);" "$held_paths"    || ! grep -q "Copier_read_after_replacing(self, Pair___retain(self->current_));" "$held_paths"    || ! grep -q "Copier_read_after_renewing(self, Book___retain((self->current_)->left_));" "$held_paths"    || ! grep -q "Copier_read_after_a_call(self, Pair___retain(self->current_));" "$held_paths"; then
+if ! grep -q "Copier_weigh___held_0_1(self, (self->current_)->left_, self->marks_);" "$held_paths" \
+   || ! grep -q "Copier_read_after_replacing(self, Pair___retain(self->current_));" "$held_paths" \
+   || ! grep -q "Copier_read_after_renewing(self, Book___retain((self->current_)->left_));" "$held_paths" \
+   || ! grep -q "Copier_read_after_a_call(self, Pair___retain(self->current_));" "$held_paths"; then
   echo "FAILED: held_paths should pass current.left and marks held, and count what a call it makes may assign"; exit 1
+fi
+# D538: an item used at once, passed to a call that cannot change its list or read in place, is not counted.
+items_at_once="$work/items_at_once.c"
+"$work/generation_two.exe" conformance/stage6/items_at_once --check --c-source --c-path="$items_at_once" > /dev/null 2>&1 || {
+  echo "FAILED: items_at_once does not write its C"; exit 1; }
+if ! grep -q "Library_weigh___held_0(self, ({ List_Shelf\* " "$items_at_once" \
+   || ! grep -q "Library_read_after_dropping(self, List_Shelf_get_at(self->shelves_, 0));" "$items_at_once" \
+   || ! grep -q "Library_read_after_replacing(self, List_Shelf_get_at(self->shelves_, 1));" "$items_at_once" \
+   || grep -q "List_Integer___release" <(sed -n '/^int32_t Library_count_first(Library\* self) {$/,/^}$/p' "$items_at_once" | grep -v "path_narrowed"); then
+  echo "FAILED: items_at_once should pass and read shelves' items uncounted, and count the ones a call may remove or replace"; exit 1
 fi
 attribute_reads="$work/singleton_attribute_reads.c"
 "$work/generation_two.exe" conformance/stage6/singleton_attribute_reads --check --c-source --c-path="$attribute_reads" > /dev/null 2>&1 || {
@@ -1059,7 +1072,7 @@ if ! grep -q "while (((index_ < List_String_count((self->registry_)->names_)))) 
    || ! grep -q "Registry___outside_read_enter(); Board\* " "$attribute_reads"; then
   echo "FAILED: singleton_attribute_reads should read names in place and current under the lock"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, nor an attribute the call cannot assign, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic, a release is inline, objects a list holds come from their class's pool"
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock, a counted loop of calls locks once, a reading function takes the readers' side, no task in flight skips the lock, a row borrows a reference column's element, a held argument is not counted again, nor an attribute the call cannot assign, nor an item used at once, a singleton's fixed attribute is read in place, only the classes another thread counts are atomic, a release is inline, objects a list holds come from their class's pool"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no zero check for it (it keeps
 # the check that the smallest Integer divided by -1 does not fit, D359).

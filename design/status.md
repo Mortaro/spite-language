@@ -895,6 +895,14 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `store_attributes(current, entity)` still counts `current`, and the optimisation report does not yet say why an
   argument was counted.
 
+### An item passed to a call that cannot change its list is not counted
+
+- Built (pair B1t of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm;
+  D538). Not built: a `Dictionary` entry; a computed index (`list[index + 1]`); an item used as the receiver of a
+  program function (only a list's reading functions and attribute reads are uncounted); an item whose read is not
+  yet proven; telling apart lists of a generic class's own item per instance (the named item's limit, which keeps
+  `store_attribute`'s `headers[position]` counted in the naive engine).
+
 ### A list item read only to test it is not counted
 
 - Built (pair B3 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm).

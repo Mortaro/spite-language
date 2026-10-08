@@ -117,6 +117,10 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   such as `BinaryWriter<T>.schema()`, counts as reading those attributes, since they are the wire format; (b) of the
   two ways to ask whether a class's objects can be stored inline, `is_fixed_size` stays (it says what the class is,
   not which container holds it, D520) and `fits_vector()` goes.
+- **D538, an item used at once is not counted**: `plays[at].count()`, `tracks[first].seconds` and
+  `length_of(tracks[first])` read the item in its slot with no count, the call only where it cannot change the
+  list. Why: the list holds the item through the use, so the count was two writes for nothing (a stress tick 27.3
+  ms to 25.9).
 
 ## Open
 
