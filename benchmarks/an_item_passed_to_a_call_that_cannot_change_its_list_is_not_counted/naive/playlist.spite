@@ -1,0 +1,27 @@
+var tracks = List<Track>()
+
+func Playlist() {
+    var index = 0
+    while index < 16 {
+        var track = Track()
+        track.seconds = 120 + index
+        tracks.append(track)
+        index = index + 1
+    }
+}
+
+func listen(count: Integer): Integer {
+    var total = 0
+    var index = 0
+    while index < count {
+        var at = index % 16
+        crash tracks[at]
+        total = total + length_of(tracks[at]) % 7 + tracks[at].seconds % 5
+        index = index + 1
+    }
+    return total
+}
+
+func length_of(track: Track): Integer {
+    return track.seconds
+}

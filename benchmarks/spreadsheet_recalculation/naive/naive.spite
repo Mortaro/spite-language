@@ -1,0 +1,50 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var cells = List<Cell>()
+    var seed: Long = 5
+    var index = 0
+    while index < environment.cells {
+        seed = seed * 48271 % 2147483647
+        var cell = Cell(index, seed)
+        cells.append(cell)
+        index = index + 1
+    }
+    var total: Long = 0
+    var round = 0
+    while round < 20 {
+        edit(cells, round)
+        recalculate(cells)
+        var values = cells.sum_value()
+        total = total + values
+        round = round + 1
+    }
+    var placements = cells.sum_placement()
+    var last = cells.last()
+    crash last
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total, "last", last.value, "placements", placements)
+    console.error("microseconds {microseconds}")
+}
+
+func edit(cells: List<Cell>, round: Integer) {
+    var edited = round * 7919 % cells.count() / 10 * 10
+    crash cells[edited]
+    cells[edited].constant = round + 1
+}
+
+func recalculate(cells: List<Cell>) {
+    var index = 0
+    while index < cells.count() {
+        var cell = cells[index]
+        crash cells[cell.first]
+        crash cells[cell.second]
+        var left = cells[cell.first].value
+        var right = cells[cell.second].value
+        cell.value = cell.computed(left, right)
+        index = index + 1
+    }
+}

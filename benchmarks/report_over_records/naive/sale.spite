@@ -1,0 +1,27 @@
+var region = 0
+var product = 0
+var quantity = 0
+var price = 0
+var cost = 0
+var discount = 0
+var day = 0
+var customer = 0
+
+func Sale(seed: Long) {
+    region = seed % 16
+    product = seed / 16 % 1000
+    quantity = seed / 16000 % 20 + 1
+    price = seed / 320000 % 500 + 100
+    var saving: Integer = seed % 37
+    cost = price * 3 / 4 - saving
+    discount = seed % 101
+    day = seed / 7 % 365
+    customer = seed / 2555 % 100000
+}
+
+func fingerprint(): Long {
+    var total: Long = region
+    total = total + product * 3 + quantity * 5 + price * 7 + cost * 11
+    total = total + discount * 13 + day * 17 + customer * 19
+    return total
+}

@@ -554,7 +554,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `Socket` (`read_bytes()`, `read_bytes_now()`, `write_bytes`, `write_bytes_now`); `List<Byte>` reads, appends and
   writes every number with big-endian twins and `append_bytes`; `ForeignBytes`; the address forms are compile errors
   in programs; the width-aware read proofs, the `<=` bound, the non-negative position, the area guard and counted
-  loops stepping by a record. The choices taken under D509 are in mortaros_missing_decisions.md (D538).
+  loops stepping by a record. The choices taken under D509 are in mortaros_missing_decisions.md (D539).
 - Not built (item 305's second half): a read answers a fresh list every time, one allocation per read; the compiler
   does not yet reuse the block of a list let go before the next read at the same place, and
   `--optimization-report` does not name the allocation.
@@ -911,6 +911,14 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   assigning `pair.left` of any `Pair` keeps the count for every `Pair`); the naive engine's
   `store_attributes(current, entity)` still counts `current`, and the optimisation report does not yet say why an
   argument was counted.
+
+### An item passed to a call that cannot change its list is not counted
+
+- Built (pair B1t of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to confirm;
+  D538). Not built: a `Dictionary` entry; a computed index (`list[index + 1]`); an item used as the receiver of a
+  program function (only a list's reading functions and attribute reads are uncounted); an item whose read is not
+  yet proven; telling apart lists of a generic class's own item per instance (the named item's limit, which keeps
+  `store_attribute`'s `headers[position]` counted in the naive engine).
 
 ### A list item read only to test it is not counted
 

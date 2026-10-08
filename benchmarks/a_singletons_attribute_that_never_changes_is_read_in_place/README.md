@@ -29,24 +29,23 @@ In `Reader_read_round`, both the `crash shelf.boxes[place]` line and the read ta
 straight from the singleton: no `spite_guard_enter`, no readers' side and no count on the `List`, though `Shelf` is
 locked: `Shelf_count`, called once for `rows`, takes the readers' side (`spite_read_enter`) while the reader runs. `boxes` is assigned nowhere after `Shelf` is made, so the list stays the shelf's.
 
-What the read still pays is the box itself: `List_Box_get_at` answers `TypedMemory__Box_read_value`, which is
-`Box___retain`, and the loop calls `Box___release` once it has the weight, two atomic operations per row, since the
-reader's thread counts boxes and so `Box` is counted atomically. The page's promise holds (the attribute is read in
-place), but none of the uncounted list reads ([read only to test](../../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted),
-[held by a name](../../docs/optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted)) applies to a
-`list[place].weight` read through a singleton's attribute, so the count of the item is most of what is left
-between the Spite and `expert.c`. `naive.c` takes a mutex and makes the same two counts per row.
+The box itself is read in its slot too: `shelf.boxes[place].weight` is
+[an item used at once](../../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted),
+read for one attribute with nothing of the program's running in between, so the loop loads
+`((Box**)(intptr_t)(list)->items_)[place]` after checking the index and reads `weight_` from it, with no
+`Box___retain` and `Box___release` around it (before that optimisation, two atomic operations per row, since the
+reader's thread counts boxes). `naive.c` takes a mutex and makes the same two counts per row.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 147 814 | 234 496 |
-| naive C: `naive.c`, `clang -O2` | 244 546 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 3 097 | 139 776 |
+| Spite: `naive/`, `--optimized` | 32 297 | 236 032 |
+| naive C: `naive.c`, `clang -O2` | 179 131 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 3 533 | 139 776 |
 
-Spite takes 0.60 times naive C's time and 47.73 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=147814 naive=244546 expert=3097 -->
+Spite takes 0.18 times naive C's time and 9.14 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking at the same time.
+<!-- measured spite=32297 naive=179131 expert=3533 -->
 <!-- /timings -->

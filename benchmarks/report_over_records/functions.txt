@@ -1,0 +1,4 @@
+struct Sale
+Naive_profit_of___held_0
+List_Sale_sum_quantity
+List_Sale_sum_fingerprint
