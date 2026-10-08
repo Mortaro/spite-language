@@ -148,14 +148,12 @@ says exactly what each type becomes.
   `position` (an attribute) is then where the value ended, so values written one after another are read one
   after another by starting each read at the last one's `position`. It answers `null` for the same bad bytes and
   when `start` is at or past the end, and a failed read leaves `position` where it was; a negative `start` halts.
-- `read_memory(address, count): T?` reads one value from `count` bytes at a `Memory.Address` (a buffer a
-  `Socket` filled, say) without copying them into a list first. Afterwards `position` is how many of the bytes
-  the value took.
+Bytes from a `Socket` or a `File` are already a `List<Byte>`, so they are read the same way:
 
 ```gdscript
-var received = connection.read_bytes_now(buffer, 4096)
+var received = connection.read_bytes_now()
 var reader = BinaryReader<Move>()
-var move = reader.read_memory(buffer, received)
+var move = reader.read(received)
 ```
 
 Infinity and not-a-number are ordinary bytes: only JSON cannot hold them, so `BinaryWriter` never crashes.

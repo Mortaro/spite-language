@@ -1,6 +1,4 @@
 var console = Console()
-var heap = Memory.Heap()
-var bytes = TypedMemory<Byte>()
 var server = Socket()
 
 func SocketWaits() {
@@ -8,27 +6,25 @@ func SocketWaits() {
     var serving = Concurrent(echo_once)
     var client = Socket()
     crash client.connect("127.0.0.1", 47314)
-    var message = heap.allocate(4)
-    bytes.write_value(message, 0, 10)
-    bytes.write_value(message, 1, 20)
-    bytes.write_value(message, 2, 30)
-    bytes.write_value(message, 3, 40)
-    crash client.write_bytes(message, 4)
-    var answer = heap.allocate(4)
-    var received = 0
-    while received < 4 and not client.closed {
-        var more = client.read_bytes(answer + received, 4 - received)
-        received = received + more
+    var message: List<Byte> = [10, 20, 30, 40]
+    crash client.write_bytes(message)
+    var answer = List<Byte>()
+    while answer.count() < 4 and not client.closed {
+        var more = client.read_bytes()
+        if more {
+            var more_count = more.count()
+            answer.append_bytes(more, 0, more_count)
+        }
     }
-    var last = bytes.read_value(answer, 3)
+    var received = answer.count()
+    var last = answer[3]
+    crash last
     console.print("the client read back", received, "bytes, the last", last)
     var line = client.read_line()
     if not line {
         console.print("no line: the server closed", client.closed)
     }
     console.print("the server echoed", serving, "bytes")
-    heap.free(message)
-    heap.free(answer)
     client.close()
     server.close()
 }
@@ -36,17 +32,18 @@ func SocketWaits() {
 func echo_once(): Integer {
     var peer = server.accept_client()
     crash peer
-    var buffer = heap.allocate(4)
-    var received = 0
-    while received < 4 and not peer.closed {
-        var more = peer.read_bytes(buffer + received, 4 - received)
-        received = received + more
+    var buffer = List<Byte>()
+    while buffer.count() < 4 and not peer.closed {
+        var more = peer.read_bytes()
+        if more {
+            var more_count = more.count()
+            buffer.append_bytes(more, 0, more_count)
+        }
     }
-    var echoed = peer.write_bytes(buffer, received)
-    heap.free(buffer)
+    var echoed = peer.write_bytes(buffer)
     peer.close()
     if echoed {
-        return received
+        return buffer.count()
     }
     return 0
 }

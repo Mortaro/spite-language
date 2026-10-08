@@ -1,0 +1,213 @@
+var _address: Memory.Address = 0
+var _count: Long = 0
+
+func ForeignBytes(address: Long, length: Long) {
+    crash length >= 0 and (address != 0 or length == 0)
+    _address = address
+    _count = length
+}
+
+func count(): Long {
+    return _count
+}
+
+func get_at(position: Long): Byte? {
+    assert position >= 0 and position < _count
+    return _address.read_byte(position)
+}
+
+func set_at(position: Long, value: Byte) {
+    crash position >= 0 and position < _count
+    _address.write_byte(position, value)
+}
+
+func read_bytes(position: Long, length: Integer): List<Byte>? {
+    assert position >= 0 and length >= 0 and position <= _count - length
+    var bytes = List<Byte>()
+    if length > 0 {
+        bytes.reserve(length)
+        var from: Memory.Address = _address + position
+        from.copy_to(bytes.items, length)
+        bytes.item_count = length
+    }
+    return bytes
+}
+
+func write_bytes(position: Long, bytes: List<Byte>) {
+    var counted = bytes.count()
+    crash position >= 0 and position <= _count - counted
+    if counted > 0 {
+        var source: Memory.Address = bytes.items
+        source.copy_to(_address + position, counted)
+    }
+}
+
+func read_tiny(position: Long): Tiny? {
+    assert position >= 0 and position <= _count - 1
+    return _address.read_tiny(position)
+}
+
+func read_short(position: Long): Short? {
+    assert position >= 0 and position <= _count - 2
+    return _address.read_short(position)
+}
+
+func read_short_big_endian(position: Long): Short? {
+    assert position >= 0 and position <= _count - 2
+    return _address.read_short_big_endian(position)
+}
+
+func read_unsigned_short(position: Long): UnsignedShort? {
+    assert position >= 0 and position <= _count - 2
+    return _address.read_unsigned_short(position)
+}
+
+func read_unsigned_short_big_endian(position: Long): UnsignedShort? {
+    assert position >= 0 and position <= _count - 2
+    return _address.read_unsigned_short_big_endian(position)
+}
+
+func read_integer(position: Long): Integer? {
+    assert position >= 0 and position <= _count - 4
+    return _address.read_integer(position)
+}
+
+func read_integer_big_endian(position: Long): Integer? {
+    assert position >= 0 and position <= _count - 4
+    return _address.read_integer_big_endian(position)
+}
+
+func read_unsigned_integer(position: Long): UnsignedInteger? {
+    assert position >= 0 and position <= _count - 4
+    return _address.read_unsigned_integer(position)
+}
+
+func read_unsigned_integer_big_endian(position: Long): UnsignedInteger? {
+    assert position >= 0 and position <= _count - 4
+    return _address.read_unsigned_integer_big_endian(position)
+}
+
+func read_long(position: Long): Long? {
+    assert position >= 0 and position <= _count - 8
+    return _address.read_long(position)
+}
+
+func read_long_big_endian(position: Long): Long? {
+    assert position >= 0 and position <= _count - 8
+    return _address.read_long_big_endian(position)
+}
+
+func read_unsigned_long(position: Long): UnsignedLong? {
+    assert position >= 0 and position <= _count - 8
+    return _address.read_unsigned_long(position)
+}
+
+func read_unsigned_long_big_endian(position: Long): UnsignedLong? {
+    assert position >= 0 and position <= _count - 8
+    return _address.read_unsigned_long_big_endian(position)
+}
+
+func read_float(position: Long): Float? {
+    assert position >= 0 and position <= _count - 4
+    return _address.read_float(position)
+}
+
+func read_float_big_endian(position: Long): Float? {
+    assert position >= 0 and position <= _count - 4
+    return _address.read_float_big_endian(position)
+}
+
+func read_double(position: Long): Double? {
+    assert position >= 0 and position <= _count - 8
+    return _address.read_double(position)
+}
+
+func read_double_big_endian(position: Long): Double? {
+    assert position >= 0 and position <= _count - 8
+    return _address.read_double_big_endian(position)
+}
+
+func write_tiny(position: Long, value: Tiny) {
+    crash position >= 0 and position <= _count - 1
+    _address.write_tiny(position, value)
+}
+
+func write_short(position: Long, value: Short) {
+    crash position >= 0 and position <= _count - 2
+    _address.write_short(position, value)
+}
+
+func write_short_big_endian(position: Long, value: Short) {
+    crash position >= 0 and position <= _count - 2
+    _address.write_short_big_endian(position, value)
+}
+
+func write_unsigned_short(position: Long, value: UnsignedShort) {
+    crash position >= 0 and position <= _count - 2
+    _address.write_unsigned_short(position, value)
+}
+
+func write_unsigned_short_big_endian(position: Long, value: UnsignedShort) {
+    crash position >= 0 and position <= _count - 2
+    _address.write_unsigned_short_big_endian(position, value)
+}
+
+func write_integer(position: Long, value: Integer) {
+    crash position >= 0 and position <= _count - 4
+    _address.write_integer(position, value)
+}
+
+func write_integer_big_endian(position: Long, value: Integer) {
+    crash position >= 0 and position <= _count - 4
+    _address.write_integer_big_endian(position, value)
+}
+
+func write_unsigned_integer(position: Long, value: UnsignedInteger) {
+    crash position >= 0 and position <= _count - 4
+    _address.write_unsigned_integer(position, value)
+}
+
+func write_unsigned_integer_big_endian(position: Long, value: UnsignedInteger) {
+    crash position >= 0 and position <= _count - 4
+    _address.write_unsigned_integer_big_endian(position, value)
+}
+
+func write_long(position: Long, value: Long) {
+    crash position >= 0 and position <= _count - 8
+    _address.write_long(position, value)
+}
+
+func write_long_big_endian(position: Long, value: Long) {
+    crash position >= 0 and position <= _count - 8
+    _address.write_long_big_endian(position, value)
+}
+
+func write_unsigned_long(position: Long, value: UnsignedLong) {
+    crash position >= 0 and position <= _count - 8
+    _address.write_unsigned_long(position, value)
+}
+
+func write_unsigned_long_big_endian(position: Long, value: UnsignedLong) {
+    crash position >= 0 and position <= _count - 8
+    _address.write_unsigned_long_big_endian(position, value)
+}
+
+func write_float(position: Long, value: Float) {
+    crash position >= 0 and position <= _count - 4
+    _address.write_float(position, value)
+}
+
+func write_float_big_endian(position: Long, value: Float) {
+    crash position >= 0 and position <= _count - 4
+    _address.write_float_big_endian(position, value)
+}
+
+func write_double(position: Long, value: Double) {
+    crash position >= 0 and position <= _count - 8
+    _address.write_double(position, value)
+}
+
+func write_double_big_endian(position: Long, value: Double) {
+    crash position >= 0 and position <= _count - 8
+    _address.write_double_big_endian(position, value)
+}

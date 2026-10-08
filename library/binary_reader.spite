@@ -17,12 +17,6 @@ func read_from(bytes: List<Byte>, start: Integer): $value_type? {
     return read_input(start)
 }
 
-func read_memory(address: Memory.Address, count: Integer): $value_type? {
-    input.address = address
-    input.count = count
-    return read_input(0)
-}
-
 func read_input(start: Integer): $value_type? {
     assert start < input.count
     input.position = start

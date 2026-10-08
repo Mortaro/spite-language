@@ -82,34 +82,71 @@ func modified(): Instant? {
     return Instant(whole + part)
 }
 
-func read_bytes(position: Long, count: Long, address: Long): Long? {
+func read_bytes(): List<Byte>? {
     var handle = open_file("rb")
     assert handle != 0
-    seek(handle, position, 0)
-    var got = read_into(address, count, handle)
+    seek(handle, 0, 2)
+    var length = tell(handle)
+    seek(handle, 0, 0)
+    var bytes = _read_list(handle, length)
     close_file(handle)
-    return got
+    assert length == bytes.count()
+    return bytes
 }
 
-func write_bytes(address: Long, count: Long): Boolean {
+func read_bytes_at(position: Long, count: Integer): List<Byte>? {
+    crash position >= 0 and count >= 0
+    var handle = open_file("rb")
+    assert handle != 0
+    seek(handle, 0, 2)
+    var available = tell(handle) - position
+    if available > count {
+        available = count
+    }
+    seek(handle, position, 0)
+    var bytes = _read_list(handle, available)
+    close_file(handle)
+    return bytes
+}
+
+func write_bytes(bytes: List<Byte>): Boolean {
     var handle = open_file("wb")
     if handle == 0 {
         return false
     }
-    var written = write_from(address, count, handle)
+    var written = _write_list(bytes, handle)
     close_file(handle)
-    return written == count
+    return written == bytes.count()
 }
 
-func append_bytes(address: Long, count: Long): Long? {
+func append_bytes(bytes: List<Byte>): Long? {
     var handle = open_file("ab")
     assert handle != 0
     seek(handle, 0, 2)
     var start = tell(handle)
-    var written = write_from(address, count, handle)
+    var written = _write_list(bytes, handle)
     close_file(handle)
-    assert written == count
+    assert written == bytes.count()
     return start
+}
+
+func _read_list(handle: Long, wanted: Long): List<Byte> {
+    var bytes = List<Byte>()
+    if wanted > 0 {
+        var counted: Integer = wanted
+        bytes.reserve(counted)
+        var got = read_into(bytes.items, counted, handle)
+        bytes.item_count = got
+    }
+    return bytes
+}
+
+func _write_list(bytes: List<Byte>, handle: Long): Long {
+    var counted = bytes.count()
+    if counted == 0 {
+        return 0
+    }
+    return write_from(bytes.items, counted, handle)
 }
 
 func put(text: String, mode: String): Boolean {

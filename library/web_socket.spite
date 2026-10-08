@@ -53,8 +53,7 @@ func connect(host: String, port: Integer, request: HttpRequest): Boolean {
     }
     head = "{head}\r\n"
     var bytes = head.to_bytes()
-    var counted = bytes.count()
-    var written = _connection.write_bytes(bytes.items, counted)
+    var written = _connection.write_bytes(bytes)
     var answered = written and _answer_fits(key, request)
     if not answered {
         _connection.close()
@@ -293,8 +292,7 @@ func _accept_value(key: String): String {
 
 func _write_text(text: String): Boolean {
     var bytes = text.to_bytes()
-    var counted = bytes.count()
-    return _connection.write_bytes(bytes.items, counted)
+    return _connection.write_bytes(bytes)
 }
 
 func _send_frame(opcode: Integer, payload: List<Byte>): Boolean {
@@ -344,7 +342,7 @@ func _send_frame(opcode: Integer, payload: List<Byte>): Boolean {
         mask.items.copy_to(key_at, 4)
         _mask(body, count, key_at)
     }
-    var sent = _connection.write_bytes(frame, total)
+    var sent = _connection.write_bytes_from(frame, total)
     heap.free(frame)
     if not sent {
         _lost()
@@ -450,7 +448,7 @@ func _read_into(address: Memory.Address, count: Integer): Boolean {
     var filled = 0
     while filled < count {
         var at = address + filled
-        var received = _connection.read_bytes(at, count - filled)
+        var received = _connection.read_bytes_into(at, count - filled)
         if received <= 0 {
             _lost()
             return false
@@ -524,9 +522,9 @@ func _fail(code: Integer) {
 
 func _drain() {
     var buffer = heap.allocate(4096)
-    var got = _connection.read_bytes_now(buffer, 4096)
+    var got = _connection.read_bytes_now_into(buffer, 4096)
     while got > 0 {
-        got = _connection.read_bytes_now(buffer, 4096)
+        got = _connection.read_bytes_now_into(buffer, 4096)
     }
     heap.free(buffer)
 }

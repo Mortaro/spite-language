@@ -3,8 +3,6 @@ var program = Program()
 var scheduler = Scheduler()
 var watch = StageWatch()
 var server = Socket()
-var heap = Memory.Heap()
-var bytes = TypedMemory<Byte>()
 
 func FramesBetweenWaits() {
     scheduler.resume_only_when_asked()
@@ -15,7 +13,6 @@ func FramesBetweenWaits() {
     var peer = server.accept_client()
     crash peer
     var summer = Summer(1000)
-    var message = heap.allocate(1)
     var frames = 0
     var sent = 0
     var running = true
@@ -29,8 +26,9 @@ func FramesBetweenWaits() {
         crash total == 499500
         if sent < 3 {
             sent = sent + 1
-            bytes.write_value(message, 0, sent)
-            var written = peer.write_bytes_now(message, 1)
+            var message = List<Byte>()
+            message.append(sent)
+            var written = peer.write_bytes_now(message)
             crash written == 1
         }
         program.sleep(5)
@@ -41,7 +39,6 @@ func FramesBetweenWaits() {
     }
     console.print("the mover ran once a frame:", moving.system.position == frames)
     console.print("the reader resumed inside a stage:", watch.resumed_in_stage)
-    heap.free(message)
     peer.close()
     reading.system.connection.close()
     server.close()

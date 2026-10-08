@@ -241,7 +241,27 @@ How a read is proven:
   `base + k < names.count()`, `k` a whole-number literal from 1 to 63, proves `names[base]`, `names[base + 1]`
   ... `names[base + k]`, each compared as printed; `base` is any call-free index. It is proven wherever
   `index < names.count()` would be (the forms above), and undone the same way. A bound on `base` alone proves
-  only `names[base]`.
+  only `names[base]`. Written with `<=`, `base + k <= names.count()` (or `names.count() >= base + k`), `k` a literal
+  from 1 to 64, proves `names[base]` to `names[base + k - 1]`, which is how a header's size reads: after `crash
+  body + 13 <= bytes.count()`, `bytes[body + 12]` is proven.
+- **A read of a width is proven by its last byte.** A `List<Byte>`'s `read_<number>(position)`
+  ([Bytes are a List<Byte>](standard_library.md#bytes-are-a-listbyte)) is proven when the read of its last byte,
+  `bytes[position + width - 1]`, is: `read_integer(body + 4)` by whatever proves `bytes[body + 7]`, with `body + 4 + 3`
+  written `body + 7`. The read then answers the number itself, not a `T?`. A width read is proven like any other
+  read, by a bound, a count, a counted loop's window or the guard below, and undone the same way.
+- **A position known not to be negative** needs no test below: an index that is a whole-number literal of 0 or
+  more; a local declared with such a literal whose every assignment in the function is such a literal or adds such a
+  literal to itself (`position = position + 16`); or a name `x` after `x >= 0` or
+  `x > 0` in an `assert`, `crash`, `if`, `while` or the left of an `and` inside the same loop as the read. `x + k`
+  with `k` such a literal is not negative when `x` is not.
+- **One guard proves the cells of an area.** `rows * stride <= list.count()` (or `list.count() >= rows *
+  stride`), with `rows` and `stride` names or literals, proves `list[row * stride + column]`, and a read of width `w`
+  there, inside `while row < rows` and `while column < stride` (or `while column + k < stride` with `w - 1 <= k`)
+  when `row` and `column` are locals that are never negative (above). A literal `stride` may take a literal column
+  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer(index * 16 + 4)`
+  is proven, since `4 + 3 < 16`. Assigning `rows`, `stride` or the list, or shrinking the list, undoes the guard;
+  assigning `row` or `column` undoes their loops' part, and inside a loop that has read them that is the error for a
+  proof undone inside a loop (`conformance/stage6/list_byte_numbers`).
 - **A count kept in a name proves as the count does.** `var count =
   names.count()` (also `names.count() - k`) records that `count` is at most the count; `index < count` then proves
   `names[index]` as `index < names.count()` would. Shrinking `names` or assigning `count` undoes it, and a loop
@@ -292,7 +312,10 @@ How a read is proven:
   (`spite: 'names[index]' is outside its list: a bound proves only the top of an index, and this one is below 0 or
   the list changed, at ...`), so a counter that went negative stops the program rather than reading memory it
   does not own or answering a default. The read is the collection's `get_at`, which compares the index
-  once; a counted loop proves both ends and reads with no test at all.
+  once; a read of a list of numbers whose position is also known not to be negative compares only the top, once,
+  and reads the item directly; a counted loop proves both ends and reads with no test at all. The compare stays
+  outside a counted loop because the list may have been shrunk through another name since the proof (a local that
+  aliases it is not tracked); a counted loop's body calls nothing that could.
 - **Every `[]` answers `T?`.**
   `List`, `Dictionary`, `Vector` and `Items` alike, and every class that declares `get_at`: the
   function must answer a `T?`, and one declared with a plain `T` is `'get_at' answers 'Integer', but it is what

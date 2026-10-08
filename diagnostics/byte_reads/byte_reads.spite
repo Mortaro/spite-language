@@ -1,0 +1,23 @@
+var console = Console()
+
+func ByteReads() {
+    var header = List<Byte>()
+    header.append_integer(12)
+    unproven(header)
+    undone(header)
+}
+
+func unproven(header: List<Byte>) {
+    var length = header.read_integer(0)
+    var doubled = length * 2
+    console.print(doubled)
+}
+
+func undone(header: List<Byte>) {
+    var start = 0
+    crash start + 4 <= header.count()
+    header.clear()
+    var length = header.read_integer_big_endian(start)
+    var doubled = length * 2
+    console.print(doubled)
+}

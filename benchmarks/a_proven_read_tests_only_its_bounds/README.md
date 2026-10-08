@@ -20,18 +20,19 @@ outside the list after all, and tests no presence of the `T?` beyond that.
   same two loops reading it with no check at all.
 - [`expert.c`](expert.c): the same work tuned by hand: a plain `restrict` array and both loops written so the C
   compiler vectorises them, the rise counted without a branch.
-- [`highlights.c`](highlights.c): what the compiler writes for the two loops, and the list's `get_at` they read
+- [`highlights.c`](highlights.c): what the compiler writes for the two loops
   through.
 - [`generated.c`](generated.c): all of the C the compiler writes from `naive/`, tree-shaken, as an
   `--optimized` build for Windows writes it.
 
 ## What to look at in highlights.c
 
-Each read in `Naive_rise_count___held_0` is `List_Integer_get_at(values_, index_)` followed by `if
-(__builtin_expect(!spite_temp_<n>.has_value, 0)) spite_outside_list("values[index]", ...)`: once `get_at` is
-inlined, its own `index_ >= 0 && index_ < item_count_` compare is the only test, and the branch that halts is marked
-as never taken. No narrowing is written in `naive/`, and none is compiled beyond that compare: the bound is a count
-kept in a `var`, `index < count`, which proves the read but is not the counted loop's shape.
+Each read in `Naive_rise_count___held_0` is `if (__builtin_expect(spite_temp_<n> >= (values_)->item_count_, 0))
+spite_outside_list("values[index]", ...)` and then the item itself, `((int32_t*)(intptr_t)(values_)->items_)[...]`:
+the bound is a count kept in a `var`, `index < count`, which proves the top of the read but is not the counted loop's
+shape, and `index` is a local set only to `0` and stepped up by one, so it is never negative and the compare of the
+low end that `get_at` made is gone. The one compare left is the branch the C compiler is told is never taken; it
+stays because another name for the list could have shrunk it. No narrowing is written in `naive/`.
 
 `Naive_window_total___held_0` is the counted loop's shape since a counter plus a literal counts too: `while at + 2 <
 values.count()` runs while `at_ < spite_temp_<n> - 2`, with the count read once, and `values[at]`, `values[at + 1]`
@@ -45,11 +46,11 @@ them as it does `naive.c` and `expert.c`.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 34 384 | 176 128 |
-| naive C: `naive.c`, `clang -O2` | 7 138 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 6 798 | 140 288 |
+| Spite: `naive/`, `--optimized` | 33 450 | 176 128 |
+| naive C: `naive.c`, `clang -O2` | 6 843 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 6 833 | 140 288 |
 
-Spite takes 4.82 times naive C's time and 5.06 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=34384 naive=7138 expert=6798 -->
+Spite takes 4.89 times naive C's time and 4.90 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=33450 naive=6843 expert=6833 -->
 <!-- /timings -->

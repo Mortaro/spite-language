@@ -149,6 +149,7 @@ var wait_mark_results = List<String>()
 var call_edge_callers = List<String>()
 var call_edge_callees = List<String>()
 var current_function_c_name = ""
+var never_negative_names = Dictionary<Boolean>()
 var report_outline = ReportOutline()
 var report_function_start = -1
 var overlap_allowed = false
@@ -7633,12 +7634,30 @@ func address_body(function: Analysis.FunctionInfo): String {
                 crash function.parameters[1]
                 value_type = function.parameters[1].type
                 var written = c_type_name(value_type)
+                if name.ends_with("_big_endian") {
+                    var swapped_bits = swapped_width(written)
+                    return "#define {function.c_name}(self, offset, value) (\{ {written} spite_value = (value); uint{swapped_bits}_t spite_bits; memcpy(&spite_bits, &spite_value, sizeof(spite_bits)); spite_bits = __builtin_bswap{swapped_bits}(spite_bits); memcpy({at}, &spite_bits, sizeof(spite_bits)); })"
+                }
                 return "#define {function.c_name}(self, offset, value) memcpy({at}, &({written})\{ (value) }, sizeof({written}))"
             }
             var read = c_type_name(value_type)
+            if name.ends_with("_big_endian") {
+                var read_bits = swapped_width(read)
+                return "#define {function.c_name}(self, offset) (\{ uint{read_bits}_t spite_bits; memcpy(&spite_bits, {at}, sizeof(spite_bits)); spite_bits = __builtin_bswap{read_bits}(spite_bits); {read} spite_read; memcpy(&spite_read, &spite_bits, sizeof(spite_read)); spite_read; })"
+            }
             return "#define {function.c_name}(self, offset) (\{ {read} spite_read; memcpy(&spite_read, {at}, sizeof(spite_read)); spite_read; })"
         }
     }
+}
+
+func swapped_width(c_type: String): Integer {
+    if c_type.ends_with("16_t") {
+        return 16
+    }
+    if c_type.ends_with("32_t") or c_type == "float" {
+        return 32
+    }
+    return 64
 }
 
 func maths_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
@@ -16748,6 +16767,12 @@ func method_call_on(
     }
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
+    var argument_count = arguments_ast.count()
+    var refused_form = address_form_refusal(target_class, member.name, argument_count, class_information)
+    if not refused_form.is_empty() {
+        report(refused_form)
+        return void_result()
+    }
     if not is_implicit_join(member) and not member.walked {
         report_private_member(target_class, member.name, class_information)
     }
@@ -16881,6 +16906,50 @@ func method_call_on(
     lend_item(called, target_class, member.name, object_ast)
     lend_result(called, target_class, function)
     return called
+}
+
+# ../../../specs/standard_library.md#bytes-are-a-listbyte
+func address_form_refusal(
+    target: Analysis.ClassInfo,
+    name: String,
+    argument_count: Integer,
+    calling_class: Analysis.ClassInfo,
+): String {
+    if current_path.starts_with("library/") or is_library_class(calling_class) {
+        return ""
+    }
+    var owner = target.qualified_dotted
+    if owner == "File" {
+        if name == "read_bytes" and argument_count == 3 {
+            return "a File reads bytes into a List<Byte>, not into memory at an address: 'read_bytes_at(position, count)' answers a 'List<Byte>?' of up to 'count' bytes from 'position', and 'read_bytes()' the whole file"
+        }
+        if (name == "write_bytes" or name == "append_bytes") and argument_count == 2 {
+            return "a File writes bytes from a List<Byte>, not from memory at an address: write '{name}(bytes)'"
+        }
+        return ""
+    }
+    if owner == "BinaryReader" and name == "read_memory" {
+        return "a BinaryReader reads from a List<Byte>, not from memory at an address: write 'read(bytes)', or 'read_from(bytes, start)' to read one value and leave what follows"
+    }
+    if owner != "Socket" {
+        return ""
+    }
+    var plain = name
+    var library_forms = ["read_bytes_into", "read_bytes_now_into", "write_bytes_from", "write_bytes_now_from"]
+    var old_forms = ["read_bytes", "read_bytes_now", "write_bytes", "write_bytes_now"]
+    if library_forms.contains(name) {
+        var name_length = name.length()
+        plain = name.slice(0, name_length - 5)
+    } else if not old_forms.contains(name) or argument_count != 2 {
+        return ""
+    }
+    if plain == "read_bytes" {
+        return "a Socket reads bytes into a List<Byte>, not into memory at an address: write 'read_bytes()', which answers a 'List<Byte>?'"
+    }
+    if plain == "read_bytes_now" {
+        return "a Socket reads bytes into a List<Byte>, not into memory at an address: write 'read_bytes_now()', which answers a 'List<Byte>'"
+    }
+    return "a Socket writes bytes from a List<Byte>, not from memory at an address: write '{plain}(bytes)'"
 }
 
 func may_call_an_operator(name: String, argument_count: Integer): Boolean {
@@ -17473,6 +17542,20 @@ func generate_list_method(
         copied_list.owning_override = true
         return copied_list
     }
+    var byte_access = is_byte_access(name)
+    if byte_access {
+        if not is_byte_element(element) {
+            var listed_type = list_type_of(element)
+            report(
+                "'{name}' reads and writes the bytes of a List<Byte>, and this is {type_with_article(listed_type)}: only a List<Byte> answers it",
+            )
+            return void_result()
+        }
+        var proven_access = proven_byte_access(name, object_result, object_ast, arguments_ast, scope, class_information)
+        if proven_access {
+            return proven_access
+        }
+    }
     if is_function_form(name, arguments_ast) {
         var form_list = list_class_of(element)
         var form_argument = arguments_ast.first()
@@ -17512,7 +17595,7 @@ func generate_list_method(
         "reserve"
         "to_utf8_text"
     ]
-    if public_names.contains(name) {
+    if byte_access or public_names.contains(name) {
         var function = list_class_of(element).find_function(name)
         if function {
             var parameter_types = parameter_types_of(function.parameters)
@@ -22597,6 +22680,10 @@ func generate_index_read(
     var object_list = type_shape.as_list(object_result_type)
     if object_list {
         var element = object_list.element
+        var unchecked = unchecked_item(object_result, index_expression, element, present, scope, class_information)
+        if not unchecked.is_empty() {
+            return ExpressionResult(unchecked, element)
+        }
         var list_class = list_class_of(element)
         var reader = list_class.find_function("get_at")
         crash reader
@@ -22765,6 +22852,353 @@ func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
     bounded.owning_override = got.owning_override
     bounded.borrowed_from = got.borrowed_from
     return bounded
+}
+
+# ../../../docs/proofs.md#a-proven-count-or-bound-proves-a-read-of-a-width
+func is_byte_access(name: String): Boolean {
+    return name == "append_bytes" or byte_access_width(name) > 0
+}
+
+func byte_access_width(name: String): Integer {
+    var name_length = name.length()
+    var word = ""
+    if name.starts_with("read_") {
+        word = name.slice(5, name_length)
+    } else if name.starts_with("write_") {
+        word = name.slice(6, name_length)
+    } else if name.starts_with("append_") {
+        word = name.slice(7, name_length)
+    } else {
+        return 0
+    }
+    var big_endian = word.ends_with("_big_endian")
+    if big_endian {
+        var word_length = word.length()
+        word = word.slice(0, word_length - 11)
+    }
+    if word == "tiny" and not big_endian {
+        return 1
+    }
+    if word == "short" or word == "unsigned_short" {
+        return 2
+    }
+    if word == "integer" or word == "unsigned_integer" or word == "float" {
+        return 4
+    }
+    if word == "long" or word == "unsigned_long" or word == "double" {
+        return 8
+    }
+    return 0
+}
+
+func is_byte_element(element: Analysis.SpiteType): Boolean {
+    var scalar = type_shape.as_scalar(element)
+    if not scalar {
+        return false
+    }
+    return scalar.kind == 'byte_kind'
+}
+
+func proven_byte_access(
+    name: String,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert not name.starts_with("append_")
+    var width = byte_access_width(name)
+    var position_ast = arguments_ast.first()
+    assert position_ast
+    var listed = shape.as_identifier(object_ast)
+    assert listed
+    var list_text = listed.name
+    var counted_base = counted_byte_items(list_text, position_ast, width, scope)
+    var counted = not counted_base.is_empty()
+    var writing = name.starts_with("write_")
+    assert counted or not writing
+    var bottom = counted or byte_range_proven(list_text, position_ast, width, scope)
+    var top_key = byte_key(list_text, position_ast, width - 1)
+    assert bottom or scope.is_path_narrowed(top_key)
+    var address_class = find_class_by_qualified("Memory.Address")
+    assert address_class
+    var primitive = find_or_instantiate_function(address_class, name)
+    assert primitive
+    if counted {
+        var position = counted_position(position_ast, scope, class_information)
+        var base = "(intptr_t)({counted_base})"
+        if writing {
+            crash arguments_ast[1]
+            crash primitive.parameters[1]
+            var value_type = primitive.parameters[1].type
+            var value = coerce_for_store(arguments_ast[1], value_type, scope, class_information)
+            var nothing = void_type()
+            return ExpressionResult("{primitive.c_name}({base}, {position}, {value})", nothing)
+        }
+        var counted_type = primitive.return_type
+        return ExpressionResult("{primitive.c_name}({base}, {position})", counted_type)
+    }
+    var read_type = primitive.return_type
+    var integer_spite_type = integer_type()
+    var position = coerce_for_store(position_ast, integer_spite_type, scope, class_information)
+    var held = next_temporary()
+    var written = Syntax.SourcePrinter().source_expression(position_ast)
+    var read_text = "{list_text}.{name}({written})"
+    var outside = "{held} > ({object_result.code})->item_count_ - {width}"
+    if not bottom {
+        outside = "{held} < 0 || {outside}"
+    }
+    var item = "{primitive.c_name}(({object_result.code})->items_, {held})"
+    var checked = halting_read(held, position, outside, read_text, item)
+    return ExpressionResult(checked, read_type)
+}
+
+func counted_position(
+    position_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var integer_spite_type = integer_type()
+    var stepped = shape.as_binary(position_ast)
+    var counter: Syntax.Expressions.IdentifierExpression? = null
+    var step: Syntax.Expressions.IntegerLiteral? = null
+    if stepped {
+        if stepped.operator == 'add' and stepped.left and stepped.right {
+            counter = shape.as_identifier(stepped.left)
+            step = shape.as_integer_literal(stepped.right)
+        }
+    }
+    if not counter or not step {
+        return coerce_for_store(position_ast, integer_spite_type, scope, class_information)
+    }
+    var counter_ast: Syntax.Expressions.Expression = counter
+    var counter_result = generate_expression(counter_ast, scope, class_information)
+    return "{counter_result.code} + {step.value}"
+}
+
+func halting_read(held: String, position: String, outside: String, read_text: String, item: String): String {
+    ensure_index_check()
+    var where = located(current_path, current_line, current_owner, current_function)
+    var read = escape_c_string(read_text)
+    var halt = "spite_outside_list(\"{read}\", {where});"
+    return "(\{ int32_t {held} = {position}; if (__builtin_expect({outside}, 0)) {halt} {item}; })"
+}
+
+func unchecked_item(
+    object_result: ExpressionResult,
+    index_expression: Syntax.Expressions.IndexExpression,
+    element: Analysis.SpiteType,
+    present: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if present or not type_shape.as_scalar(element) {
+        return ""
+    }
+    crash index_expression.object
+    crash index_expression.index
+    var listed = shape.as_identifier(index_expression.object)
+    if not listed {
+        return ""
+    }
+    if not byte_range_proven(listed.name, index_expression.index, 1, scope) {
+        return ""
+    }
+    var integer_spite_type = integer_type()
+    var position = coerce_for_store(index_expression.index, integer_spite_type, scope, class_information)
+    var element_code = c_type_name(element)
+    var held = next_temporary()
+    var outside = "{held} >= ({object_result.code})->item_count_"
+    var item = "(({element_code}*)(intptr_t)({object_result.code})->items_)[{held}]"
+    var read_text = operand_text(index_expression)
+    return halting_read(held, position, outside, read_text, item)
+}
+
+func counted_byte_items(
+    list_text: String,
+    position_ast: Syntax.Expressions.Expression,
+    width: Integer,
+    scope: Scope,
+): String {
+    var first_key = byte_key(list_text, position_ast, 0)
+    var first = scope.counted_items_of(first_key)
+    if first.is_empty() {
+        return ""
+    }
+    var last_key = byte_key(list_text, position_ast, width - 1)
+    var last = scope.counted_items_of(last_key)
+    if last.is_empty() {
+        return ""
+    }
+    return first
+}
+
+func byte_key(list_text: String, position_ast: Syntax.Expressions.Expression, offset: Integer): String {
+    return "{list_text}[{offset_key(position_ast, offset)}]"
+}
+
+func offset_key(position_ast: Syntax.Expressions.Expression, offset: Integer): String {
+    if offset == 0 {
+        return index_key_text(position_ast)
+    }
+    var literal = shape.as_integer_literal(position_ast)
+    if literal {
+        var moved_literal: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(literal.value + offset)
+        return index_key_text(moved_literal)
+    }
+    var stepped = shape.as_binary(position_ast)
+    if stepped {
+        if stepped.operator == 'add' and stepped.right and stepped.left {
+            var step = shape.as_integer_literal(stepped.right)
+            if step {
+                var moved: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(step.value + offset)
+                var shifted: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(
+                    'add',
+                    stepped.left,
+                    moved,
+                )
+                return index_key_text(shifted)
+            }
+        }
+    }
+    var added: Syntax.Expressions.Expression = Syntax.Expressions.IntegerLiteral(offset)
+    var reached: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('add', position_ast, added)
+    return index_key_text(reached)
+}
+
+func byte_range_proven(
+    list_text: String,
+    position_ast: Syntax.Expressions.Expression,
+    width: Integer,
+    scope: Scope,
+): Boolean {
+    if strided_range_proven(list_text, position_ast, width, scope) {
+        return true
+    }
+    var top_key = byte_key(list_text, position_ast, width - 1)
+    if not scope.is_path_narrowed(top_key) {
+        return false
+    }
+    return never_below_zero(position_ast, scope)
+}
+
+func never_below_zero(position_ast: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var literal = shape.as_integer_literal(position_ast)
+    if literal {
+        return literal.value >= 0
+    }
+    var stepped = shape.as_binary(position_ast)
+    if stepped {
+        if stepped.operator != 'add' or not stepped.right or not stepped.left {
+            return false
+        }
+        var step = shape.as_integer_literal(stepped.right)
+        if not step {
+            return false
+        }
+        return step.value >= 0 and never_below_zero(stepped.left, scope)
+    }
+    var text = operand_text(position_ast)
+    if text.is_empty() {
+        return false
+    }
+    if never_negative_names["{current_function_c_name}/{text}"] {
+        return true
+    }
+    return scope.proven_inside_loop("~0[{text}]")
+}
+
+func strided_range_proven(
+    list_text: String,
+    position_ast: Syntax.Expressions.Expression,
+    width: Integer,
+    scope: Scope,
+): Boolean {
+    var reach = width - 1
+    var inner = position_ast
+    var peeled = shape.as_binary(position_ast)
+    if peeled {
+        if peeled.operator == 'add' and peeled.right and peeled.left {
+            var tail = shape.as_integer_literal(peeled.right)
+            if tail {
+                if tail.value < 0 or tail.value > 4096 {
+                    return false
+                }
+                var tail_value: Integer = tail.value
+                reach = reach + tail_value
+                inner = peeled.left
+            }
+        }
+    }
+    var outer = shape.as_binary(inner)
+    if not outer {
+        return false
+    }
+    var column_ast: Syntax.Expressions.Expression? = null
+    var product_ast = inner
+    if outer.operator == 'add' {
+        column_ast = outer.right
+        if not outer.left {
+            return false
+        }
+        product_ast = outer.left
+    }
+    var product = shape.as_binary(product_ast)
+    if not product {
+        return false
+    }
+    var row_ast = product.left
+    var stride_ast = product.right
+    if product.operator != 'multiply' or not row_ast or not stride_ast {
+        return false
+    }
+    var row = shape.as_identifier(row_ast)
+    var stride = index_key_text(stride_ast)
+    if not row or stride.is_empty() {
+        return false
+    }
+    var height = counter_bound(row.name, 0, scope)
+    if height.is_empty() {
+        return false
+    }
+    var guarded = scope.is_path_narrowed("{list_text}[<*{height}*{stride}]")
+    if not guarded and not scope.is_path_narrowed("{list_text}[<*{stride}*{height}]") {
+        return false
+    }
+    if not column_ast {
+        var stride_literal = shape.as_integer_literal(stride_ast)
+        if not stride_literal {
+            return false
+        }
+        return stride_literal.value > reach
+    }
+    var column = shape.as_identifier(column_ast)
+    if not column {
+        return false
+    }
+    return counter_bound(column.name, reach, scope) == stride
+}
+
+func counter_bound(counter: String, reach: Integer, scope: Scope): String {
+    var prefix = "~<[{counter}:"
+    var paths = scope.visible_narrowed_paths()
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        if path.starts_with(prefix) and path.ends_with("]") {
+            var path_length = path.length()
+            var parts = path.slice(3, path_length - 1).split(":")
+            if parts.count() == 3 {
+                var kept = parts[1].to_integer()
+                if kept and kept >= reach and scope.is_path_narrowed(path) {
+                    return parts[2]
+                }
+            }
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func library_list_field(
@@ -38752,6 +39186,9 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         narrow_proven_indices(binary.right, scope)
         return
     }
+    narrow_not_negative(binary, scope)
+    narrow_width_room(binary, scope)
+    narrow_area_room(binary, scope)
     narrow_counter_room(binary, scope)
     narrow_nonzero(binary, scope)
     if binary.operator == 'less' {
@@ -38781,6 +39218,152 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         scope.narrow_bound_path("{counted}[{index}]", condition_text)
         index = index + 1
     }
+}
+
+func narrow_not_negative(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    assert binary.operator == 'greater_equal' or binary.operator == 'greater'
+    crash binary.left
+    crash binary.right
+    var zero = shape.as_integer_literal(binary.right)
+    assert zero
+    assert zero.value == 0
+    var named = operand_text(binary.left)
+    assert not named.is_empty()
+    scope.narrow_path("~0[{named}]")
+}
+
+func narrow_width_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    crash binary.left
+    crash binary.right
+    var counted = ""
+    var reached_ast = binary.left
+    if binary.operator == 'less_equal' {
+        counted = counted_list_text(binary.right)
+    } else if binary.operator == 'greater_equal' {
+        counted = counted_list_text(binary.left)
+        reached_ast = binary.right
+    }
+    assert not counted.is_empty()
+    var reached = shape.as_binary(reached_ast)
+    assert reached
+    crash reached.left
+    crash reached.right
+    assert reached.operator == 'add'
+    var room = shape.as_integer_literal(reached.right)
+    assert room
+    assert room.value >= 1 and room.value <= 64
+    var condition_text = Syntax.SourcePrinter().source_expression(binary)
+    var reach: Integer = room.value - 1
+    if reach == 0 {
+        var base_text = index_key_text(reached.left)
+        assert not base_text.is_empty()
+        scope.narrow_bound_path("{counted}[{base_text}]", condition_text)
+        return
+    }
+    narrow_stride(counted, reached.left, reach, condition_text, scope)
+}
+
+func narrow_area_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    crash binary.left
+    crash binary.right
+    var counted = ""
+    var area_ast = binary.left
+    if binary.operator == 'less_equal' {
+        counted = counted_list_text(binary.right)
+    } else if binary.operator == 'greater_equal' {
+        counted = counted_list_text(binary.left)
+        area_ast = binary.right
+    }
+    assert not counted.is_empty()
+    var area = shape.as_binary(area_ast)
+    assert area
+    crash area.left
+    crash area.right
+    assert area.operator == 'multiply'
+    var rows = index_key_text(area.left)
+    var stride = index_key_text(area.right)
+    assert not rows.is_empty() and not stride.is_empty()
+    var condition_text = Syntax.SourcePrinter().source_expression(binary)
+    scope.narrow_bound_path("{counted}[<*{rows}*{stride}]", condition_text)
+}
+
+# ../../../docs/proofs.md#an-index-built-from-loop-counters-is-proven-by-one-guard
+func narrow_loop_counter(
+    condition: Syntax.Expressions.Expression,
+    scope: Scope,
+    function_information: Analysis.FunctionInfo,
+) {
+    var binary = shape.as_binary(condition)
+    assert binary
+    crash binary.left
+    crash binary.right
+    assert binary.operator == 'less'
+    var counter = counted_counter(binary.left)
+    assert counter
+    assert is_local_counter(counter.name, scope, function_information)
+    assert never_negative(counter.name, function_information.body)
+    var bound = index_key_text(binary.right)
+    assert not bound.is_empty()
+    var reach = counted_reach(binary.left)
+    scope.narrow_path("~<[{counter.name}:{reach}:{bound}]")
+}
+
+func never_negative(counter: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if not statement_never_negative(counter, statements[index]) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func statement_never_negative(counter: String, statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            return statement.name != counter or is_counter_start(statement.value)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            if not is_identifier_named(statement.target, counter) {
+                return true
+            }
+            return is_counter_start(statement.value) or steps_up(counter, statement.value)
+        }
+        Syntax.Statements.IfStatement: return never_negative(counter, statement.then_branch) and never_negative(counter, statement.else_branch)
+        Syntax.Statements.WhileStatement: return never_negative(counter, statement.body)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if not never_negative(counter, statement.cases[case_index].body) {
+                    return false
+                }
+                case_index = case_index + 1
+            }
+            return true
+        }
+        _: return true
+    }
+}
+
+func steps_up(counter: String, value: Syntax.Expressions.Expression): Boolean {
+    var sum = shape.as_binary(value)
+    if not sum {
+        return false
+    }
+    crash sum.left
+    crash sum.right
+    if sum.operator != 'add' or not is_identifier_named(sum.left, counter) {
+        return false
+    }
+    var step = shape.as_integer_literal(sum.right)
+    if not step {
+        return false
+    }
+    return step.value >= 0
 }
 
 func narrow_literal_indices(declaration: Syntax.Statements.VariableDeclaration, scope: Scope) {
@@ -38923,6 +39506,16 @@ func counted_alias(bound: Syntax.Expressions.Expression, scope: Scope): String {
         index = index + 1
     }
     return ""
+}
+
+func note_not_negative(
+    declaration: Syntax.Statements.VariableDeclaration,
+    function_information: Analysis.FunctionInfo,
+) {
+    assert declaration.value
+    assert is_counter_start(declaration.value)
+    assert never_negative(declaration.name, function_information.body)
+    never_negative_names["{current_function_c_name}/{declaration.name}"] = true
 }
 
 func note_count_alias(declaration: Syntax.Statements.VariableDeclaration, scope: Scope) {
@@ -39566,6 +40159,7 @@ func generate_while_loop(
     var condition_text = condition_source(while_statement)
     body_scope.know_loop_condition(condition_text)
     narrow_proven_indices(while_statement.condition, body_scope)
+    narrow_loop_counter(while_statement.condition, body_scope, function_information)
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     add_loop_check_point(class_information)
     builder.add_user("}")
@@ -39613,6 +40207,9 @@ func counted_loop_list(
         return ""
     }
     if not counted_body_keeps_count(listed, counter.name, while_statement.body, scope, class_information) {
+        return ""
+    }
+    if counter_step(counter.name, while_statement.body) > counted_reach(binary.left) + 1 {
         return ""
     }
     return listed
@@ -39760,33 +40357,40 @@ func loop_counts_up(counter: String, loop: Syntax.Statements.WhileStatement): Bo
 }
 
 func steps_counter_last(counter: String, body: List<Syntax.Statements.Statement>): Boolean {
+    return counter_step(counter, body) > 0
+}
+
+func counter_step(counter: String, body: List<Syntax.Statements.Statement>): Integer {
     var last = body.last()
     if not last {
-        return false
+        return 0
     }
     var step = shape.as_assignment_statement(last)
     if not step {
-        return false
+        return 0
     }
     crash step.target
     crash step.value
     if not is_identifier_named(step.target, counter) {
-        return false
+        return 0
     }
     var sum = shape.as_binary(step.value)
     if not sum {
-        return false
+        return 0
     }
     crash sum.left
     crash sum.right
     if sum.operator != 'add' or not is_identifier_named(sum.left, counter) {
-        return false
+        return 0
     }
     var one = shape.as_integer_literal(sum.right)
     if not one {
-        return false
+        return 0
     }
-    return one.value == 1
+    if one.value < 1 or one.value > 64 {
+        return 0
+    }
+    return one.value
 }
 
 func bounds_counter(counter: String, loop: Syntax.Statements.WhileStatement): Boolean {
@@ -40117,6 +40721,9 @@ func is_counted_call(
     var receiver = shape.as_identifier(member.object)
     if receiver and holds_counted_values(receiver.name, scope) {
         var reads = ["count", "is_empty", "get_at", "set_at", "first", "last", "contains", "index_of"]
+        if is_byte_access(member.name) and not member.name.starts_with("append_") {
+            return true
+        }
         return reads.contains(member.name)
     }
     return maths.is_member(member.name) and is_counted_plain(member.object, plain_names, scope, class_information)
@@ -42117,6 +42724,7 @@ func generate_statement_kind(
         generate_variable_declaration(variable_declaration, scope, class_information)
         narrow_literal_indices(variable_declaration, scope)
         note_count_alias(variable_declaration, scope)
+        note_not_negative(variable_declaration, function_information)
         return false
     }
     var assignment = shape.as_assignment_statement(statement)

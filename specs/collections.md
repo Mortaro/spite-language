@@ -161,6 +161,14 @@ what a `Vector` of them held (`conformance/stage6/plain_items`). There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming)),
 or a `while` that does more than they do.
 
+**A `List<Byte>` reads and writes numbers.** `read_<number>(position): <number>?`, `append_<number>(value)` and
+`write_<number>(position, value)` for `tiny`, `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`,
+`unsigned_long`, `float` and `double`, each but `tiny` with a `_big_endian` twin, and `append_bytes(other, start,
+count)`, are members of `List<Byte>` only; their rules are under [Bytes are a
+List<Byte>](standard_library.md#bytes-are-a-listbyte). On a list of anything else each is the error
+`'read_integer' reads and writes the bytes of a List<Byte>, and this is a List<Integer>: only a List<Byte> answers it`
+(`diagnostics/address_forms`).
+
 `contains(value)` compares with `==`, so it is there only for elements that are numbers, `Boolean`, `String` or an
 enum; on a list of a class the call is `List has no method 'contains'`: ask with `any(f)` or `find_by_<member>`.
 `index_of(value)` is the same comparison answering where: the first element's index, or `null` when no element is

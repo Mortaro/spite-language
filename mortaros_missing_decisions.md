@@ -126,6 +126,18 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   with the classes read when the loop starts (a branch between two compiled forms), instead of the unrolling pair
   T4b proposed. Why: the naive engine builds its stages at run time from strings, so their order is not known while
   compiling; the table needs no order (the case's three voices 257 ms to 91).
+- **D540, the bytes half of D536 as built, confirm after the speed goal**: what Claude chose beyond the proposal.
+  (a) `File.read_bytes()` answers `null` when fewer bytes arrive than the size said; `read_bytes_at` reads up to
+  `count` and halts on a negative position or count. (b) A `Socket` keeps one 64 KB receive block and copies what
+  arrived into a fresh list per read (the compiler does not reuse a let-go list's block yet). (c) The library keeps
+  `read_bytes_into`, `read_bytes_now_into`, `write_bytes_from`, `write_bytes_now_from` for HTTP and WebSocket, refused
+  in a program like the old forms; `BinaryReader.read_memory` is removed, not kept. (d) Beyond the proposal's list:
+  `tiny` and `unsigned_long` reads, and `_big_endian` twins of the appends and writes too. (e) `ForeignBytes(address,
+  count)` reads as well as writes, has `get_at`/`set_at`, `read_bytes`, `write_bytes`, `count(): Long`, and takes the
+  address as a `Long`. (f) New proofs: `base + k <= list.count()`; non-negative positions; `rows * stride <=
+  list.count()` for `row * stride + column`; a counted loop stepping by up to its window plus one. (g) A proven read
+  outside a counted loop keeps one compare, because a local alias of a list is not tracked (a stale read would be a
+  silent wrong value); only counted loops get the bare load.
 
 ## Open
 

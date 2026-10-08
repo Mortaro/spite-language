@@ -198,7 +198,7 @@ func _read_exactly(client: Socket, count: Integer): String? {
     var filled = 0
     while filled < count {
         var at = buffer + filled
-        var received = client.read_bytes(at, count - filled)
+        var received = client.read_bytes_into(at, count - filled)
         if received <= 0 {
             heap.free(buffer)
             return null
@@ -234,8 +234,7 @@ func _write_response(client: Socket, response: HttpResponse, with_body: Boolean,
         whole = head + response.body
     }
     var bytes = whole.to_bytes()
-    var counted = bytes.count()
-    client.write_bytes(bytes.items, counted)
+    client.write_bytes(bytes)
     if closing {
         client.close()
     }

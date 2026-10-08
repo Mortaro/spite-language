@@ -274,6 +274,340 @@ func _utf8_highest_second(lead: Integer): Integer {
     return 191
 }
 
+func read_tiny(position: Integer): Tiny? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 1
+    return items.read_tiny(position)
+}
+
+func read_short(position: Integer): Short? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 2
+    return items.read_short(position)
+}
+
+func read_short_big_endian(position: Integer): Short? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 2
+    return items.read_short_big_endian(position)
+}
+
+func read_unsigned_short(position: Integer): UnsignedShort? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 2
+    return items.read_unsigned_short(position)
+}
+
+func read_unsigned_short_big_endian(position: Integer): UnsignedShort? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 2
+    return items.read_unsigned_short_big_endian(position)
+}
+
+func read_integer(position: Integer): Integer? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 4
+    return items.read_integer(position)
+}
+
+func read_integer_big_endian(position: Integer): Integer? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 4
+    return items.read_integer_big_endian(position)
+}
+
+func read_unsigned_integer(position: Integer): UnsignedInteger? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 4
+    return items.read_unsigned_integer(position)
+}
+
+func read_unsigned_integer_big_endian(position: Integer): UnsignedInteger? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 4
+    return items.read_unsigned_integer_big_endian(position)
+}
+
+func read_long(position: Integer): Long? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 8
+    return items.read_long(position)
+}
+
+func read_long_big_endian(position: Integer): Long? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 8
+    return items.read_long_big_endian(position)
+}
+
+func read_unsigned_long(position: Integer): UnsignedLong? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 8
+    return items.read_unsigned_long(position)
+}
+
+func read_unsigned_long_big_endian(position: Integer): UnsignedLong? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 8
+    return items.read_unsigned_long_big_endian(position)
+}
+
+func read_float(position: Integer): Float? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 4
+    return items.read_float(position)
+}
+
+func read_float_big_endian(position: Integer): Float? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 4
+    return items.read_float_big_endian(position)
+}
+
+func read_double(position: Integer): Double? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 8
+    return items.read_double(position)
+}
+
+func read_double_big_endian(position: Integer): Double? {
+    crash $element_type == Byte
+    assert position >= 0 and position <= item_count - 8
+    return items.read_double_big_endian(position)
+}
+
+func append_tiny(value: Tiny) {
+    crash $element_type == Byte
+    reserve(item_count + 1)
+    items.write_tiny(item_count, value)
+    item_count = item_count + 1
+}
+
+func append_short(value: Short) {
+    crash $element_type == Byte
+    reserve(item_count + 2)
+    items.write_short(item_count, value)
+    item_count = item_count + 2
+}
+
+func append_short_big_endian(value: Short) {
+    crash $element_type == Byte
+    reserve(item_count + 2)
+    items.write_short_big_endian(item_count, value)
+    item_count = item_count + 2
+}
+
+func append_unsigned_short(value: UnsignedShort) {
+    crash $element_type == Byte
+    reserve(item_count + 2)
+    items.write_unsigned_short(item_count, value)
+    item_count = item_count + 2
+}
+
+func append_unsigned_short_big_endian(value: UnsignedShort) {
+    crash $element_type == Byte
+    reserve(item_count + 2)
+    items.write_unsigned_short_big_endian(item_count, value)
+    item_count = item_count + 2
+}
+
+func append_integer(value: Integer) {
+    crash $element_type == Byte
+    reserve(item_count + 4)
+    items.write_integer(item_count, value)
+    item_count = item_count + 4
+}
+
+func append_integer_big_endian(value: Integer) {
+    crash $element_type == Byte
+    reserve(item_count + 4)
+    items.write_integer_big_endian(item_count, value)
+    item_count = item_count + 4
+}
+
+func append_unsigned_integer(value: UnsignedInteger) {
+    crash $element_type == Byte
+    reserve(item_count + 4)
+    items.write_unsigned_integer(item_count, value)
+    item_count = item_count + 4
+}
+
+func append_unsigned_integer_big_endian(value: UnsignedInteger) {
+    crash $element_type == Byte
+    reserve(item_count + 4)
+    items.write_unsigned_integer_big_endian(item_count, value)
+    item_count = item_count + 4
+}
+
+func append_long(value: Long) {
+    crash $element_type == Byte
+    reserve(item_count + 8)
+    items.write_long(item_count, value)
+    item_count = item_count + 8
+}
+
+func append_long_big_endian(value: Long) {
+    crash $element_type == Byte
+    reserve(item_count + 8)
+    items.write_long_big_endian(item_count, value)
+    item_count = item_count + 8
+}
+
+func append_unsigned_long(value: UnsignedLong) {
+    crash $element_type == Byte
+    reserve(item_count + 8)
+    items.write_unsigned_long(item_count, value)
+    item_count = item_count + 8
+}
+
+func append_unsigned_long_big_endian(value: UnsignedLong) {
+    crash $element_type == Byte
+    reserve(item_count + 8)
+    items.write_unsigned_long_big_endian(item_count, value)
+    item_count = item_count + 8
+}
+
+func append_float(value: Float) {
+    crash $element_type == Byte
+    reserve(item_count + 4)
+    items.write_float(item_count, value)
+    item_count = item_count + 4
+}
+
+func append_float_big_endian(value: Float) {
+    crash $element_type == Byte
+    reserve(item_count + 4)
+    items.write_float_big_endian(item_count, value)
+    item_count = item_count + 4
+}
+
+func append_double(value: Double) {
+    crash $element_type == Byte
+    reserve(item_count + 8)
+    items.write_double(item_count, value)
+    item_count = item_count + 8
+}
+
+func append_double_big_endian(value: Double) {
+    crash $element_type == Byte
+    reserve(item_count + 8)
+    items.write_double_big_endian(item_count, value)
+    item_count = item_count + 8
+}
+
+func write_tiny(position: Integer, value: Tiny) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 1
+    items.write_tiny(position, value)
+}
+
+func write_short(position: Integer, value: Short) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 2
+    items.write_short(position, value)
+}
+
+func write_short_big_endian(position: Integer, value: Short) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 2
+    items.write_short_big_endian(position, value)
+}
+
+func write_unsigned_short(position: Integer, value: UnsignedShort) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 2
+    items.write_unsigned_short(position, value)
+}
+
+func write_unsigned_short_big_endian(position: Integer, value: UnsignedShort) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 2
+    items.write_unsigned_short_big_endian(position, value)
+}
+
+func write_integer(position: Integer, value: Integer) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 4
+    items.write_integer(position, value)
+}
+
+func write_integer_big_endian(position: Integer, value: Integer) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 4
+    items.write_integer_big_endian(position, value)
+}
+
+func write_unsigned_integer(position: Integer, value: UnsignedInteger) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 4
+    items.write_unsigned_integer(position, value)
+}
+
+func write_unsigned_integer_big_endian(position: Integer, value: UnsignedInteger) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 4
+    items.write_unsigned_integer_big_endian(position, value)
+}
+
+func write_long(position: Integer, value: Long) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 8
+    items.write_long(position, value)
+}
+
+func write_long_big_endian(position: Integer, value: Long) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 8
+    items.write_long_big_endian(position, value)
+}
+
+func write_unsigned_long(position: Integer, value: UnsignedLong) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 8
+    items.write_unsigned_long(position, value)
+}
+
+func write_unsigned_long_big_endian(position: Integer, value: UnsignedLong) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 8
+    items.write_unsigned_long_big_endian(position, value)
+}
+
+func write_float(position: Integer, value: Float) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 4
+    items.write_float(position, value)
+}
+
+func write_float_big_endian(position: Integer, value: Float) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 4
+    items.write_float_big_endian(position, value)
+}
+
+func write_double(position: Integer, value: Double) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 8
+    items.write_double(position, value)
+}
+
+func write_double_big_endian(position: Integer, value: Double) {
+    crash $element_type == Byte
+    crash position >= 0 and position <= item_count - 8
+    items.write_double_big_endian(position, value)
+}
+
+func append_bytes(other: List<Byte>, start: Integer, length: Integer) {
+    crash $element_type == Byte
+    crash start >= 0 and length >= 0 and start <= other.count() - length
+    if length > 0 {
+        reserve(item_count + length)
+        var from: Memory.Address = other.items + start
+        from.copy_to(items + item_count, length)
+        item_count = item_count + length
+    }
+}
+
 func write_text(text: String, address: Memory.Address, position: Long): Long {
     var index = 0
     while index < text.length() {

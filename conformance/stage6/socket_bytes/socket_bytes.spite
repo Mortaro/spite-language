@@ -1,7 +1,5 @@
 var console = Console()
 var program = Program()
-var heap = Memory.Heap()
-var bytes = TypedMemory<Byte>()
 var server = Socket()
 
 func SocketBytes() {
@@ -13,18 +11,23 @@ func SocketBytes() {
     var client = Socket()
     crash client.connect("localhost", 47313)
     var peer = accept_eventually()
-    var buffer = heap.allocate(16)
-    var nothing = peer.read_bytes_now(buffer, 16)
-    console.print("nothing yet:", nothing, peer.closed)
+    var nothing = peer.read_bytes_now()
+    var nothing_count = nothing.count()
+    console.print("nothing yet:", nothing_count, peer.closed)
     send(client, 1, 2, 250)
-    var received = receive(peer, buffer, 3)
-    var first = bytes.read_value(buffer, 0)
-    var third = bytes.read_value(buffer, 2)
-    console.print("peer received:", received, first, third)
+    var received = receive(peer, 3)
+    var first = received[0]
+    crash first
+    var third = received[2]
+    crash third
+    var received_count = received.count()
+    console.print("peer received:", received_count, first, third)
     send(peer, 7, 8, 9)
-    received = receive(client, buffer, 3)
-    var second = bytes.read_value(buffer, 1)
-    console.print("client received:", received, second)
+    received = receive(client, 3)
+    var second = received[1]
+    crash second
+    received_count = received.count()
+    console.print("client received:", received_count, second)
     crash peer.write_line("hello over the wire")
     var line = client.read_line_now()
     while not line {
@@ -34,17 +37,17 @@ func SocketBytes() {
     crash line
     console.print("client read the line:", line)
     client.close()
-    var after = peer.read_bytes_now(buffer, 16)
+    var after = peer.read_bytes_now()
     while not peer.closed {
         program.sleep(1)
-        after = peer.read_bytes_now(buffer, 16)
+        after = peer.read_bytes_now()
     }
-    console.print("peer closed:", after, peer.closed)
+    var after_count = after.count()
+    console.print("peer closed:", after_count, peer.closed)
     var last_line = peer.read_line_now()
     if not last_line {
         console.print("no line after the close")
     }
-    heap.free(buffer)
     peer.close()
     server.close()
 }
@@ -59,22 +62,19 @@ func accept_eventually(): Socket {
     return accepted
 }
 
-func send(socket: Socket, first: Integer, second: Integer, third: Integer) {
-    var message = heap.allocate(3)
-    bytes.write_value(message, 0, first)
-    bytes.write_value(message, 1, second)
-    bytes.write_value(message, 2, third)
-    var sent = socket.write_bytes_now(message, 3)
+func send(socket: Socket, first: Byte, second: Byte, third: Byte) {
+    var message = [first, second, third]
+    var sent = socket.write_bytes_now(message)
     console.print("sent without waiting:", sent)
-    heap.free(message)
 }
 
-func receive(socket: Socket, buffer: Memory.Address, wanted: Integer): Integer {
-    var received = socket.read_bytes_now(buffer, wanted)
-    while received < wanted and not socket.closed {
+func receive(socket: Socket, wanted: Integer): List<Byte> {
+    var received = socket.read_bytes_now()
+    while received.count() < wanted and not socket.closed {
         program.sleep(1)
-        var more = socket.read_bytes_now(buffer + received, wanted - received)
-        received = received + more
+        var more = socket.read_bytes_now()
+        var more_count = more.count()
+        received.append_bytes(more, 0, more_count)
     }
     return received
 }

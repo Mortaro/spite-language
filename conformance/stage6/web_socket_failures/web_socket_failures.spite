@@ -1,8 +1,6 @@
 var console = Console()
 var server = HttpServer()
 var log = List<String>()
-var heap = Memory.Heap()
-var bytes = TypedMemory<Byte>()
 
 func WebSocketFailures() {
     crash server.listen_locally(47914)
@@ -136,16 +134,7 @@ func write_text(socket: Socket, text: String) {
 }
 
 func write_list(socket: Socket, list: List<Byte>) {
-    var counted = list.count()
-    var buffer = heap.allocate(counted)
-    var index = 0
-    while index < counted {
-        var value = list[index]
-        bytes.write_value(buffer, index, value)
-        index = index + 1
-    }
-    crash socket.write_bytes(buffer, counted)
-    heap.free(buffer)
+    crash socket.write_bytes(list)
 }
 
 func write_frame(socket: Socket, first: Integer, payload: List<Byte>) {
@@ -170,17 +159,13 @@ func write_frame(socket: Socket, first: Integer, payload: List<Byte>) {
 
 func read_until_closed(socket: Socket): List<Byte> {
     var received = List<Byte>()
-    var buffer = heap.allocate(256)
     while not socket.closed {
-        var got = socket.read_bytes(buffer, 256)
-        var index = 0
-        while index < got {
-            var value = bytes.read_value(buffer, index)
-            received.append(value)
-            index = index + 1
+        var got = socket.read_bytes()
+        if got {
+            var got_count = got.count()
+            received.append_bytes(got, 0, got_count)
         }
     }
-    heap.free(buffer)
     return received
 }
 

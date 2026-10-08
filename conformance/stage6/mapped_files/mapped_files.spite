@@ -1,14 +1,11 @@
 var console = Console()
-var heap = Memory.Heap()
-var longs = TypedMemory<Long>()
 
 func MappedFiles() {
     var store = File(".spite/mapped_files_records.bin")
-    var record = heap.allocate(16)
-    longs.write_value(record, 0, 1111)
-    longs.write_value(record, 1, 2222)
-    store.write_bytes(record, 16)
-    heap.free(record)
+    var record = List<Byte>()
+    record.append_long(1111)
+    record.append_long(2222)
+    store.write_bytes(record)
     store.append("tail")
     show_records(store)
     var empty = File(".spite/mapped_files_empty.bin")

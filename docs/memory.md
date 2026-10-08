@@ -819,6 +819,10 @@ your own is written over the heap and `TypedMemory<T>` (below), with nothing the
 that it would not do for yours: read `library/list.spite` for a complete one. The rules of this floor are in
 [the rules](../specs/memory.md#the-floor-memoryaddress-memoryheap-and-typedmemoryt).
 
+Bytes that come from outside are not this floor: a file's or a socket's bytes are a `List<Byte>`, which reads the
+numbers in it by position, and memory a C library hands out is a `ForeignBytes`, which checks every read and write
+against the size it was given ([standard_library.md](standard_library.md#numbers-in-bytes)).
+
 ### Where `String` and `Integer` keep their memory
 
 A type's storage is attributes at the top of its file. `library/string.spite` starts with the memory a

@@ -1,19 +1,19 @@
 var console = Console()
-var heap = Memory.Heap()
-var bytes = TypedMemory<Byte>()
 var watch = StageWatch()
 var connection = Socket()
 
 func update_each() {
-    var buffer = heap.allocate(1)
     var reads = 0
     while reads < 3 {
-        var count = connection.read_bytes(buffer, 1)
-        crash count == 1
-        var value = bytes.read_value(buffer, 0)
+        var received = connection.read_bytes()
+        crash received
         watch.note_resumed()
-        console.print("the reader received", value)
-        reads = reads + 1
+        var index = 0
+        while index < received.count() {
+            var value = received[index]
+            console.print("the reader received", value)
+            reads = reads + 1
+            index = index + 1
+        }
     }
-    heap.free(buffer)
 }
