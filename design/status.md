@@ -9,7 +9,8 @@ when a page gains a rule that is not built yet, add it here.
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 
 - D534, learning from a test run: not built (no profiling build, no profile file, no choice reads one).
-- D533, collection types as intention: the compiler still stores each `Dictionary` one way (a hash table).
+- D533, collection types as intention: the compiler still stores each `Dictionary` one way (a hash table), one form
+  per key type and value type; no heuristic chooses another representation per use.
 
 The page teaches D506, D507 and D508 as the language; most of what it says the compiler does is not built. The
 plan and its order are [naive_programs.md](naive_programs.md), the work items [naive_programs_pairs.md](naive_programs_pairs.md).
@@ -600,8 +601,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - D537: `fits_vector()` still exists beside `is_fixed_size` (60 uses against 27); remove it and migrate. A walk over
   a description (`schema()`) does not yet count as a read in specs/style.md's rule.
 
-- D532, `Dictionary<Key, Value>` with any key type (objects by identity): not built. The library, compiler, docs,
-  specs, skills and every program still use `Dictionary<T>` with the key kind inferred (D224). One migration.
+- D532 is built. Not built: keying a class that declares `equals` by its `equals` (such a key is a compile error
+  until then), and writing an object key or a fraction key as JSON (refused while compiling). An object key's hash
+  still counts the key up and down around the call that reads its address.
 
 - D510 (item 280): `each_<member>(...)` passing extra arguments to the member on every element. Not documented on the
   page and not built; `BinaryFormat`'s plural walk and backlog J1's binary half wait on it.

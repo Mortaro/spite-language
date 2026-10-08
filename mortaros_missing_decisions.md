@@ -126,6 +126,18 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   with the classes read when the loop starts (a branch between two compiled forms), instead of the unrolling pair
   T4b proposed. Why: the naive engine builds its stages at run time from strings, so their order is not known while
   compiling; the table needs no order (the case's three voices 257 ms to 91).
+- **D540, how `Dictionary<Key, Value>` keys behave** (built for D532): a fraction key is found by value, so
+  `0.0` and `-0.0` are one key and every `not_a_number` is one key; a `Boolean` and an enum value are keys by value;
+  an untyped literal is keyed `String` or `Integer` by its first key; a key is cast to the key type as any argument
+  is, so a number given to a `Dictionary<String, V>` becomes its text. Why: each answers the same as the value's
+  `==` would, but for `not_a_number`, where a key that can never be found again would be a silent loss (D244).
+- **D540, what cannot be a key**: a class that declares `equals` (until keying by `equals` is built), a
+  nullable, a union, a shape, a function value, a `Symbol` and a value class are compile errors. Why: each would
+  either miss an equal key or has no identity to key by; every one can be allowed later without breaking a program.
+- **D540, writing keyed dictionaries out**: JSON writes an enum key by its name and refuses keys other than a
+  `String`, a whole number or an enum; no format writes an object key; the binary schema text keeps its old
+  spelling, so binary files written before still read. Why: a JSON key is text, and an object's identity does not
+  survive a file.
 
 ## Open
 
