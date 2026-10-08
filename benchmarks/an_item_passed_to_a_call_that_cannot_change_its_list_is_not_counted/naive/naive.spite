@@ -1,0 +1,11 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var playlist = Playlist()
+    var start = clock.elapsed_nanoseconds()
+    var total = playlist.listen(10000000)
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}

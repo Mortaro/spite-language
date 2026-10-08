@@ -468,6 +468,21 @@ read with their reading function, and passed on by a held parameter.
 | physics step | 12.5 ms | 12.0 ms |
 | the case, ten million calls | 28.4 ms | 5.4 ms |
 
+**Measured again after held attributes** (base 28.3 ms that round): the write-back alone (W) is now 6.6 ms, the
+row in locals with the system inlined (R) another 6 on top of F, M and W, the fused loop (F) 2.5, the single match
+(M) 1.5, and the items `choose` and `stamp_written` read with `[]` and use at once (B1t) about 1. Of W, storing the
+same object back into its slot with a count up and two down is 2.2 ms (a run-time identity test skipping it,
+measured by hand) and the per-attribute path to it the rest.
+
+**Built: an item used at once is not counted** (D538), pair B1t: `candidates[index].count()`,
+`candidates[index][picked]`, `headers[index].stored` and `changes.stamp_written(headers[index], entity)` read the
+slot in place.
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file (medians of nine) | 27.3 ms | 25.9 ms |
+| the case, ten million passes | 23.9 ms | 20.7 ms |
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a

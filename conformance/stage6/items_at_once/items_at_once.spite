@@ -1,0 +1,13 @@
+var console = Console()
+var library = Library()
+
+func ItemsAtOnce() {
+    var weighed = library.weigh_all()
+    console.print("weighed", weighed)
+    var counted = library.count_first()
+    console.print("counted", counted)
+    var dropped = library.drop_first()
+    console.print("read the shelf it dropped", dropped)
+    var replaced = library.replace_second()
+    console.print("read the shelf it replaced", replaced)
+}

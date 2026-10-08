@@ -10,24 +10,11 @@ int64_t Reader_read_round(Reader* self, int32_t rows_, int32_t round_) {
         if (!(({ List_Box* spite_temp_9 = (self->shelf_)->boxes_; int32_t spite_temp_10 = place_; (spite_temp_10 >= 0 && spite_temp_10 < (spite_temp_9)->item_count_) && ((((Box**)(intptr_t)(spite_temp_9)->items_)[spite_temp_10]) != 0); }))) {
             spite_failed_1(place_, self, rows_, round_, total_, row_);
         }
-        total_ = ({ int64_t spite_temp_11 = total_; int64_t spite_temp_12 = SpiteInteger_to_long(({ Box* spite_temp_13 = List_Box_get_at((self->shelf_)->boxes_, place_); int32_t spite_temp_14 = (spite_temp_13)->weight_; Box___release(spite_temp_13); spite_temp_14; })); int64_t spite_temp_15; if (__builtin_expect(__builtin_add_overflow(spite_temp_11, spite_temp_12, &spite_temp_15), 0)) spite_overflowed("total + shelf.boxes[place].weight", "a Long", "+", (int64_t)spite_temp_11, (int64_t)spite_temp_12, spite_site_2()); spite_temp_15; });
+        total_ = ({ int64_t spite_temp_11 = total_; int64_t spite_temp_12 = SpiteInteger_to_long((({ List_Box* spite_temp_13 = (self->shelf_)->boxes_; int32_t spite_temp_14 = place_; if (__builtin_expect(spite_temp_14 < 0 || spite_temp_14 >= (spite_temp_13)->item_count_, 0)) spite_outside_list("shelf.boxes[place]", spite_site_2()); ((Box**)(intptr_t)(spite_temp_13)->items_)[spite_temp_14]; }))->weight_); int64_t spite_temp_15; if (__builtin_expect(__builtin_add_overflow(spite_temp_11, spite_temp_12, &spite_temp_15), 0)) spite_overflowed("total + shelf.boxes[place].weight", "a Long", "+", (int64_t)spite_temp_11, (int64_t)spite_temp_12, spite_site_2()); spite_temp_15; });
         row_ = (row_ + 1);
     }
     int64_t spite_temp_16 = total_;
     return spite_temp_16;
-}
-
-Box* List_Box_get_at(List_Box* self, int32_t index_) {
-    if ((((index_ >= 0))) && (((index_ < self->item_count_)))) {
-        Box* spite_temp_17 = TypedMemory__Box_read_value(self->values_, self->items_, index_);
-        return spite_temp_17;
-    }
-    Box* spite_temp_18 = 0;
-    return spite_temp_18;
-}
-
-Box* TypedMemory__Box_read_value(TypedMemory__Box* self, int64_t address_, int32_t index_) {
-    return Box___retain(((Box**)(intptr_t)address_)[index_]);
 }
 
 int32_t Shelf_count(Shelf* self) {

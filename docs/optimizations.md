@@ -1446,6 +1446,93 @@ lost. Not for text, unions of values or a variadic list.
 stores them, ticks in 30.5 ms instead of 36.0 as one C file (36.7 instead of 42.3 split); its physics step takes
 12.0 ms instead of 12.5.
 
+### An item passed to a call that cannot change its list is not counted
+
+**The case:** [benchmarks/an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](../benchmarks/an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/).
+
+**What it does.** A list item used at once, without a name, is read from its slot without counting it: passed to
+a call that cannot change the list (`length_of(tracks[first])`), read for one of its attributes
+(`tracks[first].seconds`), or asked one of a list's reading functions when the item is itself a list
+(`plays[at].count()`, `plays[at][0]`). The list holds the item through all of it, so a count up and down around
+the use is two writes for nothing.
+
+```gdscript title=items_used_at_once/playlist.spite
+var tracks = List<Track>()
+var plays = List<List<Integer>>()
+
+func add(seconds: Integer) {
+    var track = Track()
+    track.seconds = seconds
+    tracks.append(track)
+    var heard = List<Integer>()
+    heard.append(seconds / 2)
+    plays.append(heard)
+}
+
+func longer_of(first: Integer, second: Integer): Integer {
+    crash tracks[first]
+    crash tracks[second]
+    if tracks[first].seconds > tracks[second].seconds {
+        return length_of(tracks[first])
+    }
+    return length_of(tracks[second])
+}
+
+func length_of(track: Track): Integer {
+    return track.seconds
+}
+
+func times_heard(at: Integer): Integer {
+    crash plays[at]
+    return plays[at].count()
+}
+```
+```gdscript title=items_used_at_once/track.spite
+var seconds = 0
+```
+```gdscript title=items_used_at_once/items_used_at_once.spite entry
+var console = Console()
+
+func ItemsUsedAtOnce() {
+    var playlist = Playlist()
+    playlist.add(185)
+    playlist.add(240)
+    var longest = playlist.longer_of(0, 1)
+    var heard = playlist.times_heard(1)
+    console.print("longest", longest, "heard", heard)
+}
+```
+```output
+longest 240 heard 1
+```
+
+Each item is the slot's pointer, read after the index is checked against the list:
+
+```c
+Playlist_length_of___held_0(self, ({ List_Track* list = self->tracks_; int32_t at = first_; if (__builtin_expect(at < 0 || at >= (list)->item_count_, 0)) spite_outside_list("tracks[first]", ...); ((Track**)(intptr_t)(list)->items_)[at]; }))
+List_Integer_count(({ ... ((List_Integer**)(intptr_t)(list)->items_)[at]; }))
+```
+
+where each was `List_Track_get_at` with the item counted and let go after. A call the item is passed to goes to
+the copy that takes it held, and only when nothing it can reach writes into that list, shrinks or reorders it,
+assigns an attribute along the list's path or its index, or lets go of what its slots hold
+([the same facts](#an-item-a-name-holds-from-its-list-is-not-counted) a named item needs), so
+`read_after_dropping(shelves[0])`, which removes `shelves[0]`, still counts it. An attribute read or a list's
+`count`, `is_empty`, `get_at` (`[]`), `first`, `last`, `contains` or `index_of` runs nothing of the program's in
+between, so it needs no facts at all.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
+function a `Concurrent` runs, in a class of the program's own, for an item of a `List` named by a path of names and
+attributes, at an index that is a name or a number, whose item is a class or a list (not text, a union, a nullable
+item or a function value), and only where the read is already proven (narrowed, or by a bound). Not for a
+`Dictionary` entry, an index that is computed, an attribute with a getter, or an item used as the receiver of any
+other function.
+
+**What you notice.** Speed. The naive engine's runner reads each candidate list of its systems with
+`candidates[index].count()` and `candidates[index][picked]` for every entity, and stamps every column through
+`changes.stamp_written(headers[index], entity)`: its stress tick goes from 27.3 to 25.9 ms as one C file (medians of
+nine).
+
 ### A singleton's attribute that never changes is read in place
 
 **The case:** [benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place](../benchmarks/a_singletons_attribute_that_never_changes_is_read_in_place/).

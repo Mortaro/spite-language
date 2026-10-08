@@ -12907,17 +12907,13 @@ func generate_argument_list(
             result.append(lent_code)
         } else if held_at >= 0 {
             var framed = position_in(framed_positions, index) >= 0
-            framing_function_value = framed
-            var held_result = generate_expression(arguments_ast[index], scope, class_information)
-            if framed and framing_function_value {
-                framing_function_value = false
-                report(
-                    "internal: the function value passed here was to be made in the frame and was not; this is a compiler bug",
-                )
-            }
-            var held_type = held_result.type
-            var held_read = held_read_code(held_result, arguments_ast[index])
-            var held_code = cast(held_read, held_type, expected_types[index])
+            var held_code = held_argument_code(
+                arguments_ast[index],
+                expected_types[index],
+                framed,
+                scope,
+                class_information,
+            )
             result.append(held_code)
         } else if framed_code.is_empty() {
             borrow_site = "argument:{callee}"
@@ -15559,6 +15555,7 @@ func held_variant_name(
     var framed_candidates = List<Integer>()
     var path_candidates = List<Integer>()
     var path_candidate_dependencies = List<String>()
+    var item_candidates = List<Integer>()
     var index = 0
     while index < arguments_ast.count() {
         var index_text = index.to_string()
@@ -15576,6 +15573,9 @@ func held_variant_name(
                 path_candidates.append(index)
                 var joined_dependencies = path_dependencies.join(" ")
                 path_candidate_dependencies.append(joined_dependencies)
+            } else if held_item_argument(arguments_ast[index], expected_types[index], scope, class_information) {
+                candidates.append(index)
+                item_candidates.append(index)
             } else if frameable_function_value(arguments_ast[index], expected_types[index], scope, class_information) {
                 candidates.append(index)
                 framed_candidates.append(index)
@@ -15604,8 +15604,9 @@ func held_variant_name(
     var framed = List<String>()
     var callee_effects = List<String>()
     var effects_known = false
+    var callee_key = call_effects.effects_key(owner.qualified_dotted, original.name)
     if not path_candidates.is_empty() {
-        effects_known = not call_effects.effects_key(owner.qualified_dotted, original.name).is_empty()
+        effects_known = not callee_key.is_empty()
         callee_effects = call_effects.effects_of(owner.qualified_dotted, original.name)
     }
     var candidate_index = 0
@@ -15619,6 +15620,9 @@ func held_variant_name(
         var shaped_type = type_shape.as_union(expected_types[position])
         if fits and shaped_type {
             fits = guards_singleton(owner, original) or not dispatches_shapes(owner, original)
+        }
+        if fits and item_candidates.contains(position) {
+            fits = held_item_keeps(arguments_ast[position], callee_key, scope, class_information)
         }
         var path_at = path_candidates.index_of(position)
         if fits and path_at {
@@ -16103,6 +16107,183 @@ func held_shape_field(spite_type: Analysis.SpiteType?, name: String, last: Boole
     return shaped_field
 }
 
+# ../../../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted
+func held_item_argument(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if not slot_proofs_allowed(class_information) or not holdable_type(expected_type) {
+        return false
+    }
+    if type_shape.as_union(expected_type) {
+        return false
+    }
+    var read = shape.as_index(argument)
+    if not read {
+        return false
+    }
+    crash read.object
+    crash read.index
+    if not plain_path(read.object) or operand_text(read.object).is_empty() {
+        return false
+    }
+    if not shape.as_identifier(read.index) and not shape.as_integer_literal(read.index) {
+        return false
+    }
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    if not list_type {
+        return false
+    }
+    var listed = type_shape.as_list(list_type)
+    if not listed {
+        return false
+    }
+    var element = listed.element
+    if type_shape.as_nullable(element) {
+        return false
+    }
+    if type_shape.as_list(element) {
+        return true
+    }
+    var class_reference = type_shape.as_class_ref(element)
+    if not class_reference {
+        return false
+    }
+    return not class_reference.has_signature
+}
+
+func held_item_keeps(
+    argument: Syntax.Expressions.Expression,
+    callee_key: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if callee_key.is_empty() {
+        return false
+    }
+    var read = shape.as_index(argument)
+    crash read
+    var watch = slot_watch_for("", read, argument, scope, class_information)
+    if not watch {
+        return false
+    }
+    return slot_key_holds(watch, callee_key) and slot_watch_settles(watch)
+}
+
+func held_item_code(
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var read = shape.as_index(argument)
+    crash read
+    crash read.object
+    crash read.index
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    crash list_type
+    var listed = type_shape.as_list(list_type)
+    crash listed
+    var list_code = generate_expression(read.object, scope, class_information)
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(read.index, integer_spite_type, scope, class_information)
+    var list_temporary = next_temporary()
+    var index_temporary = next_temporary()
+    var item = list_item_code(listed.element, list_temporary, index_temporary)
+    var outside = "{index_temporary} < 0 || {index_temporary} >= ({list_temporary})->item_count_"
+    ensure_index_check()
+    var printer = Syntax.SourcePrinter()
+    var read_source = printer.source_expression(argument)
+    var read_text = escape_c_string(read_source)
+    var where = located(current_path, current_line, current_owner, current_function)
+    return "(\{ {c_type_name(list_type)} {list_temporary} = {list_code.code}; int32_t {index_temporary} = {index_code}; if (__builtin_expect({outside}, 0)) spite_outside_list(\"{read_text}\", {where}); {item}; })"
+}
+
+func held_argument_code(
+    argument: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    framed: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var item_argument = shape.as_index(argument)
+    if item_argument and held_item_argument(argument, expected_type, scope, class_information) {
+        var item_code = held_item_code(argument, scope, class_information)
+        return cast(item_code, expected_type, expected_type)
+    }
+    framing_function_value = framed
+    var held_result = generate_expression(argument, scope, class_information)
+    if framed and framing_function_value {
+        framing_function_value = false
+        report(
+            "internal: the function value passed here was to be made in the frame and was not; this is a compiler bug",
+        )
+    }
+    var held_type = held_result.type
+    var held_read = held_read_code(held_result, argument)
+    return cast(held_read, held_type, expected_type)
+}
+
+# ../../../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted
+func item_object_uncounted(
+    object_ast: Syntax.Expressions.Expression,
+    generated: ExpressionResult,
+    member_name: String,
+    calls: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert slot_proofs_allowed(class_information)
+    var generated_type = generated.type
+    assert not type_shape.as_nullable(generated_type) and owns(generated, object_ast)
+    var read = shape.as_index(object_ast)
+    assert read
+    crash read.object
+    crash read.index
+    assert plain_path(read.object) and not operand_text(read.object).is_empty()
+    assert shape.as_identifier(read.index) or shape.as_integer_literal(read.index)
+    var list_type = receiver_type_of(read.object, scope, class_information)
+    assert list_type
+    var listed = type_shape.as_list(list_type)
+    assert listed
+    var element = listed.element
+    assert not type_shape.as_nullable(element)
+    assert types_equal(element, generated_type)
+    assert item_member_reads_only(element, member_name, calls)
+    var item_code = held_item_code(object_ast, scope, class_information)
+    var item = ExpressionResult(item_code, element)
+    item.owning_override = false
+    return item
+}
+
+func item_member_reads_only(element: Analysis.SpiteType, member_name: String, calls: Boolean): Boolean {
+    if calls {
+        var reading = ["count", "is_empty", "get_at", "first", "last", "contains", "index_of"]
+        var listed_item = type_shape.as_list(element)
+        if not listed_item {
+            return false
+        }
+        return reading.contains(member_name)
+    }
+    var class_reference = type_shape.as_class_ref(element)
+    if not class_reference {
+        return false
+    }
+    if class_reference.has_signature {
+        return false
+    }
+    var element_class = find_class_by_c_name(class_reference.c_name)
+    if not element_class {
+        return false
+    }
+    var field = element_class.find_field(member_name)
+    if not field {
+        return false
+    }
+    return not element_class.find_function("get_{member_name}")
+}
+
 func held_read_code(held_result: ExpressionResult, argument: Syntax.Expressions.Expression): String {
     if held_result.peek_union {
         return peeked_code(held_result)
@@ -16407,6 +16588,17 @@ func generate_method_call(
     }
     var object_counter = temporary_counter
     var generated_member_object = member_object_in_frame(object_ast, member.name, scope, class_information)
+    var uncounted_receiver = item_object_uncounted(
+        object_ast,
+        generated_member_object,
+        member.name,
+        true,
+        scope,
+        class_information,
+    )
+    if uncounted_receiver {
+        generated_member_object = uncounted_receiver
+    }
     var object_result = as_text(generated_member_object)
     var object_result_type = object_result.type
     var handle = joinable_handle(object_result_type)
@@ -22382,6 +22574,18 @@ func generate_index_read(
     var proven = not read_path.is_empty() and scope.is_path_narrowed(read_path)
     var present = not read_path.is_empty() and scope.is_present_narrowed(read_path)
     var object_result = generate_expression(index_expression.object, scope, class_information)
+    crash index_expression.object
+    var uncounted_list = item_object_uncounted(
+        index_expression.object,
+        object_result,
+        "get_at",
+        true,
+        scope,
+        class_information,
+    )
+    if uncounted_list {
+        object_result = uncounted_list
+    }
     var arguments_ast = List<Syntax.Expressions.Expression>()
     arguments_ast.append(index_expression.index)
     var object_result_type = object_result.type
@@ -25067,6 +25271,17 @@ func generate_member_read_raw(
     }
     var object_counter = temporary_counter
     var object_result = generate_member_object(member.object, scope, class_information)
+    var uncounted_object = item_object_uncounted(
+        member.object,
+        object_result,
+        member.name,
+        false,
+        scope,
+        class_information,
+    )
+    if uncounted_object {
+        object_result = uncounted_object
+    }
     var object_result_type = object_result.type
     var handle = joinable_handle(object_result_type)
     if handle {

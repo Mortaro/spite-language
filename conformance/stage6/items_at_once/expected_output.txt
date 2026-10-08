@@ -1,0 +1,4 @@
+weighed 500
+counted 4
+read the shelf it dropped 1
+read the shelf it replaced 3

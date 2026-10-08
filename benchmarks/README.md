@@ -140,7 +140,7 @@ same time, so read a few percent either way as noise.
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed |
 | [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 3.62 | 8.06 |
 | [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 4.45 | 6.75 |
-| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.60 | 47.73 |
+| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 0.18 | 9.14 |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 0.17 | 3.18 |
 | [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 0.69 | 1.37 |
 | [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 0.75 | 1.07 |
@@ -151,6 +151,7 @@ same time, so read a few percent either way as noise.
 | [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 0.35 | 19.23 |
 | [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 1.01 | 1.69 |
 | [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 1.06 | 8.64 |
+| [an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/) | 1.06 | 8.97 |
 | [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 0.81 | 10.90 |
 | [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 0.59 | 12.89 |
 | [appending_to_text_in_place](appending_to_text_in_place/) | 0.00 | 0.84 |
