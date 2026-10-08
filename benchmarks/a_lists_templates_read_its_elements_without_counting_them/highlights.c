@@ -8,11 +8,11 @@ int64_t Naive_simulate___held_0(Naive* self, List_Body* bodies_) {
     while (((round_ < 100))) {
         List_Body_each_advance(bodies_);
         int32_t positions_ = List_Body_sum_position(bodies_);
-        total_ = ({ int64_t spite_temp_1 = total_; int64_t spite_temp_2 = SpiteInteger_to_long(positions_); int64_t spite_temp_3; if (__builtin_expect(__builtin_add_overflow(spite_temp_1, spite_temp_2, &spite_temp_3), 0)) spite_overflowed("total + positions", "a Long", "+", (int64_t)spite_temp_1, (int64_t)spite_temp_2, spite_site_1()); spite_temp_3; });
+        total_ = (total_ + SpiteInteger_to_long(positions_));
         round_ = (round_ + 1);
     }
-    int64_t spite_temp_4 = total_;
-    return spite_temp_4;
+    int64_t spite_temp_1 = total_;
+    return spite_temp_1;
 }
 
 void List_Body_each_advance(List_Body* self) {
@@ -29,9 +29,9 @@ int32_t List_Body_sum_position(List_Body* self) {
     int32_t index_ = 0;
     while (((index_ < self->item_count_))) {
         Body* item_ = ((Body**)(intptr_t)self->items_)[index_];
-        total_ = ({ int32_t spite_temp_5 = total_; int32_t spite_temp_6 = (item_)->position_; int32_t spite_temp_7; if (__builtin_expect(__builtin_add_overflow(spite_temp_5, spite_temp_6, &spite_temp_7), 0)) spite_overflowed("total + item.attributes[member]", "an Integer", "+", (int64_t)spite_temp_5, (int64_t)spite_temp_6, spite_site_2()); spite_temp_7; });
+        total_ = ({ int32_t spite_temp_2 = total_; int32_t spite_temp_3 = (item_)->position_; int32_t spite_temp_4; if (__builtin_expect(__builtin_add_overflow(spite_temp_2, spite_temp_3, &spite_temp_4), 0)) spite_overflowed("total + item.attributes[member]", "an Integer", "+", (int64_t)spite_temp_2, (int64_t)spite_temp_3, spite_site_1()); spite_temp_4; });
         index_ = (index_ + 1);
     }
-    int32_t spite_temp_8 = total_;
-    return spite_temp_8;
+    int32_t spite_temp_5 = total_;
+    return spite_temp_5;
 }

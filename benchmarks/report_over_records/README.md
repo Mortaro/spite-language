@@ -33,10 +33,13 @@ fields) after its `microseconds` line.
 `struct Sale` is the eight fields behind the 8-byte header every object has, and the list holds pointers to them:
 the class pools put the sales side by side, so a walk reads them in memory order, but every pass still reads every
 byte of every sale (40 of them, plus the 8-byte pointer) whatever fields it needs. In `Naive_profit_of___held_0`
-every `+`, `-` and `*` is checked (`__builtin_*_overflow` with a call that halts), and the read of `sales[index]`
-tests its bounds, so the C compiler cannot vectorise the loop even though it is a plain filtered sum. The Long sum
-of `Integer` terms in `List_Sale_sum_quantity` and the profit loop can never overflow (fewer than 2^31 terms, each
-below 2^32 in size), so those checks are provably dead; that proof is the first step the proposal suggests.
+the `Integer` `-` and `*` of the attributes are checked (`__builtin_*_overflow` with a call that halts), and the
+read of `sales[index]` tests its bounds, so the C compiler cannot vectorise the loop even though it is a plain
+filtered sum. The `Long` total's `+` is plain: a `Long` sum of fewer than 2^31 `Integer` terms can never overflow,
+which [a range proves](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked), the first step the
+proposal suggests; so are the seed's `* 48271`, the sale's `% 20 + 1` and `% 500 + 100`, and the fingerprint's
+`Long` sums. `List_Sale_sum_quantity` adds in an `Integer`, the attribute's type, so its check stays, and the
+attributes' own products stay checked until attributes have ranges.
 
 ## Timings
 

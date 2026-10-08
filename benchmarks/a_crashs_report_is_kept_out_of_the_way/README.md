@@ -35,8 +35,9 @@ and everything it would print (the site, `values[pick] is missing: index ..., co
 and `index`) is in `spite_failed_1`, marked `SPITE_CRASH_REPORT`, which is `noinline, cold, noreturn`: the loop
 holds the test and a call the C compiler moves out of the hot path. That is what `expert.c` writes by hand; in
 `naive.c` the `fprintf` with its five values sits inside the loop, where the C compiler may or may not move it
-out. The overflow checks on `picks[index] + round` and `total + values[pick]` call `spite_overflowed`, another
-function kept out of the loop, with the operands and the site.
+out. The overflow check on `picks[index] + round` calls `spite_overflowed`, another function kept out of the loop,
+with the operands and the site; `total + values[pick]` has none, since a `Long` total of one `Integer` a pass cannot
+overflow ([a range proves it](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked)).
 
 ## Timings
 

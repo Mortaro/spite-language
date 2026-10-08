@@ -8,12 +8,12 @@ int64_t Naive_copy_rounds___held_0(Naive* self, List_Order* orders_) {
     while (((round_ < 40))) {
         List_Order* copies_ = List_Order___deep_copy(orders_);
         int32_t value_ = List_Order_sum_value(copies_);
-        total_ = ({ int64_t spite_temp_1 = total_; int64_t spite_temp_2 = SpiteInteger_to_long(value_); int64_t spite_temp_3; if (__builtin_expect(__builtin_add_overflow(spite_temp_1, spite_temp_2, &spite_temp_3), 0)) spite_overflowed("total + value", "a Long", "+", (int64_t)spite_temp_1, (int64_t)spite_temp_2, spite_site_1()); spite_temp_3; });
+        total_ = (total_ + SpiteInteger_to_long(value_));
         round_ = (round_ + 1);
         List_Order___release(copies_);
     }
-    int64_t spite_temp_4 = total_;
-    return spite_temp_4;
+    int64_t spite_temp_1 = total_;
+    return spite_temp_1;
 }
 
 List_Order* List_Order___deep_copy(List_Order* self) {

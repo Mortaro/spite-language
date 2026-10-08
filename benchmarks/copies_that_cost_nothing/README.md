@@ -30,7 +30,9 @@ allocation, and `Point_move_by(moved_, ...)` and `Point_distance_from_origin(mov
 `Point___retain` or `Point___release` around them. Under `--debug-memory` the whole program makes 6 allocations.
 `naive.c` mallocs each copy, but clang at `-O2` inlines the copy, the move and the measure and removes that
 `malloc` and its `free` itself (`clang -O2 -S` of `naive.c` keeps only the origin's `malloc`), so its time is close
-to `expert.c`'s; what is left between `naive/` and them is the overflow check on each `+` and `-`.
+to `expert.c`'s; what is left between `naive/` and them is the overflow check on the total's `+` (the trial's
+`trial % 5 - 2` and `trial % 7 - 3` have none, [a range proves
+them](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked)).
 
 ## What is not built yet
 

@@ -15,29 +15,29 @@ int64_t Naive_round_total___held_0_1(Naive* self, List_Integer* values_, List_In
         if (!(((List_Integer_get_at(values_, pick_)).has_value))) {
             spite_failed_1(pick_, values_, round_, total_, index_);
         }
-        total_ = ({ int64_t spite_temp_6 = total_; int64_t spite_temp_7 = SpiteInteger_to_long((List_Integer_get_at(values_, pick_)).value); int64_t spite_temp_8; if (__builtin_expect(__builtin_add_overflow(spite_temp_6, spite_temp_7, &spite_temp_8), 0)) spite_overflowed("total + values[pick]", "a Long", "+", (int64_t)spite_temp_6, (int64_t)spite_temp_7, spite_site_2()); spite_temp_8; });
+        total_ = (total_ + SpiteInteger_to_long((List_Integer_get_at(values_, pick_)).value));
         index_ = (index_ + 1);
     }
-    int64_t spite_temp_9 = total_;
-    return spite_temp_9;
+    int64_t spite_temp_6 = total_;
+    return spite_temp_6;
 }
 
 static SPITE_CRASH_REPORT void spite_failed_1(int32_t pick_, List_Integer* values_, int32_t round_, int64_t total_, int32_t index_) {
     spite_crash_begin();
     fflush(stdout);
-    fputs(spite_site_3(), stderr);
+    fputs(spite_site_2(), stderr);
     {
         fputs("\tvalues[pick] is missing: index ", stderr);
-        { SpiteString spite_temp_10 = SpiteInteger_to_string(pick_); fwrite(spite_string_bytes(&spite_temp_10), 1, (size_t)spite_string_length(spite_temp_10), stderr); SpiteString___release(spite_temp_10); }
+        { SpiteString spite_temp_7 = SpiteInteger_to_string(pick_); fwrite(spite_string_bytes(&spite_temp_7), 1, (size_t)spite_string_length(spite_temp_7), stderr); SpiteString___release(spite_temp_7); }
         fputs(", count ", stderr);
-        { SpiteString spite_temp_11 = SpiteInteger_to_string(((values_)->item_count_)); fwrite(spite_string_bytes(&spite_temp_11), 1, (size_t)spite_string_length(spite_temp_11), stderr); SpiteString___release(spite_temp_11); }
+        { SpiteString spite_temp_8 = SpiteInteger_to_string(((values_)->item_count_)); fwrite(spite_string_bytes(&spite_temp_8), 1, (size_t)spite_string_length(spite_temp_8), stderr); SpiteString___release(spite_temp_8); }
     }
     fputs("\tround=", stderr);
-    { SpiteString spite_temp_12 = SpiteInteger_to_string(round_); spite_crash_text(spite_string_bytes(&spite_temp_12), spite_string_length(spite_temp_12)); SpiteString___release(spite_temp_12); }
+    { SpiteString spite_temp_9 = SpiteInteger_to_string(round_); spite_crash_text(spite_string_bytes(&spite_temp_9), spite_string_length(spite_temp_9)); SpiteString___release(spite_temp_9); }
     fputs("\ttotal=", stderr);
-    { SpiteString spite_temp_13 = SpiteLong_to_string(total_); spite_crash_text(spite_string_bytes(&spite_temp_13), spite_string_length(spite_temp_13)); SpiteString___release(spite_temp_13); }
+    { SpiteString spite_temp_10 = SpiteLong_to_string(total_); spite_crash_text(spite_string_bytes(&spite_temp_10), spite_string_length(spite_temp_10)); SpiteString___release(spite_temp_10); }
     fputs("\tindex=", stderr);
-    { SpiteString spite_temp_14 = SpiteInteger_to_string(index_); spite_crash_text(spite_string_bytes(&spite_temp_14), spite_string_length(spite_temp_14)); SpiteString___release(spite_temp_14); }
+    { SpiteString spite_temp_11 = SpiteInteger_to_string(index_); spite_crash_text(spite_string_bytes(&spite_temp_11), spite_string_length(spite_temp_11)); SpiteString___release(spite_temp_11); }
     fputs("\n", stderr);
     spite_report_assert_trace();
     exit(1);

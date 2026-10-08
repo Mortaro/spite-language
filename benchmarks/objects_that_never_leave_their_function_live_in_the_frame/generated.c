@@ -364,11 +364,10 @@ typedef struct { bool has_value; int64_t value; } Nullable_Long;
 #define SpiteInteger_to_byte(self) ((uint8_t)(self))
 #define SpiteInteger_to_float(self) ((float)(self))
 static SpiteString spite_lit_5 = SPITE_STATIC_STRING("0", 1);
-#define spite_site_3() "library/long.spite:15 in Long.to_string"
-#define spite_site_4() "library/long.spite:17 in Long.to_string"
-#define spite_site_5() "library/long.spite:18 in Long.to_string"
-#define spite_site_6() "library/long.spite:22 in Long.to_string"
-#define spite_site_7() "library/long.spite:26 in Long.to_string"
+#define spite_site_3() "library/long.spite:17 in Long.to_string"
+#define spite_site_4() "library/long.spite:18 in Long.to_string"
+#define spite_site_5() "library/long.spite:22 in Long.to_string"
+#define spite_site_6() "library/long.spite:26 in Long.to_string"
 #define SpiteLong_to_unsigned_integer(self) ((uint32_t)(self))
 #define SpiteLong_to_unsigned_long(self) ((uint64_t)(self))
 typedef struct { bool has_value; uint8_t value; } Nullable_Byte;
@@ -428,10 +427,10 @@ SpiteHeader header;
 Console* console_;
 Clock* clock_;
 };
-#define spite_site_8() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:7 in Naive.Naive"
-#define spite_site_9() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:8 in Naive.Naive"
-#define spite_site_10() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:9 in Naive.Naive"
-#define spite_site_11() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:10 in Naive.Naive"
+#define spite_site_7() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:7 in Naive.Naive"
+#define spite_site_8() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:8 in Naive.Naive"
+#define spite_site_9() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:9 in Naive.Naive"
+#define spite_site_10() "benchmarks/objects_that_never_leave_their_function_live_in_the_frame/naive/naive.spite:10 in Naive.Naive"
 static SpiteBox_SpiteString spite_lit_6_box = { { 0, -1 }, SPITE_STATIC_STRING("ended at", 8) };
 static SpiteString spite_lit_7 = SPITE_STATIC_STRING("microseconds ", 13);
 struct Offset {
@@ -1325,27 +1324,27 @@ int64_t rest_ = self;
 while (((rest_ != SpiteInteger_to_long(0)))) {
 int64_t digit_ = (rest_ % SpiteInteger_to_long(10));
 if (((digit_ < SpiteInteger_to_long(0)))) {
-digit_ = ({ int64_t spite_temp_32 = digit_; int64_t spite_temp_33; if (__builtin_expect(__builtin_sub_overflow((int64_t)0, spite_temp_32, &spite_temp_33), 0)) spite_overflowed("-digit", "a Long", "-", (int64_t)0, (int64_t)spite_temp_32, spite_site_3()); spite_temp_33; });
+digit_ = (-(digit_));
 }
-position_ = ({ int64_t spite_temp_34 = position_; int64_t spite_temp_35 = SpiteInteger_to_long(1); int64_t spite_temp_36; if (__builtin_expect(__builtin_sub_overflow(spite_temp_34, spite_temp_35, &spite_temp_36), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_34, (int64_t)spite_temp_35, spite_site_4()); spite_temp_36; });
-SpiteMemory_Address_write_byte(address_, position_, ({ int64_t spite_temp_37 = ({ int64_t spite_temp_38 = digit_; int64_t spite_temp_39 = SpiteInteger_to_long(48); int64_t spite_temp_40; if (__builtin_expect(__builtin_add_overflow(spite_temp_38, spite_temp_39, &spite_temp_40), 0)) spite_overflowed("digit + 48", "a Long", "+", (int64_t)spite_temp_38, (int64_t)spite_temp_39, spite_site_5()); spite_temp_40; }); if (__builtin_expect(spite_temp_37 < 0 || spite_temp_37 > UINT8_MAX, 0)) spite_narrowed((int64_t)spite_temp_37, "a Long", "a Byte", spite_site_5()); (uint8_t)spite_temp_37; }));
+position_ = ({ int64_t spite_temp_32 = position_; int64_t spite_temp_33 = SpiteInteger_to_long(1); int64_t spite_temp_34; if (__builtin_expect(__builtin_sub_overflow(spite_temp_32, spite_temp_33, &spite_temp_34), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_32, (int64_t)spite_temp_33, spite_site_3()); spite_temp_34; });
+SpiteMemory_Address_write_byte(address_, position_, ({ int64_t spite_temp_35 = (digit_ + SpiteInteger_to_long(48)); if (__builtin_expect(spite_temp_35 < 0 || spite_temp_35 > UINT8_MAX, 0)) spite_narrowed((int64_t)spite_temp_35, "a Long", "a Byte", spite_site_4()); (uint8_t)spite_temp_35; }));
 rest_ = (rest_ / SpiteInteger_to_long(10));
 }
 if (((self < SpiteInteger_to_long(0)))) {
-position_ = ({ int64_t spite_temp_41 = position_; int64_t spite_temp_42 = SpiteInteger_to_long(1); int64_t spite_temp_43; if (__builtin_expect(__builtin_sub_overflow(spite_temp_41, spite_temp_42, &spite_temp_43), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_41, (int64_t)spite_temp_42, spite_site_6()); spite_temp_43; });
+position_ = ({ int64_t spite_temp_36 = position_; int64_t spite_temp_37 = SpiteInteger_to_long(1); int64_t spite_temp_38; if (__builtin_expect(__builtin_sub_overflow(spite_temp_36, spite_temp_37, &spite_temp_38), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_36, (int64_t)spite_temp_37, spite_site_5()); spite_temp_38; });
 SpiteMemory_Address_write_byte(address_, position_, SpiteInteger_to_byte(45));
 }
 int64_t first_digit_ = (address_ + ((int64_t)(position_)));
-SpiteString text_ = SpiteMemory_Address_text(first_digit_, ({ int64_t spite_temp_44 = buffer_bytes_; int64_t spite_temp_45 = position_; int64_t spite_temp_46; if (__builtin_expect(__builtin_sub_overflow(spite_temp_44, spite_temp_45, &spite_temp_46), 0)) spite_overflowed("buffer_bytes - position", "a Long", "-", (int64_t)spite_temp_44, (int64_t)spite_temp_45, spite_site_7()); spite_temp_46; }));
+SpiteString text_ = SpiteMemory_Address_text(first_digit_, ({ int64_t spite_temp_39 = buffer_bytes_; int64_t spite_temp_40 = position_; int64_t spite_temp_41; if (__builtin_expect(__builtin_sub_overflow(spite_temp_39, spite_temp_40, &spite_temp_41), 0)) spite_overflowed("buffer_bytes - position", "a Long", "-", (int64_t)spite_temp_39, (int64_t)spite_temp_40, spite_site_6()); spite_temp_41; }));
 if (address_ != (int64_t)(intptr_t)spite_temp_30) Memory_Heap_free(heap_, address_);
-SpiteString spite_temp_47 = SpiteString___retain(text_);
+SpiteString spite_temp_42 = SpiteString___retain(text_);
 SpiteString___release(text_);
 Memory_Heap___release(heap_);
-return spite_temp_47;
+return spite_temp_42;
 }
 SpiteString SpiteString_to_string(SpiteString self) {
-SpiteString spite_temp_48 = SpiteString___retain(self);
-return spite_temp_48;
+SpiteString spite_temp_43 = SpiteString___retain(self);
+return spite_temp_43;
 }
 SpiteString SpiteMemory_Address_text(int64_t self, int64_t length_) {
 return spite_string_from_bytes((const char*)(intptr_t)self, length_);
@@ -1362,15 +1361,15 @@ void Naive_Naive(Naive* self) {
 int64_t start_ = Clock_elapsed_nanoseconds(self->clock_);
 Offset spite_slot_1;
 Offset* ended_ = Naive_simulate___into(self, 20000000, &spite_slot_1);
-int64_t microseconds_ = (({ int64_t spite_temp_49 = Clock_elapsed_nanoseconds(self->clock_); int64_t spite_temp_50 = start_; int64_t spite_temp_51; if (__builtin_expect(__builtin_sub_overflow(spite_temp_49, spite_temp_50, &spite_temp_51), 0)) spite_overflowed("clock.elapsed_nanoseconds() - start", "a Long", "-", (int64_t)spite_temp_49, (int64_t)spite_temp_50, spite_site_8()); spite_temp_51; }) / SpiteInteger_to_long(1000));
-int64_t across_ = ({ float spite_temp_52 = ((ended_)->x_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_52 >= -9223372036854775808.0 && (double)spite_temp_52 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_52, "a Float", "a Long", spite_site_9()); (int64_t)spite_temp_52; });
-int64_t up_ = ({ float spite_temp_53 = ((ended_)->y_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_53 >= -9223372036854775808.0 && (double)spite_temp_53 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_53, "a Float", "a Long", spite_site_10()); (int64_t)spite_temp_53; });
-int64_t ahead_ = ({ float spite_temp_54 = ((ended_)->z_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_54 >= -9223372036854775808.0 && (double)spite_temp_54 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_54, "a Float", "a Long", spite_site_11()); (int64_t)spite_temp_54; });
+int64_t microseconds_ = (({ int64_t spite_temp_44 = Clock_elapsed_nanoseconds(self->clock_); int64_t spite_temp_45 = start_; int64_t spite_temp_46; if (__builtin_expect(__builtin_sub_overflow(spite_temp_44, spite_temp_45, &spite_temp_46), 0)) spite_overflowed("clock.elapsed_nanoseconds() - start", "a Long", "-", (int64_t)spite_temp_44, (int64_t)spite_temp_45, spite_site_7()); spite_temp_46; }) / SpiteInteger_to_long(1000));
+int64_t across_ = ({ float spite_temp_47 = ((ended_)->x_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_47 >= -9223372036854775808.0 && (double)spite_temp_47 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_47, "a Float", "a Long", spite_site_8()); (int64_t)spite_temp_47; });
+int64_t up_ = ({ float spite_temp_48 = ((ended_)->y_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_48 >= -9223372036854775808.0 && (double)spite_temp_48 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_48, "a Float", "a Long", spite_site_9()); (int64_t)spite_temp_48; });
+int64_t ahead_ = ({ float spite_temp_49 = ((ended_)->z_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_49 >= -9223372036854775808.0 && (double)spite_temp_49 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_49, "a Float", "a Long", spite_site_10()); (int64_t)spite_temp_49; });
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[4]; int32_t spite_framed_1_count = 0;
 Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_6_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong(across_); spite_framed_1_items[2] = spite_tagged_SpiteLong(up_); spite_framed_1_items[3] = spite_tagged_SpiteLong(ahead_); spite_framed_1_count = 4; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 4); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
-Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_55_digits[24]; SpiteString spite_temp_55 = SPITE_STATIC_STRING(spite_temp_55_digits, spite_long_digits(spite_temp_55_digits, (int64_t)(microseconds_))); SpiteString spite_temp_56[] = {spite_lit_7, spite_temp_55}; SpiteString spite_temp_57 = spite_string_join(2, spite_temp_56); spite_temp_57; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
+Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_50_digits[24]; SpiteString spite_temp_50 = SPITE_STATIC_STRING(spite_temp_50_digits, spite_long_digits(spite_temp_50_digits, (int64_t)(microseconds_))); SpiteString spite_temp_51[] = {spite_lit_7, spite_temp_50}; SpiteString spite_temp_52 = spite_string_join(2, spite_temp_51); spite_temp_52; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
 }
 Offset* Naive_simulate___into(Naive* self, int32_t steps_, Offset* restrict spite_result) {
@@ -1384,13 +1383,13 @@ while (((step_ < steps_))) {
 Offset spite_slot_4;
 Offset* pulled_ = Offset_scaled___into(gravity_, 9.9999999999999995e-07, &spite_slot_4);
 Offset spite_slot_5;
-Offset* spite_temp_58 = Offset_sum___into(velocity_, Offset___retain(pulled_), &spite_slot_5);
-Offset___copy_fields(velocity_, spite_temp_58);
+Offset* spite_temp_53 = Offset_sum___into(velocity_, Offset___retain(pulled_), &spite_slot_5);
+Offset___copy_fields(velocity_, spite_temp_53);
 Offset spite_slot_6;
 Offset* moved_ = Offset_scaled___into(velocity_, 0.001, &spite_slot_6);
 Offset spite_slot_7;
-Offset* spite_temp_59 = Offset_sum___into(position_, Offset___retain(moved_), &spite_slot_7);
-Offset___copy_fields(position_, spite_temp_59);
+Offset* spite_temp_54 = Offset_sum___into(position_, Offset___retain(moved_), &spite_slot_7);
+Offset___copy_fields(position_, spite_temp_54);
 step_ = (step_ + 1);
 }
 return spite_result;
@@ -1401,30 +1400,30 @@ self->y_ = starting_y_;
 self->z_ = starting_z_;
 }
 Offset* Offset_scaled___into(Offset* self, float factor_, Offset* restrict spite_result) {
-Offset* spite_temp_60 = Offset___make_into(spite_result, (self->x_ * factor_), (self->y_ * factor_), (self->z_ * factor_));
-return spite_temp_60;
+Offset* spite_temp_55 = Offset___make_into(spite_result, (self->x_ * factor_), (self->y_ * factor_), (self->z_ * factor_));
+return spite_temp_55;
 }
 Offset* Offset_sum___into(Offset* self, Offset* other_, Offset* restrict spite_result) {
-Offset* spite_temp_61 = Offset___make_into(spite_result, (self->x_ + (other_)->x_), (self->y_ + (other_)->y_), (self->z_ + (other_)->z_));
+Offset* spite_temp_56 = Offset___make_into(spite_result, (self->x_ + (other_)->x_), (self->y_ + (other_)->y_), (self->z_ + (other_)->z_));
 Offset___release(other_);
-return spite_temp_61;
+return spite_temp_56;
 }
 int32_t List_Console_Printable_count(List_Console_Printable* self) {
-int32_t spite_temp_62 = self->item_count_;
-return spite_temp_62;
+int32_t spite_temp_57 = self->item_count_;
+return spite_temp_57;
 }
 Console_Printable List_Console_Printable_get_at(List_Console_Printable* self, int32_t index_) {
 if ((((index_ >= 0))) && (((index_ < self->item_count_)))) {
-Console_Printable spite_temp_63 = TypedMemory__Console_Printable_read_value(self->values_, self->items_, index_);
-return spite_temp_63;
+Console_Printable spite_temp_58 = TypedMemory__Console_Printable_read_value(self->values_, self->items_, index_);
+return spite_temp_58;
 }
-Console_Printable spite_temp_64 = SPITE_TAGGED_NULL;
-return spite_temp_64;
+Console_Printable spite_temp_59 = SPITE_TAGGED_NULL;
+return spite_temp_59;
 }
 void List_Console_Printable_drop(List_Console_Printable* self) {
 List_Console_Printable_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_65 = SPITE_ALLOCATOR_List_Console_Printable(self, spite_singleton_Memory_Heap); int64_t spite_temp_66 = self->items_; if (((SpiteHeader*)(spite_temp_65))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_65), spite_temp_66); } else if (((SpiteHeader*)(spite_temp_65))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_65), spite_temp_66); } });
+({ Spite_Allocator spite_temp_60 = SPITE_ALLOCATOR_List_Console_Printable(self, spite_singleton_Memory_Heap); int64_t spite_temp_61 = self->items_; if (((SpiteHeader*)(spite_temp_60))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_60), spite_temp_61); } else if (((SpiteHeader*)(spite_temp_60))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_60), spite_temp_61); } });
 }
 }
 Console_Printable TypedMemory__Console_Printable_read_value(TypedMemory__Console_Printable* self, int64_t address_, int32_t index_) {

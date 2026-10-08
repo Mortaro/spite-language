@@ -2,8 +2,9 @@
 
 Every `+`, `-` and `*` on whole numbers is the C compiler's overflow builtin, and an answer that does not fit halts
 naming its line, in the release build as in every other: there is no unchecked mode. The check is left out only
-where the compiler proves it cannot fire (a counter stepped by one under its loop's `<`, arithmetic on constants),
-so this is the one case where Spite is meant to be slower than plain C, and the README says what that buys.
+where the compiler proves it cannot fire (a counter stepped by one under its loop's `<`, arithmetic on constants,
+an operation whose operands' ranges prove the answer fits), so this is the one case where Spite is meant to be
+slower than plain C, and the README says what that buys.
 
 - The optimisation: [docs/optimizations.md](../../docs/optimizations.md#arithmetic-is-checked-in-every-build).
 - The proof: [Arithmetic that does not fit halts](../../docs/proofs.md#arithmetic-that-does-not-fit-halts),
@@ -28,7 +29,9 @@ In `Naive_checksum___held_0`, `total + values[index] * 3 + round` is three opera
 spite_overflowed("values[index] * 3", "an Integer", "*", ...)`: a halt that names the expression, its type, the
 operator and both operands. The counter's `index_ = (index_ + 1)` has no check, since `index < values.count()`
 is in force and the next number fits; neither has `round_ = (round_ + 1)` in `Naive_rounds___held_0`, under
-`round < 400`. The read `values[index]` is a plain load, `spite_temp[index_]`, its count read once before the
+`round < 400`, nor `total + sum` there: a `Long` total of one `Integer` a pass over 400 passes cannot overflow
+([a range proves it](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked)). `values[index]` is a
+number the list was given in another function, so no range bounds it, and the sum's three checks stay. The read `values[index]` is a plain load, `spite_temp[index_]`, its count read once before the
 loop.
 
 ## Why Spite is slower here, and what it buys

@@ -37,8 +37,11 @@ kept in a `var`, `index < count`, which proves the read but is not the counted l
 values.count()` runs while `at_ < spite_temp_<n> - 2`, with the count read once, and `values[at]`, `values[at + 1]`
 and `values[at + 2]` are `spite_temp_<m>[at_]` to `spite_temp_<m>[at_ + 2]`, with no compare and no overflow check
 on `at + 1` and `at + 2` (before, each was a `get_at` with its compare and `values.count()` was read each pass).
-What both loops still pay for is the checked arithmetic of their sums, which keeps the C compiler from vectorising
-them as it does `naive.c` and `expert.c`.
+What both loops still pay for is the checked arithmetic of their sums and of `value - previous`, which keeps the C
+compiler from vectorising them as it does `naive.c` and `expert.c`: the items are numbers the list was given in
+another function, so no range bounds them. `rises + 1` has no check (it adds at most one a pass, and the passes are fewer
+than the count), nor have `round % 3 + 1` and the `Long` `total + windows + rises` in `rounds`
+([a range proves them](../../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked)).
 
 ## Timings
 

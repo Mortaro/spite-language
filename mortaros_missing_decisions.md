@@ -126,6 +126,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   with the classes read when the loop starts (a branch between two compiled forms), instead of the unrolling pair
   T4b proposed. Why: the naive engine builds its stages at run time from strings, so their order is not known while
   compiling; the table needs no order (the case's three voices 257 ms to 91).
+- **D540, ranges drop overflow checks**: the compiler works out the range of every whole-number local (from
+  literals, assignments, remainders, `clamp`, counts and the conditions in force, widened at each loop's entry) and
+  leaves out a check its ranges prove can never fire, such as a `Long` total of `Integer` items over a list; every
+  check that stays is listed in `--optimization-report` with the ranges it found. Why: D360 asks for each proven
+  check to go, and the proof is made entirely while compiling. Attributes and list items keep their type's range
+  for now (another function could change them).
 
 ## Open
 
