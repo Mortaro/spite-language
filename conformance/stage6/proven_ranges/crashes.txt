@@ -1,0 +1,1 @@
+this program is meant to crash: sums, steps and remainders whose ranges are proven need no check, and a product that grows every pass is checked and halts

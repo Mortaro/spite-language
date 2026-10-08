@@ -1,0 +1,17 @@
+var target = ""
+var value: Syntax.Expressions.Expression? = null
+var in_inner_loop = false
+var in_body = false
+
+# ../../../docs/proofs.md#a-range-proves-arithmetic-fits
+func LoopWrite(
+    starting_target: String,
+    starting_value: Syntax.Expressions.Expression,
+    starting_in_inner_loop: Boolean,
+    starting_in_body: Boolean,
+) {
+    target = starting_target
+    value = starting_value
+    in_inner_loop = starting_in_inner_loop
+    in_body = starting_in_body
+}

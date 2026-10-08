@@ -1,0 +1,2 @@
+spite: 'grown * 3' does not fit in an Integer (1162261467 * 3), at conformance/stage6/proven_ranges/proven_ranges.spite:44 in ProvenRanges.ProvenRanges
+3000 165425 993355785 462

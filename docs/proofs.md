@@ -442,6 +442,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
   `conformance/stage6/integer_overflow`, `conformance/stage6/unsigned_overflow`,
   `conformance/stage6/narrowing_overflow`, `conformance/stage6/smallest_divided`.
 
+### A range proves arithmetic fits
+
+- **Proves.** (draft)
+
 ### A wider operand is written first
 
 - **Proves.** A right operand fits the left operand's type, so casting it loses nothing.
