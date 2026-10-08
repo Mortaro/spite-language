@@ -135,6 +135,11 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
+- (suspected 2026-10-08, not reproduced) The integer `absolute` macro in `library/maths_primitives.spite` appears
+  to answer the smallest value unchanged (`Integer.smallest.absolute()` cannot be represented). The generated C seen
+  so far guards `absolute()` with an overflow check, so it may already halt; confirm that every path to it halts
+  and never answers the negative value.
+
 - (found 2026-10-08, intermittent) `conformance/stage6/concurrent_wait_cycle` once crashed at
   `Scheduler.idle_stepping` (from `Concurrent.drop` while a list let go of a `Concurrent`) instead of its expected
   `Scheduler.joins` report, under the full `check.sh` load on branch plain-bytes; it passes 5 of 5 alone. A crash
