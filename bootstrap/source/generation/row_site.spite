@@ -1,0 +1,13 @@
+var shape_c_name = ""
+var member_name = ""
+var list_c_name = ""
+var run_c_name = ""
+var list_code = ""
+var path = ""
+var line = 0
+
+func RowSite(starting_shape_c_name: String, starting_member_name: String, starting_list_c_name: String) {
+    shape_c_name = starting_shape_c_name
+    member_name = starting_member_name
+    list_c_name = starting_list_c_name
+}

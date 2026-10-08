@@ -130,6 +130,7 @@ same time, so read a few percent either way as noise.
 | [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 0.83 | 4.70 |
 | [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 0.73 | 11.40 |
 | [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 1.08 | 1.17 |
+| [a_loop_over_a_list_of_different_classes_runs_them_at_once](a_loop_over_a_list_of_different_classes_runs_them_at_once/) | 0.32 | 0.94 |
 | [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | 0.25 | 2.23 |
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 0.24 | 5.01 |
 | [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 0.76 | 2.97 |

@@ -443,6 +443,9 @@ func study_line(fact: OverlapFact, line: String, lines: List<String>, function_n
     if not fact.container and (line.contains(")[") or line.contains("*(")) {
         fact.read("raw")
     }
+    if line.contains("))spite_foreign_") {
+        note_foreign_calls(fact, line)
+    }
     var atomic = line.contains("SPITE_SINGLETON_STORE") or line.contains("__atomic_store") or line.contains("__atomic_fetch") or line.contains("__atomic_exchange") or line.contains("__atomic_compare") or line.contains("__atomic_add") or line.contains("__atomic_sub")
     var length = line.length()
     var position = 0
@@ -499,7 +502,8 @@ func study_name(fact: OverlapFact, line: String, start: Integer, lines: List<Str
     }
     var calls = after < line.length() and line.code_at(after) == 40
     var digit = first >= 48 and first <= 57
-    if not calls or digit or keywords.contains(name) {
+    var pointer_type = calls and after + 2 < line.length() and line.code_at(after + 1) == 42 and line.code_at(after + 2) == 41
+    if not calls or digit or keywords.contains(name) or pointer_type or quiet_guard(name) {
         if name == "spite_call" or name == "spite_typed_call" {
             fact.write("unknown")
         }
@@ -509,10 +513,52 @@ func study_name(fact: OverlapFact, line: String, start: Integer, lines: List<Str
     return end
 }
 
+func quiet_guard(name: String): Boolean {
+    var suffixes = ["___outside_enter", "___outside_leave", "___outside_read_enter", "___outside_read_leave"]
+    var index = 0
+    while index < suffixes.count() {
+        if name.ends_with(suffixes[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_foreign_calls(fact: OverlapFact, line: String) {
+    var marker = "spite_last_foreign_call = \""
+    var rest = line
+    var found = rest.index_of(marker)
+    if found < 0 {
+        fact.write("io:foreign")
+        return
+    }
+    while found >= 0 {
+        var name_start = found + marker.length()
+        var rest_length = rest.length()
+        rest = rest.slice(name_start, rest_length)
+        var tab = rest.index_of("\\t")
+        var quote_end = rest.index_of("\"")
+        var name_end = tab
+        if name_end < 0 or quote_end >= 0 and quote_end < name_end {
+            name_end = quote_end
+        }
+        var name = ""
+        if name_end > 0 {
+            name = rest.slice(0, name_end)
+        }
+        if not pure_externals.contains(name) {
+            fact.write("io:{name}")
+        }
+        found = rest.index_of(marker)
+    }
+}
+
 func study_call(fact: OverlapFact, line: String, name: String, open: Integer, lines: List<String>) {
     assert not is_runtime(name) and not is_macro(name)
     if not bodies.has(name) {
-        if not pure_externals.contains(name) and not name.starts_with("__builtin_") and not name.starts_with("__atomic_") {
+        var reports_crash = name == "abort" or name == "fputs" and line.contains(", stderr)")
+        if not reports_crash and not pure_externals.contains(name) and not name.starts_with("__builtin_") and not name.starts_with("__atomic_") {
             fact.write("io:{name}")
         }
         return

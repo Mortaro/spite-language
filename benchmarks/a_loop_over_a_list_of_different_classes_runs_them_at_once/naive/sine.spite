@@ -1,0 +1,15 @@
+var level: Long = 0
+var phase = 0
+
+func render() {
+    var sample = 0
+    while sample < 30000000 {
+        phase = (phase + 7) % 1000
+        var folded = phase
+        if folded > 500 {
+            folded = 1000 - folded
+        }
+        level = level + folded
+        sample = sample + 1
+    }
+}

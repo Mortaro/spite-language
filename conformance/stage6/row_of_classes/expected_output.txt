@@ -1,0 +1,2 @@
+sum 7199928 product 699572 tally 3
+audit saw 1199988 first and 5999940 last

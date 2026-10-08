@@ -531,6 +531,20 @@ call's report; if two crash at once, one of the two reports is printed. A progra
 compiles exactly as before, and one in which some do uses the thread pool, as a program that writes `Parallel`
 does.
 
+**A loop over a list of different classes runs them at once.** A statement `list.each_function()`, or
+`list.each(own_function)` where `own_function` takes one parameter and its whole body is `parameter.function()`,
+where `list` is a name or a path of attributes holding a `List` of a `type` and `function` is one the `type`
+requires, with no arguments, answering nothing, follows the rule above with the elements in the place of the row:
+for every two classes the `type`'s call can reach, the compiler decides while compiling whether their `function`s
+are independent (the same reckoning as calls in a row, and neither writes the list's items, memory through an
+address, or reaches a `Weak`), and which of them reach a loop. When the statement runs, it reads each element's
+class: if the list holds from two up to as many elements as there are such classes, no two of one class, every
+two independent and at least two reaching a loop, every element that reaches a loop but the last of them runs on
+the thread pool and the rest run on the calling thread, in the list's order, and all are joined before the next
+statement; otherwise the loop runs in order, as written. Two objects of one class are never run at once. When no
+two classes could ever run together, the statement is the plain loop and the program carries nothing of this. The
+same builds and places are left out as for calls in a row, and a crash halts the same way. `conformance/stage6/row_of_classes`.
+
 ---
 
 Next: [Standard library](standard_library.md).

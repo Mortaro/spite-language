@@ -1,0 +1,10 @@
+var watched = Sum()
+var seen = List<Long>()
+
+func Audit(starting_watched: Sum) {
+    watched = starting_watched
+}
+
+func run() {
+    seen.append(watched.total)
+}

@@ -1,0 +1,39 @@
+type Task {
+    run()
+}
+
+var console = Console()
+var sum = Sum()
+var product = Product()
+var tally = Tally()
+var audit = Audit(sum)
+
+func RowOfClasses() {
+    var together = List<Task>()
+    together.append(sum)
+    together.append(product)
+    together.append(tally)
+    var ordered = List<Task>()
+    ordered.append(sum)
+    ordered.append(audit)
+    ordered.append(product)
+    var twice = List<Task>()
+    twice.append(sum)
+    twice.append(sum)
+    var round = 0
+    while round < 3 {
+        together.each_run()
+        ordered.each(run_task)
+        twice.each_run()
+        round = round + 1
+    }
+    console.print("sum", sum.total, "product", product.value, "tally", tally.count)
+    var first_seen = audit.seen.first()
+    var last_seen = audit.seen.last()
+    crash first_seen and last_seen
+    console.print("audit saw", first_seen, "first and", last_seen, "last")
+}
+
+func run_task(task: Task) {
+    task.run()
+}

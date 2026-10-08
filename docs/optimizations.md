@@ -3156,6 +3156,84 @@ over 200 000 entities, runs both at once. A program in which some row overlaps c
 overlapped calls count, as every program with threads does
 ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)). Nothing a program prints changes.
 
+### A loop over a list of different classes runs them at once
+
+**The case:** [benchmarks/a_loop_over_a_list_of_different_classes_runs_them_at_once](../benchmarks/a_loop_over_a_list_of_different_classes_runs_them_at_once/).
+
+**What it does.** A loop that calls one function on every element of a list of a `type`, `voices.each_render()`,
+runs the elements on the thread pool at once when their classes share nothing one of them writes
+([concurrency.md](concurrency.md#calls-in-a-row-run-at-once)). It is [calls in a row](#calls-in-a-row-run-at-once)
+for a row the program builds while it runs: the compiler cannot know which objects the list will hold, so it
+works out, for every two classes the `type`'s call reaches, whether the two calls are independent, from the code of
+every function each one reaches, and writes that down as a small table. The loop reads its elements' classes when
+it starts (a few comparisons) and runs them at once only when the table allows every two of them; otherwise it is
+the loop as written.
+
+```gdscript title=row_of_voices/sine.spite
+var level: Long = 0
+var phase = 0
+
+func render() {
+    var sample = 0
+    while sample < 3000000 {
+        phase = (phase + 7) % 1000
+        level = level + phase
+        sample = sample + 1
+    }
+}
+```
+```gdscript title=row_of_voices/saw.spite
+var level: Long = 0
+var phase = 0
+
+func render() {
+    var sample = 0
+    while sample < 3000000 {
+        phase = (phase + 13) % 1000
+        level = level + phase % 97
+        sample = sample + 1
+    }
+}
+```
+```gdscript title=row_of_voices/row_of_voices.spite entry
+type Voice {
+    render()
+}
+
+var console = Console()
+var sine = Sine()
+var saw = Saw()
+var voices = List<Voice>()
+
+func RowOfVoices() {
+    voices.append(sine)
+    voices.append(saw)
+    voices.each_render()
+    console.print(sine.level, saw.level)
+}
+```
+```output
+1498500000 140985000
+```
+
+`sine.render()` runs on a worker while `saw.render()` runs on the program's own thread, and the `print` waits for
+both. A list holding the same voice twice, or a voice that prints or reads another's `level`, runs in order.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, for the loops the rules allow. When no two
+classes the list could hold may run together, the table is never written and the loop is the plain loop, so a
+program that does not have such a loop carries none of it.
+
+**Why at run time.** Which objects a list holds is known only once the program has built it, and a program often
+builds it from what it reads or computes (an engine sorts its systems into stages by what each says it touches).
+So only the reading of the classes and the table's look-ups run, a few comparisons each time the loop starts; which
+classes may run together, which of them are worth a thread, and the code of both forms are all decided while
+compiling.
+
+**What you notice.** Speed, when the calls are big enough, and the same output. A program whose loop can run at
+once counts atomically the classes the overlapped calls count, as every program with threads does
+([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), also on the times the table sends it in
+order.
+
 ### A crash's report is kept out of the way
 
 **The case:** [benchmarks/a_crashs_report_is_kept_out_of_the_way](../benchmarks/a_crashs_report_is_kept_out_of_the_way/).
