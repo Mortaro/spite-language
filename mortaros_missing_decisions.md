@@ -97,13 +97,13 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   pauses, then yields to the system between looks. Why: under four threads the plain compare-and-swap loop took
   113 ms against 21.5 for C behind a critical section; backing off takes 7.7, faster than a system lock at every
   thread count measured (1, 2, 4, 8).
-- **D528, object keys**: an object key is keyed by identity; a class with its own `equals` used as a key is a
+- **D532, object keys**: an object key is keyed by identity; a class with its own `equals` used as a key is a
   compile error until keying by `equals` is built; `Boolean` keys are allowed.
 - **D531, an attribute a call cannot assign is passed without counting**: `total_of(amounts)` or
   `discount_of(customer.terms)` passes the attribute held, as a local already was, when nothing the call reaches
   assigns any attribute along the path. Why: each such argument was a count up and a count down on an object the
   attribute kept alive anyway (a stress tick 36.0 ms to 30.5; the case 28.4 ms to 5.4, as fast as its naive C).
-- **D530, the profile**: a text file beside the entry file, committed with the program so builds are
+- **D534, the profile**: a text file beside the entry file, committed with the program so builds are
   reproducible; `--optimization-report` names every choice it made; the profiling flag's name is provisional.
 
 ## Open

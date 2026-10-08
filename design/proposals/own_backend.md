@@ -22,7 +22,7 @@ built only after the one before it. The backlog lists them under "Later, in orde
    D380), checks proven safe (D360), whole-program specialisation (D321) and how lists are stored (D331). Until
    Spite's own backend wins on the benchmarks, `--optimized` keeps going through C.
 
-## Measured against LLVM on every benchmark (D531)
+## Measured against LLVM on every benchmark (D535)
 
 Every folder in `benchmarks/` gains one more form per target the own backend supports: the naive Spite program
 built by Spite's own backend for that target. It is timed against the same program's C (the compiler's
@@ -32,7 +32,7 @@ profile exists. Each README then shows, per target, own backend over LLVM, so it
 backend stands. Once the own backend wins, it is the default for every build, and C stays only as one more form in
 the benchmarks, for comparison.
 
-## When to start (the signal Claude watches for, D531)
+## When to start (the signal Claude watches for, D535)
 
 Mortaro asked to be warned when it is the right time. The signal is when these hold:
 

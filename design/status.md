@@ -8,8 +8,8 @@ when a page gains a rule that is not built yet, add it here.
 
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 
-- D530, learning from a test run: not built (no profiling build, no profile file, no choice reads one).
-- D529, collection types as intention: the compiler still stores each `Dictionary` one way (a hash table).
+- D534, learning from a test run: not built (no profiling build, no profile file, no choice reads one).
+- D533, collection types as intention: the compiler still stores each `Dictionary` one way (a hash table).
 
 The page teaches D506, D507 and D508 as the language; most of what it says the compiler does is not built. The
 plan and its order are [naive_programs.md](naive_programs.md), the work items [naive_programs_pairs.md](naive_programs_pairs.md).
@@ -589,7 +589,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [collections.md](../docs/collections.md)
 
-- D528, `Dictionary<Key, Value>` with any key type (objects by identity): not built. The library, compiler, docs,
+- D532, `Dictionary<Key, Value>` with any key type (objects by identity): not built. The library, compiler, docs,
   specs, skills and every program still use `Dictionary<T>` with the key kind inferred (D224). One migration.
 
 - D510 (item 280): `each_<member>(...)` passing extra arguments to the member on every element. Not documented on the

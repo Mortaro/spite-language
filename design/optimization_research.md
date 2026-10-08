@@ -66,11 +66,11 @@ Research questions: how to represent "the same value in two shapes" in the compi
 (access counts, cache-line footprints, write sharing); how to prove the conversion points preserve every observable
 result (identity, `==`, reflection, `--debug-memory` counts).
 
-## Learning from test runs (D530)
+## Learning from test runs (D534)
 
 A profiling build records what only a run can know, and the next build reads it to pick among proven-equivalent
 forms. Candidates: list sizes (frame array or heap, ring capacity, band count for T1), branch frequencies (hot and
-cold layout, which configuration S1 specialises first), dictionary key sets and densities (D529: array, perfect
+cold layout, which configuration S1 specialises first), dictionary key sets and densities (D533: array, perfect
 hash, sorted table, folded), how often a phase converts between two shapes of one list (S3), which waiting calls
 overlap in practice (W1). Questions: how to keep the profile small and stable under code changes (key choices by
 source position and name, drop entries that no longer match); how a test suite or a benchmark doubles as the
@@ -90,7 +90,7 @@ form is best, for general-purpose programs, before the own backend, which must k
   core, line size), the write pattern (two threads writing one line), how often a whole object is needed at once
   (passing it, printing it, `==`), and the conversion cost at phase boundaries (S3). The proofs are the ones S2
   needs (no whole-object use crosses the split) plus a cost model of memory traffic: bytes touched per pass for
-  each form, from the loops' field sets and the counts (known, proven, or profiled, D530).
+  each form, from the loops' field sets and the counts (known, proven, or profiled, D534).
 - **SIMD.** After SoA, a loop over plain fields with no cross-lane dependence becomes vector code: lanes from the
   target (SSE, AVX2, AVX-512, NEON), masks for an `if` in the body, gathers where an index list is read, a
   remainder loop. The C backend can lean on the C compiler's vectoriser given `restrict` and aligned columns; the
@@ -126,7 +126,7 @@ GPU. Not the only mode and not the default; research that could unlock large spe
   rule. Crashes inside a kernel (a proven read cannot fail; an overflow can) must still be reported with their
   site (D244).
 - **When it pays.** A cost model like T6 with transfer cost: size times passes, against bytes moved. A profile
-  (D530) can settle it for sizes only the run knows.
+  (D534) can settle it for sizes only the run knows.
 - **Questions.** Which targets have a usable GPU and how a build chooses (a mode flag, a target, a profile); how
   to test kernels in `check.sh` without a GPU (a CPU executor of the same kernel); whether the engine's renderer
   and this mode share one device; what the moron sees in `--optimization-report`.
