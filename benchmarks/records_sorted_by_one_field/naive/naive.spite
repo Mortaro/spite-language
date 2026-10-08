@@ -1,0 +1,37 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var orders = List<Order>()
+    var seed: Long = 3
+    var index = 0
+    while index < environment.orders {
+        seed = seed * 48271 % 2147483647
+        var order = Order(index, seed)
+        orders.append(order)
+        index = index + 1
+    }
+    var by_time = orders.sort_by_placed_at()
+    var running = running_total(by_time)
+    var audits = by_time.sum_audit()
+    var first = by_time.first()
+    var last = by_time.last()
+    crash first
+    crash last
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("running", running, "audits", audits, "first", first.id, "last", last.id)
+    console.error("microseconds {microseconds}")
+}
+
+func running_total(orders: List<Order>): Long {
+    var running: Long = 0
+    var index = 0
+    while index < orders.count() {
+        var order = orders[index]
+        running = (running * 31 + order.quantity * order.price) % 1000000007
+        index = index + 1
+    }
+    return running
+}

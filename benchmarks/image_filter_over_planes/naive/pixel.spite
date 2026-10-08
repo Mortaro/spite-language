@@ -1,0 +1,46 @@
+var red = 0
+var green = 0
+var blue = 0
+var alpha = 0
+
+func Pixel(seed: Long) {
+    red = seed % 256
+    green = seed / 256 % 256
+    blue = seed / 65536 % 256
+    alpha = seed / 16777216 * 2
+}
+
+func brighten() {
+    red = brightened(red)
+    green = brightened(green)
+    blue = brightened(blue)
+}
+
+func brightened(channel: Integer): Integer {
+    var lifted = channel + 16
+    return lifted.minimum(255)
+}
+
+func contrast() {
+    red = contrasted(red)
+    green = contrasted(green)
+    blue = contrasted(blue)
+}
+
+func contrasted(channel: Integer): Integer {
+    var spread = (channel - 128) * 5 / 4 + 128
+    return spread.clamp(0, 255)
+}
+
+func luminance(): Integer {
+    return (red * 77 + green * 150 + blue * 29) / 256
+}
+
+func is_bright(): Boolean {
+    return alpha > 128 and luminance() > 100
+}
+
+func weight(): Long {
+    var total: Long = red
+    return total + green * 2 + blue * 3 + alpha * 5
+}

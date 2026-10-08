@@ -1,0 +1,56 @@
+enum Formula {
+    'constant'
+    'sum'
+    'product'
+    'scaled'
+}
+
+var formula: Formula = 'constant'
+var first = 0
+var second = 0
+var constant: Long = 0
+var value: Long = 0
+var row = 0
+var column = 0
+var style = 0
+
+func Cell(index: Integer, seed: Long) {
+    row = index / 64
+    column = index % 64
+    style = seed % 5
+    constant = seed % 1000
+    if index % 10 != 0 {
+        refer(index, seed)
+    }
+}
+
+func refer(index: Integer, seed: Long) {
+    var near: Integer = seed % 64
+    var back = index - 1 - near
+    first = back.maximum(0)
+    var far: Long = seed / 64 % index
+    second = far
+    formula = formula_of(seed / 7 % 3)
+}
+
+func formula_of(choice: Long): Formula {
+    switch choice {
+        0: return 'sum'
+        1: return 'product'
+        _: return 'scaled'
+    }
+}
+
+func placement(): Long {
+    var placed: Long = row
+    return placed * 64 + column + style * 100000000
+}
+
+func computed(left: Long, right: Long): Long {
+    switch formula {
+        'constant': return constant
+        'sum': return (left + right) % 1000003
+        'product': return left * right % 1000003
+        'scaled': return left * constant % 1000003
+    }
+}
