@@ -217,6 +217,19 @@ joins; `while index < bound` with a known bound gives `[0, bound - 1]`, so `inde
 `Integer`. Plugs into `proven_to_fit` after the existing test; every kept check still reported. Open: the cost of
 cloning intervals per block, one table of every number type's limits.
 
+Measured 2026-10-08 (Claude, for `benchmarks/arithmetic_is_checked_in_every_build`, whose sum an interval cannot
+bound): **speculate, then replay.** A counted loop whose body only reads plain lists and assigns plain locals can
+run once with every check turned into a flag (`wrapped |= x > INT32_MAX / 3 || x < INT32_MIN / 3`) and each
+`acc = acc + term` summed with wrapping in 32-bit lanes, beside the largest and smallest term; after the loop,
+`acc + n * largest <= INT32_MAX` and `acc + n * smallest >= INT32_MIN` prove no prefix sum overflowed, so the wrapped
+sum is the true one. When the flag is set or the bound fails, the locals are put back and the loop runs again with
+its checks, halting at the exact operation with the exact operands: nothing changes but speed. In plain C on this
+machine (clang -O3, no `-march`, 400 rounds of 100 000): checked 18.2 ms, speculated 10.3 ms (vectorised 4 wide),
+wrapping C 2.7 ms. The largest and smallest cost most under SSE2 (no `pmaxsd`); with `-march=native` the speculated
+form was within 3 times of plain C in an earlier int64 variant. Summing in int64 lanes instead was slower than the
+checked loop under SSE2 (2 lanes, no 64-bit multiply). Not built: the body generator would need a speculating mode
+for every checked operation, and the loop shape is the counted loop's (`generate_counted_loop`).
+
 **R7, independent loop passes on several cores (T1).** D505's facts are keyed by class and field, so every pass of
 one loop collides with itself. Add a key for writes whose receiver is the loop's own item (`self_indexed`); then a
 pass is independent when each write is self-indexed, a recognised reduction (T2) or a per-band scratch (T8), and
