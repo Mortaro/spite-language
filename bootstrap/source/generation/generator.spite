@@ -8100,6 +8100,9 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             return resolved
         }
         if name == "Dictionary" {
+            if named.arguments.count() == 2 {
+                return written_dictionary_type(named.arguments[0], named.arguments[1], current_namespace)
+            }
             var dictionary_element = resolve_single_type_argument(named, current_namespace)
             if dictionary_element {
                 return dictionary_type_at(dictionary_element, named.line, named.column)
@@ -8363,6 +8366,18 @@ func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_na
     return resolve_type(type_argument.value, current_namespace)
 }
 
+func written_dictionary_type(
+    key_argument: Syntax.Types.GenericArgument,
+    value_argument: Syntax.Types.GenericArgument,
+    current_namespace: String,
+): Analysis.SpiteType? {
+    var written_key = resolve_generic_argument(key_argument, current_namespace)
+    var written_value = resolve_generic_argument(value_argument, current_namespace)
+    assert written_key and written_value
+    var written: Analysis.SpiteType = Analysis.Types.DictionaryType(written_value, written_key, "")
+    return written
+}
+
 func list_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
     return Analysis.Types.ListType(element)
 }
@@ -8565,7 +8580,9 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if left_dictionary {
         var right_dictionary = type_shape.as_dictionary(right_type)
         if right_dictionary {
-            join_key_sites(left_dictionary.site, right_dictionary.site)
+            if not left_dictionary.site.is_empty() and not right_dictionary.site.is_empty() {
+                join_key_sites(left_dictionary.site, right_dictionary.site)
+            }
             var left_dictionary_element = left_dictionary.element
             var right_dictionary_element = right_dictionary.element
             var left_key = left_dictionary.key
@@ -22128,6 +22145,18 @@ func generate_generic_constructor(
     }
     var callee = shape.as_identifier(generic_call.callee)
     if callee {
+        if callee.name == "Dictionary" and generic_call.type_arguments.count() == 2 {
+            var written_dictionary = written_dictionary_type(
+                generic_call.type_arguments[0],
+                generic_call.type_arguments[1],
+                class_information.qualified_dotted,
+            )
+            if written_dictionary {
+                var written_type = type_shape.as_dictionary(written_dictionary)
+                crash written_type
+                return ExpressionResult("{ensure_dictionary(written_type)}___make()", written_dictionary)
+            }
+        }
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
             var dictionary_element = resolve_generic_argument(
                 generic_call.type_arguments[0],
@@ -22707,9 +22736,7 @@ func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
         )
         return dictionary_name
     }
-    var types = List<Analysis.SpiteType>()
-    types.append(element)
-    types.append(key_type)
+    var types = dictionary_codegen_types(dictionary_template, element, key_type)
     var codes = ["", ""]
     var texts = ["", ""]
     var container = instantiated_with(dictionary_template, types, codes, texts, dictionary_name)
@@ -22726,10 +22753,32 @@ func dictionary_key_suffix(dictionary: Analysis.Types.DictionaryType): String {
     return suffix
 }
 
+func dictionary_codegen_types(
+    template: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
+    key_type: Analysis.SpiteType,
+): List<Analysis.SpiteType> {
+    var types = List<Analysis.SpiteType>()
+    if template.codegen_names.first() == "key_type" {
+        types.append(key_type)
+        types.append(element)
+    } else {
+        types.append(element)
+        types.append(key_type)
+    }
+    return types
+}
+
 func fixed_dictionary_type(information: Analysis.ClassInfo): Analysis.SpiteType {
-    crash information.codegen_types[0]
-    crash information.codegen_types[1]
-    return Analysis.Types.DictionaryType(information.codegen_types[0], information.codegen_types[1], "")
+    var value_index = codegen_index(information, "value_type")
+    var key_index = codegen_index(information, "key_type")
+    crash information.codegen_types[value_index]
+    crash information.codegen_types[key_index]
+    return Analysis.Types.DictionaryType(
+        information.codegen_types[value_index],
+        information.codegen_types[key_index],
+        "",
+    )
 }
 
 func dictionary_type_at(element: Analysis.SpiteType, line: Integer, column: Integer): Analysis.SpiteType {
@@ -48909,8 +48958,13 @@ func replay_instance(record: String) {
         return
     }
     if template.qualified_dotted == "Dictionary" {
+        var key_first = template.codegen_names.first() == "key_type"
         var element = types[0]
         var key = types[1]
+        if key_first {
+            element = types[1]
+            key = types[0]
+        }
         var dictionary_type = Analysis.Types.DictionaryType(element, key, "")
         ensure_dictionary(dictionary_type)
         return
