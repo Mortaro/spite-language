@@ -327,6 +327,20 @@ func returned_construction(value: Syntax.Expressions.Expression, returned: Analy
     return fresh_construction(returned, "___make")
 }
 
+func own_written_construction(construction: Syntax.Expressions.GenericCallExpression): Analysis.ClassInfo? {
+    assert construction.type_arguments.count() == 1
+    var printer = Syntax.SourcePrinter()
+    var argument_text = printer.source_generic_argument(construction.type_arguments[0])
+    assert argument_text.starts_with("$") and not argument_text.contains("<")
+    var information = studied()
+    assert information.is_instantiated
+    crash construction.callee
+    var constructed = constructed_class(construction.callee)
+    assert constructed
+    assert constructed.is_generic_template and constructed.qualified_dotted == information.qualified_dotted
+    return fresh_construction(information, "___make")
+}
+
 func own_constructor_or_none(information: Analysis.ClassInfo, name: String): Boolean {
     var function = information.find_function(name)
     if function {
@@ -380,6 +394,10 @@ func fresh_generic(construction: Syntax.Expressions.GenericCallExpression): Anal
     var named = shape.as_identifier(construction.callee)
     if named {
         assert named.name != "List" and named.name != "Dictionary"
+    }
+    var own = own_written_construction(construction)
+    if own {
+        return own
     }
     var printer = Syntax.SourcePrinter()
     var index = 0

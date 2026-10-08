@@ -20,22 +20,25 @@ on [objects that never leave their function living in the frame](../../docs/opti
 
 ## What to look at in highlights.c
 
-The vector pass and the transforms keep every answer in a slot of the frame (`Matrix4__Float_transform_point___into`
-fills the slot it is handed). The matrix pass does not: `accumulated * step_matrix` calls `Matrix4__Float_multiply`,
-which makes its product on the heap, so each of the 200 000 steps allocates a matrix and releases the one before,
-and `step_matrix` is counted up and down around every call. That is most of the gap to `naive.c`, whose product is a
-struct the C compiler keeps in registers.
+Every pass keeps its answers in slots of the frame. `accumulated * step_matrix` calls
+`Matrix4__Float_multiply___into`, which builds its product in the slot it is handed (its `var product =
+Matrix4<$number_type>()` is the class's own instance, so it is fresh), into a slot of its own, and the product is
+copied over `accumulated` with `Matrix4__Float___copy_fields`, so the matrix is never read while it is written.
+`Matrix4__Float_transform_point___into` fills its slot the same way. Before the product was fresh, each of the
+200 000 steps made a matrix on the heap and released the one before, and the program took 3.19 times naive C's
+time. What is left: `step_matrix` (made by `turn.to_matrix()`, on the heap since `turn` is let go there) is
+counted up and down around every product.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 7 196 | 185 856 |
-| naive C: `naive.c`, `clang -O2` | 2 257 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 1 752 | 139 264 |
+| Spite: `naive/`, `--optimized` | 3 304 | 186 368 |
+| naive C: `naive.c`, `clang -O2` | 2 357 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 1 872 | 139 264 |
 
-Spite takes 3.19 times naive C's time and 4.11 times expert C's (lower is faster).
+Spite takes 1.40 times naive C's time and 1.76 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=7196 naive=2257 expert=1752 -->
+<!-- measured spite=3304 naive=2357 expert=1872 -->
 <!-- /timings -->

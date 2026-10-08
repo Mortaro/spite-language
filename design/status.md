@@ -131,11 +131,6 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
-- (suspected 2026-10-07, read-only research, not yet reproduced) A frame object whose caller-slot claim fails (for
-  example a member callee such as `normalized()` in `velocity = nudged.normalized()`) silently falls back to a heap
-  object copied into the slot, with no `--optimization-report` line. Reproduce on `benchmarks/vector_maths`;
-  every fallback must be reported.
-
 - (found 2026-10-07 by the naive engine; the common forms are refused since D515) A local read from a list and
   assigned a value nothing reads is a compile error ([specs/memory.md](../specs/memory.md#assigning-a-name-read-from-a-list-changes-only-the-name)),
   but two forms still compile without a word: the assignment inside a `while` loop whose local is declared outside
@@ -995,10 +990,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   `Items` is allocated, copied in and freed (a_row_of_borrowed_items_lives_in_the_frame); the lint that names
   `bodies.each(mover.update_each)` for a `while` points at a line that is an error when the function takes a `type`
   the element fits; and skills/spite/reference.md names `is_fixed_size` and says there are no `Symbol` walks while
-  the conformance programs still use `fits_vector()` and `Symbol` walks. The whole-program cases add: a `Matrix4`
-  product assigned back over its operand, `accumulated = accumulated * step_matrix`, is made on the heap every pass
-  and `step_matrix` counted around each call (game_maths); and `velocity = nudged.normalized()` allocates each pass
-  (vector_maths, the frame object fallback under failure.md above).
+  the conformance programs still use `fits_vector()` and `Symbol` walks. The whole-program cases add: a frame object
+  passed to an operator of a library class (`position + moved`) is counted up and down around the call, since held
+  copies are made only for the program's own functions (vector_maths, game_maths).
 
 ## [proofs.md](../docs/proofs.md)
 

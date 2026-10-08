@@ -520,6 +520,7 @@ void DynamicLibrary_close_library(DynamicLibrary* self, int64_t opened_);
 void DynamicLibrary___destroy(DynamicLibrary* self);
 void DynamicLibrary___discard(DynamicLibrary* self);
 SpiteString SpiteLong_to_string(int64_t self);
+Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result);
 Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result);
 SpiteString SpiteString_to_string(SpiteString self);
 SpiteString SpiteString___retain(SpiteString self);
@@ -541,17 +542,15 @@ void Naive___free(Naive* self);
 void Naive_Naive(Naive* self);
 Vector3__Float* Vector3__Float_scaled___into(Vector3__Float* self, float factor_, Vector3__Float* restrict spite_result);
 void Vector3__Float___init(Vector3__Float* self);
-Vector3__Float* Vector3__Float___allocate(void);
-Vector3__Float* Vector3__Float___make(float starting_x_, float starting_y_, float starting_z_);
 static inline Vector3__Float* Vector3__Float___retain(Vector3__Float* self);
 static inline void Vector3__Float___release(Vector3__Float* self);
 void Vector3__Float___free(Vector3__Float* self);
 void Vector3__Float_Vector3(Vector3__Float* self, float starting_x_, float starting_y_, float starting_z_);
 float Vector3__Float_dot(Vector3__Float* self, Vector3__Float* other_);
 float Vector3__Float_length(Vector3__Float* self);
-Vector3__Float* Vector3__Float_normalized(Vector3__Float* self);
 float Vector3__Float__square_root(Vector3__Float* self, float squared_);
 Vector3__Float* Vector3__Float_sum___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result);
+Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result);
 Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result);
 Vector3__Float* Vector3__Float_scaled___into(Vector3__Float* self, float factor_, Vector3__Float* restrict spite_result);
 void List_Console_Printable___init(List_Console_Printable* self);
@@ -967,21 +966,6 @@ self->x_ = ((float)(0));
 self->y_ = ((float)(0));
 self->z_ = ((float)(0));
 }
-Vector3__Float* Vector3__Float___allocate(void) {
-Vector3__Float* self = (Vector3__Float*)SPITE_MALLOC(sizeof(Vector3__Float));
-self->header.ref_count = 1;
-self->header.class_id = 111;
-Vector3__Float___init(self);
-#ifdef SPITE_TRACKS_Vector3__Float
-spite_track_Vector3__Float(self);
-#endif
-return self;
-}
-Vector3__Float* Vector3__Float___make(float starting_x_, float starting_y_, float starting_z_) {
-Vector3__Float* self = Vector3__Float___allocate();
-Vector3__Float_Vector3(self, starting_x_, starting_y_, starting_z_);
-return self;
-}
 static inline Vector3__Float* Vector3__Float___retain(Vector3__Float* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
@@ -1385,25 +1369,26 @@ void Naive_Naive(Naive* self) {
 int64_t start_ = Clock_elapsed_nanoseconds(self->clock_);
 Vector3__Float spite_slot_1;
 Vector3__Float* position_ = Vector3__Float___make_into(&spite_slot_1, 0.0, 0.0, 0.0);
-Vector3__Float* velocity_ = Vector3__Float___make(1.0, 0.5, 0.25);
 Vector3__Float spite_slot_2;
-Vector3__Float* axis_ = Vector3__Float___make_into(&spite_slot_2, 0.0, 1.0, 0.0);
+Vector3__Float* velocity_ = Vector3__Float___make_into(&spite_slot_2, 1.0, 0.5, 0.25);
+Vector3__Float spite_slot_3;
+Vector3__Float* axis_ = Vector3__Float___make_into(&spite_slot_3, 0.0, 1.0, 0.0);
 float total_ = 0.0;
 int32_t step_ = 0;
 while (((step_ < 5000000))) {
-Vector3__Float spite_slot_3;
-Vector3__Float* moved_ = Vector3__Float_scaled___into(velocity_, 0.001, &spite_slot_3);
 Vector3__Float spite_slot_4;
-Vector3__Float* spite_temp_49 = Vector3__Float_sum___into(position_, Vector3__Float___retain(moved_), &spite_slot_4);
-Vector3__Float___copy_fields(position_, spite_temp_49);
+Vector3__Float* moved_ = Vector3__Float_scaled___into(velocity_, 0.001, &spite_slot_4);
 Vector3__Float spite_slot_5;
-Vector3__Float* turned_ = Vector3__Float_cross___into(velocity_, Vector3__Float___retain(axis_), &spite_slot_5);
+Vector3__Float* spite_temp_49 = Vector3__Float_sum___into(position_, Vector3__Float___retain(moved_), &spite_slot_5);
+Vector3__Float___copy_fields(position_, spite_temp_49);
 Vector3__Float spite_slot_6;
+Vector3__Float* turned_ = Vector3__Float_cross___into(velocity_, Vector3__Float___retain(axis_), &spite_slot_6);
 Vector3__Float spite_slot_7;
-Vector3__Float* nudged_ = Vector3__Float_sum___into(velocity_, Vector3__Float_scaled___into(turned_, 0.0001, &spite_slot_7), &spite_slot_6);
-Vector3__Float* spite_temp_50 = Vector3__Float_normalized(nudged_);
-Vector3__Float___release(velocity_);
-velocity_ = spite_temp_50;
+Vector3__Float spite_slot_8;
+Vector3__Float* nudged_ = Vector3__Float_sum___into(velocity_, Vector3__Float_scaled___into(turned_, 0.0001, &spite_slot_8), &spite_slot_7);
+Vector3__Float spite_slot_9;
+Vector3__Float* spite_temp_50 = Vector3__Float_normalized___into(nudged_, &spite_slot_9);
+Vector3__Float___copy_fields(velocity_, spite_temp_50);
 total_ = (total_ + Vector3__Float_dot(position_, Vector3__Float___retain(velocity_)));
 step_ = (step_ + 1);
 }
@@ -1416,7 +1401,6 @@ for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = 
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
 Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_56_digits[24]; SpiteString spite_temp_56 = SPITE_STATIC_STRING(spite_temp_56_digits, spite_long_digits(spite_temp_56_digits, (int64_t)(microseconds_))); SpiteString spite_temp_57[] = {spite_lit_8, spite_temp_56}; SpiteString spite_temp_58 = spite_string_join(2, spite_temp_57); spite_temp_58; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
-Vector3__Float___release(velocity_);
 }
 void Vector3__Float_Vector3(Vector3__Float* self, float starting_x_, float starting_y_, float starting_z_) {
 self->x_ = starting_x_;
@@ -1433,29 +1417,29 @@ float squared_ = (((self->x_ * self->x_) + (self->y_ * self->y_)) + (self->z_ * 
 float spite_temp_60 = Vector3__Float__square_root(self, squared_);
 return spite_temp_60;
 }
-Vector3__Float* Vector3__Float_normalized(Vector3__Float* self) {
+float Vector3__Float__square_root(Vector3__Float* self, float squared_) {
+{
+float spite_temp_61 = SpiteFloat_square_root(squared_);
+return spite_temp_61;
+}
+}
+Vector3__Float* Vector3__Float_sum___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result) {
+Vector3__Float* spite_temp_62 = Vector3__Float___make_into(spite_result, (self->x_ + (other_)->x_), (self->y_ + (other_)->y_), (self->z_ + (other_)->z_));
+Vector3__Float___release(other_);
+return spite_temp_62;
+}
+Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result) {
 float squared_ = (((self->x_ * self->x_) + (self->y_ * self->y_)) + (self->z_ * self->z_));
 if (((squared_ == SpiteInteger_to_float(0)))) {
-Vector3__Float* spite_temp_61 = Vector3__Float___make(SpiteInteger_to_float(0), SpiteInteger_to_float(0), SpiteInteger_to_float(0));
-return spite_temp_61;
+Vector3__Float* spite_temp_63 = Vector3__Float___make_into(spite_result, SpiteInteger_to_float(0), SpiteInteger_to_float(0), SpiteInteger_to_float(0));
+return spite_temp_63;
 }
 {
 float one_ = SpiteInteger_to_float(1);
 float inverse_length_ = (one_ / SpiteFloat_square_root(squared_));
-Vector3__Float* spite_temp_62 = Vector3__Float___make((self->x_ * inverse_length_), (self->y_ * inverse_length_), (self->z_ * inverse_length_));
-return spite_temp_62;
-}
-}
-float Vector3__Float__square_root(Vector3__Float* self, float squared_) {
-{
-float spite_temp_63 = SpiteFloat_square_root(squared_);
-return spite_temp_63;
-}
-}
-Vector3__Float* Vector3__Float_sum___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result) {
-Vector3__Float* spite_temp_64 = Vector3__Float___make_into(spite_result, (self->x_ + (other_)->x_), (self->y_ + (other_)->y_), (self->z_ + (other_)->z_));
-Vector3__Float___release(other_);
+Vector3__Float* spite_temp_64 = Vector3__Float___make_into(spite_result, (self->x_ * inverse_length_), (self->y_ * inverse_length_), (self->z_ * inverse_length_));
 return spite_temp_64;
+}
 }
 Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result) {
 Vector3__Float* spite_temp_65 = Vector3__Float___make_into(spite_result, ((self->y_ * (other_)->z_) - (self->z_ * (other_)->y_)), ((self->z_ * (other_)->x_) - (self->x_ * (other_)->z_)), ((self->x_ * (other_)->y_) - (self->y_ * (other_)->x_)));
@@ -1555,8 +1539,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
 {(const void*)&Vector3__Float___init, "-\t-", "Vector3__Float___init", 0},
-{(const void*)&Vector3__Float___allocate, "-\t-", "Vector3__Float___allocate", 0},
-{(const void*)&Vector3__Float___make, "-\t-", "Vector3__Float___make", 0},
 {(const void*)&Vector3__Float___retain, "-\t-", "Vector3__Float___retain", 0},
 {(const void*)&Vector3__Float___release, "-\t-", "Vector3__Float___release", 0},
 {(const void*)&Vector3__Float___free, "-\t-", "Vector3__Float___free", 0},
@@ -1601,9 +1583,9 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Vector3__Float_Vector3, "library/vector3.spite\tVector3", "Vector3", 7},
 {(const void*)&Vector3__Float_dot, "library/vector3.spite\tVector3", "dot", 41},
 {(const void*)&Vector3__Float_length, "library/vector3.spite\tVector3", "length", 53},
-{(const void*)&Vector3__Float_normalized, "library/vector3.spite\tVector3", "normalized", 58},
 {(const void*)&Vector3__Float__square_root, "library/vector3.spite\tVector3", "_square_root", 112},
 {(const void*)&Vector3__Float_sum___into, "library/vector3.spite\tVector3", "sum", 13},
+{(const void*)&Vector3__Float_normalized___into, "library/vector3.spite\tVector3", "normalized", 58},
 {(const void*)&Vector3__Float_cross___into, "library/vector3.spite\tVector3", "cross", 45},
 {(const void*)&Vector3__Float_scaled___into, "library/vector3.spite\tVector3", "scaled", 37},
 {(const void*)&List_Console_Printable_count, "library/list.spite\tList", "count", 9},

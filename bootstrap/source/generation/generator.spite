@@ -13723,6 +13723,18 @@ func returns_object_in_frame(
         if returns_made_in_slot(value, returned_class, scope, class_information) {
             return true
         }
+        if optimization_report.recording {
+            var made_text = Syntax.SourcePrinter().source_expression(value)
+            var made_label = type_display_name(return_type)
+            optimization_report.object_on_heap(
+                current_function_c_name,
+                current_path,
+                current_line,
+                made_text,
+                made_label,
+                "the caller keeps the answer in its frame, but this value is not made fresh here, so it is made on the heap and copied into the caller's slot",
+            )
+        }
         var value_code = coerce_for_store(value, return_type, scope, class_information)
         var temporary = next_temporary()
         builder.add_user("{c_name}* {temporary} = {value_code};")

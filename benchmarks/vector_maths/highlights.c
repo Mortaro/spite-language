@@ -6,25 +6,26 @@ void Naive_Naive(Naive* self) {
     int64_t start_ = Clock_elapsed_nanoseconds(self->clock_);
     Vector3__Float spite_slot_1;
     Vector3__Float* position_ = Vector3__Float___make_into(&spite_slot_1, 0.0, 0.0, 0.0);
-    Vector3__Float* velocity_ = Vector3__Float___make(1.0, 0.5, 0.25);
     Vector3__Float spite_slot_2;
-    Vector3__Float* axis_ = Vector3__Float___make_into(&spite_slot_2, 0.0, 1.0, 0.0);
+    Vector3__Float* velocity_ = Vector3__Float___make_into(&spite_slot_2, 1.0, 0.5, 0.25);
+    Vector3__Float spite_slot_3;
+    Vector3__Float* axis_ = Vector3__Float___make_into(&spite_slot_3, 0.0, 1.0, 0.0);
     float total_ = 0.0;
     int32_t step_ = 0;
     while (((step_ < 5000000))) {
-        Vector3__Float spite_slot_3;
-        Vector3__Float* moved_ = Vector3__Float_scaled___into(velocity_, 0.001, &spite_slot_3);
         Vector3__Float spite_slot_4;
-        Vector3__Float* spite_temp_1 = Vector3__Float_sum___into(position_, Vector3__Float___retain(moved_), &spite_slot_4);
-        Vector3__Float___copy_fields(position_, spite_temp_1);
+        Vector3__Float* moved_ = Vector3__Float_scaled___into(velocity_, 0.001, &spite_slot_4);
         Vector3__Float spite_slot_5;
-        Vector3__Float* turned_ = Vector3__Float_cross___into(velocity_, Vector3__Float___retain(axis_), &spite_slot_5);
+        Vector3__Float* spite_temp_1 = Vector3__Float_sum___into(position_, Vector3__Float___retain(moved_), &spite_slot_5);
+        Vector3__Float___copy_fields(position_, spite_temp_1);
         Vector3__Float spite_slot_6;
+        Vector3__Float* turned_ = Vector3__Float_cross___into(velocity_, Vector3__Float___retain(axis_), &spite_slot_6);
         Vector3__Float spite_slot_7;
-        Vector3__Float* nudged_ = Vector3__Float_sum___into(velocity_, Vector3__Float_scaled___into(turned_, 0.0001, &spite_slot_7), &spite_slot_6);
-        Vector3__Float* spite_temp_2 = Vector3__Float_normalized(nudged_);
-        Vector3__Float___release(velocity_);
-        velocity_ = spite_temp_2;
+        Vector3__Float spite_slot_8;
+        Vector3__Float* nudged_ = Vector3__Float_sum___into(velocity_, Vector3__Float_scaled___into(turned_, 0.0001, &spite_slot_8), &spite_slot_7);
+        Vector3__Float spite_slot_9;
+        Vector3__Float* spite_temp_2 = Vector3__Float_normalized___into(nudged_, &spite_slot_9);
+        Vector3__Float___copy_fields(velocity_, spite_temp_2);
         total_ = (total_ + Vector3__Float_dot(position_, Vector3__Float___retain(velocity_)));
         step_ = (step_ + 1);
     }
@@ -37,7 +38,6 @@ void Naive_Naive(Naive* self) {
     List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
     Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_8_digits[24]; SpiteString spite_temp_8 = SPITE_STATIC_STRING(spite_temp_8_digits, spite_long_digits(spite_temp_8_digits, (int64_t)(microseconds_))); SpiteString spite_temp_9[] = {spite_lit_3, spite_temp_8}; SpiteString spite_temp_10 = spite_string_join(2, spite_temp_9); spite_temp_10; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
     for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
-    Vector3__Float___release(velocity_);
 }
 
 Vector3__Float* Vector3__Float_scaled___into(Vector3__Float* self, float factor_, Vector3__Float* restrict spite_result) {
@@ -57,16 +57,16 @@ Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float
     return spite_temp_13;
 }
 
-Vector3__Float* Vector3__Float_normalized(Vector3__Float* self) {
+Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result) {
     float squared_ = (((self->x_ * self->x_) + (self->y_ * self->y_)) + (self->z_ * self->z_));
     if (((squared_ == SpiteInteger_to_float(0)))) {
-        Vector3__Float* spite_temp_14 = Vector3__Float___make(SpiteInteger_to_float(0), SpiteInteger_to_float(0), SpiteInteger_to_float(0));
+        Vector3__Float* spite_temp_14 = Vector3__Float___make_into(spite_result, SpiteInteger_to_float(0), SpiteInteger_to_float(0), SpiteInteger_to_float(0));
         return spite_temp_14;
     }
     {
         float one_ = SpiteInteger_to_float(1);
         float inverse_length_ = (one_ / SpiteFloat_square_root(squared_));
-        Vector3__Float* spite_temp_15 = Vector3__Float___make((self->x_ * inverse_length_), (self->y_ * inverse_length_), (self->z_ * inverse_length_));
+        Vector3__Float* spite_temp_15 = Vector3__Float___make_into(spite_result, (self->x_ * inverse_length_), (self->y_ * inverse_length_), (self->z_ * inverse_length_));
         return spite_temp_15;
     }
 }

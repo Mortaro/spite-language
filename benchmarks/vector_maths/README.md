@@ -21,24 +21,26 @@ and on [arithmetic checked in every build](../../docs/optimizations.md#arithmeti
 
 ## What to look at in highlights.c
 
-Every answer that stays in the loop is a slot in the frame: `scaled`, `+` and `cross` are `___into` functions that
-fill the slot `Naive_Naive` hands them (`Vector3__Float_scaled___into(velocity_, 0.001, &spite_slot_3)`), and the new
-position is copied back into the old one with `Vector3__Float___copy_fields`. `normalized()` is not: it is called as
-`Vector3__Float_normalized`, which makes its answer with `Vector3__Float___make`, so each step allocates the new
-velocity and releases the old one (the frame claim for a member callee's answer fails without a report; it is
-listed as still open in design/status.md). The argument of each operator is counted up before the call and down
-inside it, and the conversions to `Long` at the end are checked.
+Every answer that stays in the loop is a slot in the frame: `scaled`, `+`, `cross` and `normalized` are `___into`
+functions that fill the slot `Naive_Naive` hands them (`Vector3__Float_scaled___into(velocity_, 0.001,
+&spite_slot_3)`), and a new value given to a name already in the frame (`position = position + moved`, `velocity =
+nudged.normalized()`) is worked out in a slot of its own and copied back with `Vector3__Float___copy_fields`.
+`Vector3__Float_normalized___into` makes even its zero answer, `Vector3<$number_type>(0, 0, 0)`, in the slot: the
+class's own codegen value written out in its own function makes that very instance. Before it did, `normalized()`
+made its answer on the heap at every step and the program took 2.40 times naive C's time. The argument of each
+operator is still counted up before the call and down inside it (a library class's operators get no held copy),
+and the conversions to `Long` at the end are checked.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 161 486 | 175 616 |
-| naive C: `naive.c`, `clang -O2` | 67 412 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 50 017 | 139 264 |
+| Spite: `naive/`, `--optimized` | 95 197 | 175 616 |
+| naive C: `naive.c`, `clang -O2` | 73 284 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 53 612 | 139 264 |
 
-Spite takes 2.40 times naive C's time and 3.23 times expert C's (lower is faster).
+Spite takes 1.30 times naive C's time and 1.78 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=161486 naive=67412 expert=50017 -->
+<!-- measured spite=95197 naive=73284 expert=53612 -->
 <!-- /timings -->

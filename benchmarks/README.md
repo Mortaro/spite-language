@@ -143,7 +143,7 @@ same time, so read a few percent either way as noise.
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed |
 | [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 1.35 | 1.51 |
 | [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 0.53 | 83.60 |
-| [game_maths](game_maths/) | 3.19 | 4.11 |
+| [game_maths](game_maths/) | 1.40 | 1.76 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 0.91 | 4.64 |
@@ -178,7 +178,7 @@ same time, so read a few percent either way as noise.
 | [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 0.07 | 11.44 |
 | [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 0.55 | 6.16 |
 | [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed |
-| [vector_maths](vector_maths/) | 2.40 | 3.23 |
+| [vector_maths](vector_maths/) | 1.30 | 1.78 |
 | [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed |
 | [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 0.69 | 18.76 |
 <!-- /summary -->

@@ -1,0 +1,22 @@
+var console = Console()
+
+func WrittenCodegenInFrame() {
+    var velocity = Vector3(1.0, 0.5, 0.25)
+    var axis = Vector3(0.0, 1.0, 0.0)
+    var accumulated = Matrix4<Float>()
+    var step_matrix = Matrix4<Float>()
+    step_matrix.column_3_row_0 = 0.5
+    var step = 0
+    while step < 1000 {
+        var turned = velocity.cross(axis)
+        var nudged = velocity + turned.scaled(0.01)
+        velocity = nudged.normalized()
+        accumulated = accumulated * step_matrix
+        step = step + 1
+    }
+    var still = Vector3(0.0, 0.0, 0.0)
+    var unmoved = still.normalized()
+    var length: Long = velocity.length() * 1000.0
+    var moved: Long = accumulated.column_3_row_0
+    console.print("length", length, "moved", moved, "zero", unmoved.x)
+}

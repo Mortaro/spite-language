@@ -2613,11 +2613,16 @@ and a list do. Four places use it:
 - **A result, into the caller's slot.** A function whose every `return` gives a fresh object (`return
   Vector3(...)`, a local that lives in the frame, or another such call; a generic class's constructor whose
   codegen values are inferred counts, both where its arguments' types are known in the caller and in a `return`
-  of a function answering that class) gets a second, hidden version that writes
+  of a function answering that class, and so does one that writes the class's own codegen value out inside its
+  own functions, `return Vector3<$number_type>(0, 0, 0)` or `var product = Matrix4<$number_type>()`, which in
+  `Vector3<Float>` makes exactly a `Vector3<Float>`) gets a second, hidden version that writes
   its answer into a slot its caller passes, a calling convention chosen per call site (both versions may exist,
   and neither is visible). So `var moved = velocity.scaled(delta)`, whose `moved` stays in the
   frame, calls the hidden version with `moved`'s slot, and nothing is allocated. `Matrix4.multiply`, which builds
-  its product in a local and returns it, becomes the same.
+  its product in a local and returns it, becomes the same, and so does `velocity = nudged.normalized()`. A
+  `return` in the hidden version whose value is not fresh (an attribute, an object read from a list) makes it on
+  the heap and copies it into the slot, and `--optimization-report` lists that line under "Objects not in the
+  frame".
 - **A temporary.** In `a + b + c`, `first + second - third` or `transform.transform_point(point)` passed
   to a function that keeps nothing, each intermediate answer is written into a frame slot of its own.
 - **A copy used as a value.** Spite has no value classes: `copy()` is how a program asks for an independent
@@ -2665,7 +2670,9 @@ point, makes 6 allocations in all and takes 15.3 ms, against 1 132.8 ms for naiv
 and 15.2 ms for expert C, which holds the numbers by value. The whole program
 [game_maths](../benchmarks/game_maths/) (a million `position + velocity.scaled(delta)` steps, 200 000 `Matrix4`
 products, a million `transform_point`s) measures the library's `Vector3` and `Matrix4` against the same passes in C
-with plain structs. On a game engine whose `Math.Matrix4` holds its two singletons as attributes:
+with plain structs: 1.40 times naive C's time, where it took 3.19 while each `accumulated * step_matrix` made its
+product on the heap; [vector_maths](../benchmarks/vector_maths/) takes 1.30 times naive C's time, 2.40 while each
+`nudged.normalized()` did. On a game engine whose `Math.Matrix4` holds its two singletons as attributes:
 `flex_layout` makes 99 789 allocations (100 514 without), `scene_probe` 32 413 (32 518), `render_parity` 14 142 (14
 171), with the same output; `stress` keeps its components in columns and makes the same 5 606 191. In `conformance/`,
 `lent_arguments` allocates 122 times (130 without), because the `Entity` a generic runner makes for each entity it

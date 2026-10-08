@@ -2,5 +2,5 @@ Naive_Naive
 Vector3__Float_scaled___into
 Vector3__Float_sum___into
 Vector3__Float_cross___into
-Vector3__Float_normalized
+Vector3__Float_normalized___into
 Vector3__Float_dot

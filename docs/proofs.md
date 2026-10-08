@@ -668,7 +668,9 @@ A short guide by task. Find what you are writing; the entries below say the rest
   class qualifies per instance: a constructor whose codegen values are inferred is fresh where the types of its
   arguments are known (numbers, names in scope and their attributes), and in a `return` of a function answering
   that instance, which only that instance can be; a constructor that writes its codegen values out
-  (`BinaryWriter<Order>()`) is fresh as a local wherever they name classes, not other codegen values.
+  (`BinaryWriter<Order>()`) is fresh as a local wherever they name classes, not other codegen values, except that
+  a generic class's own function may write its own one codegen value (`Vector3<$number_type>(0, 0, 0)` in
+  `Vector3<Float>`), which makes that very instance.
 - **Buys.** No allocation; `.memory.section` answers `'stack'`. [its case](../benchmarks/objects_that_never_leave_their_function_live_in_the_frame/)
   makes 6 allocations for 20 000 000 steps, where naive C makes 80 000 003; `Vector3<Float>`, generic over its number class, stays in the frame as before
   (`conformance/stage6/generic_vectors`).
