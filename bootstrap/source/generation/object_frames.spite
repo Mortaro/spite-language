@@ -128,6 +128,9 @@ func keeps_nothing(
     function: Analysis.FunctionInfo,
     position: Integer,
 ): Boolean {
+    if copies_item_in(owner, function, position) {
+        return true
+    }
     if not function.has_body or not function.lent_parameters.is_empty() or function.result_slot {
         return false
     }
@@ -154,6 +157,13 @@ func keeps_nothing(
     }
     study.follow_parameter(parameter.name, parameter_type)
     return study.block_keeps(function.body)
+}
+
+func copies_item_in(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, position: Integer): Boolean {
+    if owner.qualified_dotted != "InlineMemory" or function.name != "write_item" {
+        return false
+    }
+    return position == function.parameters.count() - 1
 }
 
 func fresh_result(

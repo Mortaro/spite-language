@@ -564,10 +564,10 @@ static inline void Naive___release(Naive* self);
 void Naive___free(Naive* self);
 void Naive_Naive(Naive* self);
 InlineMemory__Particle* spite_singleton_InlineMemory__Particle(void);
+static Particle* Particle___framed(Particle* self);
+static Particle* Particle___make_into(Particle* self, int32_t seed_);
 void Vector__Particle_each_step(Vector__Particle* self);
 void Particle___init(Particle* self);
-Particle* Particle___allocate(void);
-Particle* Particle___make(int32_t seed_);
 static inline Particle* Particle___retain(Particle* self);
 static inline void Particle___release(Particle* self);
 void Particle___free(Particle* self);
@@ -992,6 +992,17 @@ InlineMemory__Particle* spite_singleton_InlineMemory__Particle(void) {
 static InlineMemory__Particle spite_object = { { 1, 166 } };
 return &spite_object;
 }
+static Particle* Particle___framed(Particle* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 109;
+return self;
+}
+static Particle* Particle___make_into(Particle* self, int32_t seed_) {
+Particle___framed(self);
+Particle___init(self);
+Particle_Particle(self, seed_);
+return self;
+}
 void Particle___init(Particle* self) {
 self->position_x_ = 0.0;
 self->position_y_ = 0.0;
@@ -999,21 +1010,6 @@ self->position_z_ = 0.0;
 self->velocity_x_ = 0.0;
 self->velocity_y_ = 0.0;
 self->velocity_z_ = 0.0;
-}
-Particle* Particle___allocate(void) {
-Particle* self = (Particle*)SPITE_MALLOC(sizeof(Particle));
-self->header.ref_count = 1;
-self->header.class_id = 109;
-Particle___init(self);
-#ifdef SPITE_TRACKS_Particle
-spite_track_Particle(self);
-#endif
-return self;
-}
-Particle* Particle___make(int32_t seed_) {
-Particle* self = Particle___allocate();
-Particle_Particle(self, seed_);
-return self;
 }
 static inline Particle* Particle___retain(Particle* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
@@ -1481,10 +1477,10 @@ int64_t start_ = Clock_elapsed_nanoseconds(self->clock_);
 Vector__Particle* particles_ = Vector__Particle___make();
 int32_t index_ = 0;
 while (((index_ < 100000))) {
-Particle* particle_ = Particle___make(index_);
+Particle spite_slot_1;
+Particle* particle_ = Particle___make_into(&spite_slot_1, index_);
 Vector__Particle_append(particles_, Particle___retain(particle_));
 index_ = (index_ + 1);
-Particle___release(particle_);
 }
 int32_t tick_ = 0;
 while (((tick_ < 300))) {
@@ -1693,9 +1689,9 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
 {(const void*)&spite_singleton_InlineMemory__Particle, "-\t-", "spite_singleton_InlineMemory__Particle", 0},
+{(const void*)&Particle___framed, "-\t-", "Particle___framed", 0},
+{(const void*)&Particle___make_into, "-\t-", "Particle___make_into", 0},
 {(const void*)&Particle___init, "-\t-", "Particle___init", 0},
-{(const void*)&Particle___allocate, "-\t-", "Particle___allocate", 0},
-{(const void*)&Particle___make, "-\t-", "Particle___make", 0},
 {(const void*)&Particle___retain, "-\t-", "Particle___retain", 0},
 {(const void*)&Particle___release, "-\t-", "Particle___release", 0},
 {(const void*)&Particle___free, "-\t-", "Particle___free", 0},

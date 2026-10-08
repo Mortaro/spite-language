@@ -925,8 +925,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Other optimisations
 
-- An appended item made in place: today `var slow = Velocity(1.0, 0.5)` then `velocities.append(slow)` makes an ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector allocates once per item for a moment. Writing the constructor's attributes straight into the block is not built.
-- The optimisation report (`--optimization-report`, D36, D332, D389) is built (D450; the file format, the sections, the reasons' wording and linking a list type at the line that first needed it are proposed by Claude, unconfirmed). Not reported yet: a result written into the caller's slot, a temporary or an argument that stays on the heap; a call result `var x = make()` whose function does not return only fresh objects; an `Items<T>` that chose references; the overflow checks that remain (N2 calls `OptimizationReport.overflow_check_kept` and sets `reports_overflow_checks`, which adds the section). A list type is linked at the line that first needed it, which may be inside the library function that instantiated it.
+- The optimisation report (`--optimization-report`, D36, D332, D389) is built (D450; the file format, the sections, the reasons' wording and linking a list type at the line that first needed it are proposed by Claude, unconfirmed). Not reported yet: a temporary or an argument that stays on the heap; a call result `var x = make()` whose function does not return only fresh objects; an `Items<T>` that chose references; the overflow checks that remain (N2 calls `OptimizationReport.overflow_check_kept` and sets `reports_overflow_checks`, which adds the section). A list type is linked at the first line that needed it in a function the build keeps, which may be a line of the library.
 - Found by the report: a text literal containing `instances` anywhere in a program makes the compiler treat every class as read with `.instances` (`note_instance_lists`), so no object of any class is placed in the frame. The compiler itself has such a text in `Generation.Generator`, so none of its own objects are framed; `spite bootstrap --check --optimization-report=...` lists about 600.
 
 ### Arithmetic is checked in every build
@@ -998,8 +997,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   them away, and copies a list by appending (a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one);
   a function taking a `type` given an ordinary object is compiled per class, so the uncounted read through a `type`
   only shows for a row of borrowed items, and a typed object literal of `List` items is allocated and dispatched
-  while the program runs (reading_through_a_type_without_counting); a component made and appended to a `Vector` or
-  `Items` is allocated, copied in and freed (a_row_of_borrowed_items_lives_in_the_frame); the lint that names
+  while the program runs (reading_through_a_type_without_counting); the lint that names
   `bodies.each(mover.update_each)` for a `while` points at a line that is an error when the function takes a `type`
   the element fits; and skills/spite/reference.md names `is_fixed_size` and says there are no `Symbol` walks while
   the conformance programs still use `fits_vector()` and `Symbol` walks. The whole-program cases add: a frame object

@@ -675,6 +675,14 @@ void Naive_tick_once(Naive* self);
 int64_t Vector__Position_sum_place(Vector__Position* self);
 int32_t Vector__Health_sum_amount(Vector__Health* self);
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value);
+static Position* Position___framed(Position* self);
+static Position* Position___make_into(Position* self);
+static Velocity* Velocity___framed(Velocity* self);
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_);
+static Health* Health___framed(Health* self);
+static Health* Health___make_into(Health* self);
+static Regeneration* Regeneration___framed(Regeneration* self);
+static Regeneration* Regeneration___make_into(Regeneration* self, int32_t new_per_tick_);
 static SPITE_CRASH_REPORT void spite_failed_1(int32_t entity_);
 static SPITE_CRASH_REPORT void spite_failed_2(int32_t entity_);
 static SPITE_CRASH_REPORT void spite_failed_3(int32_t entity_);
@@ -689,8 +697,6 @@ void Healer_update_each___lent_0(Healer* self, Healer_Mending mending_);
 Health* Healer_Mending___peek_health(Healer_Mending self);
 Regeneration* Healer_Mending___peek_regeneration(Healer_Mending self);
 void Health___init(Health* self);
-Health* Health___allocate(void);
-Health* Health___make(void);
 static inline Health* Health___retain(Health* self);
 static inline void Health___release(Health* self);
 void Health___free(Health* self);
@@ -703,22 +709,16 @@ void Mover_update_each___lent_0(Mover* self, Mover_Moving moving_);
 Position* Mover_Moving___peek_position(Mover_Moving self);
 Velocity* Mover_Moving___peek_velocity(Mover_Moving self);
 void Position___init(Position* self);
-Position* Position___allocate(void);
-Position* Position___make(void);
 static inline Position* Position___retain(Position* self);
 static inline void Position___release(Position* self);
 void Position___free(Position* self);
 int64_t Position_get_place(Position* self);
 void Regeneration___init(Regeneration* self);
-Regeneration* Regeneration___allocate(void);
-Regeneration* Regeneration___make(int32_t new_per_tick_);
 static inline Regeneration* Regeneration___retain(Regeneration* self);
 static inline void Regeneration___release(Regeneration* self);
 void Regeneration___free(Regeneration* self);
 void Regeneration_Regeneration(Regeneration* self, int32_t new_per_tick_);
 void Velocity___init(Velocity* self);
-Velocity* Velocity___allocate(void);
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_);
 static inline Velocity* Velocity___retain(Velocity* self);
 static inline void Velocity___release(Velocity* self);
 void Velocity___free(Velocity* self);
@@ -1232,6 +1232,48 @@ tagged.value.bits = 0;
 memcpy(&tagged.value, &value, sizeof(value));
 return tagged;
 }
+static Position* Position___framed(Position* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 112;
+return self;
+}
+static Position* Position___make_into(Position* self) {
+Position___framed(self);
+Position___init(self);
+return self;
+}
+static Velocity* Velocity___framed(Velocity* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 114;
+return self;
+}
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_) {
+Velocity___framed(self);
+Velocity___init(self);
+Velocity_Velocity(self, new_across_, new_down_);
+return self;
+}
+static Health* Health___framed(Health* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 110;
+return self;
+}
+static Health* Health___make_into(Health* self) {
+Health___framed(self);
+Health___init(self);
+return self;
+}
+static Regeneration* Regeneration___framed(Regeneration* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 113;
+return self;
+}
+static Regeneration* Regeneration___make_into(Regeneration* self, int32_t new_per_tick_) {
+Regeneration___framed(self);
+Regeneration___init(self);
+Regeneration_Regeneration(self, new_per_tick_);
+return self;
+}
 void Healer___init(Healer* self) {
 }
 Healer* Healer___allocate(void) {
@@ -1265,20 +1307,6 @@ SPITE_FREE(self);
 
 void Health___init(Health* self) {
 self->amount_ = 0;
-}
-Health* Health___allocate(void) {
-Health* self = (Health*)SPITE_MALLOC(sizeof(Health));
-self->header.ref_count = 1;
-self->header.class_id = 110;
-Health___init(self);
-#ifdef SPITE_TRACKS_Health
-spite_track_Health(self);
-#endif
-return self;
-}
-Health* Health___make(void) {
-Health* self = Health___allocate();
-return self;
 }
 static inline Health* Health___retain(Health* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
@@ -1322,20 +1350,6 @@ void Position___init(Position* self) {
 self->left_ = 0;
 self->top_ = 0;
 }
-Position* Position___allocate(void) {
-Position* self = (Position*)SPITE_MALLOC(sizeof(Position));
-self->header.ref_count = 1;
-self->header.class_id = 112;
-Position___init(self);
-#ifdef SPITE_TRACKS_Position
-spite_track_Position(self);
-#endif
-return self;
-}
-Position* Position___make(void) {
-Position* self = Position___allocate();
-return self;
-}
 static inline Position* Position___retain(Position* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
@@ -1356,21 +1370,6 @@ SPITE_FREE(self);
 }
 void Regeneration___init(Regeneration* self) {
 self->per_tick_ = 0;
-}
-Regeneration* Regeneration___allocate(void) {
-Regeneration* self = (Regeneration*)SPITE_MALLOC(sizeof(Regeneration));
-self->header.ref_count = 1;
-self->header.class_id = 113;
-Regeneration___init(self);
-#ifdef SPITE_TRACKS_Regeneration
-spite_track_Regeneration(self);
-#endif
-return self;
-}
-Regeneration* Regeneration___make(int32_t new_per_tick_) {
-Regeneration* self = Regeneration___allocate();
-Regeneration_Regeneration(self, new_per_tick_);
-return self;
 }
 static inline Regeneration* Regeneration___retain(Regeneration* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
@@ -1393,21 +1392,6 @@ SPITE_FREE(self);
 void Velocity___init(Velocity* self) {
 self->across_ = 0;
 self->down_ = 0;
-}
-Velocity* Velocity___allocate(void) {
-Velocity* self = (Velocity*)SPITE_MALLOC(sizeof(Velocity));
-self->header.ref_count = 1;
-self->header.class_id = 114;
-Velocity___init(self);
-#ifdef SPITE_TRACKS_Velocity
-spite_track_Velocity(self);
-#endif
-return self;
-}
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_) {
-Velocity* self = Velocity___allocate();
-Velocity_Velocity(self, new_across_, new_down_);
-return self;
 }
 static inline Velocity* Velocity___retain(Velocity* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
@@ -2023,19 +2007,19 @@ for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = 
 void Naive_spawn_all(Naive* self, int32_t count_) {
 int32_t entity_ = 0;
 while (((entity_ < count_))) {
-Position* position_ = Position___make();
+Position spite_slot_1;
+Position* position_ = Position___make_into(&spite_slot_1);
 Vector__Position_append(self->positions_, Position___retain(position_));
-Velocity* velocity_ = Velocity___make(({ int32_t spite_temp_75 = (entity_ % 13); int32_t spite_temp_76 = 6; int32_t spite_temp_77; if (__builtin_expect(__builtin_sub_overflow(spite_temp_75, spite_temp_76, &spite_temp_77), 0)) spite_overflowed("entity % 13 - 6", "an Integer", "-", (int64_t)spite_temp_75, (int64_t)spite_temp_76, spite_site_14()); spite_temp_77; }), ({ int32_t spite_temp_78 = (entity_ % 7); int32_t spite_temp_79 = 3; int32_t spite_temp_80; if (__builtin_expect(__builtin_sub_overflow(spite_temp_78, spite_temp_79, &spite_temp_80), 0)) spite_overflowed("entity % 7 - 3", "an Integer", "-", (int64_t)spite_temp_78, (int64_t)spite_temp_79, spite_site_14()); spite_temp_80; }));
+Velocity spite_slot_2;
+Velocity* velocity_ = Velocity___make_into(&spite_slot_2, ({ int32_t spite_temp_75 = (entity_ % 13); int32_t spite_temp_76 = 6; int32_t spite_temp_77; if (__builtin_expect(__builtin_sub_overflow(spite_temp_75, spite_temp_76, &spite_temp_77), 0)) spite_overflowed("entity % 13 - 6", "an Integer", "-", (int64_t)spite_temp_75, (int64_t)spite_temp_76, spite_site_14()); spite_temp_77; }), ({ int32_t spite_temp_78 = (entity_ % 7); int32_t spite_temp_79 = 3; int32_t spite_temp_80; if (__builtin_expect(__builtin_sub_overflow(spite_temp_78, spite_temp_79, &spite_temp_80), 0)) spite_overflowed("entity % 7 - 3", "an Integer", "-", (int64_t)spite_temp_78, (int64_t)spite_temp_79, spite_site_14()); spite_temp_80; }));
 Vector__Velocity_append(self->velocities_, Velocity___retain(velocity_));
-Health* health_ = Health___make();
+Health spite_slot_3;
+Health* health_ = Health___make_into(&spite_slot_3);
 Vector__Health_append(self->healths_, Health___retain(health_));
-Regeneration* regeneration_ = Regeneration___make((entity_ % 4));
+Regeneration spite_slot_4;
+Regeneration* regeneration_ = Regeneration___make_into(&spite_slot_4, (entity_ % 4));
 Vector__Regeneration_append(self->regenerations_, Regeneration___retain(regeneration_));
 entity_ = (entity_ + 1);
-Regeneration___release(regeneration_);
-Health___release(health_);
-Velocity___release(velocity_);
-Position___release(position_);
 }
 }
 void Naive_run_ticks(Naive* self, int32_t count_) {
@@ -2527,14 +2511,20 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
 {(const void*)&spite_tagged_SpiteInteger, "-\t-", "spite_tagged_SpiteInteger", 0},
+{(const void*)&Position___framed, "-\t-", "Position___framed", 0},
+{(const void*)&Position___make_into, "-\t-", "Position___make_into", 0},
+{(const void*)&Velocity___framed, "-\t-", "Velocity___framed", 0},
+{(const void*)&Velocity___make_into, "-\t-", "Velocity___make_into", 0},
+{(const void*)&Health___framed, "-\t-", "Health___framed", 0},
+{(const void*)&Health___make_into, "-\t-", "Health___make_into", 0},
+{(const void*)&Regeneration___framed, "-\t-", "Regeneration___framed", 0},
+{(const void*)&Regeneration___make_into, "-\t-", "Regeneration___make_into", 0},
 {(const void*)&Healer___init, "-\t-", "Healer___init", 0},
 {(const void*)&Healer___allocate, "-\t-", "Healer___allocate", 0},
 {(const void*)&Healer___make, "-\t-", "Healer___make", 0},
 {(const void*)&Healer___release, "-\t-", "Healer___release", 0},
 {(const void*)&Healer___free, "-\t-", "Healer___free", 0},
 {(const void*)&Health___init, "-\t-", "Health___init", 0},
-{(const void*)&Health___allocate, "-\t-", "Health___allocate", 0},
-{(const void*)&Health___make, "-\t-", "Health___make", 0},
 {(const void*)&Health___retain, "-\t-", "Health___retain", 0},
 {(const void*)&Health___release, "-\t-", "Health___release", 0},
 {(const void*)&Health___free, "-\t-", "Health___free", 0},
@@ -2542,20 +2532,14 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Mover___make, "-\t-", "Mover___make", 0},
 {(const void*)&Mover___release, "-\t-", "Mover___release", 0},
 {(const void*)&Position___init, "-\t-", "Position___init", 0},
-{(const void*)&Position___allocate, "-\t-", "Position___allocate", 0},
-{(const void*)&Position___make, "-\t-", "Position___make", 0},
 {(const void*)&Position___retain, "-\t-", "Position___retain", 0},
 {(const void*)&Position___release, "-\t-", "Position___release", 0},
 {(const void*)&Position___free, "-\t-", "Position___free", 0},
 {(const void*)&Regeneration___init, "-\t-", "Regeneration___init", 0},
-{(const void*)&Regeneration___allocate, "-\t-", "Regeneration___allocate", 0},
-{(const void*)&Regeneration___make, "-\t-", "Regeneration___make", 0},
 {(const void*)&Regeneration___retain, "-\t-", "Regeneration___retain", 0},
 {(const void*)&Regeneration___release, "-\t-", "Regeneration___release", 0},
 {(const void*)&Regeneration___free, "-\t-", "Regeneration___free", 0},
 {(const void*)&Velocity___init, "-\t-", "Velocity___init", 0},
-{(const void*)&Velocity___allocate, "-\t-", "Velocity___allocate", 0},
-{(const void*)&Velocity___make, "-\t-", "Velocity___make", 0},
 {(const void*)&Velocity___retain, "-\t-", "Velocity___retain", 0},
 {(const void*)&Velocity___release, "-\t-", "Velocity___release", 0},
 {(const void*)&Velocity___free, "-\t-", "Velocity___free", 0},

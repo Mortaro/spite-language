@@ -521,12 +521,12 @@ static inline void Naive___release(Naive* self);
 void Naive___free(Naive* self);
 void Naive_Naive(Naive* self);
 InlineMemory__Velocity* spite_singleton_InlineMemory__Velocity(void);
+static Velocity* Velocity___framed(Velocity* self);
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_);
 int32_t Vector__Velocity_sum_across(Vector__Velocity* self);
 int32_t Vector__Velocity_sum_down(Vector__Velocity* self);
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value);
 void Velocity___init(Velocity* self);
-Velocity* Velocity___allocate(void);
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_);
 static inline Velocity* Velocity___retain(Velocity* self);
 static inline void Velocity___release(Velocity* self);
 void Velocity___free(Velocity* self);
@@ -836,6 +836,17 @@ InlineMemory__Velocity* spite_singleton_InlineMemory__Velocity(void) {
 static InlineMemory__Velocity spite_object = { { 1, 166 } };
 return &spite_object;
 }
+static Velocity* Velocity___framed(Velocity* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 109;
+return self;
+}
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_) {
+Velocity___framed(self);
+Velocity___init(self);
+Velocity_Velocity(self, new_across_, new_down_);
+return self;
+}
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value) {
 SpiteTagged tagged;
 tagged.tag = 167;
@@ -847,21 +858,6 @@ return tagged;
 void Velocity___init(Velocity* self) {
 self->across_ = 0;
 self->down_ = 0;
-}
-Velocity* Velocity___allocate(void) {
-Velocity* self = (Velocity*)SPITE_MALLOC(sizeof(Velocity));
-self->header.ref_count = 1;
-self->header.class_id = 109;
-Velocity___init(self);
-#ifdef SPITE_TRACKS_Velocity
-spite_track_Velocity(self);
-#endif
-return self;
-}
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_) {
-Velocity* self = Velocity___allocate();
-Velocity_Velocity(self, new_across_, new_down_);
-return self;
 }
 static inline Velocity* Velocity___retain(Velocity* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
@@ -1249,10 +1245,10 @@ void Naive_Naive(Naive* self) {
 Vector__Velocity* velocities_ = Vector__Velocity___make();
 int32_t index_ = 0;
 while (((index_ < 1000))) {
-Velocity* made_ = Velocity___make((index_ % 7), (index_ % 5));
+Velocity spite_slot_1;
+Velocity* made_ = Velocity___make_into(&spite_slot_1, (index_ % 7), (index_ % 5));
 Vector__Velocity_append(velocities_, Velocity___retain(made_));
 index_ = (index_ + 1);
-Velocity___release(made_);
 }
 int32_t across_ = Vector__Velocity_sum_across(velocities_);
 int32_t down_ = Vector__Velocity_sum_down(velocities_);
@@ -1422,10 +1418,10 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
 {(const void*)&spite_singleton_InlineMemory__Velocity, "-\t-", "spite_singleton_InlineMemory__Velocity", 0},
+{(const void*)&Velocity___framed, "-\t-", "Velocity___framed", 0},
+{(const void*)&Velocity___make_into, "-\t-", "Velocity___make_into", 0},
 {(const void*)&spite_tagged_SpiteInteger, "-\t-", "spite_tagged_SpiteInteger", 0},
 {(const void*)&Velocity___init, "-\t-", "Velocity___init", 0},
-{(const void*)&Velocity___allocate, "-\t-", "Velocity___allocate", 0},
-{(const void*)&Velocity___make, "-\t-", "Velocity___make", 0},
 {(const void*)&Velocity___retain, "-\t-", "Velocity___retain", 0},
 {(const void*)&Velocity___release, "-\t-", "Velocity___release", 0},
 {(const void*)&Velocity___free, "-\t-", "Velocity___free", 0},

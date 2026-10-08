@@ -22593,11 +22593,14 @@ func proven_item(got: ExpressionResult, proven: Boolean): ExpressionResult {
 func ensure_list(element: Analysis.SpiteType): String {
     var list_name = "List_{type_label(element)}"
     if list_names.contains(list_name) {
+        if optimization_report.recording {
+            optimization_report.list_used(list_name, current_function_c_name, current_path, current_line)
+        }
         return list_name
     }
     list_names.append(list_name)
     if optimization_report.recording {
-        optimization_report.list_by_reference(element, list_name, current_path, current_line)
+        optimization_report.list_by_reference(element, list_name, current_function_c_name, current_path, current_line)
     }
     var list_template = find_class_by_qualified("List")
     if not list_template {

@@ -2264,7 +2264,7 @@ included.
 100 000 number keys, takes 39.0 ms, against 18.2 ms for naive C, a chained table with the key modulo the bucket
 count, and 17.2 ms for expert C, an open-addressed table made once at its size; the whole program
 [number_dictionary](../benchmarks/number_dictionary/) measures the same against a C programmer's open-addressed
-table. `conformance/stage6/number_keys` pins its 158 allocations, with a thousand number keys making none.
+table. `conformance/stage6/number_keys` pins its 137 allocations, with a thousand number keys making none.
 `keys()` answers the numbers, and a mixed dictionary is a compile error. Compiling a program with number keys
 costs the second pass (reading and parsing are not repeated).
 
@@ -3037,10 +3037,12 @@ naive entity system took 14% fewer instructions per tick. A report reads exactly
 
 **The case:** [benchmarks/other_optimisations](../benchmarks/other_optimisations/).
 
-- **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` writes the
-  constructor's attributes straight into the vector's block, when the object is used for nothing else, so filling
-  a vector allocates only when the block grows
-  ([collections.md](../specs/collections.md#vectort)).
+- **An appended item made in the frame**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` makes
+  `slow` in the frame, when the object is used for nothing else, and `append` copies its attributes into the
+  vector's block, as it copies any item: a `Vector`'s or an inline `Items`' `append` keeps nothing of the object it
+  is given, so filling one allocates only when the block grows
+  ([collections.md](../specs/collections.md#vectort)). `removing_many_at_once`, which fills an `Items` of 200 000
+  velocities forty times, went from 3.57 times naive C's time to 2.90.
 - **A build report of what could not be optimised**, written only when asked with
   `--optimization-report=file` ([compiler.md](compiler.md#read-what-was-not-optimised)): not "400 copies elided"
   but "3 copies could not be elided, and the line that lets each go", so every line is actionable. It lists each

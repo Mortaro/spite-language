@@ -22,21 +22,22 @@ The library's `remove_where` against the same removal in C: 200 000 velocities i
 
 Both removals are one walk: `Items__Velocity_remove_where_despawned` tests each item in place and swaps the ones that
 stay down to the first place not kept, then truncates, and `List_Integer_remove_where_marked_for_despawns` calls
-`Despawns_marked` directly, the function value folded into the walk. Most of the time is not the removal but the
-fill: `Naive_fill` makes each `Velocity` on the heap with `Velocity___make` and copies it into the `Items`, where
-`naive.c` writes the struct in place (the planned fix is in
-[other optimisations](../../docs/optimizations.md#other-optimisations)).
+`Despawns_marked` directly, the function value folded into the walk. `Naive_fill` makes each `Velocity` in its frame with `Velocity___make_into(&spite_slot_<n>, ...)` and
+`Items__Velocity_append` copies it into the block ([other optimisations](../../docs/optimizations.md#other-optimisations)),
+where it made each one on the heap and freed it when the case took 3.57 times naive C's time. What is left is the
+`Items`' own append (its room check, the copy and the count kept on the item), the checked steps of the walks, and
+the swap the removal does for each item it keeps where `naive.c` copies it down.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 90 684 | 189 440 |
-| naive C: `naive.c`, `clang -O2` | 25 423 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 21 533 | 140 288 |
+| Spite: `naive/`, `--optimized` | 138 269 | 187 904 |
+| naive C: `naive.c`, `clang -O2` | 47 681 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 30 247 | 140 288 |
 
-Spite takes 3.57 times naive C's time and 4.21 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=90684 naive=25423 expert=21533 -->
+Spite takes 2.90 times naive C's time and 4.57 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=138269 naive=47681 expert=30247 -->
 <!-- /timings -->

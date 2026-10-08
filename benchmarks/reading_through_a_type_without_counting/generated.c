@@ -618,6 +618,10 @@ void Naive_Naive(Naive* self);
 void Naive_fill___held_0_1(Naive* self, Vector__Position* positions_, Vector__Velocity* velocities_, int32_t count_);
 void Naive_ticks___held_0_1(Naive* self, Vector__Position* positions_, Vector__Velocity* velocities_);
 int64_t Vector__Position_sum_place(Vector__Position* self);
+static Position* Position___framed(Position* self);
+static Position* Position___make_into(Position* self);
+static Velocity* Velocity___framed(Velocity* self);
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_);
 void Mover_advance___lent_0(Mover* self, Mover_Moving moving_, int32_t steps_);
 static SPITE_CRASH_REPORT void spite_failed_1(int32_t index_, int32_t tick_);
 void Mover___init(Mover* self);
@@ -629,15 +633,11 @@ void Mover_advance___lent_0(Mover* self, Mover_Moving moving_, int32_t steps_);
 Position* Mover_Moving___peek_position(Mover_Moving self);
 Velocity* Mover_Moving___peek_velocity(Mover_Moving self);
 void Position___init(Position* self);
-Position* Position___allocate(void);
-Position* Position___make(void);
 static inline Position* Position___retain(Position* self);
 static inline void Position___release(Position* self);
 void Position___free(Position* self);
 int64_t Position_get_place(Position* self);
 void Velocity___init(Velocity* self);
-Velocity* Velocity___allocate(void);
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_);
 static inline Velocity* Velocity___retain(Velocity* self);
 static inline void Velocity___release(Velocity* self);
 void Velocity___free(Velocity* self);
@@ -1082,6 +1082,27 @@ spite_weak_object_freed(self);
 #endif
 SPITE_FREE(self);
 }
+static Position* Position___framed(Position* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 110;
+return self;
+}
+static Position* Position___make_into(Position* self) {
+Position___framed(self);
+Position___init(self);
+return self;
+}
+static Velocity* Velocity___framed(Velocity* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 111;
+return self;
+}
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_) {
+Velocity___framed(self);
+Velocity___init(self);
+Velocity_Velocity(self, new_across_, new_down_);
+return self;
+}
 void Mover___init(Mover* self) {
 }
 Mover* Mover___allocate(void) {
@@ -1117,20 +1138,6 @@ void Position___init(Position* self) {
 self->left_ = 0;
 self->top_ = 0;
 }
-Position* Position___allocate(void) {
-Position* self = (Position*)SPITE_MALLOC(sizeof(Position));
-self->header.ref_count = 1;
-self->header.class_id = 110;
-Position___init(self);
-#ifdef SPITE_TRACKS_Position
-spite_track_Position(self);
-#endif
-return self;
-}
-Position* Position___make(void) {
-Position* self = Position___allocate();
-return self;
-}
 static inline Position* Position___retain(Position* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
@@ -1152,21 +1159,6 @@ SPITE_FREE(self);
 void Velocity___init(Velocity* self) {
 self->across_ = 0;
 self->down_ = 0;
-}
-Velocity* Velocity___allocate(void) {
-Velocity* self = (Velocity*)SPITE_MALLOC(sizeof(Velocity));
-self->header.ref_count = 1;
-self->header.class_id = 111;
-Velocity___init(self);
-#ifdef SPITE_TRACKS_Velocity
-spite_track_Velocity(self);
-#endif
-return self;
-}
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_) {
-Velocity* self = Velocity___allocate();
-Velocity_Velocity(self, new_across_, new_down_);
-return self;
 }
 static inline Velocity* Velocity___retain(Velocity* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
@@ -1700,13 +1692,13 @@ Vector__Position___release(positions_);
 void Naive_fill___held_0_1(Naive* self, Vector__Position* positions_, Vector__Velocity* velocities_, int32_t count_) {
 int32_t index_ = 0;
 while (((index_ < count_))) {
-Position* position_ = Position___make();
+Position spite_slot_1;
+Position* position_ = Position___make_into(&spite_slot_1);
 Vector__Position_append(positions_, Position___retain(position_));
-Velocity* velocity_ = Velocity___make(({ int32_t spite_temp_75 = (index_ % 13); int32_t spite_temp_76 = 6; int32_t spite_temp_77; if (__builtin_expect(__builtin_sub_overflow(spite_temp_75, spite_temp_76, &spite_temp_77), 0)) spite_overflowed("index % 13 - 6", "an Integer", "-", (int64_t)spite_temp_75, (int64_t)spite_temp_76, spite_site_14()); spite_temp_77; }), ({ int32_t spite_temp_78 = (index_ % 7); int32_t spite_temp_79 = 3; int32_t spite_temp_80; if (__builtin_expect(__builtin_sub_overflow(spite_temp_78, spite_temp_79, &spite_temp_80), 0)) spite_overflowed("index % 7 - 3", "an Integer", "-", (int64_t)spite_temp_78, (int64_t)spite_temp_79, spite_site_14()); spite_temp_80; }));
+Velocity spite_slot_2;
+Velocity* velocity_ = Velocity___make_into(&spite_slot_2, ({ int32_t spite_temp_75 = (index_ % 13); int32_t spite_temp_76 = 6; int32_t spite_temp_77; if (__builtin_expect(__builtin_sub_overflow(spite_temp_75, spite_temp_76, &spite_temp_77), 0)) spite_overflowed("index % 13 - 6", "an Integer", "-", (int64_t)spite_temp_75, (int64_t)spite_temp_76, spite_site_14()); spite_temp_77; }), ({ int32_t spite_temp_78 = (index_ % 7); int32_t spite_temp_79 = 3; int32_t spite_temp_80; if (__builtin_expect(__builtin_sub_overflow(spite_temp_78, spite_temp_79, &spite_temp_80), 0)) spite_overflowed("index % 7 - 3", "an Integer", "-", (int64_t)spite_temp_78, (int64_t)spite_temp_79, spite_site_14()); spite_temp_80; }));
 Vector__Velocity_append(velocities_, Velocity___retain(velocity_));
 index_ = (index_ + 1);
-Velocity___release(velocity_);
-Position___release(position_);
 }
 }
 void Naive_ticks___held_0_1(Naive* self, Vector__Position* positions_, Vector__Velocity* velocities_) {
@@ -2000,20 +1992,20 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___allocate, "-\t-", "Naive___allocate", 0},
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
+{(const void*)&Position___framed, "-\t-", "Position___framed", 0},
+{(const void*)&Position___make_into, "-\t-", "Position___make_into", 0},
+{(const void*)&Velocity___framed, "-\t-", "Velocity___framed", 0},
+{(const void*)&Velocity___make_into, "-\t-", "Velocity___make_into", 0},
 {(const void*)&Mover___init, "-\t-", "Mover___init", 0},
 {(const void*)&Mover___allocate, "-\t-", "Mover___allocate", 0},
 {(const void*)&Mover___make, "-\t-", "Mover___make", 0},
 {(const void*)&Mover___release, "-\t-", "Mover___release", 0},
 {(const void*)&Mover___free, "-\t-", "Mover___free", 0},
 {(const void*)&Position___init, "-\t-", "Position___init", 0},
-{(const void*)&Position___allocate, "-\t-", "Position___allocate", 0},
-{(const void*)&Position___make, "-\t-", "Position___make", 0},
 {(const void*)&Position___retain, "-\t-", "Position___retain", 0},
 {(const void*)&Position___release, "-\t-", "Position___release", 0},
 {(const void*)&Position___free, "-\t-", "Position___free", 0},
 {(const void*)&Velocity___init, "-\t-", "Velocity___init", 0},
-{(const void*)&Velocity___allocate, "-\t-", "Velocity___allocate", 0},
-{(const void*)&Velocity___make, "-\t-", "Velocity___make", 0},
 {(const void*)&Velocity___retain, "-\t-", "Velocity___retain", 0},
 {(const void*)&Velocity___release, "-\t-", "Velocity___release", 0},
 {(const void*)&Velocity___free, "-\t-", "Velocity___free", 0},

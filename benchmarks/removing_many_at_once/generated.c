@@ -637,6 +637,8 @@ void Naive_fill(Naive* self);
 int64_t Naive_kept_sum(Naive* self);
 void Items__Velocity_remove_where_despawned(Items__Velocity* self);
 void List_Integer_remove_where_marked_for_despawns(List_Integer* self, Despawns* owner_);
+static Velocity* Velocity___framed(Velocity* self);
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_entity_, float new_across_, bool new_despawned_);
 static SPITE_CRASH_REPORT void spite_failed_1(int32_t row_, Naive* self, int64_t sum_);
 void Despawns___init(Despawns* self);
 Despawns* Despawns___allocate(void);
@@ -648,8 +650,6 @@ void Despawns_mark_every(Despawns* self, int32_t total_, int32_t removed_in_ten_
 bool Despawns_marked(Despawns* self, int32_t entity_);
 static SPITE_CRASH_REPORT void spite_failed_2(int32_t entity_, bool spite_crash_set_1, int32_t spite_crash_value_1);
 void Velocity___init(Velocity* self);
-Velocity* Velocity___allocate(void);
-Velocity* Velocity___make(int32_t new_entity_, float new_across_, bool new_despawned_);
 static inline Velocity* Velocity___retain(Velocity* self);
 static inline void Velocity___release(Velocity* self);
 void Velocity___free(Velocity* self);
@@ -772,29 +772,6 @@ static __typeof__(&TypedMemory__Console_Printable___release) spite_folded_TypedM
 static __typeof__(&List_Boolean_clear) spite_folded_List_Boolean_clear = ((__typeof__(&List_Boolean_clear))&List_Integer_clear);
 static __typeof__(&TypedMemory__Boolean_release_value) spite_folded_TypedMemory__Boolean_release_value = ((__typeof__(&TypedMemory__Boolean_release_value))&TypedMemory__Integer_release_value);
 static __typeof__(&List_Console_Printable_count) spite_folded_List_Console_Printable_count = ((__typeof__(&List_Console_Printable_count))&List_Boolean_count);
-static Velocity* Velocity___pool_free = 0;
-static char* Velocity___pool_next = 0;
-static char* Velocity___pool_end = 0;
-static size_t Velocity___pool_count = 0;
-static void Velocity___pool_grow(void) {
-if (Velocity___pool_count == 0) { Velocity___pool_count = 16; } else if (Velocity___pool_count * sizeof(Velocity) < 262144) { Velocity___pool_count = Velocity___pool_count * 2; }
-char* chunk = (char*)SPITE_MALLOC(Velocity___pool_count * sizeof(Velocity) + 63);
-if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
-Velocity___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
-Velocity___pool_end = Velocity___pool_next + Velocity___pool_count * sizeof(Velocity);
-}
-static inline Velocity* Velocity___pool_take(void) {
-Velocity* self = Velocity___pool_free;
-if (self != 0) { Velocity___pool_free = *(Velocity**)self; return self; }
-if (Velocity___pool_next == Velocity___pool_end) Velocity___pool_grow();
-self = (Velocity*)Velocity___pool_next;
-Velocity___pool_next = Velocity___pool_next + sizeof(Velocity);
-return self;
-}
-static inline void Velocity___pool_give(Velocity* self) {
-*(Velocity**)self = Velocity___pool_free;
-Velocity___pool_free = self;
-}
 Memory_Heap* spite_singleton_Memory_Heap(void) {
 static Memory_Heap spite_object = { { 1, 93 } };
 return &spite_object;
@@ -1162,6 +1139,17 @@ spite_weak_object_freed(self);
 #endif
 SPITE_FREE(self);
 }
+static Velocity* Velocity___framed(Velocity* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 110;
+return self;
+}
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_entity_, float new_across_, bool new_despawned_) {
+Velocity___framed(self);
+Velocity___init(self);
+Velocity_Velocity(self, new_entity_, new_across_, new_despawned_);
+return self;
+}
 void Despawns___init(Despawns* self) {
 self->marks_ = List_Boolean___make();
 }
@@ -1204,21 +1192,6 @@ self->across_ = 0.0;
 self->down_ = 0.0;
 self->despawned_ = false;
 }
-Velocity* Velocity___allocate(void) {
-Velocity* self = Velocity___pool_take();
-self->header.ref_count = 1;
-self->header.class_id = 110;
-Velocity___init(self);
-#ifdef SPITE_TRACKS_Velocity
-spite_track_Velocity(self);
-#endif
-return self;
-}
-Velocity* Velocity___make(int32_t new_entity_, float new_across_, bool new_despawned_) {
-Velocity* self = Velocity___allocate();
-Velocity_Velocity(self, new_entity_, new_across_, new_despawned_);
-return self;
-}
 static inline Velocity* Velocity___retain(Velocity* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
@@ -1235,7 +1208,7 @@ spite_untrack_Velocity(self);
 #ifdef SPITE_WEAK_Velocity
 spite_weak_object_freed(self);
 #endif
-Velocity___pool_give(self);
+SPITE_FREE(self);
 }
 void List_Integer___init(List_Integer* self) {
 self->heap_ = spite_singleton_Memory_Heap();
@@ -1793,11 +1766,11 @@ List_Integer_clear(self->entities_);
 int32_t entity_ = 0;
 while (((entity_ < self->item_total_))) {
 bool despawned_now_ = Despawns_marked(self->despawns_, entity_);
-Velocity* velocity_ = Velocity___make(entity_, (1.0 * SpiteInteger_to_float(entity_)), despawned_now_);
+Velocity spite_slot_1;
+Velocity* velocity_ = Velocity___make_into(&spite_slot_1, entity_, (1.0 * SpiteInteger_to_float(entity_)), despawned_now_);
 Items__Velocity_append(self->velocities_, Velocity___retain(velocity_));
 List_Integer_append(self->entities_, entity_);
 entity_ = (entity_ + 1);
-Velocity___release(velocity_);
 }
 }
 int64_t Naive_kept_sum(Naive* self) {
@@ -2203,9 +2176,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_string_length, "-\t-", "spite_string_length", 0},
 {(const void*)&spite_string_bytes, "-\t-", "spite_string_bytes", 0},
 {(const void*)&spite_string_code_at, "-\t-", "spite_string_code_at", 0},
-{(const void*)&Velocity___pool_grow, "-\t-", "Velocity___pool_grow", 0},
-{(const void*)&Velocity___pool_take, "-\t-", "Velocity___pool_take", 0},
-{(const void*)&Velocity___pool_give, "-\t-", "Velocity___pool_give", 0},
 {(const void*)&spite_singleton_Memory_Heap, "-\t-", "spite_singleton_Memory_Heap", 0},
 {(const void*)&Console_Printable___retain, "-\t-", "Console_Printable___retain", 0},
 {(const void*)&spite_singleton_Build, "-\t-", "spite_singleton_Build", 0},
@@ -2256,6 +2226,8 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___allocate, "-\t-", "Naive___allocate", 0},
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
+{(const void*)&Velocity___framed, "-\t-", "Velocity___framed", 0},
+{(const void*)&Velocity___make_into, "-\t-", "Velocity___make_into", 0},
 {(const void*)&Despawns___init, "-\t-", "Despawns___init", 0},
 {(const void*)&Despawns___allocate, "-\t-", "Despawns___allocate", 0},
 {(const void*)&Despawns___make, "-\t-", "Despawns___make", 0},
@@ -2263,8 +2235,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Despawns___release, "-\t-", "Despawns___release", 0},
 {(const void*)&Despawns___free, "-\t-", "Despawns___free", 0},
 {(const void*)&Velocity___init, "-\t-", "Velocity___init", 0},
-{(const void*)&Velocity___allocate, "-\t-", "Velocity___allocate", 0},
-{(const void*)&Velocity___make, "-\t-", "Velocity___make", 0},
 {(const void*)&Velocity___retain, "-\t-", "Velocity___retain", 0},
 {(const void*)&Velocity___release, "-\t-", "Velocity___release", 0},
 {(const void*)&Velocity___free, "-\t-", "Velocity___free", 0},

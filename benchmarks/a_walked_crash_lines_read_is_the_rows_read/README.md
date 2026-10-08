@@ -29,7 +29,7 @@ compiler reads it once, keeps the answer in a local, tests it, and fills the row
 
 ## What to look at in highlights.c
 
-In `Runner__Mover_Moving_run___held_0` (`mover` is an attribute `run` cannot assign, so it is passed held), the walk over `Moving`'s attributes is written out as the lines it amounts to, with
+In `Runner__Mover_Moving_run`, the walk over `Moving`'s attributes is written out as the lines it amounts to, with
 `attribute.index` a constant: `List_Integer_get_at(self->found_, 1)` is the `crash rows[attribute.index]` line,
 kept in `spite_temp_1` and tested; `Vector__Position_get_at(...values_, spite_temp_1.value)` is the walked `crash`
 line, kept in `spite_temp_2` and tested; and the row's `position_` is set to `spite_temp_2`, the same read, not a
@@ -48,11 +48,11 @@ runs `find_attributes` as three calls that each reach the column singleton and a
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 77 897 | 198 144 |
-| naive C: `naive.c`, `clang -O2` | 20 441 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 5 079 | 139 776 |
+| Spite: `naive/`, `--optimized` | 83 413 | 198 144 |
+| naive C: `naive.c`, `clang -O2` | 40 333 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 5 258 | 139 776 |
 
-Spite takes 3.81 times naive C's time and 15.34 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking at the same time.
-<!-- measured spite=77897 naive=20441 expert=5079 -->
+Spite takes 2.07 times naive C's time and 15.86 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=83413 naive=40333 expert=5258 -->
 <!-- /timings -->

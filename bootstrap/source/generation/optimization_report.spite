@@ -8,6 +8,9 @@ var pending_elements = List<Analysis.SpiteType>()
 var pending_names = List<String>()
 var pending_paths = List<String>()
 var pending_lines = List<Integer>()
+var list_sites = Dictionary<String>()
+var reference_lists = List<String>()
+var reference_texts = List<String>()
 
 func OptimizationReport() {
     var index = 0
@@ -61,6 +64,9 @@ func record(section: Integer, holder: String, path: String, line: Integer, text:
 }
 
 func kept_entries(section: Integer, shaker: TreeShaker?): List<String> {
+    if section == 0 {
+        return kept_reference_entries(shaker)
+    }
     var kept = List<String>()
     var listed = entries(section)
     var index = 0
@@ -100,12 +106,86 @@ func padded_line(line: Integer): String {
     return digits
 }
 
-func list_by_reference(element: Analysis.SpiteType, list_name: String, path: String, line: Integer) {
+func list_by_reference(element: Analysis.SpiteType, list_name: String, holder: String, path: String, line: Integer) {
     assert recording
     pending_elements.append(element)
     pending_names.append(list_name)
     pending_paths.append(path)
     pending_lines.append(line)
+    list_used(list_name, holder, path, line)
+}
+
+func list_used(list_name: String, holder: String, path: String, line: Integer) {
+    assert recording and not path.contains("\t") and not holder.contains("\t")
+    var site = "{holder}\t{path}\t{padded_line(line)}"
+    var sites = list_sites[list_name]
+    if not sites {
+        list_sites[list_name] = site
+        return
+    }
+    assert not sites.contains("{holder}\t") and sites.split("\n").count() < 64
+    list_sites[list_name] = "{sites}\n{site}"
+}
+
+func kept_reference_entries(shaker: TreeShaker?): List<String> {
+    var kept = List<String>()
+    var index = 0
+    while index < reference_lists.count() {
+        var list_name = reference_lists[index]
+        var text = reference_texts[index]
+        crash text
+        var sites = list_sites[list_name]
+        crash sites
+        var site = kept_site(list_name, sites, shaker)
+        if not site.is_empty() {
+            var fields = site.split("\t")
+            crash fields.count() == 3
+            var path = fields[1]
+            var line_text = fields[2]
+            insert_sorted(kept, "{path}\t{line_text}\t{text}")
+        }
+        index = index + 1
+    }
+    return kept
+}
+
+func kept_site(list_name: String, sites: String, shaker: TreeShaker?): String {
+    var listed = sites.split("\n")
+    if shaker {
+        if not shaker.is_kept_name(list_name) {
+            return ""
+        }
+    }
+    var unplaced = ""
+    var index = 0
+    while index < listed.count() {
+        var site = listed[index]
+        var holder = site.split("\t").first()
+        crash holder
+        if holder.is_empty() {
+            if unplaced.is_empty() {
+                unplaced = site
+            }
+        } else if not shaker or shaker.is_kept_name(holder) {
+            return site
+        }
+        index = index + 1
+    }
+    return unplaced
+}
+
+func insert_sorted(listed: List<String>, key: String) {
+    var position = listed.count()
+    while position > 0 {
+        var before = listed[position - 1]
+        crash before
+        if before <= key {
+            listed.insert(position, key)
+            return
+        }
+        position = position - 1
+    }
+    listed.insert(0, key)
 }
 
 func finish(generator: Generator) {
@@ -116,10 +196,11 @@ func finish(generator: Generator) {
             var label = generator.type_display_name(element)
             var reason = reference_reason(generator, element)
             var list_name = pending_names[index]
-            var path = pending_paths[index]
-            var line = pending_lines[index]
-            crash list_name and path and line
-            record(0, list_name, path, line, "`List<{label}>` keeps a reference to each item: {reason}")
+            crash list_name
+            if not reference_lists.contains(list_name) {
+                reference_lists.append(list_name)
+                reference_texts.append("`List<{label}>` keeps a reference to each item: {reason}")
+            }
         }
         index = index + 1
     }

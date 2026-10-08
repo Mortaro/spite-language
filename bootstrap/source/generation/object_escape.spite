@@ -549,6 +549,18 @@ func statement_keeps(statement: Syntax.Statements.Statement): Boolean {
         }
         Syntax.Statements.IfStatement: {
             crash statement.condition
+            var generation = generating()
+            if generation.asks_only_codegen(statement.condition) {
+                var no_locals = Scope(null)
+                var deciding_class = studied()
+                var decided = generation.constant_condition(statement.condition, no_locals, deciding_class)
+                if decided == true {
+                    return block_keeps(statement.then_branch)
+                }
+                if decided == false {
+                    return block_keeps(statement.else_branch)
+                }
+            }
             return keeps(statement.condition) and block_keeps(statement.then_branch) and block_keeps(statement.else_branch)
         }
         Syntax.Statements.WhileStatement: {

@@ -17,10 +17,10 @@ void Naive_Naive(Naive* self) {
     Vector__Particle* particles_ = Vector__Particle___make();
     int32_t index_ = 0;
     while (((index_ < 100000))) {
-        Particle* particle_ = Particle___make(index_);
+        Particle spite_slot_1;
+        Particle* particle_ = Particle___make_into(&spite_slot_1, index_);
         Vector__Particle_append(particles_, Particle___retain(particle_));
         index_ = (index_ + 1);
-        Particle___release(particle_);
     }
     int32_t tick_ = 0;
     while (((tick_ < 300))) {

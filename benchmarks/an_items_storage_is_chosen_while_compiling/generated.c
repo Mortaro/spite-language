@@ -623,6 +623,8 @@ static Column__Trail* Column__Trail___make_into(Column__Trail* self);
 static void Column__Trail___unframe(Column__Trail* self);
 void Naive_fill___held_0_1(Naive* self, Column__Velocity* velocities_, Column__Trail* trails_, int32_t count_);
 int64_t Naive_ticks___held_0_1(Naive* self, Column__Velocity* velocities_, Column__Trail* trails_);
+static Velocity* Velocity___framed(Velocity* self);
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_);
 void Column__Velocity_add___held_0(Column__Velocity* self, Velocity* component_);
 void Column__Trail_add___held_0(Column__Trail* self, Trail* component_);
 void Items__Velocity_each_integrate(Items__Velocity* self);
@@ -638,8 +640,6 @@ void Trail___free(Trail* self);
 void Trail_Trail(Trail* self, int32_t new_across_, int32_t new_down_);
 void Trail_integrate(Trail* self);
 void Velocity___init(Velocity* self);
-Velocity* Velocity___allocate(void);
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_);
 static inline Velocity* Velocity___retain(Velocity* self);
 static inline void Velocity___release(Velocity* self);
 void Velocity___free(Velocity* self);
@@ -774,29 +774,6 @@ return self;
 static inline void Trail___pool_give(Trail* self) {
 *(Trail**)self = Trail___pool_free;
 Trail___pool_free = self;
-}
-static Velocity* Velocity___pool_free = 0;
-static char* Velocity___pool_next = 0;
-static char* Velocity___pool_end = 0;
-static size_t Velocity___pool_count = 0;
-static void Velocity___pool_grow(void) {
-if (Velocity___pool_count == 0) { Velocity___pool_count = 16; } else if (Velocity___pool_count * sizeof(Velocity) < 262144) { Velocity___pool_count = Velocity___pool_count * 2; }
-char* chunk = (char*)SPITE_MALLOC(Velocity___pool_count * sizeof(Velocity) + 63);
-if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
-Velocity___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
-Velocity___pool_end = Velocity___pool_next + Velocity___pool_count * sizeof(Velocity);
-}
-static inline Velocity* Velocity___pool_take(void) {
-Velocity* self = Velocity___pool_free;
-if (self != 0) { Velocity___pool_free = *(Velocity**)self; return self; }
-if (Velocity___pool_next == Velocity___pool_end) Velocity___pool_grow();
-self = (Velocity*)Velocity___pool_next;
-Velocity___pool_next = Velocity___pool_next + sizeof(Velocity);
-return self;
-}
-static inline void Velocity___pool_give(Velocity* self) {
-*(Velocity**)self = Velocity___pool_free;
-Velocity___pool_free = self;
 }
 Memory_Heap* spite_singleton_Memory_Heap(void) {
 static Memory_Heap spite_object = { { 1, 93 } };
@@ -1190,6 +1167,17 @@ Column__Trail___framed(self);
 Column__Trail___init(self);
 return self;
 }
+static Velocity* Velocity___framed(Velocity* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 111;
+return self;
+}
+static Velocity* Velocity___make_into(Velocity* self, int32_t new_across_, int32_t new_down_) {
+Velocity___framed(self);
+Velocity___init(self);
+Velocity_Velocity(self, new_across_, new_down_);
+return self;
+}
 void Trail___init(Trail* self) {
 self->across_ = 0;
 self->down_ = 0;
@@ -1233,21 +1221,6 @@ void Velocity___init(Velocity* self) {
 self->across_ = 0;
 self->down_ = 0;
 }
-Velocity* Velocity___allocate(void) {
-Velocity* self = Velocity___pool_take();
-self->header.ref_count = 1;
-self->header.class_id = 111;
-Velocity___init(self);
-#ifdef SPITE_TRACKS_Velocity
-spite_track_Velocity(self);
-#endif
-return self;
-}
-Velocity* Velocity___make(int32_t new_across_, int32_t new_down_) {
-Velocity* self = Velocity___allocate();
-Velocity_Velocity(self, new_across_, new_down_);
-return self;
-}
 static inline Velocity* Velocity___retain(Velocity* self) {
 if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
@@ -1264,7 +1237,7 @@ spite_untrack_Velocity(self);
 #ifdef SPITE_WEAK_Velocity
 spite_weak_object_freed(self);
 #endif
-Velocity___pool_give(self);
+SPITE_FREE(self);
 }
 void Column__Velocity___init(Column__Velocity* self) {
 self->items_ = Items__Velocity___make();
@@ -1816,13 +1789,13 @@ Column__Velocity___unframe(velocities_);
 void Naive_fill___held_0_1(Naive* self, Column__Velocity* velocities_, Column__Trail* trails_, int32_t count_) {
 int32_t index_ = 0;
 while (((index_ < count_))) {
-Velocity* velocity_ = Velocity___make((index_ % 100), (index_ % 7));
+Velocity spite_slot_3;
+Velocity* velocity_ = Velocity___make_into(&spite_slot_3, (index_ % 100), (index_ % 7));
 Column__Velocity_add___held_0(velocities_, velocity_);
 Trail* trail_ = Trail___make((index_ % 50), (index_ % 5));
 Column__Trail_add___held_0(trails_, trail_);
 index_ = (index_ + 1);
 Trail___release(trail_);
-Velocity___release(velocity_);
 }
 }
 int64_t Naive_ticks___held_0_1(Naive* self, Column__Velocity* velocities_, Column__Trail* trails_) {
@@ -2108,9 +2081,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Trail___pool_grow, "-\t-", "Trail___pool_grow", 0},
 {(const void*)&Trail___pool_take, "-\t-", "Trail___pool_take", 0},
 {(const void*)&Trail___pool_give, "-\t-", "Trail___pool_give", 0},
-{(const void*)&Velocity___pool_grow, "-\t-", "Velocity___pool_grow", 0},
-{(const void*)&Velocity___pool_take, "-\t-", "Velocity___pool_take", 0},
-{(const void*)&Velocity___pool_give, "-\t-", "Velocity___pool_give", 0},
 {(const void*)&spite_singleton_Memory_Heap, "-\t-", "spite_singleton_Memory_Heap", 0},
 {(const void*)&Console_Printable___retain, "-\t-", "Console_Printable___retain", 0},
 {(const void*)&spite_singleton_InlineMemory__Velocity, "-\t-", "spite_singleton_InlineMemory__Velocity", 0},
@@ -2168,6 +2138,8 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Column__Trail___framed, "-\t-", "Column__Trail___framed", 0},
 {(const void*)&Column__Trail___unframe, "-\t-", "Column__Trail___unframe", 0},
 {(const void*)&Column__Trail___make_into, "-\t-", "Column__Trail___make_into", 0},
+{(const void*)&Velocity___framed, "-\t-", "Velocity___framed", 0},
+{(const void*)&Velocity___make_into, "-\t-", "Velocity___make_into", 0},
 {(const void*)&Trail___init, "-\t-", "Trail___init", 0},
 {(const void*)&Trail___allocate, "-\t-", "Trail___allocate", 0},
 {(const void*)&Trail___make, "-\t-", "Trail___make", 0},
@@ -2175,8 +2147,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Trail___release, "-\t-", "Trail___release", 0},
 {(const void*)&Trail___free, "-\t-", "Trail___free", 0},
 {(const void*)&Velocity___init, "-\t-", "Velocity___init", 0},
-{(const void*)&Velocity___allocate, "-\t-", "Velocity___allocate", 0},
-{(const void*)&Velocity___make, "-\t-", "Velocity___make", 0},
 {(const void*)&Velocity___retain, "-\t-", "Velocity___retain", 0},
 {(const void*)&Velocity___release, "-\t-", "Velocity___release", 0},
 {(const void*)&Velocity___free, "-\t-", "Velocity___free", 0},

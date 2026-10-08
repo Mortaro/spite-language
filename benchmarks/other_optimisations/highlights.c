@@ -6,10 +6,10 @@ void Naive_Naive(Naive* self) {
     Vector__Velocity* velocities_ = Vector__Velocity___make();
     int32_t index_ = 0;
     while (((index_ < 1000))) {
-        Velocity* made_ = Velocity___make((index_ % 7), (index_ % 5));
+        Velocity spite_slot_1;
+        Velocity* made_ = Velocity___make_into(&spite_slot_1, (index_ % 7), (index_ % 5));
         Vector__Velocity_append(velocities_, Velocity___retain(made_));
         index_ = (index_ + 1);
-        Velocity___release(made_);
     }
     int32_t across_ = Vector__Velocity_sum_across(velocities_);
     int32_t down_ = Vector__Velocity_sum_down(velocities_);

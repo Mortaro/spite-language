@@ -33,11 +33,11 @@ void Naive_fill(Naive* self) {
     int32_t entity_ = 0;
     while (((entity_ < self->item_total_))) {
         bool despawned_now_ = Despawns_marked(self->despawns_, entity_);
-        Velocity* velocity_ = Velocity___make(entity_, (1.0 * SpiteInteger_to_float(entity_)), despawned_now_);
+        Velocity spite_slot_1;
+        Velocity* velocity_ = Velocity___make_into(&spite_slot_1, entity_, (1.0 * SpiteInteger_to_float(entity_)), despawned_now_);
         Items__Velocity_append(self->velocities_, Velocity___retain(velocity_));
         List_Integer_append(self->entities_, entity_);
         entity_ = (entity_ + 1);
-        Velocity___release(velocity_);
     }
 }
 
