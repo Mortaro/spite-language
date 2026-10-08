@@ -189,6 +189,32 @@ its path (`World().player.health`, `describe Monster`), set a breakpoint with `b
 locals there. Every answer is one line of JSON, so a script or a model can drive it as easily as a person
 ([docs/repl.md](docs/repl.md)).
 
+## Written by AI, decided by a person
+
+Almost every line of this repository, the compiler, the standard library, the docs and the tests, was written by AI
+agents. Every rule of the language was decided by one person, Mortaro, or is marked as an agent's proposal waiting
+for his confirmation. That split is deliberate, and it is why Spite is not "vibe coded": vibe coding accepts code
+because it seems to work. Here nothing is accepted on that basis.
+
+- **The language is the guardrail.** Spite is meant to be written by models. The quickest way to learn what a model
+  needs to be stopped from doing is to let models build the language and watch where they go wrong. When agents
+  kept re-checking facts they had already proven, re-proving a known fact became a compile error. When a value
+  could go missing without anyone noticing, "anything that can go wrong silently is a bug" became the rule every
+  change is judged by. Each mistake found while building Spite becomes something the compiler refuses, so no
+  later writer can make it again.
+- **Decisions are written down, with their reasons.** Over nine hundred decisions are logged, each with its date,
+  who made it and why, so nothing is re-argued from memory and nothing changes without a record.
+- **The specification is normative and tested.** Every rule has one page in `specs/`; every titled program in
+  the docs is compiled and run by the test suite, along with about a thousand conformance programs and over two
+  hundred and fifty programs that must fail with an exact error. The compiler builds itself, and two generations
+  must come out byte identical.
+- **Speed claims are measured against C.** Every optimisation has a benchmark that compares the plain Spite
+  program with the same program written plainly in C and tuned by hand in C, with the C the compiler generated
+  kept beside them.
+
+So the AI is not trusted; it is constrained. The more the language refuses, the less it matters who, or what, is
+writing it, and that is the property Spite is built to have.
+
 ## C today, its own backend as the direction
 
 Spite compiles to C and builds it with the C compiler you bring (`cc`, `clang` or `gcc`), so it runs wherever C
