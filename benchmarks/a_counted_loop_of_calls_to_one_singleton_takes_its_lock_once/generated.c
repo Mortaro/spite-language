@@ -1132,6 +1132,8 @@ void spite_singleton_free_later(void* object);
 void spite_singleton_check_circle(const char* name);
 void spite_singleton_making(const char* name);
 void spite_singleton_made(void);
+static void spite_spin_pause(void);
+static void spite_guard_wait(SpiteGuard* guard, int64_t spite_me);
 static void spite_guard_enter(SpiteGuard* guard);
 static void spite_guard_leave(SpiteGuard* guard);
 void Tally_add___unguarded(Tally* self, int32_t amount_);
@@ -2527,12 +2529,37 @@ for (int32_t index = 0; index < spite_singletons_freed_total; index = index + 1)
 free(spite_singletons_freed);
 spite_singletons_ending = false;
 }
+static inline void spite_spin_pause(void) {
+#if defined(__x86_64__) || defined(__i386__)
+__builtin_ia32_pause();
+#elif defined(__aarch64__) || defined(__arm__)
+__asm__ __volatile__("yield");
+#endif
+}
+static void spite_guard_wait(SpiteGuard* guard, int64_t spite_me) {
+int32_t spite_backoff = 1;
+for (;;) {
+for (int32_t spite_spin = 0; spite_spin < spite_backoff; spite_spin = spite_spin + 1) spite_spin_pause();
+if (spite_backoff < 1024) {
+spite_backoff = spite_backoff * 2;
+} else {
+#ifdef _WIN32
+SwitchToThread();
+#else
+extern int sched_yield(void);
+sched_yield();
+#endif
+}
+int64_t spite_free = 0;
+if (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) == 0 && __atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) return;
+}
+}
 static SPITE_THREAD_LOCAL char spite_guard_thread;
 static void spite_guard_enter(SpiteGuard* guard) {
 int64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;
 if (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) { guard->depth = guard->depth + 1; return; }
 int64_t spite_free = 0;
-while (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) { spite_free = 0; }
+if (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) spite_guard_wait(guard, spite_me);
 guard->depth = 1;
 }
 static void spite_guard_leave(SpiteGuard* guard) {
@@ -3785,6 +3812,8 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_singleton_used_after_exit, "-\t-", "spite_singleton_used_after_exit", 0},
 {(const void*)&spite_singleton_free_later, "-\t-", "spite_singleton_free_later", 0},
 {(const void*)&spite_singletons_destroy, "-\t-", "spite_singletons_destroy", 0},
+{(const void*)&spite_spin_pause, "-\t-", "spite_spin_pause", 0},
+{(const void*)&spite_guard_wait, "-\t-", "spite_guard_wait", 0},
 {(const void*)&spite_guard_enter, "-\t-", "spite_guard_enter", 0},
 {(const void*)&spite_guard_leave, "-\t-", "spite_guard_leave", 0},
 {(const void*)&Launcher_Launcher, "launcher/launcher.spite\tLauncher", "Launcher", 3},

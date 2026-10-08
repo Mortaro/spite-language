@@ -43,11 +43,11 @@ optimisation's, and `expert.c` has none.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 17 384 | 238 080 |
-| naive C: `naive.c`, `clang -O2` | 102 988 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 5 819 | 140 288 |
+| Spite: `naive/`, `--optimized` | 17 641 | 239 616 |
+| naive C: `naive.c`, `clang -O2` | 105 106 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 5 547 | 140 288 |
 
-Spite takes 0.17 times naive C's time and 2.99 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=17384 naive=102988 expert=5819 -->
+Spite takes 0.17 times naive C's time and 3.18 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=17641 naive=105106 expert=5547 -->
 <!-- /timings -->

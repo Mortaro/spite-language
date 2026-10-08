@@ -35,21 +35,24 @@ take none of the cheaper forms; its `total` is written once by `record`, so it i
 the lock. The loop is not [one counted loop of calls](../a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/)
 because it also calls `weight_of`, a function of the recorder's own, so each call takes the lock.
 
-`spite_guard_enter` is a spin lock: a compare-and-swap in a loop with no pause and no fall back to waiting in the
-system. With four threads calling it all the time, the lock's line goes from core to core and the threads spin
-while they wait; one run of the `-O2` builds `scripts/cases/check.sh` makes took 134 ms for the Spite against
-43 ms for `naive.c`, whose `CRITICAL_SECTION` spins briefly and then waits in the system. `expert.c` takes no lock.
+`spite_guard_enter` takes the lock with one compare-and-swap when it is free. When another thread holds it,
+`spite_guard_wait` waits with `spite_spin_pause()` (the processor's `pause`), 1, 2, 4 and up to 1 024 of them
+between looks, reads the lock before it tries the compare-and-swap again, and past that calls `SwitchToThread()`
+(`sched_yield()` off Windows) between looks. The plain compare-and-swap loop it replaced made every waiting thread
+pull the lock's line to its own core at every try, so the thread holding the lock lost it too: this program took
+113 ms that way, against 7.7 ms backing off, and `naive.c`'s `CRITICAL_SECTION`, which spins briefly and then
+waits in the system, takes 21.5 ms. `expert.c` takes no lock.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 113 095 | 231 424 |
-| naive C: `naive.c`, `clang -O2` | 23 851 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 578 | 139 776 |
+| Spite: `naive/`, `--optimized` | 7 700 | 232 960 |
+| naive C: `naive.c`, `clang -O2` | 21 467 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 525 | 139 776 |
 
-Spite takes 4.74 times naive C's time and 195.67 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=113095 naive=23851 expert=578 -->
+Spite takes 0.36 times naive C's time and 14.67 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=7700 naive=21467 expert=525 -->
 <!-- /timings -->

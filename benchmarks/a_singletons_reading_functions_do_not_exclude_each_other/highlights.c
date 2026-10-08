@@ -45,7 +45,7 @@ static int64_t* spite_read_enter(SpiteGuard* guard, SpiteReaders* readers) {
         __atomic_fetch_add(spite_slot, 1, __ATOMIC_SEQ_CST);
         if (__atomic_load_n(&guard->owner, __ATOMIC_SEQ_CST) == 0) return spite_slot;
         __atomic_fetch_sub(spite_slot, 1, __ATOMIC_SEQ_CST);
-        while (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) != 0) { }
+        while (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) != 0) spite_spin_pause();
     }
 }
 
@@ -78,6 +78,6 @@ static void spite_guard_enter_writing(SpiteGuard* guard, SpiteReaders* readers) 
     if (guard->depth != 1) return;
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
     for (int32_t spite_index = 0; spite_index < SPITE_READER_SLOTS; spite_index++) {
-        while (__atomic_load_n(&readers[spite_index].count, __ATOMIC_SEQ_CST) != 0) { }
+        while (__atomic_load_n(&readers[spite_index].count, __ATOMIC_SEQ_CST) != 0) spite_spin_pause();
     }
 }

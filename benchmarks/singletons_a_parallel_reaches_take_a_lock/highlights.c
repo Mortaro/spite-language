@@ -40,11 +40,38 @@ void Registry_record___unguarded(Registry* self, int32_t weight_) {
     do { int64_t spite_step = (SpiteInteger_to_long(weight_)); int64_t spite_before; int64_t spite_after; if (Registry___atomic) spite_before = __atomic_fetch_add(&(self->total_), spite_step, __ATOMIC_SEQ_CST); else spite_before = (self->total_); if (__builtin_expect(__builtin_add_overflow(spite_before, spite_step, &spite_after), 0)) spite_overflowed("total + weight", "a Long", "+", (int64_t)spite_before, (int64_t)spite_step, spite_site_1()); if (!Registry___atomic) (self->total_) = spite_after; } while (0);
 }
 
+static inline void spite_spin_pause(void) {
+    #if defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+    #elif defined(__aarch64__) || defined(__arm__)
+    __asm__ __volatile__("yield");
+    #endif
+}
+
+static void spite_guard_wait(SpiteGuard* guard, int64_t spite_me) {
+    int32_t spite_backoff = 1;
+    for (;;) {
+        for (int32_t spite_spin = 0; spite_spin < spite_backoff; spite_spin = spite_spin + 1) spite_spin_pause();
+        if (spite_backoff < 1024) {
+            spite_backoff = spite_backoff * 2;
+        } else {
+            #ifdef _WIN32
+            SwitchToThread();
+            #else
+            extern int sched_yield(void);
+            sched_yield();
+            #endif
+        }
+        int64_t spite_free = 0;
+        if (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) == 0 && __atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) return;
+    }
+}
+
 static void spite_guard_enter(SpiteGuard* guard) {
     int64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;
     if (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) { guard->depth = guard->depth + 1; return; }
     int64_t spite_free = 0;
-    while (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) { spite_free = 0; }
+    if (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) spite_guard_wait(guard, spite_me);
     guard->depth = 1;
 }
 

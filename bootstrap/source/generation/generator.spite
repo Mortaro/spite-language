@@ -42657,10 +42657,18 @@ func finish_guard_count() {
 
 func finish_singleton_guards() {
     builder.add_typedef("typedef struct SpiteGuard \{ _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;")
+    builder.add_prototype("static void spite_spin_pause(void);")
+    builder.add_prototype("static void spite_guard_wait(SpiteGuard* guard, int64_t spite_me);")
     builder.add_prototype("static void spite_guard_enter(SpiteGuard* guard);")
     builder.add_prototype("static void spite_guard_leave(SpiteGuard* guard);")
     builder.add_support(
-        "static SPITE_THREAD_LOCAL char spite_guard_thread;\nstatic void spite_guard_enter(SpiteGuard* guard) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) \{ guard->depth = guard->depth + 1; return; }\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\nguard->depth = 1;\n}\nstatic void spite_guard_leave(SpiteGuard* guard) \{\nguard->depth = guard->depth - 1;\nif (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);\n}",
+        "static inline void spite_spin_pause(void) \{\n#if defined(__x86_64__) || defined(__i386__)\n__builtin_ia32_pause();\n#elif defined(__aarch64__) || defined(__arm__)\n__asm__ __volatile__(\"yield\");\n#endif\n}",
+    )
+    builder.add_support(
+        "static void spite_guard_wait(SpiteGuard* guard, int64_t spite_me) \{\nint32_t spite_backoff = 1;\nfor (;;) \{\nfor (int32_t spite_spin = 0; spite_spin < spite_backoff; spite_spin = spite_spin + 1) spite_spin_pause();\nif (spite_backoff < 1024) \{\nspite_backoff = spite_backoff * 2;\n} else \{\n#ifdef _WIN32\nSwitchToThread();\n#else\nextern int sched_yield(void);\nsched_yield();\n#endif\n}\nint64_t spite_free = 0;\nif (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) == 0 && __atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) return;\n}\n}",
+    )
+    builder.add_support(
+        "static SPITE_THREAD_LOCAL char spite_guard_thread;\nstatic void spite_guard_enter(SpiteGuard* guard) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) \{ guard->depth = guard->depth + 1; return; }\nint64_t spite_free = 0;\nif (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) spite_guard_wait(guard, spite_me);\nguard->depth = 1;\n}\nstatic void spite_guard_leave(SpiteGuard* guard) \{\nguard->depth = guard->depth - 1;\nif (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);\n}",
     )
     var guarded_names = List<String>()
     var wrapped = List<Integer>()
@@ -42755,7 +42763,7 @@ func find_reading_functions(wrapped: List<Integer>) {
     builder.add_prototype("static void spite_read_leave(int64_t* slot);")
     builder.add_prototype("static void spite_guard_enter_writing(SpiteGuard* guard, SpiteReaders* readers);")
     builder.add_support(
-        "static SPITE_THREAD_LOCAL int32_t spite_reader_index = -1;\nstatic int32_t spite_reader_next = 0;\nstatic int64_t* spite_read_enter(SpiteGuard* guard, SpiteReaders* readers) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) return 0;\nif (spite_reader_index < 0) spite_reader_index = __atomic_fetch_add(&spite_reader_next, 1, __ATOMIC_RELAXED) % SPITE_READER_SLOTS;\nint64_t* spite_slot = &readers[spite_reader_index].count;\nfor (;;) \{\n__atomic_fetch_add(spite_slot, 1, __ATOMIC_SEQ_CST);\nif (__atomic_load_n(&guard->owner, __ATOMIC_SEQ_CST) == 0) return spite_slot;\n__atomic_fetch_sub(spite_slot, 1, __ATOMIC_SEQ_CST);\nwhile (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) != 0) \{ }\n}\n}\nstatic void spite_read_leave(int64_t* slot) \{\nif (slot != 0) __atomic_fetch_sub(slot, 1, __ATOMIC_RELEASE);\n}\nstatic void spite_guard_enter_writing(SpiteGuard* guard, SpiteReaders* readers) \{\nspite_guard_enter(guard);\nif (guard->depth != 1) return;\n__atomic_thread_fence(__ATOMIC_SEQ_CST);\nfor (int32_t spite_index = 0; spite_index < SPITE_READER_SLOTS; spite_index++) \{\nwhile (__atomic_load_n(&readers[spite_index].count, __ATOMIC_SEQ_CST) != 0) \{ }\n}\n}",
+        "static SPITE_THREAD_LOCAL int32_t spite_reader_index = -1;\nstatic int32_t spite_reader_next = 0;\nstatic int64_t* spite_read_enter(SpiteGuard* guard, SpiteReaders* readers) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) return 0;\nif (spite_reader_index < 0) spite_reader_index = __atomic_fetch_add(&spite_reader_next, 1, __ATOMIC_RELAXED) % SPITE_READER_SLOTS;\nint64_t* spite_slot = &readers[spite_reader_index].count;\nfor (;;) \{\n__atomic_fetch_add(spite_slot, 1, __ATOMIC_SEQ_CST);\nif (__atomic_load_n(&guard->owner, __ATOMIC_SEQ_CST) == 0) return spite_slot;\n__atomic_fetch_sub(spite_slot, 1, __ATOMIC_SEQ_CST);\nwhile (__atomic_load_n(&guard->owner, __ATOMIC_RELAXED) != 0) spite_spin_pause();\n}\n}\nstatic void spite_read_leave(int64_t* slot) \{\nif (slot != 0) __atomic_fetch_sub(slot, 1, __ATOMIC_RELEASE);\n}\nstatic void spite_guard_enter_writing(SpiteGuard* guard, SpiteReaders* readers) \{\nspite_guard_enter(guard);\nif (guard->depth != 1) return;\n__atomic_thread_fence(__ATOMIC_SEQ_CST);\nfor (int32_t spite_index = 0; spite_index < SPITE_READER_SLOTS; spite_index++) \{\nwhile (__atomic_load_n(&readers[spite_index].count, __ATOMIC_SEQ_CST) != 0) spite_spin_pause();\n}\n}",
     )
 }
 

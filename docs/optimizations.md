@@ -1036,13 +1036,25 @@ How the lock is kept cheap:
   (`var last = registry.last`) takes it too, around the one load (and the count of what it reads).
 - **A singleton is never counted.** Fetching one (`var registry = Registry()` in a function) is one load, and
   letting go of it is nothing: a singleton's retain and release compile to nothing, in generic singletons too.
+- **A thread that finds the lock taken backs off.** The lock is taken with one compare-and-swap when it is free.
+  When it is not, the thread waits with the processor's pause instruction, 1, 2, 4 and up to 1 024 pauses between
+  looks, reading the lock before it tries to take it again, and past that gives its turn to the system
+  (`SwitchToThread`, `sched_yield`) between looks. The thread holding the lock keeps its cache line instead of
+  losing it to every waiter's attempt, so it finishes sooner. Measured against the plain compare-and-swap loop it
+  replaced and the system's own locks, on a million calls that append to a list (best of seven, on a sixteen-core
+  machine): one thread 2.9 ms for the plain loop and 3.1 ms backing off; two threads 30.8 and 5.0 ms; four 78.9 and
+  5.7 ms; eight 165.7 and 9.6 ms, where a slim reader-writer lock took 7.4, 10.9, 17.3 and 40.1 ms and a critical
+  section 7.1, 11.0, 27.9 and 66.1 ms. The waiting is the only change: who holds the lock, and in what order, is
+  what it was, and the lock is still re-entered for free by the thread that holds it.
 
 **When.** Only in programs that make a `Parallel`, run a `parallel_each_` pass or make a `ForeignCallback` (C may
 call one from a thread of its own), and only for a singleton that such a thread can reach; in any other program a
 write from another class is a plain store.
 
 **What you notice.** An uncontended lock per call to such a singleton (two atomic operations), and waiting when
-two threads call it at once. In `conformance/stage6/singleton_lock_calls`, `Registry` is locked, pads its lock,
+two threads call it at once (`benchmarks/singletons_a_parallel_reaches_take_a_lock`, four threads on one
+singleton: 113 ms with a plain compare-and-swap loop, 7.7 ms backing off, against 21.5 ms for the same program in C
+behind a critical section). In `conformance/stage6/singleton_lock_calls`, `Registry` is locked, pads its lock,
 calls itself unlocked and locks the write `registry.last = ...` and the read of `registry.last` from the entry
 class, and `Rules` takes no lock.
 

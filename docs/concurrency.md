@@ -563,8 +563,13 @@ Start the `Parallel` and read it in the class that asks for the despawn, and let
 
 The lock is a word of its own on a cache line of its own, taken with one compare-and-swap and let go with one
 store, re-entered for free by the thread that holds it. Taken by one thread only, it costs a few nanoseconds a call.
-Taken by several threads at once it costs far more, because each call hands the line from core to core and the
-threads waiting spin. So:
+Taken by several threads at once it costs more, because each call hands the line from core to core. A thread that
+finds the lock taken does not hammer it: it waits a few pauses of the processor, twice as many each time it looks
+again, and past a thousand it gives its turn to the system between looks, so the thread holding the lock runs on
+and the line stays where it is. Four threads making 250 000 calls each to one shared singleton take 7.7 ms
+([`benchmarks/singletons_a_parallel_reaches_take_a_lock`](../benchmarks/singletons_a_parallel_reaches_take_a_lock/)),
+a third of the time of the same program in C behind a system mutex, and still fifteen times the time of the same
+work split between the threads with no lock at all. So:
 
 - **Give each worker its own singleton** where the state splits (a generic singleton per column, `Column<T>`,
   rather than one `Columns` every worker calls), and the locks are never contended.

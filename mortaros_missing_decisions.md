@@ -93,6 +93,10 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   might run, so a `filter(matches)` locked a whole engine's matchers and columns while only a recipe loader ran on
   the pool (a stress tick 43.3 ms to 36.9 as one C file). The count of locks held is kept, so nothing a program
   does changes.
+- **D530, a singleton's lock backs off**: a thread that finds a singleton's lock taken pauses, doubling up to 1 024
+  pauses, then yields to the system between looks. Why: under four threads the plain compare-and-swap loop took
+  113 ms against 21.5 for C behind a critical section; backing off takes 7.7, faster than a system lock at every
+  thread count measured (1, 2, 4, 8).
 
 ## Open
 

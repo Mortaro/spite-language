@@ -981,9 +981,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   still refused as reading it unproven on the next pass (proofs_that_survive_a_call); the length of a reflection
   name known while compiling is not folded (short_symbols_are_inline_text); a program's `.crashes` file lists some
   sites twice (a_crashs_report_is_kept_out_of_the_way); reads in a row hand only `fread` to the helper thread, so on
-  cached files the overlapped reads are slower than reading in turn (reads_in_a_row_overlap); a singleton's lock is
-  a compare-and-swap spin with no pause and no wait in the system, and under four threads it loses to a plain
-  mutex (singletons_a_parallel_reaches_take_a_lock); a singleton that never changes is still read with atomic loads
+  cached files the overlapped reads are slower than reading in turn (reads_in_a_row_overlap); a singleton that never changes is still read with atomic loads
   (thread_safety_for_singletons_the_cheapest_safe_form); each sleep in a state machine counts `Program` twice
   (hidden_async_await_as_compile_time_state_machines); an item read through a singleton's attribute that is read in
   place is still counted (a_singletons_attribute_that_never_changes_is_read_in_place); a dictionary read narrowed
