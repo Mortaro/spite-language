@@ -24072,7 +24072,7 @@ func strided_range_proven(
     if not row or stride.is_empty() {
         return false
     }
-    var height = counter_bound(row.name, 0, scope)
+    var height = narrowed_counter_bound(row.name, 0, scope)
     if height.is_empty() {
         return false
     }
@@ -24091,10 +24091,10 @@ func strided_range_proven(
     if not column {
         return false
     }
-    return counter_bound(column.name, reach, scope) == stride
+    return narrowed_counter_bound(column.name, reach, scope) == stride
 }
 
-func counter_bound(counter: String, reach: Integer, scope: Scope): String {
+func narrowed_counter_bound(counter: String, reach: Integer, scope: Scope): String {
     var prefix = "~<[{counter}:"
     var paths = scope.visible_narrowed_paths()
     var index = 0
@@ -40927,7 +40927,7 @@ func counted_loop_list(
     if not counted_body_keeps_count(listed, counter.name, while_statement.body, scope, class_information) {
         return ""
     }
-    if counter_step(counter.name, while_statement.body) > counted_reach(binary.left) + 1 {
+    if last_counter_step(counter.name, while_statement.body) > counted_reach(binary.left) + 1 {
         return ""
     }
     return listed
@@ -41075,10 +41075,10 @@ func loop_counts_up(counter: String, loop: Syntax.Statements.WhileStatement): Bo
 }
 
 func steps_counter_last(counter: String, body: List<Syntax.Statements.Statement>): Boolean {
-    return counter_step(counter, body) > 0
+    return last_counter_step(counter, body) > 0
 }
 
-func counter_step(counter: String, body: List<Syntax.Statements.Statement>): Integer {
+func last_counter_step(counter: String, body: List<Syntax.Statements.Statement>): Integer {
     var last = body.last()
     if not last {
         return 0
