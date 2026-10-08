@@ -465,6 +465,11 @@ The report has one section per optimisation, with how many places it lists:
   that lets it go (`kept.append(badge)`), or what about its class keeps every object on the heap.
 - **Copies not elided**: a `var twin = original.copy()` that allocates, with the line that lets the copy go, or
   why its class cannot be copied into the frame.
+- **Overflow checks kept**: each `+`, `-`, `*` or `-` in front of a whole number that keeps its check
+  ([optimizations.md](optimizations.md#arithmetic-a-range-proves-is-not-checked)), with the operand whose range
+  nothing proves or the ranges that let the answer pass its type
+  (`` `product * 3` keeps its overflow check: 'product' runs from -2147483648 to 2147483647, so the answer may not
+  fit in an Integer ``). Hold a total in a wider type, or bound a value where it is made, and the line goes.
 
 A line looks like this, its link relative to the report's folder so it opens from wherever the file is read:
 
@@ -475,7 +480,8 @@ A line looks like this, its link relative to the report's folder so it opens fro
 Like `--final-classes`, the report describes what the program ends up with: a function that tree shaking removes
 reports nothing, and the library's lines are listed with the program's, sorted by file and line, since they cost
 the program the same. An inspectable build (`--development`, `--repl`, `--repl-port`, `--hot-reload`) places
-nothing in the frame by design; its report says so and lists only the lists that hold references.
+nothing in the frame by design; its report says so and lists only the lists that hold references and the overflow
+checks kept.
 
 ## Errors and usage
 
