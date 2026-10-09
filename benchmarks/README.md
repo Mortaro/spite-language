@@ -25,7 +25,7 @@ again, so it always shows the latest measurement of every case.
 | [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 40 309 | 17 468 | 16 373 | 2.31 | 2.46 |
 | [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 14 277 | 433 339 | 5 983 | 0.03 | 2.39 |
 | [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed | not timed | | |
-| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 57 000 | 56 674 | 56 677 | 1.01 | 1.01 |
+| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 62 760 | 60 717 | 60 963 | 1.03 | 1.03 |
 | [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 1 210 | 1 607 | 1 450 | 0.75 | 0.83 |
 | [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 58 596 | 70 666 | 12 480 | 0.83 | 4.70 |
 | [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 29 290 | 39 866 | 2 570 | 0.73 | 11.40 |
@@ -67,7 +67,7 @@ again, so it always shows the latest measurement of every case.
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed | not timed | | |
 | [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 12 745 | 9 466 | 8 435 | 1.35 | 1.51 |
 | [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 29 679 | 56 403 | 355 | 0.53 | 83.60 |
-| [game_maths](game_maths/) | 2 888 | 2 325 | 1 808 | 1.24 | 1.60 |
+| [game_maths](game_maths/) | 3 082 | 2 493 | 1 947 | 1.24 | 1.58 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed | not timed | | |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed | not timed | | |
 | [image_filter_over_planes](image_filter_over_planes/) | 120 602 | 263 092 | 24 839 | 0.46 | 4.86 |
@@ -94,11 +94,11 @@ again, so it always shows the latest measurement of every case.
 | [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 20 693 | 253 962 | 6 271 | 0.08 | 3.30 |
 | [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed | not timed | | |
 | [smaller_ones](smaller_ones/) | 28 994 | 11 852 | 9 616 | 2.45 | 3.02 |
-| [sorting](sorting/) | 151 652 | 126 447 | 20 169 | 1.20 | 7.52 |
+| [sorting](sorting/) | 171 772 | 145 960 | 29 981 | 1.18 | 5.73 |
 | [spreadsheet_recalculation](spreadsheet_recalculation/) | 821 918 | 741 232 | 119 537 | 1.11 | 6.88 |
 | [storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot](storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot/) | 9 302 | 6 926 | 4 578 | 1.34 | 2.03 |
 | [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 18 997 | 113 430 | 1 669 | 0.17 | 11.38 |
-| [text_building](text_building/) | 151 868 | 85 602 | 9 810 | 1.77 | 15.48 |
+| [text_building](text_building/) | 205 168 | 113 842 | 12 087 | 1.80 | 16.97 |
 | [text_joined_in_one_piece](text_joined_in_one_piece/) | 39 686 | 107 552 | 3 828 | 0.37 | 10.37 |
 | [the_c_is_compiled_in_parallel_units_and_cached](the_c_is_compiled_in_parallel_units_and_cached/) | not timed | not timed | not timed | | |
 | [the_compiler_places_memory](the_compiler_places_memory/) | 31 150 | 68 521 | 17 859 | 0.45 | 1.74 |
@@ -108,7 +108,7 @@ again, so it always shows the latest measurement of every case.
 | [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 10 998 | 20 699 | 1 947 | 0.53 | 5.65 |
 | [tokens_as_columns](tokens_as_columns/) | 124 524 | 149 026 | 80 375 | 0.84 | 1.55 |
 | [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed | not timed | | |
-| [vector_maths](vector_maths/) | 89 363 | 68 487 | 52 577 | 1.30 | 1.70 |
+| [vector_maths](vector_maths/) | 94 694 | 73 269 | 54 676 | 1.29 | 1.73 |
 | [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed | not timed | | |
 | [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 52 634 | 76 369 | 2 806 | 0.69 | 18.76 |
 <!-- /summary -->
