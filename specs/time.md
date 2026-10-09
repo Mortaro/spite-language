@@ -25,6 +25,7 @@ with Temporal's vocabulary and no stored zoned type.
 | `TimeZone` | `to_local(instant)`, `to_instant(local, ambiguity)`, `to_text(instant)`, `offset_at(instant)`, `name` |
 | `TimeZones()` | the database, a singleton: `find(name): TimeZone?`, `utc()`, `fixed_offset(duration)`, `system()`, `read_tzif(name, data): TimeZone?` |
 | `TimeText()` | ISO 8601 (RFC 3339, RFC 9557), a singleton: `read_instant`, `read_date_time`, `read_date`, `read_time`, `read_duration`, `read_period`, each answering `T?`; writing is each type's `to_string()` |
+| `Benchmark(work: Spite.Function<T>)` | one timed run of `work`: `answer: T`, what it answered, and `duration: Duration`, the monotonic time it took |
 
 - **A local reading never becomes an instant without a zone.** No local type has a function answering an
   `Instant`, `==` between the two kinds is a type error (`an Instant cannot be used where a DateTime is
@@ -50,6 +51,18 @@ with Temporal's vocabulary and no stored zoned type.
   TZif reader on Windows over three files written for the test and checked with Python's `zoneinfo`.
 - **Clock** keeps `elapsed_nanoseconds()` (the monotonic clock: a `Long` of nanoseconds, no allocation per reading) and `elapsed_milliseconds()` for measuring, and `now()` answers an
   `Instant`.
+- **`Benchmark(work)`** (`library/benchmark.spite`, `generic $answer_type`) is how a piece of work is timed. Its
+  constructor reads `Clock.elapsed_nanoseconds()`, calls `work` exactly once with no arguments, reads the clock
+  again, and keeps the result in `answer` and the difference in `duration`, a `Duration` in nanoseconds; nothing
+  else runs between the readings but the call and the store of its answer. `$answer_type` is read from the
+  argument (`Benchmark(sum_to_a_million)` is a `Benchmark<Long>`), and a function returning nothing makes a
+  `Benchmark<Nothing>`. Keeping the answer is what keeps the work: it is reachable from the result, so it is never
+  removed as unused. There is no `clock.benchmark(...)`: only a class takes codegen values, so the answer's type
+  can be carried only by a class made from the work ([metaprogramming.md](metaprogramming.md#codegen-values-)). It costs the
+  function value made for `work` and the result's two objects (the `Benchmark` and its `Duration`), all made
+  outside the measured time, and one call through the value inside it; a program that names no `Benchmark`
+  carries none of it. `duration.total('microseconds')` rounds toward zero, so it is the difference of the two
+  readings divided by 1000.
 
 The conformance programs are `conformance/stage6/instant_arithmetic`, `calendar_math`, `daylight_saving`,
 `zone_files`, `fixed_offsets`, `time_text_round_trips` and `time_text_errors`.

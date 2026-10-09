@@ -24,6 +24,7 @@ compiler places it ([memory.md](memory.md#where-a-value-lives-memory)).
 | `TimeZones()` | the time zone database, a singleton | the operating system's |
 | `TimeText()` | ISO 8601 text, read and written, a singleton | |
 | `Clock()` | `now()` for the wall clock, and elapsed time for measuring | |
+| `Benchmark(work)` | one run of a function, timed | what it answered and a `Duration` |
 
 What cannot happen, by construction:
 
@@ -97,6 +98,44 @@ reading is a `Long` of nanoseconds and allocates nothing, so a profiler can take
 frame; a `Duration` reading would be an object made per read, so the monotonic clock answers the number.
 `now()` is the wall clock, and each system reads it its own way (`GetSystemTimeAsFileTime` on Windows,
 `clock_gettime` on Linux and macOS).
+
+## Measuring a piece of work
+
+To time one piece of work, hand it to `Benchmark(work)`: it reads the monotonic clock, runs `work` once, reads the
+clock again, and keeps both what `work` answered, in `answer`, and how long it took, in `duration`, a `Duration`.
+`work` is a function of yours that takes nothing, passed by name, so what is measured is that function and nothing
+around it: the setup before the line and the printing after it are not timed.
+
+```gdscript title=time_benchmark/time_benchmark.spite entry
+var console = Console()
+
+func TimeBenchmark() {
+    var result = Benchmark(sum_to_a_million)
+    console.print("sum", result.answer)
+    var took = result.duration
+    console.print("measured:", not took.is_negative)
+}
+
+func sum_to_a_million(): Long {
+    var total: Long = 0
+    var index = 0
+    while index < 1000000 {
+        total = total + index
+        index = index + 1
+    }
+    return total
+}
+```
+```output
+sum 499999500000
+measured: true
+```
+
+What the work answered is kept, so the work is never left out as unused. Work that answers nothing makes a
+`Benchmark<Nothing>`, and what it computes is whatever it stores, read once the line has run. `Benchmark` is
+library code like the rest: a program that never names it carries none of it, and the work is called once, through
+its function value, between the two readings. To print the time, ask the `Duration` for the unit you want:
+`result.duration.total('microseconds')` ([spec](../specs/time.md#time-one-stored-instant-zones-for-presentation)).
 
 ## Dates and periods
 

@@ -38,6 +38,7 @@ REPL can look at any of it.
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables, its own path | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
+| `Benchmark<T>` | one timed run of a function: what it answered and how long it took | [time.md](time.md#measuring-a-piece-of-work) |
 | `Instant`, `Duration`, `Date`, `Time`, `DateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `Reload` | how many reloads a `--hot-reload` program has swapped in, and which classes they rebuilt | [repl.md](repl.md#knowing-what-a-reload-rebuilt) |
@@ -652,6 +653,10 @@ func ClockBasics() {
 ```output
 waited at least 4 ms: true
 ```
+
+To time one function rather than a stretch of code, `Benchmark(work)` reads the clock on both sides of a single
+call and keeps what the function answered beside the `Duration` it took
+([Measuring a piece of work](time.md#measuring-a-piece-of-work)).
 
 ## `Socket`
 

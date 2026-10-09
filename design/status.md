@@ -254,6 +254,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built: reopening `call_function` to trace or count calls. `call_function` is supplied by the compiler and is not
   declared in `library/spite/function.spite`, so a program's `spite/function.spite` that declares one compiles and is
   never called.
+- Not built: a function value passed to a library class's constructor that only calls it, `Benchmark(work)` (D545),
+  is not framed in the caller (D528 frames values only for a program function that is not a constructor), so it is
+  made on the heap with its reflection: one value per `Benchmark`, outside the measured time, and about 1 300 lines of
+  generated C in a program that had no function value.
 
 ### Use the operator, not its function
 
