@@ -6,11 +6,6 @@ with what was said on each page before its status was moved here. The docs and t
 language as decided and say nothing about status; this page is where status lives. When something here is built, delete its line;
 when a page gains a rule that is not built yet, add it here.
 
-## benchmarks/ (D521, D547, D548)
-
-- D548: many cases still fix their size with a literal (`while index < 100000`), which a smarter compiler could fold
-  to a print. Each must read its size from an `Environment` setting, with the same default in all three forms.
-
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 
 - D534, learning from a test run: not built (no profiling build, no profile file, no choice reads one).

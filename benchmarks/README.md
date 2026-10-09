@@ -145,10 +145,11 @@ as developer effort against speed:
 away while compiling, or computes the answer some other way, that is not cheating: it is the target, and the compiler
 must learn to reach it from the unchanged Spite program by proving the same result.
 
-**But the work must be real.** A case whose answer could be worked out while compiling measures nothing: a
-compiler that folds it to a single print is right, and the benchmark is wrong. So each case reads its size or its
-input when it runs (an `Environment` setting such as `--records=200000`, with the same default in all three forms),
-and prints an answer that depends on all of it, so no form can know the answer before it runs.
+**Any method counts, the fastest wins.** Whatever can be worked out while compiling should be: a compiler that proves
+the answer in advance and only prints it has won that case. What no form may do is answer something else: every
+form must solve the same problem and print the same answer, and `check.sh` compares the three forms' output on every
+case. The data may change completely on the way (another layout, another algorithm, no data at all), as long as the
+answer does not.
 
 
 - **Spite's time over naive C's** says what writing it plainly in Spite buys over writing it plainly in C. Below
