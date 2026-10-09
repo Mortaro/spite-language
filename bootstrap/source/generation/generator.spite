@@ -195,6 +195,7 @@ var started_wait_questions = Dictionary<String, Boolean>()
 var deferred_frame_classes = List<Analysis.ClassInfo>()
 var deferred_frame_functions = List<Analysis.FunctionInfo>()
 var frame_functions_released = false
+var generating_frame_function = false
 var task_value_arguments = 0
 var function_waits_table_used = false
 var listed_typed_calls = List<String>()
@@ -959,9 +960,10 @@ func generate(
     }
     settle_shape_members()
     emit_shape_bodies()
+    frame_functions_released = true
+    emit_pending_functions()
     emit_union_class_of_bodies()
     emit_union_attributes_bodies()
-    frame_functions_released = true
     var final_settle = 0
     while final_settle < 4 {
         emit_class_object_bodies()
@@ -7196,7 +7198,9 @@ func emit_pending_functions() {
             crash frame_information
             crash frame_function
             current_owner = frame_information.qualified_dotted
+            generating_frame_function = true
             emit_user_function_body(frame_information, frame_function)
+            generating_frame_function = false
         } else {
             var information = deferred_wait_classes.remove_first()
             var function = deferred_wait_functions.remove_first()
@@ -7225,11 +7229,79 @@ func may_start_waits(information: Analysis.ClassInfo, function: Analysis.Functio
     if not loops.is_own_code(information, function.name) and not loops.holds_frame_loop(information, function.name) {
         return false
     }
-    if not loops.block_has_started_shape(function.body) {
+    var members = List<Syntax.Expressions.MemberExpression>()
+    loops.collect_started_members(function.body, members)
+    var names = List<String>()
+    var index = 0
+    while index < members.count() {
+        var member = members[index]
+        crash member.object
+        var receiver_type = attribute_path_type(member.object, information)
+        if receiver_type {
+            if may_be_started_receiver(receiver_type) {
+                names.append(member.name)
+            }
+        }
+        index = index + 1
+    }
+    if names.is_empty() {
         return false
     }
-    preregister_started_shapes(function)
+    preregister_started_shapes(names)
     return true
+}
+
+func attribute_path_type(
+    expression: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var named = shape.as_identifier(expression)
+    if named {
+        var field = information.find_field(named.name)
+        assert field
+        return field.spite_type
+    }
+    var read = shape.as_member(expression)
+    if read {
+        crash read.object
+        var owner_type = attribute_path_type(read.object, information)
+        assert owner_type
+        var owner_reference = type_shape.as_class_ref(owner_type)
+        assert owner_reference
+        var owner = find_class_by_c_name(owner_reference.c_name)
+        assert owner
+        var owner_field = owner.find_field(read.name)
+        assert owner_field
+        return owner_field.spite_type
+    }
+    var indexed = shape.as_index(expression)
+    assert indexed
+    crash indexed.object
+    var listed_type = attribute_path_type(indexed.object, information)
+    assert listed_type
+    var listed = type_shape.as_list(listed_type)
+    assert listed
+    return listed.element
+}
+
+func may_be_started_receiver(receiver_type: Analysis.SpiteType): Boolean {
+    var union_type = type_shape.as_union(receiver_type)
+    if union_type {
+        var information = find_union_by_c_name(union_type.c_name)
+        if information {
+            return information.is_shape
+        }
+        return false
+    }
+    var class_reference = type_shape.as_class_ref(receiver_type)
+    if not class_reference {
+        return false
+    }
+    var target = find_class_by_c_name(class_reference.c_name)
+    if not target {
+        return false
+    }
+    return not target.is_singleton and not target.is_value_class and not is_library_class(target)
 }
 
 func in_frame_code(information: Analysis.ClassInfo): Boolean {
@@ -7247,7 +7319,7 @@ func started_wait(
     function_information: Analysis.FunctionInfo,
 ): Boolean {
     var member = frame_loops.started_shape(statement)
-    if not member or not in_frame_code(class_information) {
+    if not member or not generating_frame_function or not in_frame_code(class_information) {
         return false
     }
     crash member.object
@@ -7325,8 +7397,7 @@ func start_kept(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
-    var keeper = find_class_by_qualified("WaitsInFlight")
-    crash keeper
+    var keeper = waits_in_flight()
     var handle_name = "spite_started_{site}_{item}"
     var owner: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(receiver_local)
     var bound_function: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(owner, function_name)
@@ -7353,6 +7424,22 @@ func start_kept(
     )
     builder.add_user("{handle_reference.c_name}___release({handle_code});")
     emit_scope_drops(handle_scope, false)
+}
+
+func waits_in_flight(): Analysis.ClassInfo {
+    var template = find_class_by_qualified("WaitsInFlight")
+    crash template
+    var nothing: Analysis.SpiteType = Analysis.Types.ClassRefType("Nothing")
+    var label = "{template.c_name}__{type_label(nothing)}"
+    var existing = find_class_by_c_name(label)
+    if existing {
+        return existing
+    }
+    var types = List<Analysis.SpiteType>()
+    types.append(nothing)
+    var codes = [""]
+    var texts = [""]
+    return instantiated_with(template, types, codes, texts, label)
 }
 
 func started_classes(receiver_type: Analysis.SpiteType, name: String): List<Analysis.ClassInfo> {
@@ -7416,9 +7503,7 @@ func started_class_waits(target: Analysis.ClassInfo, name: String): Boolean {
     )
 }
 
-func preregister_started_shapes(function: Analysis.FunctionInfo) {
-    var names = List<String>()
-    frame_loops.collect_started_names(function.body, names)
+func preregister_started_shapes(names: List<String>) {
     var index = 0
     while index < unions.count() {
         var information = unions[index]

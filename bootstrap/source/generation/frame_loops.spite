@@ -251,49 +251,27 @@ func is_receiver_path(expression: Syntax.Expressions.Expression): Boolean {
     return false
 }
 
-func block_has_started_shape(statements: List<Syntax.Statements.Statement>): Boolean {
-    return statements.any(statement_has_started_shape)
-}
-
-func statement_has_started_shape(statement: Syntax.Statements.Statement): Boolean {
-    if started_shape(statement) {
-        return true
-    }
-    switch statement {
-        Syntax.Statements.IfStatement: return block_has_started_shape(statement.then_branch) or block_has_started_shape(statement.else_branch)
-        Syntax.Statements.WhileStatement: return block_has_started_shape(statement.body)
-        Syntax.Statements.SwitchStatement: {
-            var case_index = 0
-            while case_index < statement.cases.count() {
-                if block_has_started_shape(statement.cases[case_index].body) {
-                    return true
-                }
-                case_index = case_index + 1
-            }
-            return false
-        }
-        _: return false
-    }
-}
-
-func collect_started_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+func collect_started_members(
+    statements: List<Syntax.Statements.Statement>,
+    members: List<Syntax.Expressions.MemberExpression>,
+) {
     var index = 0
     while index < statements.count() {
         var statement = statements[index]
         var member = started_shape(statement)
         if member {
-            names.append(member.name)
+            members.append(member)
         }
         switch statement {
             Syntax.Statements.IfStatement: {
-                collect_started_names(statement.then_branch, names)
-                collect_started_names(statement.else_branch, names)
+                collect_started_members(statement.then_branch, members)
+                collect_started_members(statement.else_branch, members)
             }
-            Syntax.Statements.WhileStatement: collect_started_names(statement.body, names)
+            Syntax.Statements.WhileStatement: collect_started_members(statement.body, members)
             Syntax.Statements.SwitchStatement: {
                 var case_index = 0
                 while case_index < statement.cases.count() {
-                    collect_started_names(statement.cases[case_index].body, names)
+                    collect_started_members(statement.cases[case_index].body, members)
                     case_index = case_index + 1
                 }
             }

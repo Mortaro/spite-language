@@ -1,10 +1,12 @@
 singleton
 
-var _started = List<Concurrent<Nothing>>()
+generic $result_type
+
+var _started = List<Concurrent<$result_type>>()
 var _sites = List<Integer>()
 var _bound = 8
 
-func _keep(started: Concurrent<Nothing>, site: Integer) {
+func _keep(started: Concurrent<$result_type>, site: Integer) {
     _let_go_of_finished()
     assert not started.finished
     _started.append(started)
