@@ -48,6 +48,24 @@ re-read the end of `design/decisions.md` right before appending).
 | Singletons: plain attributes under a held or skipped lock, per-thread reductions, files kept open | branch `singleton-wins` (dd5b2cbe: 1 checked commit plus work in progress, unchecked) | B built for attributes nothing reads past the lock | merge master, check, merge; then A (privatised reductions) |
 | Archetypes chosen by the compiler (research with experiments) | branch `research-archetypes` (4501d529: work in progress, unchecked: cases with several expert layouts) | cases and expert forms written; the sweep and the proposal were not finished | finish the sweep, write `design/proposals/compiler_archetypes.md`, check, merge |
 
+## D559, chunked loops for the engine: what a Sonnet session found (2026-10-09)
+
+Not built. It is several sessions of compiler work, not one: the overlap facts (`overlap_facts.spite`) are a
+line-by-line analysis of the generated C with no control flow, so "what a function surely wrote when it answered
+true" is a new analysis layer; and the engine's loop is a counted `while`, which the band machinery (D542, only
+`list.each_<function>()`) does not recognise. Each step its own checked commit:
+
+1. Conditional must-write summaries (a function that fills a scratch on every path but one that answers false; a
+   caller that reads it only after a true answer), with a conformance program and its docs/proofs.md entry.
+2. Counted `while` loops as band sites: recognise, cut the body into a piece function, clone the scratch on the
+   submitting thread (a thread-local redirect of singleton accessors; the last band keeps the shared scratch).
+3. The once-per-loop distinctness check, with an inverse-pair index chain and one that is not.
+4. Apply to the naive engine: bands of 1,024 rows, the `ColumnIndex` read kept borrowed.
+
+All of these are far easier on the two-level IR (D560), where control flow and values are explicit; consider
+building the IR first. In this repository's worktrees, a shell command with `source` in a path may be refused by the
+sandbox: use the file tools for `bootstrap/source`.
+
 ## The order of work after that (by what closes the engine gap)
 
 1. **Stress, one thread** (design/naive_programs.md, "Ninth pass"): of the hand edits on today's C (20.6 ms one
