@@ -389,9 +389,10 @@ no call says it may run in parallel.
 
 Calls whose order can be seen stay in order: anything that prints, touches a file or a socket, or reads and writes
 the same state as another call. A call that does little (a few additions, no loop) is never handed to another
-thread, since starting it there would cost more than running it. Two objects of one class count as one: two
-`Counter`s each counting their own total share the attribute `total` as far as this rule sees, so they stay in
-order, while a `Physics` and an `Audio` overlap. The exact conditions are in
+thread, since starting it there would cost more than running it. Two objects of one class count as one, unless
+each belongs to its owner: two `Counter`s passed around and counted through any name share the attribute `total`
+as far as this rule sees, so they stay in order, while a `Physics` and an `Audio` that each keep their own
+`var meter = Meter()`, never assigned anything else, overlap, meters and all. The exact conditions are in
 [the rules](../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) ("Calls in a row run at once"), and
 [optimizations.md](optimizations.md#calls-in-a-row-run-at-once) shows one.
 

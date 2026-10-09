@@ -1,0 +1,9 @@
+var count = 0
+
+func bump() {
+    var step = 0
+    while step < 100000 {
+        count = count + 1
+        step = step + 1
+    }
+}

@@ -669,6 +669,69 @@ while trying:
 is slower than one C file (20.8 ms) on the same C. Placing every function that has one caller in its caller's
 translation unit, so the C compiler sees the pair together, changed nothing (25.0 to 25.1 ms, medians of seven while
 the machine was in other use), so the gap is not calls split across units by the name hash. Not committed.
+### Eighth pass: objects told apart, counts per group (2026-10-09)
+
+Engine `naive` at 81b0e20 (a copy with its one-type `Dictionary`s written `Dictionary<String, ...>` and its four
+pointer reads of files stubbed, since today's library refuses both; neither runs in stress or physics), Spite from
+68982022, `--optimized` split builds, medians of interleaved runs. **Every number here was measured while the
+machine was in other use (games and other sessions' builds): provisional, to be timed again on a quiet machine.**
+
+**Built: objects made for their owner are told apart** (D551, [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart),
+[proofs](../docs/proofs.md#an-object-made-for-its-owner-is-told-apart)). The overlap facts gain owner tags: an
+attribute only ever given an object constructed where it is given (read from every assignment in the C, struct
+copies and `copy()` included) holds an object no other such attribute holds, so a key reached through it carries
+the attribute (`f:Profile_Timing#runs_@Runner__System_Move#timing_`), and keys with different innermost tags never
+touch. An object passed to a function that only reads and writes through its parameter, passes it to a list's own
+functions or to another such function, or compares it, is followed into it (the parameter's keys are written again
+with the argument's tags). An attribute that is besides kept nowhere else (never read into anything but those uses)
+is sealed: a key with no tag cannot reach it. An item read out of a singleton's list attribute carries an item tag
+(`@Row__System_Move_Moving#headers_[]`); two different item tags touch only when the two lists share an object,
+which the T4b loop checks when two such classes meet (a few pointer comparisons). The pass also taught the facts
+the in-place store of D544 (`items_)[i] = v`, which they had read as a write through an address, making every runner
+look as if it wrote raw memory), and fixed `made_here` (a local assigned fresh once and later reassigned from a call
+was taken for a list made in the function).
+
+Everything the seventh pass found the two stress systems sharing is now told apart: each runner's `timing`, its
+`chosen` and `candidates` lists (sealed), the matcher's `rows` (followed into `match_into` and `find_row`), and the
+`stamps` of the column indexes each matcher's `headers` holds (checked when the stage starts: Move's headers name
+Position and Velocity, Regenerate's Health and Regeneration).
+
+**Built: counts per group of calls run at once** (D550, pair S4, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
+[proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts)). The walk that decides plain counts (C5) and
+singleton locks (D529) no longer takes a T4b piece as code that runs anywhere: it follows each class's call on its
+own (calls only, a singleton's teardown left out, the piece itself counting only its elements), and a class is a
+meeting point only when two calls the loop's table lets run together both count it, or both make or free it.
+Everything else keeps plain counts, its pool and no lock (the overlap facts already prove the calls touch nothing
+in common). A meeting point counts atomically only while the loop runs at once (a flag the loop sets, read with a
+predictable branch), and its pool is kept per thread. In stress the meeting points are `ColumnIndex`, `Removal`,
+`Removals`, `List_Integer` (already atomic for the asset loader), strings and reflection; the components, rows and
+matchers each runner counts stay plain.
+
+| | before | after |
+|---|---|---|
+| stress update stage, split build | 41.6 ms | 26.1 ms |
+| stress, each system inside the stage | 20.5 and 21.0 ms | 22.5 and 24.6 ms (run at once) |
+| stress, sixty ticks after despawning everything | 27.9 ms | 33.0 ms |
+| physics step | 13.4 ms | 13.7 ms (within the noise of that run) |
+| the case, two tracks with a meter each (medians of 5) | 124.2 ms | 65.3 ms (expert C on two threads: 62.5) |
+| the case, two collections counting their objects (medians of 5) | 21.7 ms | 14.1 ms |
+
+On a less loaded hour of the same day the stage went from 28.1 to 15.0 ms split, and the one-file C from 23.8 to
+12.5 ms, under the hand edit's 17.5 ms. The two systems each run about a fifth slower side by side than alone
+(memory and the second core's caches), so the stage is a little more than half its old time.
+
+**What this costs.** Despawning got slower: the first tick after despawning everything (the flush) reads back the
+columns the worker last wrote, from the other core's caches, and every later tick starts and joins the pool for
+two systems with nothing to do (about 20 µs each). Measured by hand on the one-file C: with the stage forced in
+order the sixty ticks are as before; with the meeting points counted plainly they barely move. D214 asks for at
+least as fast everywhere, so this is listed for Mortaro under "To confirm" with D550. A cost model that leaves
+calls with no rows in order (pair T6 for T4b) would take the empty ticks back.
+
+Not built, and next: `ColumnIndex` counts in the matcher's `store_attribute` (`var header = headers[position]` is
+counted per entity because B1's call effects still see any `List<ColumnIndex>` written by a call; the owner facts
+of this pass would let B1 see it is not); per-creation-site counts (R9), which would let a meeting point's objects
+that only one call ever sees stay plain; and a function value's owner, still taken as let go on another thread,
+which makes every class the owner reaches atomic in a program that hands its work to `Benchmark`.
 
 ### Physics pass (2026-10-09)
 

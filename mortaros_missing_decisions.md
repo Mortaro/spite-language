@@ -195,6 +195,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
   fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 20% and 13%,
   for about 7% of its tick, measured while the machine was in other use), since combinations the program never makes are copied too.
+- **D551, objects made for their owner are told apart**: an attribute only ever given an object constructed
+  where it is given holds an object no other such attribute holds, so two calls that each keep their own meter,
+  timing record or scratch list may run at once; an item of one singleton's list and an item of another's are told
+  apart by comparing the two lists when the loop starts. Why: it is what keeps the naive engine's two stress
+  systems apart, with no annotation.
 - **D550, counts per group, and the despawn cost**: in a loop over different classes that may run them at once, a
   class only one of the calls counts keeps plain counts and its pool, and one two of them count is atomic only
   while they run. The stress update stage went from about 28 to 15 ms, but the sixty ticks after despawning

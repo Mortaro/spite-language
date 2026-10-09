@@ -3607,7 +3607,8 @@ compiling.
 
 **What you notice.** Speed, when the calls are big enough, and the same output. A class only one of the calls
 that can run together counts keeps plain counts; one that two of them count is counted atomically while they run
-at once ([counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)).
+at once ([counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)), and two objects of
+one class that each belong to their owner are told apart ([objects made for their owner](#objects-made-for-their-owner-are-told-apart)).
 
 ### A loop whose passes write only their own item runs in bands
 
@@ -3687,6 +3688,101 @@ which functions qualify, what they weigh and the count they need are decided whi
 **What you notice.** Speed on heavy passes over many elements, and the same output. A pass that counts a
 reference (it reads an object out of a list, or makes one) stays in order: counting from several threads would
 make the class's counts atomic everywhere ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)).
+
+### Objects made for their owner are told apart
+
+**The case:** [benchmarks/objects_made_for_their_owner_are_told_apart](../benchmarks/objects_made_for_their_owner_are_told_apart/).
+
+**What it does.** [Calls in a row](#calls-in-a-row-run-at-once) and [a loop over different classes](#a-loop-over-a-list-of-different-classes-runs-them-at-once)
+run at once only when neither call writes what the other touches, and the compiler used to tell objects apart only
+by their class: two tracks that each keep a `Meter` of their own both "wrote `Meter`", so they ran in order. Now an
+attribute that is only ever given an object made where it is given (`var meter = Meter()`, never assigned anything
+else) holds an object no other such attribute holds, so what a call does to `drum.meter`, and to the lists inside
+it, is told apart from what another does to `bass.meter`. A function the object is passed to is followed with it:
+what `record` does to its own object is counted as done to the meter it was called on.
+
+```gdscript title=owner_meters/meter.spite
+var total: Long = 0
+var loud = List<Integer>()
+
+func record(sample: Integer) {
+    total = total + sample
+    if sample > 995 {
+        loud.append(sample)
+    }
+}
+```
+```gdscript title=owner_meters/drum.spite
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 3000000 {
+        phase = (phase + 7) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}
+```
+```gdscript title=owner_meters/bass.spite
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 3000000 {
+        phase = (phase + 13) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}
+```
+```gdscript title=owner_meters/owner_meters.spite entry
+type Track {
+    render()
+}
+
+var console = Console()
+var drum = Drum()
+var bass = Bass()
+var tracks = List<Track>()
+
+func OwnerMeters() {
+    tracks.append(drum)
+    tracks.append(bass)
+    tracks.each_render()
+    var drum_loud = drum.meter.loud.count()
+    var bass_loud = bass.meter.loud.count()
+    console.print(drum.meter.total, drum_loud, bass.meter.total, bass_loud)
+}
+```
+```output
+1498500000 12000 1498500000 12000
+```
+
+`drum.render()` runs on a worker while `bass.render()` runs on the program's own thread. A `Track` handed a meter
+it did not make (`meter = shared`) holds an object that may be another's, and its calls stay in order with every
+call that touches a `Meter`.
+
+The same reckoning reaches items of lists. An item read out of a list attribute of a singleton (a matcher's
+`headers[index]`) is told apart from an item of another singleton's list when the two lists hold no object in
+common, and which objects a list holds is known only when the program has filled it; so for such a pair the loop
+compares the two lists' items when it starts (a few pointer comparisons, only for the two classes that meet), and
+runs in order when one object is in both.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, wherever the rows of calls and the loops
+of the pages above are decided. The attribute must be given its object only by a construction written where it is
+given (or nothing), in every function the program keeps; a `copy()` of its owner, a struct copy, or an assignment
+of anything else makes it one name among many again. A parameter is followed only into a function that does
+nothing with it but read and write through it, pass it to a list's own functions or to another such function, or
+compare it.
+
+**What you notice.** Speed, and the same output: in a game engine's stress test (200 000 entities, two systems
+that each keep a timing object, candidate lists and column indexes of their own) the two systems now run at once,
+with [counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts); measured while the
+machine was in other use, the update stage went from 41.6 to 26.1 ms (provisional). [Proofs](proofs.md#an-object-made-for-its-owner-is-told-apart)
+states the proof; `conformance/stage6/owned_objects` runs both forms and the item check.
 
 ### Counts stay plain for what one of the calls run at once counts
 
@@ -3807,8 +3903,9 @@ calls count, the count reads one flag the loop sets while it runs: a predictable
 
 **What you notice.** Speed. The meeting points cost an atomic instruction only while the calls overlap; objects
 made on a worker go back to that worker's pool. Measured while the machine was in other use, the case above went
-from 21.7 to 14.1 ms; the game engine's stress test does not run its systems at once yet: they share objects of one class the
-facts cannot tell apart. [Proofs](proofs.md#what-one-of-the-calls-run-at-once-counts)
+from 21.7 to 14.1 ms; in the game engine's stress test, these counts and the per-owner facts above take the update
+stage from 41.6 to 26.1 ms, while the sixty ticks after despawning everything went from 27.9 to 33.0 ms (the columns
+the worker moved are read back by the program's own thread, and each empty tick starts the pool); all provisional. [Proofs](proofs.md#what-one-of-the-calls-run-at-once-counts)
 states the proof.
 
 ### A crash's report is kept out of the way

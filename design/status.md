@@ -486,16 +486,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Concurrency: `Concurrent`, `Parallel` and hidden waiting
 
 - D505, calls in a row run at once: built for `receiver.function()` and the class's own `function()` with no
-  arguments, including rows that mix light and heavy calls. Not built: calls with arguments, telling two objects
-  of one class apart, and a cost model finer than "reaches a loop".
+  arguments, including rows that mix light and heavy calls. Not built: calls with arguments, telling apart two
+  objects of one class that are not held by attributes made for their owner (D551), and a cost model finer than
+  "reaches a loop".
   The conditions beyond D505 itself are proposed by Claude, unconfirmed.
 - D539, a loop over a list of different classes runs them at once: built for `list.each_function()` and
   `list.each(own_function)` over a `List` of a `type`, with the table of classes decided while compiling and the
-  classes read at run time. Not built: a loop written as a `while`, and count disciplines per group (every class
-  an overlapped call counts is counted atomically, as with `Parallel`). The naive engine's stage loop is reached
-  but stays in order: `Runner<Move>` and `Runner<Regenerate>` both write a `Profile.Timing`, the stamps of a
-  `ColumnIndex` and the items of `List<Integer>`s reached through parameters, which the per-class facts cannot tell
-  apart.
+  classes read at run time. Not built: a loop written as a `while`, counts per creation site (R9; counts are
+  decided per group, D550), and a cost model that leaves calls with nothing to do in order (the naive engine's
+  ticks after despawning pay a pool start each). D551 tells objects made for their owner apart; a function value's
+  owner is still taken as let go on another thread, which makes every class it reaches atomic.
 - D542, a loop whose passes write only their own item runs in bands: built for `list.each_function()` and
   `list.each(own_function)` over a `List` or `Vector` of a class. Not built: reductions (T2), a scratch per band
   (T8), a loop written as a `while`, passes that count references (refused, since their classes would count

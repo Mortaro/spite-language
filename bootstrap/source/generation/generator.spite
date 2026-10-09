@@ -36164,6 +36164,7 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         index = index + 1
     }
     var table = List<String>()
+    var checks = List<String>()
     var pairs_together = List<String>()
     var useful = false
     var first = 0
@@ -36172,10 +36173,27 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         var second = 0
         while second < count {
             var together = first != second and usable[first] == true and usable[second] == true
+            var cell = "1"
             if together {
                 crash member_facts[first]
                 crash member_facts[second]
+                facts.checking = true
+                facts.needed_checks = List<String>()
                 together = facts.independent(member_facts[first], member_facts[second])
+                facts.checking = false
+                if together and not facts.needed_checks.is_empty() {
+                    var apart = facts.apart_expression(facts.needed_checks, member_facts[first], member_facts[second])
+                    together = not apart.is_empty()
+                    if together and not checks.contains(apart) {
+                        checks.append(apart)
+                    }
+                    var check_index = 0
+                    while check_index < checks.count() and checks[check_index] != apart {
+                        check_index = check_index + 1
+                    }
+                    var cell_number = check_index + 2
+                    cell = cell_number.to_string()
+                }
             }
             if together and heavy[first] == true and heavy[second] == true {
                 useful = true
@@ -36188,7 +36206,7 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
                 pairs_together.append("{first_target}|{second_target}")
             }
             if together {
-                row.append("1")
+                row.append(cell)
             } else {
                 row.append("0")
             }
@@ -36235,13 +36253,27 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         "int32_t spite_row_n = spite_row_list->item_count_; int32_t spite_row_seen[64]; int32_t spite_row_heavies = 0;",
     )
     parts.append("bool spite_row_ok = spite_row_n >= 2 && spite_row_n <= {count};")
+    var check_cases = List<String>()
+    var check_index = 0
+    while check_index < checks.count() {
+        var check_number = check_index + 2
+        var check = checks[check_index]
+        check_cases.append("case {check_number}: spite_row_r = {check}; break;")
+        check_index = check_index + 1
+    }
     parts.append("for (int32_t spite_row_i = 0; spite_row_ok && spite_row_i < spite_row_n; spite_row_i++) \{")
     parts.append("int32_t spite_row_k = -1;")
     parts.append("switch ({read_class}) \{ {cases.join(" ")} default: break; }")
     parts.append("spite_row_ok = spite_row_k >= 0;")
-    parts.append(
-        "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0;",
-    )
+    if checks.is_empty() {
+        parts.append(
+            "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0;",
+        )
+    } else {
+        parts.append(
+            "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) \{ unsigned char spite_row_c = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k]; spite_row_ok = spite_row_c == 1 || (spite_row_c >= 2 && (\{ bool spite_row_r = false; switch (spite_row_c) \{ {check_cases.join(" ")} default: break; } spite_row_r; })); }",
+        )
+    }
     parts.append(
         "if (spite_row_ok) \{ spite_row_seen[spite_row_i] = spite_row_k; spite_row_{group}_marks[spite_row_i] = spite_row_heavy[spite_row_k]; spite_row_heavies += spite_row_heavy[spite_row_k]; }",
     )
