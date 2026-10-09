@@ -15,6 +15,9 @@ var table_elements = List<String>()
 var table_values = List<List<List<String>>>()
 var traced_positions = List<List<String>>()
 var trace_failed = false
+var trace_steps = 0
+var members_by_owner = Dictionary<String, List<String>>()
+var field_writers = Dictionary<String, List<String>>()
 
 # ../../../docs/optimizations.md#a-table-filled-once-is-read-as-constants
 func copied(
@@ -27,6 +30,7 @@ func copied(
 ): String {
     split(bodies)
     note_values(main_function)
+    group_members(classes)
     var instance_index = 0
     while instance_index < values.instance_order.count() {
         var instance = values.instance_order[instance_index]
@@ -116,6 +120,9 @@ func after_token(text: String, start: Integer, piece: Integer): Integer {
     }
     var end = name_end(text, start)
     var name = text.slice(start, end)
+    if not function_at.has(name) {
+        return end
+    }
     var next = text.code_at(end)
     if next != 40 {
         valued[name] = true
@@ -201,7 +208,13 @@ func configure(
     table_lists = List<String>()
     table_elements = List<String>()
     table_values = List<List<List<String>>>()
-    var members = members_of(instance, classes)
+    assert any_fixed(instance, values)
+    var members = List<String>()
+    var grouped = members_by_owner[instance]
+    if grouped {
+        members = grouped
+    }
+    index_writes(members)
     var lists = values.instance_lists[instance]
     crash lists
     var list_index = 0
@@ -211,7 +224,7 @@ func configure(
         list_index = list_index + 1
     }
     assert not table_names.is_empty()
-    var writing = writers(members)
+    var writing = writers()
     assert not writing.is_empty()
     var reaching = reachers(writing)
     assert not reaching.is_empty()
@@ -258,7 +271,7 @@ func note_table(
     crash element_c
     var list_struct = list_c.replace("*", "")
     var field = "self->{attribute}_"
-    var touching = touching_members(members, field)
+    var touching = touching_members(members, attribute)
     var root = only_root(touching)
     assert not root.is_empty()
     var spite_name = spite_names[base_name(root)]
@@ -266,6 +279,7 @@ func note_table(
     assert values.once_function(qualified, spite_name)
     traced_positions = List<List<String>>()
     trace_failed = false
+    trace_steps = 0
     trace(root, "{list_struct}_append({field}, ", field, touching, owner, values, 0)
     var count = traced_positions.count()
     assert not trace_failed and count > 0
@@ -280,39 +294,121 @@ func note_table(
     table_values.append(positions)
 }
 
-func touching_members(members: List<String>, field: String): List<String> {
+func touching_members(members: List<String>, attribute: String): List<String> {
+    var member_names = Dictionary<String, Boolean>()
+    var index = 0
+    while index < members.count() {
+        var name = members[index]
+        member_names[name] = true
+        index = index + 1
+    }
     var touching = List<String>()
+    var writing = field_writers[attribute]
+    if writing {
+        touching = writing.copy()
+    }
+    var known = Dictionary<String, Boolean>()
+    return callers_on_self(touching, member_names, known, false, 32)
+}
+
+func index_writes(members: List<String>) {
+    field_writers = Dictionary<String, List<String>>()
     var index = 0
     while index < members.count() {
         var name = members[index]
         var piece = piece_of(name)
-        if writes_field(piece, field) {
-            touching.append(name)
+        note_writes(name, piece)
+        index = index + 1
+    }
+}
+
+func writes_at(piece: String, at: Integer, end: Integer): Boolean {
+    var window_start = at - 9
+    if window_start < 0 {
+        window_start = 0
+    }
+    var before = piece.slice(window_start, at)
+    if before.ends_with("_append(") or before.ends_with("_prepend(") or before.ends_with("_insert(") {
+        return true
+    }
+    var after = piece.slice(end, end + 3)
+    return after.starts_with(" =") and not after.starts_with(" ==")
+}
+
+func note_writer(field: String, name: String) {
+    if not field_writers.has(field) {
+        field_writers[field] = List<String>()
+    }
+    var writing = field_writers[field]
+    crash writing
+    if writing.is_empty() or writing.last() != name {
+        writing.append(name)
+    }
+}
+
+func callers_on_self(
+    first: List<String>,
+    allowed: Dictionary<String, Boolean>,
+    excluded: Dictionary<String, Boolean>,
+    needs_copy: Boolean,
+    limit: Integer,
+): List<String> {
+    if not indexed {
+        index_calls()
+    }
+    var found = List<String>()
+    var seen = Dictionary<String, Boolean>()
+    var index = 0
+    while index < first.count() {
+        var name = first[index]
+        found.append(name)
+        seen[name] = true
+        index = index + 1
+    }
+    index = 0
+    while index < found.count() {
+        assert found.count() <= limit
+        var name = found[index]
+        note_callers_on_self(name, found, seen, allowed, excluded, needs_copy)
+        index = index + 1
+    }
+    return found
+}
+
+func note_callers_on_self(
+    name: String,
+    found: List<String>,
+    seen: Dictionary<String, Boolean>,
+    allowed: Dictionary<String, Boolean>,
+    excluded: Dictionary<String, Boolean>,
+    needs_copy: Boolean,
+) {
+    var calling = callers[name]
+    assert calling
+    var index = 0
+    while index < calling.count() {
+        var caller = calling[index]
+        crash piece_names[caller]
+        var caller_name = piece_names[caller]
+        if allowed.has(caller_name) and not seen.has(caller_name) and not excluded.has(caller_name) {
+            note_caller_on_self(caller_name, name, found, seen, needs_copy)
         }
         index = index + 1
     }
-    var changed = true
-    while changed {
-        changed = false
-        index = 0
-        while index < members.count() {
-            var name = members[index]
-            if calls_touching(name, touching) {
-                touching.append(name)
-                changed = true
-            }
-            index = index + 1
-        }
-    }
-    return touching
 }
 
-func calls_touching(name: String, touching: List<String>): Boolean {
-    if touching.contains(name) {
-        return false
+func note_caller_on_self(
+    caller_name: String,
+    name: String,
+    found: List<String>,
+    seen: Dictionary<String, Boolean>,
+    needs_copy: Boolean,
+) {
+    var piece = piece_of(caller_name)
+    if called_on_self(piece, name) and (not needs_copy or copyable(piece)) {
+        seen[caller_name] = true
+        found.append(caller_name)
     }
-    var piece = piece_of(name)
-    return calls_any_on_self(piece, touching)
 }
 
 func writes_field(piece: String, field: String): Boolean {
@@ -323,11 +419,18 @@ func writes_field(piece: String, field: String): Boolean {
 }
 
 func only_root(touching: List<String>): String {
-    var roots = List<String>()
+    var touching_names = Dictionary<String, Boolean>()
     var index = 0
     while index < touching.count() {
         var name = touching[index]
-        if not wrapper(name) and not called_by_any(name, touching) {
+        touching_names[name] = true
+        index = index + 1
+    }
+    var roots = List<String>()
+    index = 0
+    while index < touching.count() {
+        var name = touching[index]
+        if not wrapper(name) and not called_by_any(name, touching_names) {
             roots.append(name)
         }
         index = index + 1
@@ -340,17 +443,27 @@ func only_root(touching: List<String>): String {
     return root
 }
 
-func called_by_any(name: String, touching: List<String>): Boolean {
+func called_by_any(name: String, touching_names: Dictionary<String, Boolean>): Boolean {
+    var calling = callers[name]
+    if not calling {
+        return false
+    }
     var index = 0
-    while index < touching.count() {
-        var other = touching[index]
-        var piece = piece_of(other)
-        if other != name and not wrapper(other) and called_on_self(piece, name) {
+    while index < calling.count() {
+        var caller = calling[index]
+        crash piece_names[caller]
+        var other = piece_names[caller]
+        if other != name and touching_names.has(other) and not wrapper(other) and calls_on_self(other, name) {
             return true
         }
         index = index + 1
     }
     return false
+}
+
+func calls_on_self(caller_name: String, name: String): Boolean {
+    var piece = piece_of(caller_name)
+    return called_on_self(piece, name)
 }
 
 func wrapper(name: String): Boolean {
@@ -368,7 +481,8 @@ func trace(
     depth: Integer,
 ) {
     assert not trace_failed
-    if depth > 8 {
+    trace_steps = trace_steps + 1
+    if depth > 8 or trace_steps > 256 or traced_positions.count() > 64 {
         trace_failed = true
         return
     }
@@ -468,18 +582,46 @@ func whole_values(known: List<String>): Boolean {
     return true
 }
 
-func members_of(instance: String, classes: Dictionary<String, String>): List<String> {
-    var members = List<String>()
+func group_members(classes: Dictionary<String, String>) {
     var index = 0
     while index < pieces.count() {
         crash piece_names[index]
         var name = piece_names[index]
-        if not name.is_empty() and not twice.has(name) and owner_of(name, classes) == instance {
-            members.append(name)
+        if not name.is_empty() and not twice.has(name) {
+            note_member(name, classes)
         }
         index = index + 1
     }
-    return members
+}
+
+func note_member(name: String, classes: Dictionary<String, String>) {
+    var owner = owner_of(name, classes)
+    assert not owner.is_empty()
+    if not members_by_owner.has(owner) {
+        members_by_owner[owner] = List<String>()
+    }
+    var members = members_by_owner[owner]
+    crash members
+    members.append(name)
+}
+
+func any_fixed(instance: String, values: ItemValues): Boolean {
+    var lists = values.instance_lists[instance]
+    crash lists
+    var index = 0
+    while index < lists.count() {
+        var attribute = lists[index]
+        var qualified_owner = values.list_qualified["{instance}#{attribute}"]
+        crash qualified_owner
+        var parts = qualified_owner.split("#")
+        var qualified = parts.first()
+        crash qualified
+        if values.fixed_list(qualified, attribute) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func owner_of(name: String, classes: Dictionary<String, String>): String {
@@ -511,34 +653,18 @@ func piece_of(name: String): String {
     return piece
 }
 
-func writers(members: List<String>): List<String> {
+func writers(): List<String> {
     var writing = List<String>()
     var index = 0
-    while index < members.count() {
-        var name = members[index]
-        var piece = piece_of(name)
-        if writes_table(piece) {
-            writing.append(name)
+    while index < table_names.count() {
+        var attribute = table_names[index]
+        var known = field_writers[attribute]
+        if known {
+            known.each(writing.append)
         }
         index = index + 1
     }
     return writing
-}
-
-func writes_table(piece: String): Boolean {
-    var index = 0
-    while index < table_names.count() {
-        var attribute = table_names[index]
-        var field = "self->{attribute}_"
-        if piece.contains("_append({field},") or piece.contains("_prepend({field},") or piece.contains("_insert({field},") {
-            return true
-        }
-        if piece.contains("{field} =") {
-            return true
-        }
-        index = index + 1
-    }
-    return false
 }
 
 func reachers(writing: List<String>): List<String> {
@@ -580,38 +706,26 @@ func reached_by_calls(name: String, order: List<String>): Boolean {
 }
 
 func readers(members: List<String>, reaching: List<String>): List<String> {
+    var member_names = Dictionary<String, Boolean>()
+    var excluded = Dictionary<String, Boolean>()
+    var reaching_index = 0
+    while reaching_index < reaching.count() {
+        var reached = reaching[reaching_index]
+        excluded[reached] = true
+        reaching_index = reaching_index + 1
+    }
     var reading = List<String>()
     var index = 0
     while index < members.count() {
         var name = members[index]
+        member_names[name] = true
         var piece = piece_of(name)
-        if not reaching.contains(name) and copyable(piece) and reads_table(piece) {
+        if not excluded.has(name) and copyable(piece) and reads_table(piece) {
             reading.append(name)
         }
         index = index + 1
     }
-    var changed = true
-    while changed {
-        changed = false
-        index = 0
-        while index < members.count() {
-            var name = members[index]
-            if calls_reader(name, reading, reaching) {
-                reading.append(name)
-                changed = true
-            }
-            index = index + 1
-        }
-    }
-    return reading
-}
-
-func calls_reader(name: String, reading: List<String>, reaching: List<String>): Boolean {
-    if reading.contains(name) or reaching.contains(name) {
-        return false
-    }
-    var piece = piece_of(name)
-    return copyable(piece) and calls_any_on_self(piece, reading)
+    return callers_on_self(reading, member_names, excluded, true, 128)
 }
 
 func copyable(piece: String): Boolean {
@@ -657,23 +771,6 @@ func calls_any_on_self(piece: String, reading: List<String>): Boolean {
             return true
         }
         index = index + 1
-    }
-    return false
-}
-
-func called_on_self(piece: String, name: String): Boolean {
-    var call = "{name}(self"
-    var call_length = call.length()
-    var rest = piece
-    var at = rest.index_of(call)
-    while at >= 0 {
-        var after = rest.code_at(at + call_length)
-        if boundary_before(rest, at) and (after == 41 or after == 44) {
-            return true
-        }
-        var rest_length = rest.length()
-        rest = rest.slice(at + call_length, rest_length)
-        at = rest.index_of(call)
     }
     return false
 }
@@ -762,24 +859,6 @@ func read_in_place(reading: List<String>, table: Integer): Boolean {
     return true
 }
 
-func piece_reads_in_place(piece: String, field: String, list_struct: String): Boolean {
-    var field_length = field.length()
-    var rest = piece
-    var at = rest.index_of(field)
-    while at >= 0 {
-        var rest_length = rest.length()
-        var before = rest.slice(0, at)
-        var after = rest.slice(at + field_length, rest_length)
-        var whole = boundary_after(rest, at + field_length) and boundary_before(rest, at)
-        if whole and not read_form(before, after, list_struct, piece) {
-            return false
-        }
-        rest = after
-        at = rest.index_of(field)
-    }
-    return true
-}
-
 func read_form(before: String, after: String, list_struct: String, piece: String): Boolean {
     if before.ends_with("{list_struct}_get_at(") or before.ends_with("{list_struct}_count(") {
         return after.starts_with(", ") or after.starts_with(")")
@@ -817,23 +896,6 @@ func assigned_temporary(before: String, list_struct: String): String {
         return ""
     }
     return temporary
-}
-
-func occurrences(text: String, part: String): Integer {
-    var found = 0
-    var part_length = part.length()
-    var rest = text
-    var at = rest.index_of(part)
-    while at >= 0 {
-        var end = at + part_length
-        if boundary_before(rest, at) and boundary_after(rest, end) {
-            found = found + 1
-        }
-        var rest_length = rest.length()
-        rest = rest.slice(end, rest_length)
-        at = rest.index_of(part)
-    }
-    return found
 }
 
 func guard_of(configuration: List<String>): String {
@@ -1034,21 +1096,97 @@ func configured_table(body: String, table: Integer, configuration: Integer, inst
     return counted_temporaries(read, field, list_struct, count)
 }
 
+func found_at(text: String, part: String, from: Integer): Integer {
+    var first = part.code_at(0)
+    var last_start = text.length() - part.length()
+    var position = from
+    while position <= last_start {
+        var code = text.code_at(position)
+        if code == first and text.matches_at(part, position) {
+            return position
+        }
+        position = position + 1
+    }
+    return -1
+}
+
+func window_before(text: String, at: Integer, size: Integer): String {
+    var start = at - size
+    if start < 0 {
+        start = 0
+    }
+    return text.slice(start, at)
+}
+
+func note_writes(name: String, piece: String) {
+    var at = found_at(piece, "self->", 0)
+    while at >= 0 {
+        var start = at + 6
+        var end = name_end(piece, start)
+        if end > start + 1 and writes_at(piece, at, end) {
+            var field = piece.slice(start, end - 1)
+            note_writer(field, name)
+        }
+        at = found_at(piece, "self->", end)
+    }
+}
+
+func called_on_self(piece: String, name: String): Boolean {
+    var call = "{name}(self"
+    var call_length = call.length()
+    var at = found_at(piece, call, 0)
+    while at >= 0 {
+        var after = piece.code_at(at + call_length)
+        if boundary_before(piece, at) and (after == 41 or after == 44) {
+            return true
+        }
+        at = found_at(piece, call, at + call_length)
+    }
+    return false
+}
+
+func piece_reads_in_place(piece: String, field: String, list_struct: String): Boolean {
+    var field_length = field.length()
+    var at = found_at(piece, field, 0)
+    while at >= 0 {
+        var end = at + field_length
+        var whole = boundary_after(piece, end) and boundary_before(piece, at)
+        var before = window_before(piece, at, 96)
+        var after = piece.slice(end, end + 24)
+        if whole and not read_form(before, after, list_struct, piece) {
+            return false
+        }
+        at = found_at(piece, field, end)
+    }
+    return true
+}
+
+func occurrences(text: String, part: String): Integer {
+    var found = 0
+    var part_length = part.length()
+    var at = found_at(text, part, 0)
+    while at >= 0 {
+        var end = at + part_length
+        if boundary_before(text, at) and boundary_after(text, end) {
+            found = found + 1
+        }
+        at = found_at(text, part, end)
+    }
+    return found
+}
+
 func counted_temporaries(body: String, field: String, list_struct: String, count: String): String {
     var result = body
     var declared = " = {field};"
     var declared_length = declared.length()
-    var rest = body
-    var at = rest.index_of(declared)
+    var at = found_at(body, declared, 0)
     while at >= 0 {
-        var head = rest.slice(0, at + 3)
+        var head = window_before(body, at + 3, 96)
         var temporary = assigned_temporary(head, list_struct)
         if not temporary.is_empty() {
             result = replaced_whole(result, "({temporary})->item_count_", count)
         }
-        var rest_length = rest.length()
-        rest = rest.slice(at + declared_length, rest_length)
-        at = rest.index_of(declared)
+        at = found_at(body, declared, at + declared_length)
     }
     return result
 }
@@ -1057,22 +1195,20 @@ func renamed_calls(body: String, name: String, renamed: String): String {
     var call = "{name}(self"
     var call_length = call.length()
     var parts = List<String>()
-    var rest = body
-    var at = rest.index_of(call)
+    var kept_from = 0
+    var at = found_at(body, call, 0)
     while at >= 0 {
-        var after = rest.code_at(at + call_length)
-        var whole = boundary_before(rest, at) and (after == 41 or after == 44)
-        var before = rest.slice(0, at)
-        parts.append(before)
-        var replacement = call
-        if whole {
-            replacement = "{renamed}(self"
+        var after = body.code_at(at + call_length)
+        if boundary_before(body, at) and (after == 41 or after == 44) {
+            var before = body.slice(kept_from, at)
+            parts.append(before)
+            parts.append("{renamed}(self")
+            kept_from = at + call_length
         }
-        parts.append(replacement)
-        var rest_length = rest.length()
-        rest = rest.slice(at + call_length, rest_length)
-        at = rest.index_of(call)
+        at = found_at(body, call, at + call_length)
     }
+    var body_length = body.length()
+    var rest = body.slice(kept_from, body_length)
     parts.append(rest)
     return parts.join("")
 }
@@ -1080,22 +1216,20 @@ func renamed_calls(body: String, name: String, renamed: String): String {
 func replaced_whole(text: String, part: String, replacement: String): String {
     var part_length = part.length()
     var parts = List<String>()
-    var rest = text
-    var at = rest.index_of(part)
+    var kept_from = 0
+    var at = found_at(text, part, 0)
     while at >= 0 {
         var end = at + part_length
-        var whole = boundary_before(rest, at) and boundary_after(rest, end)
-        var before = rest.slice(0, at)
-        parts.append(before)
-        var kept = part
-        if whole {
-            kept = replacement
+        if boundary_before(text, at) and boundary_after(text, end) {
+            var before = text.slice(kept_from, at)
+            parts.append(before)
+            parts.append(replacement)
+            kept_from = end
         }
-        parts.append(kept)
-        var rest_length = rest.length()
-        rest = rest.slice(end, rest_length)
-        at = rest.index_of(part)
+        at = found_at(text, part, end)
     }
+    var text_length = text.length()
+    var rest = text.slice(kept_from, text_length)
     parts.append(rest)
     return parts.join("")
 }
