@@ -239,9 +239,10 @@ is the same whichever it makes:
   by its constructor lives in the frame on the same terms when its class also holds text, lists, dictionaries or
   other objects (and is not a container): what it holds is let go where the local's scope ends, and returning it
   moves it to the heap, attributes and all.
-- **Heap, in its class's pool:** an object on the heap whose class the program keeps in a list (the item of a
-  `List`, or of anything else built on `TypedMemory<T>`, such as a `Dictionary`'s values), when the class is not a
-  singleton and, in a program with threads, no code that can run on another thread counts, makes, copies or frees
+- **Heap, in its class's pool:** an object on the heap whose class is not a singleton and frees its objects only
+  through its own release, when the class holds no `Memory.Address` attribute or the program keeps its objects in a
+  list (the item of a `List`, or of anything else built on `TypedMemory<T>`, such as a `Dictionary`'s values), and,
+  in a program with threads, no code that can run on another thread counts, makes, copies or frees
   one of its objects. The class's objects come from blocks of their own size side by side, in runs of 16 objects
   doubling until a run is at least 256 KiB, each run starting on a 64-byte boundary; an object let go is kept for
   the class's next object and is never handed to another class or back to the system while the program runs. Its

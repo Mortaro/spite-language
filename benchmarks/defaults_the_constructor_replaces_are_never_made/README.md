@@ -35,18 +35,18 @@ the 500 000 defaults.
 and its `free` together and removes them (`clang -O2 -S` of `naive.c` has two calls to `malloc` per item left, the
 owner's and the item's), so in time `naive.c` pays nothing for the default either. What it does pay for, and
 `naive/` does not, is the list of owners `map_owners` makes (`naive/` runs the chain as one loop) and a `malloc` per
-item where the compiler takes items from a pool. `expert.c` allocates nothing per item.
+item and per owner where the compiler takes both from their class's pool. `expert.c` allocates nothing per item.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 23 311 | 200 192 |
-| naive C: `naive.c`, `clang -O2` | 40 829 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 340 | 139 776 |
+| Spite: `naive/`, `--optimized` | 6 084 | 203 776 |
+| naive C: `naive.c`, `clang -O2` | 42 460 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 339 | 139 776 |
 
-Spite takes 0.57 times naive C's time and 68.56 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=23311 naive=40829 expert=340 -->
+Spite takes 0.14 times naive C's time and 17.95 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=6084 naive=42460 expert=339 -->
 <!-- /timings -->

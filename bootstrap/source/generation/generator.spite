@@ -1071,6 +1071,7 @@ func generate(
     builder.hot_reload = hot_reload
     builder.folds = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.counts_by_class = not hot_reload and not read_evaluate_print_loop and not reload_host
+    builder.buffer_holders = buffer_holder_names()
     builder.debug_memory = debug_memory
     builder.nested_lists = nested_lists
     builder.constant_texts = constant_texts
@@ -2960,6 +2961,28 @@ func check_plain_items(instance: Analysis.ClassInfo) {
     report(
         "'{instance.qualified_dotted}<{label}>' holds plain values, and a List keeps numbers, Boolean, enums and Memory.Address flat just as it did, so a list of them has one spelling: write 'List<{label}>'",
     )
+}
+
+# ../../../docs/optimizations.md#objects-of-one-class-sit-together
+func buffer_holder_names(): Dictionary<String, Boolean> {
+    var names = Dictionary<String, Boolean>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var field_index = 0
+        while field_index < information.fields.count() {
+            var field_type = information.fields[field_index].type
+            var scalar = type_shape.as_scalar(field_type)
+            if scalar {
+                if scalar.kind == 'address_kind' {
+                    names[information.c_name] = true
+                }
+            }
+            field_index = field_index + 1
+        }
+        index = index + 1
+    }
+    return names
 }
 
 func is_address_type(spite_type: Analysis.SpiteType): Boolean {

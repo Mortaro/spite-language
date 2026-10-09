@@ -979,15 +979,16 @@ if ! grep -q '^static const int32_t spite_configured_Tariff_steps_0_items\[3\] =
    || grep -q 'Grown_[a-z_]*___configured_' "$configured"; then
   echo "FAILED: configured_tables should copy Tariff's price for its table and leave Stepped's and Grown's as written"; exit 1
 fi
-# Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
-# gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's
-# allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run printed.
+# Objects of one class sit together (pair M6): class_pools takes every Point from Point's own pool and gives it back
+# there, does the same for its own object, which no list holds, keeps Mark (a worker makes and counts them) on the C
+# library's allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run
+# printed.
 pools="$work/class_pools.c"
 "$work/generation_two.exe" conformance/stage6/class_pools --check --c-source --c-path="$pools" > /dev/null 2>&1 || {
   echo "FAILED: class_pools does not write its C"; exit 1; }
 if ! grep -q "^Point\* self = Point___pool_take();$" "$pools" || ! grep -q "^Point___pool_give(self);$" "$pools" \
-   || grep -qE "(Label|Mark)___pool_" "$pools"; then
-  echo "FAILED: class_pools should pool Point and leave Label and Mark to the C library's allocator"; exit 1
+   || ! grep -q "^ClassPools___pool_give(self);$" "$pools" || grep -qE "Mark___pool_" "$pools"; then
+  echo "FAILED: class_pools should pool Point and ClassPools and leave Mark to the C library's allocator"; exit 1
 fi
 "$work/generation_two.exe" conformance/stage6/class_pools --optimized --build --executable-path="$work/class_pools_optimized.exe" > /dev/null 2>&1 || {
   echo "FAILED: class_pools does not build --optimized"; exit 1; }

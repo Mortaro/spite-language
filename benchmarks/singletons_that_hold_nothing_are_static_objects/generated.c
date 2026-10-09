@@ -661,6 +661,52 @@ static __typeof__(&TypedMemory__Long___release) spite_folded_TypedMemory__Long__
 static __typeof__(&TypedMemory__Console_Printable___release) spite_folded_TypedMemory__Console_Printable___release = ((__typeof__(&TypedMemory__Console_Printable___release))&Memory_Heap___release);
 static __typeof__(&List_Long_count) spite_folded_List_Long_count = ((__typeof__(&List_Long_count))&List_String_count);
 static __typeof__(&List_Console_Printable_count) spite_folded_List_Console_Printable_count = ((__typeof__(&List_Console_Printable_count))&List_String_count);
+static Launcher* Launcher___pool_free = 0;
+static char* Launcher___pool_next = 0;
+static char* Launcher___pool_end = 0;
+static size_t Launcher___pool_count = 0;
+static void Launcher___pool_grow(void) {
+if (Launcher___pool_count == 0) { Launcher___pool_count = 16; } else if (Launcher___pool_count * sizeof(Launcher) < 262144) { Launcher___pool_count = Launcher___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Launcher___pool_count * sizeof(Launcher) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Launcher___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Launcher___pool_end = Launcher___pool_next + Launcher___pool_count * sizeof(Launcher);
+}
+static inline Launcher* Launcher___pool_take(void) {
+Launcher* self = Launcher___pool_free;
+if (self != 0) { Launcher___pool_free = *(Launcher**)self; return self; }
+if (Launcher___pool_next == Launcher___pool_end) Launcher___pool_grow();
+self = (Launcher*)Launcher___pool_next;
+Launcher___pool_next = Launcher___pool_next + sizeof(Launcher);
+return self;
+}
+static inline void Launcher___pool_give(Launcher* self) {
+*(Launcher**)self = Launcher___pool_free;
+Launcher___pool_free = self;
+}
+static Naive* Naive___pool_free = 0;
+static char* Naive___pool_next = 0;
+static char* Naive___pool_end = 0;
+static size_t Naive___pool_count = 0;
+static void Naive___pool_grow(void) {
+if (Naive___pool_count == 0) { Naive___pool_count = 16; } else if (Naive___pool_count * sizeof(Naive) < 262144) { Naive___pool_count = Naive___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Naive___pool_count * sizeof(Naive) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Naive___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Naive___pool_end = Naive___pool_next + Naive___pool_count * sizeof(Naive);
+}
+static inline Naive* Naive___pool_take(void) {
+Naive* self = Naive___pool_free;
+if (self != 0) { Naive___pool_free = *(Naive**)self; return self; }
+if (Naive___pool_next == Naive___pool_end) Naive___pool_grow();
+self = (Naive*)Naive___pool_next;
+Naive___pool_next = Naive___pool_next + sizeof(Naive);
+return self;
+}
+static inline void Naive___pool_give(Naive* self) {
+*(Naive**)self = Naive___pool_free;
+Naive___pool_free = self;
+}
 Memory_Heap* spite_singleton_Memory_Heap(void) {
 static Memory_Heap spite_object = { { 1, 95 } };
 return &spite_object;
@@ -709,7 +755,7 @@ void Launcher___init(Launcher* self) {
 self->build_ = spite_singleton_Build();
 }
 Launcher* Launcher___allocate(void) {
-Launcher* self = (Launcher*)SPITE_MALLOC(sizeof(Launcher));
+Launcher* self = Launcher___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 1;
 Launcher___init(self);
@@ -731,7 +777,7 @@ spite_untrack_Launcher(self);
 #ifdef SPITE_WEAK_Launcher
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Launcher___pool_give(self);
 }
 static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) {
 fflush(stdout);
@@ -916,7 +962,7 @@ void Naive___init(Naive* self) {
 self->console_ = spite_singleton_Console();
 }
 Naive* Naive___allocate(void) {
-Naive* self = (Naive*)SPITE_MALLOC(sizeof(Naive));
+Naive* self = Naive___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 110;
 Naive___init(self);
@@ -938,7 +984,7 @@ spite_untrack_Naive(self);
 #ifdef SPITE_WEAK_Naive
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Naive___pool_give(self);
 }
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value) {
 SpiteTagged tagged;
@@ -1631,6 +1677,12 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_string_length, "-\t-", "spite_string_length", 0},
 {(const void*)&spite_string_bytes, "-\t-", "spite_string_bytes", 0},
 {(const void*)&spite_string_code_at, "-\t-", "spite_string_code_at", 0},
+{(const void*)&Launcher___pool_grow, "-\t-", "Launcher___pool_grow", 0},
+{(const void*)&Launcher___pool_take, "-\t-", "Launcher___pool_take", 0},
+{(const void*)&Launcher___pool_give, "-\t-", "Launcher___pool_give", 0},
+{(const void*)&Naive___pool_grow, "-\t-", "Naive___pool_grow", 0},
+{(const void*)&Naive___pool_take, "-\t-", "Naive___pool_take", 0},
+{(const void*)&Naive___pool_give, "-\t-", "Naive___pool_give", 0},
 {(const void*)&spite_singleton_Memory_Heap, "-\t-", "spite_singleton_Memory_Heap", 0},
 {(const void*)&spite_singleton_TypedMemory__String, "-\t-", "spite_singleton_TypedMemory__String", 0},
 {(const void*)&Console_Printable___retain, "-\t-", "Console_Printable___retain", 0},

@@ -6,13 +6,18 @@ var pooled_classes = List<String>()
 var pooled = Dictionary<String, Boolean>()
 
 # ../../../docs/optimizations.md#objects-of-one-class-sit-together
-func with_pools(types: String, bodies: String, sharing: CountSharing?): String {
+func with_pools(
+    types: String,
+    bodies: String,
+    sharing: CountSharing?,
+    buffer_holders: Dictionary<String, Boolean>,
+): String {
     lines = bodies.split("\n")
     var index = 0
     while index < lines.count() {
         index = scanned_line(index)
     }
-    choose_classes(types, sharing)
+    choose_classes(types, sharing, buffer_holders)
     if pooled_classes.is_empty() {
         return bodies
     }
@@ -117,7 +122,7 @@ func note_made(line: String) {
     }
 }
 
-func choose_classes(types: String, sharing: CountSharing?) {
+func choose_classes(types: String, sharing: CountSharing?, buffer_holders: Dictionary<String, Boolean>) {
     var names = free_lines.keys()
     var index = 0
     while index < names.count() {
@@ -127,7 +132,8 @@ func choose_classes(types: String, sharing: CountSharing?) {
             allowed = sharing.leaves_to_one_thread(class_name)
         }
         var listed = types.contains("typedef struct TypedMemory__{class_name} TypedMemory__{class_name};")
-        if allowed and listed and made.has(class_name) and not refused.has(class_name) {
+        var holds_buffer = buffer_holders.has(class_name) and not listed
+        if allowed and not holds_buffer and made.has(class_name) and not refused.has(class_name) {
             pooled_classes.append(class_name)
             pooled[class_name] = true
         }

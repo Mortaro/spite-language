@@ -1192,6 +1192,52 @@ static __typeof__(&TypedMemory__Symbol___release) spite_folded_TypedMemory__Symb
 static __typeof__(&List_Console_Printable_count) spite_folded_List_Console_Printable_count = ((__typeof__(&List_Console_Printable_count))&List_Integer_count);
 static __typeof__(&List_Symbol_clear) spite_folded_List_Symbol_clear = ((__typeof__(&List_Symbol_clear))&List_String_clear);
 static __typeof__(&TypedMemory__Symbol_release_value) spite_folded_TypedMemory__Symbol_release_value = ((__typeof__(&TypedMemory__Symbol_release_value))&TypedMemory__String_release_value);
+static Launcher* Launcher___pool_free = 0;
+static char* Launcher___pool_next = 0;
+static char* Launcher___pool_end = 0;
+static size_t Launcher___pool_count = 0;
+static void Launcher___pool_grow(void) {
+if (Launcher___pool_count == 0) { Launcher___pool_count = 16; } else if (Launcher___pool_count * sizeof(Launcher) < 262144) { Launcher___pool_count = Launcher___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Launcher___pool_count * sizeof(Launcher) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Launcher___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Launcher___pool_end = Launcher___pool_next + Launcher___pool_count * sizeof(Launcher);
+}
+static inline Launcher* Launcher___pool_take(void) {
+Launcher* self = Launcher___pool_free;
+if (self != 0) { Launcher___pool_free = *(Launcher**)self; return self; }
+if (Launcher___pool_next == Launcher___pool_end) Launcher___pool_grow();
+self = (Launcher*)Launcher___pool_next;
+Launcher___pool_next = Launcher___pool_next + sizeof(Launcher);
+return self;
+}
+static inline void Launcher___pool_give(Launcher* self) {
+*(Launcher**)self = Launcher___pool_free;
+Launcher___pool_free = self;
+}
+static Duration* Duration___pool_free = 0;
+static char* Duration___pool_next = 0;
+static char* Duration___pool_end = 0;
+static size_t Duration___pool_count = 0;
+static void Duration___pool_grow(void) {
+if (Duration___pool_count == 0) { Duration___pool_count = 16; } else if (Duration___pool_count * sizeof(Duration) < 262144) { Duration___pool_count = Duration___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Duration___pool_count * sizeof(Duration) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Duration___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Duration___pool_end = Duration___pool_next + Duration___pool_count * sizeof(Duration);
+}
+static inline Duration* Duration___pool_take(void) {
+Duration* self = Duration___pool_free;
+if (self != 0) { Duration___pool_free = *(Duration**)self; return self; }
+if (Duration___pool_next == Duration___pool_end) Duration___pool_grow();
+self = (Duration*)Duration___pool_next;
+Duration___pool_next = Duration___pool_next + sizeof(Duration);
+return self;
+}
+static inline void Duration___pool_give(Duration* self) {
+*(Duration**)self = Duration___pool_free;
+Duration___pool_free = self;
+}
 static Spite_Class* Spite_Class___pool_free = 0;
 static char* Spite_Class___pool_next = 0;
 static char* Spite_Class___pool_end = 0;
@@ -1237,6 +1283,121 @@ return self;
 static inline void Spite_Function___pool_give(Spite_Function* self) {
 *(Spite_Function**)self = Spite_Function___pool_free;
 Spite_Function___pool_free = self;
+}
+static Naive* Naive___pool_free = 0;
+static char* Naive___pool_next = 0;
+static char* Naive___pool_end = 0;
+static size_t Naive___pool_count = 0;
+static void Naive___pool_grow(void) {
+if (Naive___pool_count == 0) { Naive___pool_count = 16; } else if (Naive___pool_count * sizeof(Naive) < 262144) { Naive___pool_count = Naive___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Naive___pool_count * sizeof(Naive) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Naive___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Naive___pool_end = Naive___pool_next + Naive___pool_count * sizeof(Naive);
+}
+static inline Naive* Naive___pool_take(void) {
+Naive* self = Naive___pool_free;
+if (self != 0) { Naive___pool_free = *(Naive**)self; return self; }
+if (Naive___pool_next == Naive___pool_end) Naive___pool_grow();
+self = (Naive*)Naive___pool_next;
+Naive___pool_next = Naive___pool_next + sizeof(Naive);
+return self;
+}
+static inline void Naive___pool_give(Naive* self) {
+*(Naive**)self = Naive___pool_free;
+Naive___pool_free = self;
+}
+static Mover* Mover___pool_free = 0;
+static char* Mover___pool_next = 0;
+static char* Mover___pool_end = 0;
+static size_t Mover___pool_count = 0;
+static void Mover___pool_grow(void) {
+if (Mover___pool_count == 0) { Mover___pool_count = 16; } else if (Mover___pool_count * sizeof(Mover) < 262144) { Mover___pool_count = Mover___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Mover___pool_count * sizeof(Mover) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Mover___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Mover___pool_end = Mover___pool_next + Mover___pool_count * sizeof(Mover);
+}
+static inline Mover* Mover___pool_take(void) {
+Mover* self = Mover___pool_free;
+if (self != 0) { Mover___pool_free = *(Mover**)self; return self; }
+if (Mover___pool_next == Mover___pool_end) Mover___pool_grow();
+self = (Mover*)Mover___pool_next;
+Mover___pool_next = Mover___pool_next + sizeof(Mover);
+return self;
+}
+static inline void Mover___pool_give(Mover* self) {
+*(Mover**)self = Mover___pool_free;
+Mover___pool_free = self;
+}
+static SparseSet* SparseSet___pool_free = 0;
+static char* SparseSet___pool_next = 0;
+static char* SparseSet___pool_end = 0;
+static size_t SparseSet___pool_count = 0;
+static void SparseSet___pool_grow(void) {
+if (SparseSet___pool_count == 0) { SparseSet___pool_count = 16; } else if (SparseSet___pool_count * sizeof(SparseSet) < 262144) { SparseSet___pool_count = SparseSet___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(SparseSet___pool_count * sizeof(SparseSet) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+SparseSet___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+SparseSet___pool_end = SparseSet___pool_next + SparseSet___pool_count * sizeof(SparseSet);
+}
+static inline SparseSet* SparseSet___pool_take(void) {
+SparseSet* self = SparseSet___pool_free;
+if (self != 0) { SparseSet___pool_free = *(SparseSet**)self; return self; }
+if (SparseSet___pool_next == SparseSet___pool_end) SparseSet___pool_grow();
+self = (SparseSet*)SparseSet___pool_next;
+SparseSet___pool_next = SparseSet___pool_next + sizeof(SparseSet);
+return self;
+}
+static inline void SparseSet___pool_give(SparseSet* self) {
+*(SparseSet**)self = SparseSet___pool_free;
+SparseSet___pool_free = self;
+}
+static Runner__Mover_Moving* Runner__Mover_Moving___pool_free = 0;
+static char* Runner__Mover_Moving___pool_next = 0;
+static char* Runner__Mover_Moving___pool_end = 0;
+static size_t Runner__Mover_Moving___pool_count = 0;
+static void Runner__Mover_Moving___pool_grow(void) {
+if (Runner__Mover_Moving___pool_count == 0) { Runner__Mover_Moving___pool_count = 16; } else if (Runner__Mover_Moving___pool_count * sizeof(Runner__Mover_Moving) < 262144) { Runner__Mover_Moving___pool_count = Runner__Mover_Moving___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Runner__Mover_Moving___pool_count * sizeof(Runner__Mover_Moving) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Runner__Mover_Moving___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Runner__Mover_Moving___pool_end = Runner__Mover_Moving___pool_next + Runner__Mover_Moving___pool_count * sizeof(Runner__Mover_Moving);
+}
+static inline Runner__Mover_Moving* Runner__Mover_Moving___pool_take(void) {
+Runner__Mover_Moving* self = Runner__Mover_Moving___pool_free;
+if (self != 0) { Runner__Mover_Moving___pool_free = *(Runner__Mover_Moving**)self; return self; }
+if (Runner__Mover_Moving___pool_next == Runner__Mover_Moving___pool_end) Runner__Mover_Moving___pool_grow();
+self = (Runner__Mover_Moving*)Runner__Mover_Moving___pool_next;
+Runner__Mover_Moving___pool_next = Runner__Mover_Moving___pool_next + sizeof(Runner__Mover_Moving);
+return self;
+}
+static inline void Runner__Mover_Moving___pool_give(Runner__Mover_Moving* self) {
+*(Runner__Mover_Moving**)self = Runner__Mover_Moving___pool_free;
+Runner__Mover_Moving___pool_free = self;
+}
+static Benchmark__Long* Benchmark__Long___pool_free = 0;
+static char* Benchmark__Long___pool_next = 0;
+static char* Benchmark__Long___pool_end = 0;
+static size_t Benchmark__Long___pool_count = 0;
+static void Benchmark__Long___pool_grow(void) {
+if (Benchmark__Long___pool_count == 0) { Benchmark__Long___pool_count = 16; } else if (Benchmark__Long___pool_count * sizeof(Benchmark__Long) < 262144) { Benchmark__Long___pool_count = Benchmark__Long___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Benchmark__Long___pool_count * sizeof(Benchmark__Long) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Benchmark__Long___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Benchmark__Long___pool_end = Benchmark__Long___pool_next + Benchmark__Long___pool_count * sizeof(Benchmark__Long);
+}
+static inline Benchmark__Long* Benchmark__Long___pool_take(void) {
+Benchmark__Long* self = Benchmark__Long___pool_free;
+if (self != 0) { Benchmark__Long___pool_free = *(Benchmark__Long**)self; return self; }
+if (Benchmark__Long___pool_next == Benchmark__Long___pool_end) Benchmark__Long___pool_grow();
+self = (Benchmark__Long*)Benchmark__Long___pool_next;
+Benchmark__Long___pool_next = Benchmark__Long___pool_next + sizeof(Benchmark__Long);
+return self;
+}
+static inline void Benchmark__Long___pool_give(Benchmark__Long* self) {
+*(Benchmark__Long**)self = Benchmark__Long___pool_free;
+Benchmark__Long___pool_free = self;
 }
 Memory_Heap* spite_singleton_Memory_Heap(void) {
 static Memory_Heap spite_object = { { 1, 95 } };
@@ -1372,7 +1533,7 @@ void Launcher___init(Launcher* self) {
 self->build_ = spite_singleton_Build();
 }
 Launcher* Launcher___allocate(void) {
-Launcher* self = (Launcher*)SPITE_MALLOC(sizeof(Launcher));
+Launcher* self = Launcher___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 1;
 Launcher___init(self);
@@ -1394,7 +1555,7 @@ spite_untrack_Launcher(self);
 #ifdef SPITE_WEAK_Launcher
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Launcher___pool_give(self);
 }
 static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) {
 fflush(stdout);
@@ -1531,7 +1692,7 @@ self->_seconds_ = SpiteInteger_to_long(0);
 self->_nanoseconds_ = 0;
 }
 Duration* Duration___allocate(void) {
-Duration* self = (Duration*)SPITE_MALLOC(sizeof(Duration));
+Duration* self = Duration___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 27;
 Duration___init(self);
@@ -1559,7 +1720,7 @@ spite_untrack_Duration(self);
 #ifdef SPITE_WEAK_Duration
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Duration___pool_give(self);
 }
 void DynamicLibrary___init(DynamicLibrary* self) {
 self->file_name_ = spite_lit_1;
@@ -1833,7 +1994,7 @@ self->velocities_ = spite_singleton_Column__Velocity();
 self->entity_count_ = 100000;
 }
 Naive* Naive___allocate(void) {
-Naive* self = (Naive*)SPITE_MALLOC(sizeof(Naive));
+Naive* self = Naive___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 110;
 Naive___init(self);
@@ -1863,7 +2024,7 @@ spite_untrack_Naive(self);
 #ifdef SPITE_WEAK_Naive
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Naive___pool_give(self);
 }
 void Naive_spawn_and_move___dropping_call(void* owner) {
 (void)Naive_spawn_and_move((Naive*)owner);
@@ -1912,7 +2073,7 @@ void Mover___init(Mover* self) {
 self->marked_ = 0;
 }
 Mover* Mover___allocate(void) {
-Mover* self = (Mover*)SPITE_MALLOC(sizeof(Mover));
+Mover* self = Mover___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 113;
 Mover___init(self);
@@ -1937,7 +2098,7 @@ spite_untrack_Mover(self);
 #ifdef SPITE_WEAK_Mover
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Mover___pool_give(self);
 }
 
 void Position___init(Position* self) {
@@ -1967,7 +2128,7 @@ self->dense_of_ = List_Integer___make();
 self->entities_ = List_Integer___make();
 }
 SparseSet* SparseSet___allocate(void) {
-SparseSet* self = (SparseSet*)SPITE_MALLOC(sizeof(SparseSet));
+SparseSet* self = SparseSet___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 116;
 SparseSet___init(self);
@@ -1994,7 +2155,7 @@ spite_untrack_SparseSet(self);
 #ifdef SPITE_WEAK_SparseSet
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+SparseSet___pool_give(self);
 }
 void Velocity___init(Velocity* self) {
 self->across_ = 0;
@@ -2226,7 +2387,7 @@ self->found_ = List_Integer___make();
 self->missing_ = false;
 }
 Runner__Mover_Moving* Runner__Mover_Moving___allocate(void) {
-Runner__Mover_Moving* self = (Runner__Mover_Moving*)SPITE_MALLOC(sizeof(Runner__Mover_Moving));
+Runner__Mover_Moving* self = Runner__Mover_Moving___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 156;
 Runner__Mover_Moving___init(self);
@@ -2252,7 +2413,7 @@ spite_untrack_Runner__Mover_Moving(self);
 #ifdef SPITE_WEAK_Runner__Mover_Moving
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Runner__Mover_Moving___pool_give(self);
 }
 void Column__Position___init(Column__Position* self) {
 self->set_ = SparseSet___make();
@@ -2450,7 +2611,7 @@ self->answer_ = 0;
 self->duration_ = Duration___default();
 }
 Benchmark__Long* Benchmark__Long___allocate(void) {
-Benchmark__Long* self = (Benchmark__Long*)SPITE_MALLOC(sizeof(Benchmark__Long));
+Benchmark__Long* self = Benchmark__Long___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 180;
 Benchmark__Long___init(self);
@@ -2478,7 +2639,7 @@ spite_untrack_Benchmark__Long(self);
 #ifdef SPITE_WEAK_Benchmark__Long
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Benchmark__Long___pool_give(self);
 }
 Spite_Class* spite_class_object_Long(void) {
 if (SPITE_SINGLETON_FOUND(spite_class_object_Long_ready)) return Spite_Class___retain(spite_class_object_Long_cache);
@@ -3625,12 +3786,33 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_string_code_at, "-\t-", "spite_string_code_at", 0},
 {(const void*)&spite_described_enter, "-\t-", "spite_described_enter", 0},
 {(const void*)&spite_described_leave, "-\t-", "spite_described_leave", 0},
+{(const void*)&Launcher___pool_grow, "-\t-", "Launcher___pool_grow", 0},
+{(const void*)&Launcher___pool_take, "-\t-", "Launcher___pool_take", 0},
+{(const void*)&Launcher___pool_give, "-\t-", "Launcher___pool_give", 0},
+{(const void*)&Duration___pool_grow, "-\t-", "Duration___pool_grow", 0},
+{(const void*)&Duration___pool_take, "-\t-", "Duration___pool_take", 0},
+{(const void*)&Duration___pool_give, "-\t-", "Duration___pool_give", 0},
 {(const void*)&Spite_Class___pool_grow, "-\t-", "Spite_Class___pool_grow", 0},
 {(const void*)&Spite_Class___pool_take, "-\t-", "Spite_Class___pool_take", 0},
 {(const void*)&Spite_Class___pool_give, "-\t-", "Spite_Class___pool_give", 0},
 {(const void*)&Spite_Function___pool_grow, "-\t-", "Spite_Function___pool_grow", 0},
 {(const void*)&Spite_Function___pool_take, "-\t-", "Spite_Function___pool_take", 0},
 {(const void*)&Spite_Function___pool_give, "-\t-", "Spite_Function___pool_give", 0},
+{(const void*)&Naive___pool_grow, "-\t-", "Naive___pool_grow", 0},
+{(const void*)&Naive___pool_take, "-\t-", "Naive___pool_take", 0},
+{(const void*)&Naive___pool_give, "-\t-", "Naive___pool_give", 0},
+{(const void*)&Mover___pool_grow, "-\t-", "Mover___pool_grow", 0},
+{(const void*)&Mover___pool_take, "-\t-", "Mover___pool_take", 0},
+{(const void*)&Mover___pool_give, "-\t-", "Mover___pool_give", 0},
+{(const void*)&SparseSet___pool_grow, "-\t-", "SparseSet___pool_grow", 0},
+{(const void*)&SparseSet___pool_take, "-\t-", "SparseSet___pool_take", 0},
+{(const void*)&SparseSet___pool_give, "-\t-", "SparseSet___pool_give", 0},
+{(const void*)&Runner__Mover_Moving___pool_grow, "-\t-", "Runner__Mover_Moving___pool_grow", 0},
+{(const void*)&Runner__Mover_Moving___pool_take, "-\t-", "Runner__Mover_Moving___pool_take", 0},
+{(const void*)&Runner__Mover_Moving___pool_give, "-\t-", "Runner__Mover_Moving___pool_give", 0},
+{(const void*)&Benchmark__Long___pool_grow, "-\t-", "Benchmark__Long___pool_grow", 0},
+{(const void*)&Benchmark__Long___pool_take, "-\t-", "Benchmark__Long___pool_take", 0},
+{(const void*)&Benchmark__Long___pool_give, "-\t-", "Benchmark__Long___pool_give", 0},
 {(const void*)&spite_singleton_Memory_Heap, "-\t-", "spite_singleton_Memory_Heap", 0},
 {(const void*)&Console_Printable___retain, "-\t-", "Console_Printable___retain", 0},
 {(const void*)&spite_singleton_Build, "-\t-", "spite_singleton_Build", 0},

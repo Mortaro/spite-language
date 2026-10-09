@@ -52,7 +52,7 @@ again, so it always shows the latest measurement of every case.
 | [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 4 029 | 3 902 | 3 895 | 1.03 | 1.03 |
 | [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 61 083 | 17 943 | 4 433 | 3.40 | 13.78 |
 | [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 11 316 | 264 806 | 3 234 | 0.04 | 3.50 |
-| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 76 960 | 58 695 | 2 769 | 1.31 | 27.79 |
+| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 16 253 | 62 431 | 3 009 | 0.26 | 5.40 |
 | [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 45 811 | 73 094 | 1 972 | 0.63 | 23.23 |
 | [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 11 975 | 34 130 | 665 | 0.35 | 18.01 |
 | [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 4 215 | 4 244 | 2 520 | 0.99 | 1.67 |
@@ -69,14 +69,14 @@ again, so it always shows the latest measurement of every case.
 | [copies_that_cost_nothing](copies_that_cost_nothing/) | 33 528 | 22 099 | 16 000 | 1.52 | 2.10 |
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed | not timed | | |
 | [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 11 894 | 8 496 | 7 470 | 1.40 | 1.59 |
-| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 23 311 | 40 829 | 340 | 0.57 | 68.56 |
+| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 6 084 | 42 460 | 339 | 0.14 | 17.95 |
 | [game_maths](game_maths/) | 2 677 | 2 144 | 1 679 | 1.25 | 1.59 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed | not timed | | |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed | not timed | | |
 | [image_filter_over_planes](image_filter_over_planes/) | 115 503 | 232 171 | 20 762 | 0.50 | 5.56 |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 11 626 | 13 280 | 2 799 | 0.88 | 4.15 |
 | [number_dictionary](number_dictionary/) | 43 518 | 18 694 | 11 406 | 2.33 | 3.82 |
-| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 698 | 22 327 | 2 482 | 0.48 | 4.31 |
+| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 545 | 22 529 | 2 633 | 0.47 | 4.00 |
 | [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 13 455 | 999 525 | 14 080 | 0.01 | 0.96 |
 | [other_optimisations](other_optimisations/) | not timed | not timed | not timed | | |
 | [particles](particles/) | 35 830 | 52 108 | 31 389 | 0.69 | 1.14 |

@@ -9,7 +9,7 @@
 #define SPITE_FREE(pointer) free(pointer)
 
 Node* Node___allocate(void) {
-    Node* self = (Node*)SPITE_MALLOC(sizeof(Node));
+    Node* self = Node___pool_take();
     self->header.ref_count = 1;
     self->header.class_id = 111;
     Node___init(self);
@@ -27,5 +27,5 @@ void Node___free(Node* self) {
     #ifdef SPITE_WEAK_Node
     spite_weak_object_freed(self);
     #endif
-    SPITE_FREE(self);
+    Node___pool_give(self);
 }

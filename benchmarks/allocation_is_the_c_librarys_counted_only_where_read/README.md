@@ -27,29 +27,32 @@ tree shaking gets the counting versions.
 
 `#define SPITE_MALLOC(size) malloc(size)` and `#define SPITE_FREE(pointer) free(pointer)`: the first line of each
 pair is for a library a `--hot-reload` program loads, which allocates through the program it is loaded into, and
-the second is this program's. `Node___allocate` calls `SPITE_MALLOC(sizeof(Node))` and `Node___free` ends with
-`SPITE_FREE(self)`, so each node costs what it costs in `naive.c`: one `malloc` and one `free`, with no counter, table
-or list of blocks beside them. What still separates `naive/` from `naive.c` is the reference count each node
-carries (counted up as the next node takes it, down as the chain goes), and `Node___free` letting the chain go by
-calling itself through `Node___release(self->next_)` where `naive.c` walks it in a loop. `expert.c` makes no
-allocation per node at all.
+the second is this program's, with no counter, table or list of blocks beside them. A `Node` does not even go that
+far: it is made and let go only on the program's own thread, so it has a pool of its own
+([Objects of one class sit together](../../docs/optimizations.md#objects-of-one-class-sit-together)).
+`Node___allocate` takes its node from `Node___pool_take()` and `Node___free` ends with `Node___pool_give(self)`, so
+after the first round every node is one an earlier chain gave back, and no node costs a `malloc` or a `free`. What
+still separates `naive/` from `expert.c` is the reference count each node carries (counted up as the next node takes
+it, down as the chain goes), and `Node___free` letting the chain go by calling itself through
+`Node___release(self->next_)` where `expert.c` lets nothing go at all.
 
 The same program with one line added at the end, `var live = heap.live_allocations()` (and `live` printed), has
 in place of the two `#define`s a counted `spite_counted_realloc` and `spite_counted_free` (the comment above them
-says `The program reads Memory.Heap.live_allocations(), so allocations are counted.`). Built the same way
-(`--optimized`) and run twice each on this machine: 102 and 101 ms against 83 and 81 ms for `naive/`, so the
-count that this program does not read would cost it about a quarter of its time.
+says `The program reads Memory.Heap.live_allocations(), so allocations are counted.`), and no pool, since what it
+counts are the C library's blocks. Built the same way (`--optimized`) and run twice each on this machine, before
+nodes had a pool: 102 and 101 ms against 83 and 81 ms for `naive/`, so the count alone cost about a quarter of the
+time, and it now costs the pool as well.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 76 960 | 194 048 |
-| naive C: `naive.c`, `clang -O2` | 58 695 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 2 769 | 139 264 |
+| Spite: `naive/`, `--optimized` | 16 253 | 198 144 |
+| naive C: `naive.c`, `clang -O2` | 62 431 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 3 009 | 139 264 |
 
-Spite takes 1.31 times naive C's time and 27.79 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=76960 naive=58695 expert=2769 -->
+Spite takes 0.26 times naive C's time and 5.40 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=16253 naive=62431 expert=3009 -->
 <!-- /timings -->

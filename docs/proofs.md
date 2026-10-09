@@ -131,7 +131,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Classes in a list that share nothing written](#classes-in-a-list-that-share-nothing-written) | a loop over different classes runs them at once | in order, as written |
 | [Passes that write only their own item](#passes-that-write-only-their-own-item) | a loop over one class runs in bands | in order, as written |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
-| [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
+| [Objects of a class made on one thread](#objects-of-a-class-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [No other thread touches a singleton](#no-other-thread-touches-a-singleton) | no lock, plain attributes | the form it had |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
@@ -1187,20 +1187,20 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 - **See.** [optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class);
   `conformance/stage6/plain_counts`.
 
-### Objects a list holds, made on one thread
+### Objects of a class made on one thread
 
-- **Proves.** Every object of a class is made and let go on the program's own thread, and the program keeps
-  objects of the class in a list.
+- **Proves.** Every object of a class is made and let go on the program's own thread, by the class's own release.
 - **Rule.** Read from the program after every generic class is made and the program is tree shaken. The class is
   not shared under [No other thread counts a class](#no-other-thread-counts-a-class), and no code that can run on
   another thread (the same code that proof follows) makes an object of it, copies one or frees one. In a program
-  without threads every class meets the first half. The second half holds when the class is the item of a `List`,
-  or of anything else built on `TypedMemory<T>` such as a `Dictionary`'s values, anywhere in the program; the class
-  is not a singleton and frees its objects through its own release alone.
+  without threads every class meets the first half. The class is not a singleton and frees its objects through its
+  own release alone. A class with an attribute that is a `Memory.Address` (a container's own object) also has to be
+  the item of a `List`, or of anything else built on `TypedMemory<T>` such as a `Dictionary`'s values, anywhere in
+  the program.
 - **Buys.** The class's objects come from a pool of its own, with no lock: side by side in memory, made and given
   back with a few plain writes ([optimizations.md](optimizations.md#objects-of-one-class-sit-together)).
 - **Falls back.** The C library's `malloc` and `free` for the class: a class another thread counts, makes or frees,
-  one no list holds, a singleton, a `--debug-memory` build, a program that reads `live_allocations()` or
+  a container no list holds, a singleton, a `--debug-memory` build, a program that reads `live_allocations()` or
   `live_bytes()`, and an inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). Nothing
   for the program to write: the fallback is the allocator every object had before.
 - **See.** [optimizations.md](optimizations.md#objects-of-one-class-sit-together); `conformance/stage6/class_pools`.

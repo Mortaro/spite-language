@@ -19,6 +19,7 @@ var hot_reload = false
 var debug_memory = false
 var folds = false
 var counts_by_class = false
+var buffer_holders = Dictionary<String, Boolean>()
 var count_sharing: CountSharing? = null
 var nested_lists = NestedLists()
 var folded_functions = 0
@@ -416,10 +417,10 @@ func allocates_plainly(typedef_text: String): Boolean {
 func with_class_pools(types: String, bodies: String): String {
     var pools = ClassPools()
     if not threads {
-        return pools.with_pools(types, bodies, null)
+        return pools.with_pools(types, bodies, null, buffer_holders)
     }
     if count_sharing {
-        return pools.with_pools(types, bodies, count_sharing)
+        return pools.with_pools(types, bodies, count_sharing, buffer_holders)
     }
     return bodies
 }

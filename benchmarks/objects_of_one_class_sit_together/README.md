@@ -1,11 +1,11 @@
 # Objects of one class sit together
 
-Every object of a class a list holds is made from that class's own pool: blocks the size of one object, side by
+Every object of a class made on the program's own thread is made from that class's own pool: blocks the size of one object, side by
 side, handed out in order and taken back for the class's next object. So objects of two classes made in turn do not
 interleave in memory, and a loop over one class's list reads its memory in order.
 
 - The optimisation: [docs/optimizations.md](../../docs/optimizations.md#objects-of-one-class-sit-together).
-- The proof: [Objects a list holds, made on one thread](../../docs/proofs.md#objects-a-list-holds-made-on-one-thread).
+- The proof: [Objects of a class made on one thread](../../docs/proofs.md#objects-of-a-class-made-on-one-thread).
 
 ## The four forms
 
@@ -34,11 +34,11 @@ with the notes; `expert.c` reads no pointers at all.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 10 698 | 203 776 |
-| naive C: `naive.c`, `clang -O2` | 22 327 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 2 482 | 139 776 |
+| Spite: `naive/`, `--optimized` | 10 545 | 206 848 |
+| naive C: `naive.c`, `clang -O2` | 22 529 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 633 | 139 776 |
 
-Spite takes 0.48 times naive C's time and 4.31 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=10698 naive=22327 expert=2482 -->
+Spite takes 0.47 times naive C's time and 4.00 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
+<!-- measured spite=10545 naive=22529 expert=2633 -->
 <!-- /timings -->

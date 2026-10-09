@@ -195,6 +195,10 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
   fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 20% and 13%,
   for about 7% of its tick, measured while the machine was in other use), since combinations the program never makes are copied too.
+- **D554, every class made on one thread has a pool**: not only the classes a list holds, but a container's own
+  object (a `List`, a `Vector`) only when a list holds it. Why: a chain made and dropped over and over went from 81
+  to 17 ms, with no allocation per link after the first round. The cost to confirm: memory a class used stays that
+  class's, now for every class, and a program that only makes one object of a class takes a run of 16 for it.
 
 ## Open
 
