@@ -67,6 +67,12 @@ benchmarks (the others already match or win): first the runner made direct (S1 s
 then the two stress systems on two cores (per-object facts and per-site counts), then physics (profile first).
 Benchmark cases that do not move the engine wait unless they are cheap.
 
+**Also required before the switch (found 2026-10-09):** on the naive branch, `io_systems` finds its database lookups
+but the game advances only 3 frames while they wait, against 31 on main: the naive runner drains a waiting system's
+queue with a plain call, so frames stop while IO runs. The check stays as it is; the fix is the compiler arranging
+the wait (W1, D512): a waiting call inside a system started and collected on a later frame, so the frame loop keeps
+running. W1 is therefore on the path to replacing main, after the stress and physics work.
+
 ## How every step is judged
 
 1. **The naive form is the reference.** A step starts by writing the naive version of a piece of the engine (on the engine
