@@ -18,7 +18,7 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
-- **D555, a write-back of what the slot already holds is not written, across calls**: a call made as a statement
+- **D562, a write-back of what the slot already holds is not written, across calls**: a call made as a statement
   is left out when the compiler proves, by following values through the calls from every known caller, that it only
   stores into slots what they already hold, checks what was already checked and leaves numbers it can set in its
   place; a branch that may break the proof keeps the call on its own path. Why: the naive engine's runner copies
@@ -211,6 +211,16 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
   fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 20% and 13%,
   for about 7% of its tick, measured while the machine was in other use), since combinations the program never makes are copied too.
+- **D555, counts per group, and the despawn cost**: in a loop over different classes that may run them at once, a
+  class only one of the calls counts keeps plain counts and its pool, and one two of them count is atomic only
+  while they run. The stress update stage went from about 28 to 15 ms, but the sixty ticks after despawning
+  everything got about a tenth slower (caches on the other core, and a pool start per empty tick), which D214
+  would refuse; kept because the tick is the number that matters. Say if it should wait for a cost model.
+- **D556, objects made for their owner are told apart**: an attribute only ever given an object constructed
+  where it is given holds an object no other such attribute holds, so two calls that each keep their own meter,
+  timing record or scratch list may run at once; an item of one singleton's list and an item of another's are told
+  apart by comparing the two lists when the loop starts. Why: it is what keeps the naive engine's two stress
+  systems apart, with no annotation.
 
 ## Open
 

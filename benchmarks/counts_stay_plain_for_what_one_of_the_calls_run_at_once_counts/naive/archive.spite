@@ -1,0 +1,28 @@
+var letters = List<Letter>()
+var kept_total = 0
+
+func Archive() {
+    var index = 0
+    while index < 2000 {
+        var letter = Letter(index)
+        letters.append(letter)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 2000 {
+        var kept = List<Letter>()
+        var index = 0
+        while index < letters.count() {
+            var letter = letters[index]
+            if letter.words % 3 == round % 3 {
+                kept.append(letter)
+            }
+            index = index + 1
+        }
+        kept_total = kept_total + kept.count()
+        round = round + 1
+    }
+}

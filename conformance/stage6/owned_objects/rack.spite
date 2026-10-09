@@ -1,0 +1,13 @@
+singleton
+
+var tallies = List<Tally>()
+var bumped = 0
+
+func bump_all() {
+    var index = 0
+    while index < tallies.count() {
+        tallies[index].bump()
+        bumped = bumped + 1
+        index = index + 1
+    }
+}

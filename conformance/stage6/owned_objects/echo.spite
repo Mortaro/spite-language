@@ -1,0 +1,13 @@
+var meter = Meter()
+
+func listen(heard: Meter) {
+    meter = heard
+}
+
+func run() {
+    var step = 0
+    while step < 200000 {
+        meter.record(step % 5003)
+        step = step + 1
+    }
+}

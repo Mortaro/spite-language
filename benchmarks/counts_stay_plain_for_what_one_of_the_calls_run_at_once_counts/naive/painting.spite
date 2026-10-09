@@ -1,0 +1,5 @@
+var width = 0
+
+func Painting(seed: Integer) {
+    width = seed * 11 % 1000
+}

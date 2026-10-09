@@ -1,0 +1,9 @@
+var meter = Meter()
+
+func run() {
+    var step = 0
+    while step < 200000 {
+        meter.record(step % 7919)
+        step = step + 1
+    }
+}

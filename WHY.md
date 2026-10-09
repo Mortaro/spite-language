@@ -46,22 +46,26 @@ fast one.
 **The proof, measured.** Every benchmark in [benchmarks/](benchmarks/README.md) is one program written three
 ways: plainly in Spite, plainly in C the way a C programmer would (naive C), and in C tuned by hand (expert C).
 Spite is built `--optimized`, both C programs with `clang -O2`. Each number is how long Spite takes to do the work
-divided by how long the C program takes: 1.00 is equal, lower is better. The five whole programs, measured on
-2026-10-07 on a machine other work was loading:
+divided by how long the C program takes: 1.00 is equal, lower is better. The whole programs, measured on
+2026-10-09 on a quiet machine:
 
 | program | Spite's time over naive C's | Spite's time over expert C's |
 |---|---|---|
-| 100 000 particles stepped in place, 300 ticks | 0.74 | 1.25 |
-| quicksort of 2 million integers | 1.20 | 7.52 |
-| 3 million text appends, a million words joined | 1.77 | 15.48 |
-| 5 million steps of `Vector3` maths | 2.40 | 3.23 |
-| 5 million lookups in a dictionary of 500 000 integer keys | 3.79 | 6.94 |
+| a report over 2 million records | 0.52 | 13.44 |
+| 100 000 particles stepped in place, 300 ticks | 0.69 | 1.14 |
+| 5 million steps of `Vector3` maths | 1.26 | 1.70 |
+| matrices and quaternions | 1.25 | 1.59 |
+| quicksort of 2 million integers | 1.19 | 7.56 |
+| 3 million text appends, a million words joined | 1.83 | 15.90 |
+| 5 million lookups in a dictionary of 500 000 integer keys | 2.33 | 3.82 |
+
+Across all 83 timed cases, the plain Spite program is as fast as plain C or faster in 55.
 
 Against expert C, the gap is the work the compiler could still do on its own, and each case's README says where
 it goes. The `Vector3` row shows both sides of it. `Vector3` is a class, so every `scaled`, `+` and `cross` made a
 new object, and the program took 4.33 times as long as C. Then the compiler learned to keep an object that never
-leaves its function in the frame, and the same source, unchanged, took 1.25 times as long. Today `normalized()`'s
-answer falls back to the heap again, which is why the row is at 2.40: the case found it, and it is a bug to fix.
+leaves its function in the frame, and the same source, unchanged, took 1.25 times as long. When `normalized()`'s
+answer later fell back to the heap, the case found it, and building it in the caller's frame brought it back.
 The 80-odd cases of single optimisations are in the [summary](benchmarks/README.md#every-benchmark-against-c).
 
 ## One way to do each thing
@@ -150,24 +154,49 @@ other questions in [docs/metaprogramming.md](docs/metaprogramming.md). Your arch
 forget and becomes something the compiler proves, which matters twice over when morons, human or AI, write most
 of the code.
 
-## Memory without a garbage collector or a borrow checker
+## Memory you never think about
 
-Every object is reference counted: a count in the object, one addition or subtraction when a reference is kept or
-let go, and no collector, no pause and no runtime to ship. There are no lifetimes to annotate. Where the compiler
-lends you an item stored inline (in a `Vector`, say), it checks at compile time that you do not keep it past the
-call, and the error names the fix. Where you want control, an object can be made in an arena or any allocator you
-choose ([docs/memory.md](docs/memory.md)). Two objects that hold each other leak, so a back reference is a
-`Weak<T>`.
+You do not manage memory, and you do not pick the fast path: the compiler does, per use. There is no collector, no
+pause, no lifetimes to annotate and no runtime to ship. What you write is the plain version; what runs is decided
+while compiling:
 
-## Concurrency without coloured functions
+- **Values that do not need the heap do not reach it.** An object that never leaves its function lives on the
+  stack; a returned object is built in the caller's frame instead of on the heap; a function value or a list of arguments the callee
+  only reads stays in the caller's frame.
+- **Counting only where it is needed.** Every object can be reference counted, but the compiler leaves the count
+  out wherever it proves the count would only go up and back down: an item read from a list only to test it or use
+  it at once, an argument the caller still holds, an attribute a call cannot change. A count that stays is a plain addition,
+  atomic only for classes another thread can really reach.
+- **Objects of one class sit together.** The objects a list holds come from their class's own pool, side by side in
+  memory; a list held only by another list lives inside it; a list that is refilled keeps its room.
+- **Nothing to get wrong by hand.** Where the compiler lends you an item stored inline, it checks at compile time
+  that you do not keep it past the call, and the error names the fix. Two objects that hold each other would never
+  be freed, so a back reference is a `Weak<T>`.
 
-There is no `async` and no `await`, and there never will be. Concurrency is decided by the caller, not the
-function: `Concurrent(file.read)` runs ordinary code concurrently, and the handle stands in for the result, so
-reading it is the wait. Code you did not start that way waits where it is written, one call after another (two
-reads side by side are the exception, overlapped on their own), so a server that should serve many clients at once
-starts each one's work with `Concurrent`. The compiler turns waiting functions into state machines at compile time, so there is no
-scheduler to ship. `Parallel(f)` runs on a thread pool, and a singleton that a `Parallel` reaches is made
-thread-safe by the compiler, in its cheapest safe form ([docs/concurrency.md](docs/concurrency.md)).
+The direction is further still: the layout of a class chosen per loop (columns instead of objects where the loops
+read a few fields), copies that are only made when something writes, and allocation in one block for whatever is
+proven not to outlive it. Each optimisation, and what it costs when it cannot apply, is in
+[docs/optimizations.md](docs/optimizations.md), measured against plain and hand-tuned C in
+[benchmarks/](benchmarks/README.md).
+
+## Concurrency you do not write
+
+There is no `async` and no `await`, and there never will be, and a plain program does not need `Parallel` or
+`Concurrent` either: the compiler finds the work that can run at once and runs it at once.
+
+- **Calls in a row that share nothing written run at the same time.** So do the calls of a loop over objects of
+  different classes, when their work is independent.
+- **A loop whose passes each write only their own item is split across the cores**, in bands sized by a cost model,
+  so a light loop stays on one thread where splitting would only cost.
+- **A wait inside a frame loop does not hold the frame.** A call that reads a file or a socket is started and
+  collected later, so the loop keeps running, and only when the compiler proves no write can be lost.
+- **What threads touch is made safe by the compiler**, in its cheapest safe form: no lock where no other thread
+  reaches, a lock taken once for a whole loop, atomics only where they are needed.
+
+The direction: every loop split into chunks that fit the processor's cache and spread over every core, decided by
+proof and by one check when only the run can tell. `Concurrent` and `Parallel` still exist for the library and for
+measuring the compiler against a hand-threaded form ([docs/concurrency.md](docs/concurrency.md)); the moron is
+never expected to reach for them.
 
 ## Fast builds while you work, fast programs when you ship
 
@@ -225,16 +254,17 @@ Spite's own, without C; optimisations live in the Spite compiler, not in the C c
 ## Not yet
 
 Spite is weeks old: its first decision is dated 2026-09-19. Only Windows runs today; the Linux and macOS parts of
-the standard library compile but have never run. The web target, a language server for editors, a report of what
-the compiler could not optimise, and the storage that would keep every list of objects packed (today a `List` of a
-class is a list of references) are decided or planned, not built. There is no license file yet. What is not built,
+the standard library compile but have never run. The web target, a language server for editors, our own code
+generator in place of C, and the layout that would give each list the shape its loops want (today a `List`
+of a class keeps its objects side by side in a pool, but is still a list of references) are decided or planned, not
+built. There is no license file yet. What is not built,
 page by page, is in [design/status.md](design/status.md).
 
 ## Questions
 
-**How fast is it?** On the five whole programs above, Spite takes 0.74 to 3.79 times as long as the same program
-written plainly in C, and 1.25 to 15.48 times as long as C tuned by hand (1.00 is equal, lower is better): it beats
-plain C on a loop over packed items, and loses most where the C was tuned. No comparison with Rust, Go or Zig has
+**How fast is it?** On the whole programs above, Spite takes 0.52 to 2.33 times as long as the same program
+written plainly in C, and 1.14 to 15.90 times as long as C tuned by hand (1.00 is equal, lower is better): it beats
+plain C on most cases, and loses most where the C was tuned. No comparison with Rust, Go or Zig has
 been measured. [benchmarks/README.md](benchmarks/README.md)
 
 **How fast does it compile?** The compiler compiles itself to C in 1.7 seconds of CPU; a default build of the

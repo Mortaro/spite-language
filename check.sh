@@ -1033,14 +1033,16 @@ if ! grep -q "^#define Ledger___atomic 1$" "$lone" || ! grep -q "SpiteGuard Ledg
    || grep -q "SPITE_SINGLETON_LOAD(Ledger, [^;]*marks_)" "$lone"; then
   echo "FAILED: lone_atomic_counter should read Ledger.stage without the lock and keep the lock for Ledger.marks"; exit 1
 fi
-# Calls in a row that share nothing written run at once: Physics and Audio overlap, two Tallies (one class) and a
-# row that prints stay in order.
+# Calls in a row that share nothing written run at once: Physics and Audio overlap, and so do two Tallies, each
+# made for its own attribute (docs/optimizations.md#objects-made-for-their-owner-are-told-apart); a row that prints
+# stays in order.
 overlap="$work/overlapped_calls.c"
 "$work/generation_two.exe" conformance/stage6/overlapped_calls --check --c-source --c-path="$overlap" > /dev/null 2>&1 || {
   echo "FAILED: overlapped_calls does not write its C"; exit 1; }
-if [ "$(grep -c 'Parallel__Nothing___make(spite_function_value' "$overlap")" != "1" ] \
-   || ! grep -q "Parallel__Nothing___make(spite_function_value_Physics_step(" "$overlap"; then
-  echo "FAILED: overlapped_calls should run physics.step() beside audio.step() and keep the other rows in order"; exit 1
+if [ "$(grep -c 'Parallel__Nothing___make(spite_function_value' "$overlap")" != "2" ] \
+   || ! grep -q "Parallel__Nothing___make(spite_function_value_Physics_step(" "$overlap" \
+   || ! grep -q "Parallel__Nothing___make(spite_function_value_Tally_add(" "$overlap"; then
+  echo "FAILED: overlapped_calls should run physics.step() beside audio.step(), left.add() beside right.add(), and keep the printing row in order"; exit 1
 fi
 locks="$work/singleton_lock_calls.c"
 "$work/generation_two.exe" conformance/stage6/singleton_lock_calls --check --c-source --c-path="$locks" > /dev/null 2>&1 || {

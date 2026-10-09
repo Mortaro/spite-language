@@ -1,0 +1,13 @@
+var total: Long = 0
+var peak = 0
+var loud = List<Integer>()
+
+func record(sample: Integer) {
+    total = total + sample
+    if sample > peak {
+        peak = sample
+    }
+    if sample > 995 {
+        loud.append(sample)
+    }
+}

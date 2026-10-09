@@ -131,7 +131,9 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Calls that share nothing written](#calls-that-share-nothing-written) | a row of calls runs at once | in order, as written |
 | [Classes in a list that share nothing written](#classes-in-a-list-that-share-nothing-written) | a loop over different classes runs them at once | in order, as written |
 | [Passes that write only their own item](#passes-that-write-only-their-own-item) | a loop over one class runs in bands | in order, as written |
+| [An object made for its owner is told apart](#an-object-made-for-its-owner-is-told-apart) | calls that each keep their own object run at once | counted as one object of its class |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
+| [What one of the calls run at once counts](#what-one-of-the-calls-run-at-once-counts) | plain counts and pools for what one call counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [No other thread touches a singleton](#no-other-thread-touches-a-singleton) | no lock, plain attributes | the form it had |
@@ -1157,7 +1159,7 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 
 - **Proves.** Two calls in a row read and write nothing in common, through every function each one reaches.
 - **Rule.** [concurrency.md](concurrency.md#calls-in-a-row-run-at-once): each call's reads and writes of attributes
-  (by class), of list items (by the attribute holding a list made for it and never handed on, or by kind), of
+  (by class, or by the attribute holding an object [made for its owner](#an-object-made-for-its-owner-is-told-apart)), of list items (by the attribute holding a list made for it and never handed on, or by kind), of
   memory reached through an address, and whether it prints, waits or calls outside the program, from the code of
   every specialised function it reaches.
 - **Buys.** The calls run at once on the thread pool, with no `Parallel` written.
@@ -1201,6 +1203,27 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 - **Shows it.** [optimizations.md](optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands);
   `conformance/stage6/band_passes`.
 
+### An object made for its owner is told apart
+
+- **Proves.** An attribute that is only ever given an object made where it is given (`var meter = Meter()`) holds
+  an object that no other such attribute holds, so what calls do to two of them, and to the lists inside them, is
+  told apart; when, besides, the attribute's object is never kept anywhere else, no other name reaches it at all.
+  An object passed to a function is followed into it, and an item read out of a singleton's list is told apart from
+  an item of another singleton's list when no object is in both.
+- **Rule.** [concurrency.md](../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting) ("Calls in a
+  row run at once"): read from the C of every function the program keeps. An attribute is made for its owner when
+  every assignment to it, in every one of those functions, is a construction written right there (or nothing), and
+  no copy of its owner copies it; it is kept nowhere else when it is only ever read through, passed to a list's own
+  functions, compared, let go, or passed to a function that does only that with its parameter. Two items' lists are
+  compared when the loop starts, for the two classes that meet, and neither call writes either list.
+- **Buys.** Two calls that each keep their own object of one class (a meter, a timing record, a scratch list) run
+  at once, in a row of calls and in a loop over different classes.
+- **Falls back.** An attribute assigned anything but a fresh construction (`meter = shared`), copied with its owner,
+  or read through a name of unknown class counts as every other object of its class, as before; two lists sharing
+  an item run in order.
+- **Shows it.** [optimizations.md](optimizations.md#objects-made-for-their-owner-are-told-apart);
+  `conformance/stage6/owned_objects`.
+
 ### No other thread counts a class
 
 - **Proves.** No code that can run on a thread other than the program's own retains or releases an object of a
@@ -1220,6 +1243,22 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   that work classes of its own where the count matters.
 - **See.** [optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class);
   `conformance/stage6/plain_counts`.
+
+### What one of the calls run at once counts
+
+- **Proves.** In a loop over different classes that may run them at once, which classes the call of each class
+  retains, releases, makes or frees, through every function it calls, and which two of those calls can ever run
+  together.
+- **Rule.** [memory.md](../specs/memory.md#the-memory-model): read with [no other thread counts a
+  class](#no-other-thread-counts-a-class), with the loop's piece followed apart from the rest: the piece itself
+  counts only its elements, and each class's call is followed on its own (a singleton's teardown, run at exit, left
+  out). A class is a meeting point when two calls the loop's table lets run together both count it, or both make or
+  free it.
+- **Buys.** A class only one of those calls counts keeps plain counts and its pool; a meeting point counts
+  atomically only while the loop runs at once, and its pool is kept per thread.
+- **Falls back.** A class counted by other code that runs on another thread (a `Parallel`, a callback) is atomic
+  everywhere; a count the compiler cannot place makes every class atomic, as before.
+- **Shows it.** [optimizations.md](optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts).
 
 ### Objects a list holds, made on one thread
 

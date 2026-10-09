@@ -44,6 +44,11 @@ loop.
 | S2 | a class whose fields fall into groups read or written by different loops | access sets per field from every loop | one storage per group | one storage |
 | S3 | the same list read field by field in one phase and whole in another | the phases and the conversion cost | each phase reads its own shape; a compiled conversion between them | one shape |
 | S4 | objects of one class made where threads reach them and where they do not | per creation site flow | two classes after compilation, each with its own counts and pool | one class |
+
+S4 is **built per group** for T4b loops (D555, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
+[proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts)): a class only one of the calls that can run
+together counts keeps plain counts and its pool; a class two of them count counts atomically only while they run
+at once, with its pool per thread. Per creation site (R9) is not built.
 | S5 | a procedural loop over uniform records with independent steps | records are uniform; steps share nothing written | a pipeline of passes over columns | the loop as written |
 
 ## Already built (the base everything else stands on)
@@ -69,6 +74,8 @@ loop.
 | B1t: an item used at once (passed to a call that cannot change its list, read for an attribute, or asked a list's reading function) is read in its slot with no count (stress 27.3 to 25.9 ms a tick as one C file) | [optimizations](../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-used-at-once-is-not-counted) |
 | A1: an overflow check a range proves unneeded is left out (the compiler's own C 1 513 to 1 263 checks; the benchmark cases' loops still add `Integer` items or attributes, whose checks stay) | [optimizations](../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked), [proofs](../docs/proofs.md#a-range-proves-arithmetic-fits) |
 | B2b's run-time form: `list[index] = name` from a held name is written in place and counted only when the slot held another object (stress 38.0 to 33.3 ms a tick as one C file on a busy machine) | [optimizations](../docs/optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot) |
+| Objects made for their owner are told apart (D556): an attribute only ever given an object constructed where it is given, the lists inside it, objects followed into the functions they are passed to, and items of two singletons' lists compared when the loop starts (stress update stage 41.6 to 26.1 ms with D555, provisional) | [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart), [proofs](../docs/proofs.md#an-object-made-for-its-owner-is-told-apart) |
+| S4 per group (D555): what only one of the calls run at once counts stays plain, with its pool; a meeting point counts atomically only while they run | [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts), [proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
 | B2b (hand edit W): a call that only writes back what its slots already hold is not made, the values followed through calls, attributes and the index counted up in an attribute; a path before it that may break the proof keeps the call (stress 20.2 to 17.2 ms a tick as one C file, 25.6 to 21.5 split, physics the same) | [optimizations](../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written), [proofs](../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from) |
 
@@ -97,9 +104,10 @@ in order: the two stress systems both write a `Profile.Timing` (`timing.record` 
 `ColumnIndex` (found through `Columns.headers` by name) and the items of `List<Integer>`s passed as parameters, which
 the per-class facts count as one. Measured by hand on the stress C (one file, `clang -O3`), overlapping the two on a
 raw thread took the update stage from about 30.5 to 17.5 ms with the counts left as they were, and the tick to
-about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). So the next steps
-for the engine are facts that tell objects of one class apart where each runner owns its own (an attribute made for
-its object and never assigned again), and count disciplines per group of overlapped calls (S4).
+about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). Both are now built
+(D556 and D555, the [eighth pass](naive_programs.md#eighth-pass-objects-told-apart-counts-per-group-2026-10-09)):
+objects made for their owner are told apart, and counts are decided per group, so the two stress systems run at
+once.
 
 T1 is **built** for the member template (D542, [optimizations](../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands),
 [proofs](../docs/proofs.md#passes-that-write-only-their-own-item)): `list.each_function()` and

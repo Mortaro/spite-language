@@ -69,6 +69,7 @@ again, so it always shows the latest measurement of every case.
 | [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 34 121 | 41 742 | 22 667 | 0.82 | 1.51 |
 | [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | 35 731 | 35 950 | 1 441 | 0.99 | 24.80 |
 | [copies_that_cost_nothing](copies_that_cost_nothing/) | 33 528 | 22 099 | 16 000 | 1.52 | 2.10 |
+| [counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/) | 8 829 | 11 615 | 5 948 | 0.76 | 1.48 |
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed | not timed | | |
 | [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 11 894 | 8 496 | 7 470 | 1.40 | 1.59 |
 | [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 23 311 | 40 829 | 340 | 0.57 | 68.56 |
@@ -78,6 +79,7 @@ again, so it always shows the latest measurement of every case.
 | [image_filter_over_planes](image_filter_over_planes/) | 115 503 | 232 171 | 20 762 | 0.50 | 5.56 |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 11 626 | 13 280 | 2 799 | 0.88 | 4.15 |
 | [number_dictionary](number_dictionary/) | 43 518 | 18 694 | 11 406 | 2.33 | 3.82 |
+| [objects_made_for_their_owner_are_told_apart](objects_made_for_their_owner_are_told_apart/) | 68 950 | 124 895 | 65 094 | 0.55 | 1.06 |
 | [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 698 | 22 327 | 2 482 | 0.48 | 4.31 |
 | [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 13 455 | 999 525 | 14 080 | 0.01 | 0.96 |
 | [other_optimisations](other_optimisations/) | not timed | not timed | not timed | | |

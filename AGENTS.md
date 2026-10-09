@@ -44,6 +44,8 @@ else disagrees with the specification, the specification wins; a docs page that 
   - [`design/proposals/`](design/proposals/): proposals under review;
   - [`design/naive_programs.md`](design/naive_programs.md): the plan for making naive programs fast, with its
     pairs of optimisation and proof in [`design/naive_programs_pairs.md`](design/naive_programs_pairs.md);
+  - [`design/handoff.md`](design/handoff.md): where the last session stopped and what to pick up next (agent-owned,
+    rewritten at each handoff);
   - [`design/optimization_research.md`](design/optimization_research.md): the open notebook of optimisation
     theories, where every idea is welcome and agents record what they find;
   - [`design/KNOWN_ISSUES.md`](design/KNOWN_ISSUES.md): where the compiler falls short of the docs;

@@ -67,6 +67,12 @@ benchmarks (the others already match or win): first the runner made direct (S1 s
 then the two stress systems on two cores (per-object facts and per-site counts), then physics (profile first).
 Benchmark cases that do not move the engine wait unless they are cheap.
 
+**The target is the task, not the method (D557).** The original engine runs one system per thread and leaves the
+other cores idle; the naive engine must not aim to match that thread for thread. Each system's loop over its
+entities is split into chunks that fit the processor's cache and run on every core, and systems that share nothing
+run at once on top. The measure is the tick against the original's best, and the goal is to beat it by a wide
+margin.
+
 **Quiet measurement (2026-10-09, final, nothing else running).** Compiler `579d35c5`, `--optimized --build`, 5
 rounds alternating original and naive, medians in microseconds (the spread across rounds stayed within 4%):
 
@@ -81,6 +87,13 @@ rounds alternating original and naive, medians in microseconds (the spread acros
 
 The original's stress tick runs its two systems on two threads (5.6 ms each, at once); the naive one runs them one
 after the other (12.2 ms each). One thread each, the gap is about 2.2x per system.
+
+**Chunked loops for the engine (D559).** The last two facts the cache-chunked loops need: a summary of what a
+function surely wrote when it answered true (so the row scratch is proven written before read), and, for
+"different passes write different slots", a check once per loop at run time of the index invariant
+(`rows[entities[r]] == r + 1`): when it holds, the loop runs in chunks on every core; when it does not, it runs as
+written. Same answer either way, never a crash (a branch between two compiled forms, D508). By hand, the chunked
+stress tick was 5.5 ms against the original's 6.6 under the same load.
 
 **Also required before the switch (found 2026-10-09):** on the naive branch, `io_systems` finds its database lookups
 but the game advances only 3 frames while they wait, against 31 on main: the naive runner drains a waiting system's
@@ -669,6 +682,69 @@ while trying:
 is slower than one C file (20.8 ms) on the same C. Placing every function that has one caller in its caller's
 translation unit, so the C compiler sees the pair together, changed nothing (25.0 to 25.1 ms, medians of seven while
 the machine was in other use), so the gap is not calls split across units by the name hash. Not committed.
+### Eighth pass: objects told apart, counts per group (2026-10-09)
+
+Engine `naive` at 81b0e20 (a copy with its one-type `Dictionary`s written `Dictionary<String, ...>` and its four
+pointer reads of files stubbed, since today's library refuses both; neither runs in stress or physics), Spite from
+68982022, `--optimized` split builds, medians of interleaved runs. **Every number here was measured while the
+machine was in other use (games and other sessions' builds): provisional, to be timed again on a quiet machine.**
+
+**Built: objects made for their owner are told apart** (D556, [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart),
+[proofs](../docs/proofs.md#an-object-made-for-its-owner-is-told-apart)). The overlap facts gain owner tags: an
+attribute only ever given an object constructed where it is given (read from every assignment in the C, struct
+copies and `copy()` included) holds an object no other such attribute holds, so a key reached through it carries
+the attribute (`f:Profile_Timing#runs_@Runner__System_Move#timing_`), and keys with different innermost tags never
+touch. An object passed to a function that only reads and writes through its parameter, passes it to a list's own
+functions or to another such function, or compares it, is followed into it (the parameter's keys are written again
+with the argument's tags). An attribute that is besides kept nowhere else (never read into anything but those uses)
+is sealed: a key with no tag cannot reach it. An item read out of a singleton's list attribute carries an item tag
+(`@Row__System_Move_Moving#headers_[]`); two different item tags touch only when the two lists share an object,
+which the T4b loop checks when two such classes meet (a few pointer comparisons). The pass also taught the facts
+the in-place store of D544 (`items_)[i] = v`, which they had read as a write through an address, making every runner
+look as if it wrote raw memory), and fixed `made_here` (a local assigned fresh once and later reassigned from a call
+was taken for a list made in the function).
+
+Everything the seventh pass found the two stress systems sharing is now told apart: each runner's `timing`, its
+`chosen` and `candidates` lists (sealed), the matcher's `rows` (followed into `match_into` and `find_row`), and the
+`stamps` of the column indexes each matcher's `headers` holds (checked when the stage starts: Move's headers name
+Position and Velocity, Regenerate's Health and Regeneration).
+
+**Built: counts per group of calls run at once** (D555, pair S4, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
+[proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts)). The walk that decides plain counts (C5) and
+singleton locks (D529) no longer takes a T4b piece as code that runs anywhere: it follows each class's call on its
+own (calls only, a singleton's teardown left out, the piece itself counting only its elements), and a class is a
+meeting point only when two calls the loop's table lets run together both count it, or both make or free it.
+Everything else keeps plain counts, its pool and no lock (the overlap facts already prove the calls touch nothing
+in common). A meeting point counts atomically only while the loop runs at once (a flag the loop sets, read with a
+predictable branch), and its pool is kept per thread. In stress the meeting points are `ColumnIndex`, `Removal`,
+`Removals`, `List_Integer` (already atomic for the asset loader), strings and reflection; the components, rows and
+matchers each runner counts stay plain.
+
+| | before | after |
+|---|---|---|
+| stress update stage, split build | 41.6 ms | 26.1 ms |
+| stress, each system inside the stage | 20.5 and 21.0 ms | 22.5 and 24.6 ms (run at once) |
+| stress, sixty ticks after despawning everything | 27.9 ms | 33.0 ms |
+| physics step | 13.4 ms | 13.7 ms (within the noise of that run) |
+| the case, two tracks with a meter each (medians of 5) | 124.2 ms | 65.3 ms (expert C on two threads: 62.5) |
+| the case, two collections counting their objects (medians of 5) | 21.7 ms | 14.1 ms |
+
+On a less loaded hour of the same day the stage went from 28.1 to 15.0 ms split, and the one-file C from 23.8 to
+12.5 ms, under the hand edit's 17.5 ms. The two systems each run about a fifth slower side by side than alone
+(memory and the second core's caches), so the stage is a little more than half its old time.
+
+**What this costs.** Despawning got slower: the first tick after despawning everything (the flush) reads back the
+columns the worker last wrote, from the other core's caches, and every later tick starts and joins the pool for
+two systems with nothing to do (about 20 µs each). Measured by hand on the one-file C: with the stage forced in
+order the sixty ticks are as before; with the meeting points counted plainly they barely move. D214 asks for at
+least as fast everywhere, so this is listed for Mortaro under "To confirm" with D555. A cost model that leaves
+calls with no rows in order (pair T6 for T4b) would take the empty ticks back.
+
+Not built, and next: `ColumnIndex` counts in the matcher's `store_attribute` (`var header = headers[position]` is
+counted per entity because B1's call effects still see any `List<ColumnIndex>` written by a call; the owner facts
+of this pass would let B1 see it is not); per-creation-site counts (R9), which would let a meeting point's objects
+that only one call ever sees stay plain; and a function value's owner, still taken as let go on another thread,
+which makes every class the owner reaches atomic in a program that hands its work to `Benchmark`.
 
 ### Physics pass (2026-10-09)
 
@@ -781,7 +857,7 @@ argument uncounted and changed the C of most programs, and the tick moved by not
 Engine `naive` at 5574e26, Spite from 4c298eb2, `--optimized --build`, medians of 5 interleaved runs on a machine
 other sessions also used (provisional; compare within a run).
 
-**Built: a write-back of what the slot already holds is not written** (pair B2b, hand edit W, decision D555). The
+**Built: a write-back of what the slot already holds is not written** (pair B2b, hand edit W, decision D562). The
 compiler records what every statement of the program's own functions reads, assigns, stores, checks and calls, and
 walks those records from each function's known callers, following values rather than names: `fill_attribute`'s
 `row.attributes[attribute] = slot.fetch(...)` makes `Row.current.position` hold `Column<Position>.values[rows[0]]`,
@@ -826,6 +902,66 @@ facts above exist:
   one may.
 - M (matching once) is a call repeated with the same arguments and nothing it reads changed between, which the same
   walk can decide: `fill_into`'s `matches(entity)` after the runner's `candidates()` found the entity.
+### Eleventh pass: a system's rows in chunks on every core, measured by hand (2026-10-09)
+
+Engine `naive` at 5574e26 and `main` at 4ad2129, unchanged; Spite at d2ed6188, `--optimized`; the naive stress C
+written as one file (`SPITE_TRANSLATION_UNITS=1`, `--c-source`) and built with `clang -O3`. **Measured while the
+machine was in other use (a game was running): provisional.** Medians of 5 interleaved rounds, stress tick in µs:
+
+| Build | tick |
+|---|---|
+| original (main), split build | 6,588 |
+| naive, one file, as generated (Move and Regenerate already at once, D555 and D556) | 10,903 |
+| naive, by hand: header reads in `store_attribute` borrowed (B1), runner loop as written | about 10,000 |
+| naive, by hand: B1, and each runner's row loop in chunks of 4,096 rows on the pool | 6,232 |
+| the same, chunks of 2,048 | 6,061 |
+| the same, chunks of 1,024 | 5,491 |
+
+The hand edit (D557's form, only in the generated C): the `while combination < total` loop of `run_update_each`
+runs as chunks submitted to `ThreadPool` (both runners submit at once, 31 workers); every chunk but the last gets
+a private copy of the runner (its own `chosen`) and of the `Row<T>` singleton (its own `rows`, its own `current`
+object with empty attributes), reached through a thread-local the singleton's accessor tests first; the last chunk
+runs on the shared ones, so the scratch the loop leaves behind is the one the plain loop leaves. Two things had to
+change besides: the private scratch is made on the submitting thread (an object made inside a chunk comes from a
+class pool that is not per thread), and the counted read of the shared `ColumnIndex` in `store_attribute` had to be
+borrowed (B1): with it counted, every chunk counts the same two headers atomically and the tick was 28 ms, three
+times slower than in order. The results were not compared value by value.
+
+Where the rest goes (cycle counts by hand): the candidate gathering (`Row.candidates`, a filter over every row of
+the driving column calling `matches`) is about 1.2 ms per system and still runs on one thread; the chunked loop
+itself scales only about 2.6 times on 16 cores, because the pass touches about 250 bytes per row (two column
+slots, two component objects whose counts it writes, two row lookups, two stamps), so two systems at once stream
+about 100 MB a tick and memory, not the cores, is the limit. Gathering in chunks too (pair T3, per-chunk lists joined
+in order) would take the tick to about 4.3 ms; fewer bytes per row (no count written on a component a pass only
+reads, components stored in place: L1) would take more.
+
+**Why it is not built yet: two proofs the overlap facts cannot give.**
+
+1. *Scratch overwritten before it is read (T8).* Most of the shared scratch is plainly written first in every pass
+   (`chosen` cleared, `position`, `skipping`, `related`, `cursor`, `filled_entity`, the attributes of `current`).
+   `Row.rows` is not: `find_row` sets `rows[index]` on every path but one (`entity >= header.rows.count()`), and
+   that one returns false, which ends `match_into` and makes `fill_into` crash. So every slot `fill_attribute`
+   reads was written in the same pass, but only through a fact about the answer of `matches` (true means every slot
+   was written). The facts would need conditional must-write summaries (what a function surely wrote when it
+   answered true), which nothing in the compiler has.
+2. *Passes write different slots (T1 through an index).* Each pass writes `values[row]` of two columns, the fields
+   of the component objects held there, and `stamps[entity]` of two indexes, where `entity` is the pass's candidate
+   and `row` is `ColumnIndex.rows[entity] - 1`, carried from `find_row` to `store_attribute` through `Row.rows`.
+   Two passes touch the same slot unless the candidates are distinct and `rows` maps different entities to
+   different rows. Both are invariants of `ColumnIndex` (`rows[entities[r]] == r + 1` for every row, kept by
+   `add_row` and `remove_row`), and the program even checks each pass's half of it (`crash
+   index.entity_at(row) == entity` in `Slot.fetch`), but the compiler proves no invariant of a class, and a check
+   at run time would have to recompute the index chain the passes compute, which means slicing it out of five
+   functions.
+
+Neither can be checked after the fact: a wrong guess has already lost a write, and the passes cannot be undone. What
+would make it buildable, in order of size: (a) conditional must-write summaries for the scratch, and an inverse-pair
+invariant for two integer lists of one class, proved from the functions that write them (`add_row`,
+`remove_row`), with the candidates' distinctness following from `entities` being one side of the pair; (b) the same
+summaries, with the pair checked at run time once per loop (two sequential passes over the index, in chunks, far
+cheaper than the loop) instead of proved; (c) a decision from Mortaro that a chunked loop may crash with a named
+cause when a run-time check finds two passes reaching one object where the plain loop would have run, which trades
+"never a wrong value" (D244) for a loud failure that a correct program would not have.
 
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 

@@ -1,0 +1,27 @@
+type Track {
+    render()
+}
+
+var console = Console()
+var drum = Drum()
+var bass = Bass()
+var tracks = List<Track>()
+
+func Naive() {
+    add_tracks()
+    var benchmark = Benchmark(render_all)
+    var drum_loud = drum.meter.loud.count()
+    var bass_loud = bass.meter.loud.count()
+    console.print(drum.meter.total, drum.meter.peak, drum_loud, bass.meter.total, bass.meter.peak, bass_loud)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func add_tracks() {
+    tracks.append(drum)
+    tracks.append(bass)
+}
+
+func render_all() {
+    tracks.each_render()
+}
