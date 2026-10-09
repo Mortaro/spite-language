@@ -645,6 +645,31 @@ itself takes as long as before (no class of it qualifies; the walks over its cal
 version that walked each table's writers by scanning every function of the class took the compiler's own build from
 5 to 15 minutes, which the bound and the call index fixed. The other cases of `benchmarks/` compile to the same C.
 
+**Not built: the runner's calls inlined into one body at the Spite level (pair C4).** What it would take, found
+while trying:
+
+- The runner's per-entity path is made almost entirely of member templates (`fill_arguments()`,
+  `fill_attributes(row, entity)`, `store_attributes`) and calls into other classes (`Row<T>`, `Slot<T>`,
+  `Column<T>`). The generator expands a template while writing C, with the member's symbol bound in its own state
+  (`bind_symbol_of`), not as a syntax tree; so an inliner working on the Spite tree cannot see what
+  `argument.class`, `row.attributes[attribute]` or `argument.index` stand for, and one working inside the generator
+  has to save and restore about thirty pieces of per-function state (scope, held and lent parameters, frame
+  candidates, the item-value function) around every inlined body, and turn the callee's `return`s and every
+  `assert` (an early return) into jumps out of the inlined block.
+- Even inlined, the rules that would then apply are written for names, not for the attribute paths the runner uses:
+  B2 drops `list[i] = x` only after `var x = list[i]` in the same block, while the runner stores `row.current.position`
+  back into `values[rows[cursor]]` with `cursor` reset to 0 between, so W needs B2 extended to paths and a value
+  followed through an attribute (`cursor`); R needs `Row.current`'s attributes proven dead between passes, which is
+  whole-program, since `current` lives as long as its singleton.
+- So R, W, F and M do not follow from C4 alone: each still needs its own fact (paths in B2, attribute constants,
+  the candidate list's producer and consumer fused). They are the next work, in that order of size (W 4.1 ms, R 5.5,
+  M 1.4, F 1.3 on a 20.6 ms tick).
+
+**Measured and dropped: a function called from one place compiled in its caller's unit.** The split build (25.6 ms)
+is slower than one C file (20.8 ms) on the same C. Placing every function that has one caller in its caller's
+translation unit, so the C compiler sees the pair together, changed nothing (25.0 to 25.1 ms, medians of seven while
+the machine was in other use), so the gap is not calls split across units by the name hash. Not committed.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a
