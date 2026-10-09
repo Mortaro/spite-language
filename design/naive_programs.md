@@ -67,6 +67,12 @@ benchmarks (the others already match or win): first the runner made direct (S1 s
 then the two stress systems on two cores (per-object facts and per-site counts), then physics (profile first).
 Benchmark cases that do not move the engine wait unless they are cheap.
 
+**The target is the task, not the method (D557).** The original engine runs one system per thread and leaves the
+other cores idle; the naive engine must not aim to match that thread for thread. Each system's loop over its
+entities is split into chunks that fit the processor's cache and run on every core, and systems that share nothing
+run at once on top. The measure is the tick against the original's best, and the goal is to beat it by a wide
+margin.
+
 **Quiet measurement (2026-10-09, final, nothing else running).** Compiler `579d35c5`, `--optimized --build`, 5
 rounds alternating original and naive, medians in microseconds (the spread across rounds stayed within 4%):
 
