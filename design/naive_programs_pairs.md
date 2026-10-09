@@ -129,6 +129,7 @@ stays in order.
 | M2 | a list used only as a queue | append at one end, remove at the other, with a visible bound | ring buffer | growable list | hand rings | |
 | M3 | many objects let go together | their `drop`s are independent | freed in slices between passes | freed at once | budgeted deferred freeing | |
 | M5 | `return Shape(...)` | the caller keeps the result in its own frame or a slot it already owns | built straight into the caller's slot | heap copy | | |
+| M7 | `var copy = original.deep_copy()` | neither the copy nor the original, nor anything reachable from either, is written, resized or let go differently while both live, and no identity question is asked of the copy | the copy shares the original; where only part of the graph is written, only the path to it is copied | a real deep copy | hand copy-on-write | |
 | M4 | an object made and dropped in one call to the OS | no escape past the foreign call | in the frame, aligned for the target | heap | per-call OS structures | |
 
 ## Counting references
