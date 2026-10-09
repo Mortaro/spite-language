@@ -1,0 +1,19 @@
+var sizes = List<Integer>()
+
+func grow(count: Integer) {
+    var index = 0
+    while index < count {
+        sizes.append(index * 2)
+        index = index + 1
+    }
+}
+
+func total(): Integer {
+    var found = 0
+    var index = 0
+    while index < sizes.count() {
+        found = found + sizes[index]
+        index = index + 1
+    }
+    return found
+}

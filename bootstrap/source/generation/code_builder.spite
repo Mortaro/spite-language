@@ -27,6 +27,9 @@ var faults = NativeFaults()
 var function_owners = Dictionary<String, String>()
 var function_names = Dictionary<String, String>()
 var function_lines = Dictionary<String, Integer>()
+var function_classes = Dictionary<String, String>()
+var configured_values: ItemValues? = null
+var configured_functions = 0
 var mentioned_names = Dictionary<String, Boolean>()
 var scanned_typedefs = 0
 var scanned_support = 0
@@ -171,6 +174,10 @@ func take_user_from(start: Integer): List<String> {
     return taken
 }
 
+func note_function_class(c_name: String, class_c_name: String) {
+    function_classes[c_name] = class_c_name
+}
+
 func name_function(c_name: String, owner: String, name: String, line: Integer) {
     function_owners[c_name] = owner
     function_names[c_name] = name
@@ -256,6 +263,7 @@ func any_kept(guard: String, shaker: TreeShaker): Boolean {
 
 # ../../../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling
 func apply_item_values(values: ItemValues) {
+    configured_values = values
     applied_in(support_bodies, values)
     applied_in(user_bodies, values)
     applied_in(main_lines, values)
@@ -340,6 +348,11 @@ func render(): String {
         bodies = guarded(bodies, unused_shaker, true)
         main_function = guarded(main_function, unused_shaker, true)
         typedef_text = guarded_types(typedef_text, unused_shaker, true)
+    }
+    if shakes and configured_values {
+        var copies = ConfiguredCopies()
+        bodies = copies.copied(bodies, main_function, configured_values, function_classes, function_names, threads)
+        configured_functions = copies.copied_functions
     }
     if threads and shakes and counts_by_class {
         var sharing = CountSharing()

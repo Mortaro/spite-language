@@ -125,6 +125,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
 | [An item used at once](#an-item-used-at-once-is-not-counted) | no count for one use | the counted read |
 | [A list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) | a test against a value it never holds decided while compiling | the test runs |
+| [A table filled once](#a-table-filled-once-holds-what-its-setup-put-in) | the functions reading it run on a constant copy | the function as written |
 | [Calls that share nothing written](#calls-that-share-nothing-written) | a row of calls runs at once | in order, as written |
 | [Classes in a list that share nothing written](#classes-in-a-list-that-share-nothing-written) | a loop over different classes runs them at once | in order, as written |
 | [Passes that write only their own item](#passes-that-write-only-their-own-item) | a loop over one class runs in bands | in order, as written |
@@ -1065,6 +1066,30 @@ have moved.
 - **See.** [optimizations.md: A test against a value a list never holds is decided while
   compiling](optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling);
   `conformance/stage6/listed_values`.
+
+### A table filled once holds what its setup put in
+
+- **Proves.** While one of the functions that read a table runs on an object, the table holds what it held when the
+  call began: its count and every item.
+- **Rule.** The list is one that [a list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) covers
+  (of any item class), and nothing in the program shrinks it. The functions of its class that write it are found in
+  the C, and every function that can call one of them, through any chain of calls; a function whose name is taken
+  as a value, or is called from code outside every function, makes the class's tables unknown. A copied function
+  is one of the class's own that reads the table (or calls such a function on the same object) and can reach none of
+  the writers, so nothing it runs can change the table. The copy is chosen by a test of the table's count and items
+  at the call, so what the copy assumes holds for the whole call. In a program that runs threads the class is a
+  singleton, whose other threads are kept out by its lock (the test is made inside it) or that no other thread
+  reaches.
+- **Guesses, never relied on.** Which tables to write a copy for is worked out from the setup: the one function of
+  the class that fills the list and that no other filling function calls (its constructor, or one that starts with
+  `assert not prepared` and `prepared = true`), walked through the functions it calls at its top level, each
+  `append` at a function's top level counted in order, its value the set of values the compiler lists for it. A guess that is wrong
+  costs only the copy's size: the test fails and the function runs as written.
+- **Buys.** The copy reads the table as a constant: a whole-number or enum table as a constant list of its values,
+  any other as its count; loops over it unroll and tests of its items fold.
+- **Falls back.** The function as written, for every object whose table holds something else.
+- **See.** [optimizations.md: A table filled once is read as
+  constants](optimizations.md#a-table-filled-once-is-read-as-constants); `conformance/stage6/configured_tables`.
 
 ## Threads and locks
 

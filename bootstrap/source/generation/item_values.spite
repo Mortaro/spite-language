@@ -25,6 +25,20 @@ var shadowed = List<String>()
 var watched_parameter = ""
 var parameter_failed = false
 var settled = false
+var shrunk = Dictionary<String, Boolean>()
+var shrunk_names = Dictionary<String, Boolean>()
+var parameter_shrinks = false
+var site_keys = Dictionary<String, Boolean>()
+var site_lists = List<String>()
+var site_parts = List<List<String>>()
+var site_functions = List<String>()
+var site_statements = List<Integer>()
+var list_qualified = Dictionary<String, String>()
+var list_types = Dictionary<String, String>()
+var list_elements = Dictionary<String, String>()
+var singleton_instances = Dictionary<String, Boolean>()
+var instance_lists = Dictionary<String, List<String>>()
+var instance_order = List<String>()
 var opening = ""
 var closing = ""
 
@@ -340,9 +354,7 @@ func visit_call(call: Syntax.Expressions.CallExpression) {
         crash member.object
         if is_list_reference(member.object) {
             var own = watched_parameter.is_empty() and is_bare(member.object)
-            if not reads_list(member.name) and not (own and inserts_into_list(member.name)) {
-                refuse_reference(member.object)
-            }
+            visit_list_call(member, own)
             var through = shape.as_member(member.object)
             if through {
                 visit_optional(through.object)
@@ -404,6 +416,9 @@ func visit_listed_argument(argument: Syntax.Expressions.Expression, callee: Stri
         refuse_reference(argument)
         return
     }
+    if parameter_shrinks {
+        note_shrunk(argument)
+    }
     var through = shape.as_member(argument)
     assert through
     visit_optional(through.object)
@@ -422,6 +437,7 @@ func parameter_only_read(callee: String, position: Integer): Boolean {
     shadowed = declared_names(function)
     watched_parameter = parameter.name
     parameter_failed = false
+    parameter_shrinks = false
     visit_block(function.body)
     var failed = parameter_failed
     watched_parameter = ""
@@ -768,4 +784,178 @@ func applied_piece(piece: String): String {
         return inner + after
     }
     return "((void)({inner}), {decision})" + after
+}
+
+func visit_list_call(member: Syntax.Expressions.MemberExpression, own: Boolean) {
+    crash member.object
+    if not reads_list(member.name) and not (own and inserts_into_list(member.name)) {
+        refuse_reference(member.object)
+    } else if shrinks_list(member.name) {
+        note_shrunk(member.object)
+    }
+}
+
+func shrinks_list(name: String): Boolean {
+    var kept = ["count", "is_empty", "contains", "index_of", "first", "last", "copy"]
+    return reads_list(name) and not kept.contains(name)
+}
+
+func note_shrunk(expression: Syntax.Expressions.Expression) {
+    if not watched_parameter.is_empty() {
+        parameter_shrinks = true
+        return
+    }
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        shrunk["{class_name}#{identifier.name}"] = true
+        return
+    }
+    var member = shape.as_member(expression)
+    assert member
+    shrunk_names[member.name] = true
+}
+
+# ../../../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in
+func note_site(instance: String, attribute: String, function_c_name: String, statement: Integer, parts: List<String>) {
+    var owner = "{instance}#{attribute}"
+    var function_base = base_name(function_c_name)
+    var site = "{owner}#{function_base}#{statement}"
+    assert statement >= 0 and not site_keys.has(site)
+    site_keys[site] = true
+    site_lists.append(owner)
+    site_functions.append(function_base)
+    site_statements.append(statement)
+    site_parts.append(parts)
+}
+
+func once_function(qualified: String, name: String): Boolean {
+    var function = declarations["{qualified}#{name}"]
+    if not function or declared_twice.has("{qualified}#{name}") {
+        return false
+    }
+    if constructors.has("{qualified}#{name}") {
+        return true
+    }
+    if function.body.count() < 2 {
+        return false
+    }
+    var flag = asserted_unset(function.body[0])
+    return not flag.is_empty() and sets_flag(function.body[1], flag)
+}
+
+func asserted_unset(statement: Syntax.Statements.Statement): String {
+    var asserted = shape.as_assert_statement(statement)
+    if not asserted or not asserted.value {
+        return ""
+    }
+    var negated = shape.as_unary(asserted.value)
+    if not negated or negated.operator != 'logical_not' or not negated.operand {
+        return ""
+    }
+    var flag = shape.as_identifier(negated.operand)
+    if not flag {
+        return ""
+    }
+    return flag.name
+}
+
+func sets_flag(statement: Syntax.Statements.Statement, flag: String): Boolean {
+    var assigned = shape.as_assignment_statement(statement)
+    if not assigned or not assigned.target or not assigned.value {
+        return false
+    }
+    var target = shape.as_identifier(assigned.target)
+    if not target {
+        return false
+    }
+    return target.name == flag and is_true(assigned.value)
+}
+
+func is_true(expression: Syntax.Expressions.Expression): Boolean {
+    return expression == Syntax.Expressions.TrueLiteral
+}
+
+func note_list(
+    instance: String,
+    qualified: String,
+    attribute: String,
+    list_c: String,
+    element_c: String,
+    singleton: Boolean,
+) {
+    var owner = "{instance}#{attribute}"
+    assert not list_qualified.has(owner)
+    list_qualified[owner] = "{qualified}#{attribute}"
+    list_types[owner] = list_c
+    list_elements[owner] = element_c
+    if singleton {
+        singleton_instances[instance] = true
+    }
+    if not instance_lists.has(instance) {
+        instance_lists[instance] = List<String>()
+        instance_order.append(instance)
+    }
+    var lists = instance_lists[instance]
+    crash lists
+    lists.append(attribute)
+}
+
+func fixed_list(qualified: String, attribute: String): Boolean {
+    var owner = "{qualified}#{attribute}"
+    if not candidates.has(owner) or refused.has(owner) or refused_names.has(attribute) or reflected.has(qualified) {
+        return false
+    }
+    return not shrunk.has(owner) and not shrunk_names.has(attribute)
+}
+
+func site_values(owner: String, function_base: String, nth: Integer): List<String> {
+    var statements = List<Integer>()
+    var positions = List<Integer>()
+    var index = 0
+    while index < site_lists.count() {
+        crash site_functions[index]
+        crash site_statements[index]
+        if site_lists[index] == owner and site_functions[index] == function_base {
+            statements.append(site_statements[index])
+            positions.append(index)
+        }
+        index = index + 1
+    }
+    var chosen = nth_smallest(statements, nth)
+    if chosen < 0 {
+        return ["?"]
+    }
+    crash positions[chosen]
+    var site = positions[chosen]
+    var parts = site_parts[site]
+    crash parts
+    var values = List<String>()
+    if not gather(parts, values) {
+        return ["?"]
+    }
+    return values
+}
+
+func nth_smallest(statements: List<Integer>, nth: Integer): Integer {
+    var index = 0
+    while index < statements.count() {
+        var smaller = count_below(statements, statements[index])
+        if smaller == nth {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func count_below(statements: List<Integer>, limit: Integer): Integer {
+    var found = 0
+    var index = 0
+    while index < statements.count() {
+        if statements[index] < limit {
+            found = found + 1
+        }
+        index = index + 1
+    }
+    return found
 }

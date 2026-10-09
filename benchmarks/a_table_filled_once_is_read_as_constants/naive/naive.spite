@@ -1,0 +1,18 @@
+var console = Console()
+var clock = Clock()
+
+func Naive() {
+    var start = clock.elapsed_nanoseconds()
+    var checkout = Checkout()
+    var total: Long = 0
+    var index = 0
+    while index < 10000000 {
+        var amount = 1000 + index % 1000
+        var priced = checkout.price(amount)
+        total = total + priced
+        index = index + 1
+    }
+    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    console.print("total", total)
+    console.error("microseconds {microseconds}")
+}

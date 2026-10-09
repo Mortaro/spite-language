@@ -2216,6 +2216,101 @@ only ever hold two of them, ticks in 35.4 ms instead of 39.0 as one C file (41.3
 physics step takes 8.9 ms instead of 9.2. A function only a folded branch calls is still in the C, since the branch
 is removed by the C compiler and not before tree shaking.
 
+### A table filled once is read as constants
+
+**The case:** [benchmarks/a_table_filled_once_is_read_as_constants](../benchmarks/a_table_filled_once_is_read_as_constants/).
+
+**What it does.** When the values of a table are known while compiling and so are their number and their order
+(written out in the function that sets the object up), the functions that read the table get a copy in which the
+table is a constant: its count is a number and each item is the value it holds. A test of the object when one of
+those functions is called sends the call to the copy, where the C compiler unrolls the loop over the table and keeps
+only the branches the values take:
+
+```gdscript title=filled_tariff/tariff.spite
+enum Step {
+    'discount'
+    'tax'
+    'rounding'
+}
+
+var steps = List<Step>()
+
+func Tariff() {
+    steps.append('discount')
+    steps.append('tax')
+    steps.append('discount')
+}
+
+func price(amount: Integer): Integer {
+    var total = amount
+    var index = 0
+    while index < steps.count() {
+        if steps[index] == 'discount' {
+            total = total - total / 10
+        }
+        if steps[index] == 'tax' {
+            total = total + total / 5
+        }
+        if steps[index] == 'rounding' {
+            total = total / 100 * 100
+        }
+        index = index + 1
+    }
+    return total
+}
+```
+```gdscript title=filled_tariff/filled_tariff.spite entry
+var console = Console()
+
+func FilledTariff() {
+    var tariff = Tariff()
+    var total = tariff.price(1250)
+    console.print("total", total)
+}
+```
+```output
+total 1215
+```
+
+`Tariff()` puts three steps into `steps`, one after the other, and nothing else ever puts one in or takes one out,
+so a `Tariff` that was made holds `'discount'`, `'tax'`, `'discount'`. `price` is written twice in the C: once as
+you wrote it, and once with `steps` read from a constant list of those three values. The function you call
+starts with the test that picks:
+
+```c
+int32_t Tariff_price(Tariff* self, int32_t amount_) {
+if (self->steps_->item_count_ == 3 && ((Tariff_Step*)(intptr_t)self->steps_->items_)[0] == Tariff_Step_discount
+    && ((Tariff_Step*)(intptr_t)self->steps_->items_)[1] == Tariff_Step_tax
+    && ((Tariff_Step*)(intptr_t)self->steps_->items_)[2] == Tariff_Step_discount) return Tariff_price___configured_0(self, amount_);
+/* price as written */
+}
+```
+
+The test is a few reads of the object's own memory, made once per call from outside: a function the copy calls on
+the same object, when it reads the table too, has a copy of its own and is called directly. The copy is only taken
+when the table holds exactly what the copy was written for, so a table that holds something else (an object whose
+setup has not run, a value the compiler listed but this object does not hold) runs the function as written, and
+what it computes is the same either way. Where an item can be one of a few values (a step chosen by a parameter of
+the setup, a local set in a branch), there is one copy for each combination they can make, up to four; past four,
+or when an item's values are not known at all, the copy keeps only the count. [Proofs](proofs.md#a-table-filled-once-holds-what-its-setup-put-in)
+has the rule.
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, for a list declared
+`var name = List<T>()` in one of the program's own classes, that [the rule for a list only its class fills](#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling)
+lets nobody else reach, that nothing ever shrinks (`clear()`, `truncate`, the `remove_` forms), filled only with
+`append`, each at the top level of its function, from one function that runs once for each object: its constructor,
+or a function that starts with `assert not prepared` and then `prepared = true`, directly or through functions of
+its own that it calls at their top level. The items' values are known for a list of whole numbers or of an enum
+(the copy reads them as constants); for a list of anything else only the count is. In a program that runs threads,
+only for a singleton. Not for a function that a function writing the list could reach, nor for a lock's wrapper of a
+singleton's function (the copy is taken inside the lock).
+
+**What you notice.** Speed, and a bigger executable: each function copied is in the C once more for each
+combination. The case's ten million prices take 36 ms instead of 40 (measured while the machine was in other use).
+The naive engine's stress test, whose matchers' kinds and keys are filled once by `prepare()`, ticks in about 4%
+less time (also measured while the machine was in other use); its C grows by 18% and its executable by 12%, for 360
+copies of the functions of its six matchers, four combinations each, of which this program runs one.
+
 ### A number joined into text is written in place
 
 **The case:** [benchmarks/a_number_joined_into_text_is_written_in_place](../benchmarks/a_number_joined_into_text_is_written_in_place/).

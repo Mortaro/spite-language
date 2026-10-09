@@ -605,6 +605,40 @@ The engine has no loop of this form: its systems' row loop is a `while` over com
 runner's own scratch (`chosen`, `position`, `skipping`) and stores through the matchers. Reductions (T2), scratch
 per band (T8) and loops written as a `while` are not built.
 
+### Ninth pass (2026-10-08)
+
+Engine `naive` at 81b0e20 in a measuring copy moved to `Dictionary<String, Value>` (D541) by hand, with its few
+address-based file reads stubbed (none is on the stress or physics tick; the engine's own move is in progress on
+its branch), Spite from 1a69e005, `--optimized`, medians of 5 interleaved runs. **Every number in this pass was
+measured while the machine was in other use and is provisional**; a quiet re-timing is to follow.
+
+**The hand edits again, on today's C** (one C file, `clang -O3`; base 20.6 ms): F (the fused loop) 1.3 ms, M (the
+repeated match) 1.4, W (no write-back) 4.1, R (the row in locals with the system inlined) 5.5, K (the configuration
+folded) 0.8; with all five the tick is 7.4 ms. W alone saves 3.5.
+
+**Built: a table filled once is read as constants** (S1 step 2). The design's "setup" is not proven but traced: the
+one function of the class that fills the list and that no other filling function calls (its constructor, or one
+that starts `assert not prepared` then `prepared = true`), walked in the C through the calls it makes at its top
+level, gives the count and the order; each `append`'s values are step 1's. Nothing relies on the guess: each
+function that reads the list (and that can reach none of its writers) gets a copy per combination of the values
+(at most four) reading the list as a constant, or only its count for a list of objects, and the function starts
+with a test of the object's list that picks the copy. A wrong guess costs only the copy's size. In the engine, the
+six matchers' `kinds` (each item 0 or 3, so four combinations for two attributes) and `keys` are traced through
+`prepare` to `describe_<attribute>`.
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file | 20.8 ms | 20.1 ms |
+| stress tick, split build | 25.6 ms | 24.9 ms |
+| physics step | 9.2 ms | 9.2 ms |
+| the case, ten million prices | 40 ms | 36 ms |
+| stress C, one file | 3 280 363 bytes | 3 866 745 bytes (+18%) |
+| stress executable, one file | 1 325 568 bytes | 1 478 656 bytes (+12%) |
+
+360 functions are copied in the stress program (27 to 30 of each matcher, four times; three of the four
+combinations never run in this program, which is the price of not knowing `is_marker` while compiling). The other
+cases of `benchmarks/` compile to the same C.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a

@@ -10837,13 +10837,69 @@ func item_note_insert(
     var list_type = type_shape.as_list(field.type)
     assert list_type
     var element = list_type.element
-    assert item_plain(element)
     var value = arguments.last()
     crash value
     var function = item_scope_function(scope)
-    var parts = item_term(value, scope, class_information, function, 0)
-    var atom = item_values.items_atom(class_information.c_name, class_information.qualified_dotted, listed.name)
-    item_values.note_term(atom, parts)
+    crash function
+    var parts = ["?"]
+    if item_plain(element) {
+        parts = item_term(value, scope, class_information, function, 0)
+        var atom = item_values.items_atom(class_information.c_name, class_information.qualified_dotted, listed.name)
+        item_values.note_term(atom, parts)
+    }
+    var site_line = item_site_line(function.body, member)
+    var element_c = ""
+    if item_plain(element) {
+        element_c = c_type_name(element)
+    }
+    var list_c = c_type_name(field.type)
+    if member.name == "append" and site_line >= 0 and scope == item_function_scope {
+        item_values.note_site(class_information.c_name, listed.name, current_function_c_name, site_line, parts)
+    }
+    item_values.note_list(
+        class_information.c_name,
+        class_information.qualified_dotted,
+        listed.name,
+        list_c,
+        element_c,
+        class_information.is_singleton,
+    )
+}
+
+# ../../../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in
+func item_site_line(
+    statements: List<Syntax.Statements.Statement>,
+    member: Syntax.Expressions.MemberExpression,
+): Integer {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var expression_statement = shape.as_expression_statement(statement)
+        if expression_statement {
+            if item_calls_member(expression_statement, member) {
+                return index
+            }
+        }
+        if statement_can_leave(statement) {
+            return -1
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func item_calls_member(
+    expression_statement: Syntax.Statements.ExpressionStatement,
+    member: Syntax.Expressions.MemberExpression,
+): Boolean {
+    if not expression_statement.value {
+        return false
+    }
+    var called = shape.as_call(expression_statement.value)
+    if not called {
+        return false
+    }
+    return called.callee == member
 }
 
 func item_note_call(
@@ -43728,6 +43784,7 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
         file = information.source_path
     }
     builder.name_function(c_name, "{file}\t{information.qualified_dotted}", function.name, function.line)
+    builder.note_function_class(c_name, information.c_name)
     if function.result_slot {
         parts.append("{c_type_name(function_return_type)} restrict spite_result")
     }

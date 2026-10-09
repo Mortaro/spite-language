@@ -22,8 +22,13 @@ S1 is built in steps ([naive_programs.md](naive_programs.md#s1-design-2026-10-07
 a list only its class fills can hold are listed while compiling, and a test against any other value is decided
 ([optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling),
 [proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills)): stress 39.0 to 35.4 ms a tick as
-one C file, 41.9 to 41.3 split. Step 2 (a copy per configuration, with a compiled dispatch) and step 3 (the
-runner made direct, with L8b and B2b) are not built.
+one C file, 41.9 to 41.3 split. **Step 2 is built**: a list filled once by its object's setup, with its count and
+order traced in the C, gets a copy of every function that reads it per combination of its values (at most four),
+the copy reading it as a constant, and a test of the object's list at the call that picks the copy
+([optimizations](../docs/optimizations.md#a-table-filled-once-is-read-as-constants),
+[proofs](../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in)): stress about 4% less a tick, its C 18%
+larger (measured while the machine was in other use, [the ninth pass](naive_programs.md#ninth-pass-2026-10-08)). Step 3
+(the runner made direct, with L8b and B2b) is not built.
 
 The sixth pass ([naive_programs.md](naive_programs.md#sixth-pass-2026-10-07)) took the 4.0 ms hand edit apart: of
 the 40.4 ms tick, L8b's fused loop is 1.4 ms, the repeated match 3.3, the write-back (B2b) 11.8, the row kept in
@@ -58,6 +63,7 @@ loop.
 | M6: objects of a class a list holds come from that class's own pool, side by side (stress 64.0 to 47.6 ms a tick, despawning 113 to 21 ms, physics 9.5 to 8.5 ms) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-a-list-holds-made-on-one-thread) |
 | B1 for named items: an item a name holds from its list is not counted while nothing can write the list, the name passed to calls as held (stress 43.6 to 41.2 ms a tick, 40.0 to 38.1 as one C file) | [optimizations](../docs/optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted) |
 | S1 step 1: a test against a value a list only its class fills never holds is decided while compiling (stress 39.0 to 35.4 ms a tick as one C file, 41.9 to 41.3 split, physics 9.2 to 8.9 ms) | [optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling), [proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills) |
+| S1 step 2: a table filled once by its object's setup is read as constants in a copy of each function reading it, chosen by a test at the call (stress about 4% a tick, 18% more C; measured while the machine was in other use) | [optimizations](../docs/optimizations.md#a-table-filled-once-is-read-as-constants), [proofs](../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in) |
 | Singleton locks only where another thread reaches: the walk over the written-out C (C5's) decides locks and atomic attributes again, so a function made into a value no thread calls no longer locks its singleton (stress 43.3 to 36.9 ms a tick as one C file, 50.3 to 42.7 split, physics 13.4 to 12.6 ms) | [optimizations](../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock), [proofs](../docs/proofs.md#no-other-thread-touches-a-singleton) |
 | B1 for attributes passed to calls: an attribute, or a path of attributes, that nothing the call can run assigns is passed held, a shape's attribute through its reading function, a held parameter held again for the calls it makes (stress 36.0 to 30.5 ms a tick as one C file, 42.3 to 36.7 split, physics 12.5 to 12.0 ms) | [optimizations](../docs/optimizations.md#an-attribute-a-call-cannot-assign-is-passed-without-counting), [proofs](../docs/proofs.md#an-attribute-a-call-cannot-assign-is-passed-uncounted) |
 | B1t: an item used at once (passed to a call that cannot change its list, read for an attribute, or asked a list's reading function) is read in its slot with no count (stress 27.3 to 25.9 ms a tick as one C file) | [optimizations](../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-used-at-once-is-not-counted) |

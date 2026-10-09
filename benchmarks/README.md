@@ -45,6 +45,7 @@ again, so it always shows the latest measurement of every case.
 | [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 16 005 | 4 832 | 3 063 | 3.31 | 5.23 |
 | [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 18 655 | 123 966 | 3 133 | 0.15 | 5.95 |
 | [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 14 742 | 84 629 | 4 436 | 0.17 | 3.32 |
+| [a_table_filled_once_is_read_as_constants](a_table_filled_once_is_read_as_constants/) | 36 165 | 28 002 | 27 372 | 1.29 | 1.32 |
 | [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 26 817 | 37 851 | 19 526 | 0.71 | 1.37 |
 | [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 4 029 | 3 902 | 3 895 | 1.03 | 1.03 |
 | [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 61 083 | 17 943 | 4 433 | 3.40 | 13.78 |

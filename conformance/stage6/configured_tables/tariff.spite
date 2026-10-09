@@ -1,0 +1,22 @@
+var steps = List<Integer>()
+
+func Tariff() {
+    steps.append(1)
+    steps.append(2)
+    steps.append(1)
+}
+
+func price(amount: Integer): Integer {
+    var total = amount
+    var index = 0
+    while index < steps.count() {
+        if steps[index] == 1 {
+            total = total - total / 10
+        }
+        if steps[index] == 2 {
+            total = total + total / 5
+        }
+        index = index + 1
+    }
+    return total
+}

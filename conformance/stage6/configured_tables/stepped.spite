@@ -1,0 +1,27 @@
+var steps = List<Integer>()
+var prepared = false
+
+func prepare(first: Integer) {
+    assert not prepared
+    prepared = true
+    steps.append(first)
+    steps.append(3)
+}
+
+func price(amount: Integer): Integer {
+    var total = amount
+    var index = 0
+    while index < steps.count() {
+        if steps[index] == 1 {
+            total = total - total / 10
+        }
+        if steps[index] == 2 {
+            total = total + total / 5
+        }
+        if steps[index] == 3 {
+            total = total + 7
+        }
+        index = index + 1
+    }
+    return total
+}

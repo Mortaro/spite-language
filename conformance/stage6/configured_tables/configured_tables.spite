@@ -1,0 +1,21 @@
+var console = Console()
+
+func ConfiguredTables() {
+    var tariff = Tariff()
+    var cheap = tariff.price(1000)
+    var dear = tariff.price(2000)
+    console.print("tariff", cheap, dear)
+    var first = Stepped()
+    first.prepare(1)
+    var second = Stepped()
+    second.prepare(2)
+    var unprepared = Stepped()
+    var priced_first = first.price(1000)
+    var priced_second = second.price(1000)
+    var priced_unprepared = unprepared.price(1000)
+    console.print("stepped", priced_first, priced_second, priced_unprepared)
+    var grown = Grown()
+    grown.grow(4)
+    var grown_total = grown.total()
+    console.print("grown", grown_total)
+}
