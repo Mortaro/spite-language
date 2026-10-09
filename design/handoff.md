@@ -88,6 +88,14 @@ other library duplicates (its own inflate beside `Zlib.decompress`, `clamped` be
 replaces bad bytes with `?`, a silent wrong value; copies written as `m * Matrix4<Float>()` instead of `m.copy()`)
 are open engine work.
 
+## One internal namespace (D566)
+
+Everything a program must not use directly (the memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock`,
+`Atomic`, `ThreadLocal`) moves into `Spite.Internal` (name to confirm); outside `library/` naming it is a compile error
+that names the plain form. Library code above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off memory
+onto `List<Byte>` and plain values. The compiler then reads a `BinaryReader` record from a `List<Byte>` with one check
+and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace, the error.
+
 ## The order of work after that (by what closes the engine gap)
 
 1. **Stress, one thread** (design/naive_programs.md, "Ninth pass"): of the hand edits on today's C (20.6 ms one
