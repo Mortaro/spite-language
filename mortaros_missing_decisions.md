@@ -182,6 +182,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   after the scheduler was destroyed, reading freed memory and halting with the wrong cause. The cost to confirm: a
   `Concurrent` that never ends (a server loop kept by a singleton) keeps the program from ending once the entry
   function returns, where before its drop at exit waited on a destroyed scheduler.
+- **D551, a table filled once is read as constants**: a list an object's setup fills once (its constructor, or a
+  function that starts `assert not prepared`) gets, for each function that reads it, a copy reading it as a constant
+  list, one per combination of the values it can hold (at most four), and a test at the call that picks the copy
+  when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
+  fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 18% and 12%,
+  for about 4% of its tick), since combinations the program never makes are copied too.
 
 ## Open
 
