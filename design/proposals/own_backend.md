@@ -49,6 +49,11 @@ Mortaro asked to be warned when it is the right time. The signal is when these h
 
 Point 1 can start before the others; it is the first piece of backend work.
 
+## The build plan
+
+The step-by-step plan for the first version, written for an agent to implement, is
+[own_backend_plan.md](own_backend_plan.md) (D558).
+
 ## The shape
 
 One shared Spite IR, where Spite's own optimisations run once, and a thin lowering per architecture and per
