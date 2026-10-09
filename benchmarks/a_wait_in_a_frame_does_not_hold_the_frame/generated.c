@@ -4919,9 +4919,11 @@ Naive_draw(self);
 if (((self->frames_ <= 8))) {
 {
 Saver* spite_started_receiver_1_ = Saver___retain(self->saver_);
+
 Concurrent__Nothing* spite_started_1_0_ = Concurrent__Nothing___make(spite_function_value_Saver_save_part(spite_started_receiver_1_));
 WaitsInFlight__Nothing__keep(spite_singleton_WaitsInFlight__Nothing(), Concurrent__Nothing___retain(spite_started_1_0_), 1);
 Concurrent__Nothing___release(spite_started_1_0_);
+
 Saver___release(spite_started_receiver_1_);
 }
 }
