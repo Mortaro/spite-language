@@ -125,7 +125,7 @@ in both repositories: in the language `saved-fx-backup` (singleton lock backoff)
 `saved-concurrencydocs`, `saved-fastbuild`, `saved-mono`, `saved-mono3`, `saved-nomap`, `saved-record`; in the engine
 `saved-cascaded-shadows`, `saved-index-in-cache`, `saved-materials-merge`. Branches merged into master or main were
 deleted. (`saved-checker-d284`, an old "refuse a class that re-creates a library class" by name and attributes, was
-deleted as superseded by D420's stricter name rule; it did not cover reopenings either.) The engine works in `D:\Projects\SlopEngine` (main is the naive engine).
+deleted as superseded by D420's stricter name rule; it did not cover reopenings either.) The engine works in its own repository beside this one (main is the naive engine).
 
 ## How to work here (lessons from this session)
 
