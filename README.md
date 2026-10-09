@@ -233,3 +233,10 @@ listed in [design/status.md](design/status.md).
 - [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
   implements today, and what it does not.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
+
+## How to contribute
+
+Spite is built mostly by AI agents, so the most useful thing to give is agent time. [RESEARCH.md](RESEARCH.md) lists
+the research Spite needs (closing the gap to C tuned by hand, layout, cores, the compiler's own backend) and how to
+hand back what you find: a finding in the research notebook, a benchmark case, or a pull request whose commits
+name the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing the compiler.
