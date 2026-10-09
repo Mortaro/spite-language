@@ -1,0 +1,5 @@
+var code = 0
+
+func Key(seed: Long) {
+    code = seed / 7 % 128
+}

@@ -1,0 +1,55 @@
+var price = 0
+var stock = 0
+var supplier: Supplier? = null
+var reservation: Reservation? = null
+
+func Record(seed: Long, density: Integer) {
+    price = seed % 1000 + 1
+    stock = seed / 1000 % 100
+    if seed / 1048576 % 100 < density {
+        var made_supplier = Supplier(seed)
+        supplier = made_supplier
+    }
+    if seed / 3 % 100 < density {
+        var made_reservation = Reservation(seed)
+        reservation = made_reservation
+    }
+}
+
+func toggle(seed: Long) {
+    if reservation {
+        stock = stock + reservation.quantity
+        reservation = null
+    } else {
+        var made = Reservation(seed)
+        reservation = made
+    }
+}
+
+func reserved(): Long {
+    if reservation {
+        var value: Long = price
+        return value * reservation.quantity
+    }
+    return 0
+}
+
+func late(): Long {
+    if supplier and reservation {
+        var days: Long = supplier.lead_days
+        return days * reservation.quantity
+    }
+    return 0
+}
+
+func wait() {
+    assert reservation
+    reservation.age = reservation.age + 1
+}
+
+func age(): Long {
+    if reservation {
+        return reservation.age
+    }
+    return 0
+}

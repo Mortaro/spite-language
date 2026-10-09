@@ -1,0 +1,70 @@
+var x = 0
+var y = 0
+var velocity: Velocity? = null
+var health: Health? = null
+var burning: Burning? = null
+
+func Entity(seed: Long, density: Integer) {
+    x = seed % 4096
+    y = seed / 4096 % 4096
+    if seed / 1048576 % 100 < density {
+        var made_velocity = Velocity(seed)
+        velocity = made_velocity
+    }
+    if seed / 3 % 100 < density {
+        var made_health = Health(seed)
+        health = made_health
+    }
+}
+
+func catch_fire(seed: Long) {
+    assert not burning
+    var made = Burning(seed)
+    burning = made
+}
+
+func move() {
+    assert velocity
+    x = (x + velocity.across) % 4096
+    y = (y + velocity.down) % 4096
+}
+
+func burn(): Long {
+    if health and burning {
+        health.points = health.points - burning.damage
+        return burning.damage
+    }
+    return 0
+}
+
+func cool() {
+    assert burning
+    burning.ticks = burning.ticks - 1
+    if burning.ticks == 0 {
+        burning = null
+    }
+}
+
+func heal() {
+    assert health
+    health.points = health.points + 1
+}
+
+func position(): Long {
+    var total: Long = x
+    return total + y
+}
+
+func points(): Long {
+    if health {
+        return health.points
+    }
+    return 0
+}
+
+func is_burning(): Boolean {
+    if burning {
+        return true
+    }
+    return false
+}

@@ -1,0 +1,6 @@
+var quantity = 0
+var age = 0
+
+func Reservation(seed: Long) {
+    quantity = seed % 50 + 1
+}

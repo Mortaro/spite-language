@@ -1,0 +1,67 @@
+union Payload {
+    Click
+    Key
+    Resize
+}
+
+var console = Console()
+var environment = Environment()
+var clicks: Long = 0
+var typed: Long = 0
+var width = 0
+var height = 0
+var resizes = 0
+
+func Naive() {
+    var benchmark = Benchmark(dispatch)
+    console.print("clicks", clicks, "typed", typed, "width", width, "height", height, "resizes", resizes)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func dispatch() {
+    var events = List<Payload>()
+    var seed: Long = 42
+    var round = 0
+    while round < environment.rounds {
+        events.clear()
+        var index = 0
+        while index < environment.events {
+            seed = seed * 48271 % 2147483647
+            var event = made_event(seed)
+            events.append(event)
+            index = index + 1
+        }
+        events.each(handle)
+        round = round + 1
+    }
+}
+
+func made_event(seed: Long): Payload {
+    if seed / 3 % 100 < environment.density {
+        return Resize(seed)
+    }
+    if seed % 2 == 0 {
+        return Click(seed)
+    }
+    return Key(seed)
+}
+
+func handle(event: Payload) {
+    switch event {
+        Click: clicks = clicks + event.x * event.button + event.y
+        Key: type_key(event)
+        Resize: resize(event)
+    }
+}
+
+func type_key(event: Key) {
+    var scaled = typed.wrapping_multiply(31)
+    typed = scaled.wrapping_sum(event.code)
+}
+
+func resize(event: Resize) {
+    width = event.width
+    height = event.height
+    resizes = resizes + 1
+}

@@ -214,6 +214,28 @@ all at five sizes:
   gathered operands each.
 - [records_sorted_by_one_field](records_sorted_by_one_field/): two million orders sorted by time and walked twice.
 
+## Archetype cases
+
+Four cases measure grouping the items of one list by which optional parts they have (one table per set of present
+parts), which the compiler does not do yet, for
+[design/proposals/compiler_archetypes.md](../design/proposals/compiler_archetypes.md). Each keeps its hand forms
+beside `expert.c`, every one printing the same answer: `expert_tables.c` (one table per set of parts, items moved
+between tables when a part comes or goes), `expert_sparse.c` (each part in a sparse set of its own), `expert_hybrid.c`
+where a part churns (the parts that never change decide the table, the churning ones are sparse), `expert_dense.c`
+(columns over every item with holes for absent parts) and `expert_inline.c` (the parts inside their owner, the
+smallest step from what Spite writes today); `expert.c` includes the one that is fastest at the case's defaults.
+Every form takes its size, the share of items with each part and the churn as settings, and the proposal's
+`sweep.sh` times them all across those:
+
+- [shapes_with_optional_parts](shapes_with_optional_parts/): 200 000 shapes, some with a texture, some with a
+  velocity, some with both; three passes that each need some of the parts. Nothing churns.
+- [inventory_with_fields_set_and_cleared](inventory_with_fields_set_and_cleared/): 200 000 records with a supplier
+  that never changes and a reservation set and cleared on 2 000 records a pass.
+- [events_with_different_payloads](events_with_different_payloads/): a queue of a union of three payloads, filled
+  and handled in order forty times.
+- [entities_with_components_added_and_removed](entities_with_components_added_and_removed/): 200 000 entities with a
+  velocity and health that stay and a burning component added to 2 000 a pass and removed when it runs out.
+
 ## Running them
 
 ```

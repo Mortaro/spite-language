@@ -1,0 +1,9 @@
+var x = 0
+var y = 0
+var button = 0
+
+func Click(seed: Long) {
+    x = seed / 7 % 1920
+    y = seed / 13440 % 1080
+    button = seed / 5 % 3
+}

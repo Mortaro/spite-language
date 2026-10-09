@@ -1,0 +1,48 @@
+var x = 0
+var y = 0
+var texture: Texture? = null
+var velocity: Velocity? = null
+
+func Shape(seed: Long, density: Integer) {
+    x = seed % 1024
+    y = seed / 1024 % 1024
+    if seed / 1048576 % 100 < density {
+        var made_texture = Texture(seed)
+        texture = made_texture
+    }
+    if seed / 3 % 100 < density {
+        var made_velocity = Velocity(seed)
+        velocity = made_velocity
+    }
+}
+
+func move() {
+    assert velocity
+    x = (x + velocity.across) % 1024
+    y = (y + velocity.down) % 1024
+}
+
+func drawn(): Long {
+    if texture and velocity {
+        var total: Long = x + y
+        return total * texture.scale
+    }
+    return 0
+}
+
+func fade() {
+    assert texture
+    texture.scale = (texture.scale * 5 + 3) % 64
+}
+
+func position(): Long {
+    var total: Long = x
+    return total + y
+}
+
+func scale(): Long {
+    if texture {
+        return texture.scale
+    }
+    return 0
+}

@@ -1,0 +1,4 @@
+struct Shape
+Shape_move
+Shape_drawn
+List_Shape_sum_drawn

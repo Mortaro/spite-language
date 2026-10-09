@@ -1,0 +1,3 @@
+var items = 200000
+var density = 50
+var passes = 20

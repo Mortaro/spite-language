@@ -1,0 +1,7 @@
+var across = 0
+var down = 0
+
+func Velocity(seed: Long) {
+    across = seed % 16
+    down = seed / 16 % 16
+}

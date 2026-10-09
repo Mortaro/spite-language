@@ -1,0 +1,49 @@
+var console = Console()
+var environment = Environment()
+var reserved: Long = 0
+var late: Long = 0
+var ages: Long = 0
+var stock: Long = 0
+
+func Naive() {
+    var benchmark = Benchmark(trade)
+    console.print("reserved", reserved, "late", late, "ages", ages, "stock", stock)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func trade() {
+    var records = List<Record>()
+    var seed: Long = 42
+    var index = 0
+    while index < environment.items {
+        seed = seed * 48271 % 2147483647
+        var record = Record(seed, environment.density)
+        records.append(record)
+        index = index + 1
+    }
+    var pass = 0
+    while pass < environment.passes {
+        seed = churn(records, seed)
+        reserved = reserved + records.sum_reserved()
+        late = late + records.sum_late()
+        records.each_wait()
+        pass = pass + 1
+    }
+    ages = records.sum_age()
+    stock = records.sum_stock()
+}
+
+func churn(records: List<Record>, start: Long): Long {
+    var seed = start
+    var turn = 0
+    while turn < environment.churn {
+        seed = seed * 48271 % 2147483647
+        var chosen: Integer = seed / 7 % records.count()
+        crash records[chosen]
+        var record = records[chosen]
+        record.toggle(seed)
+        turn = turn + 1
+    }
+    return seed
+}

@@ -1,0 +1,33 @@
+var console = Console()
+var environment = Environment()
+var drawn: Long = 0
+var positions: Long = 0
+var scales: Long = 0
+
+func Naive() {
+    var benchmark = Benchmark(animate)
+    console.print("drawn", drawn, "positions", positions, "scales", scales)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func animate() {
+    var shapes = List<Shape>()
+    var seed: Long = 42
+    var index = 0
+    while index < environment.items {
+        seed = seed * 48271 % 2147483647
+        var shape = Shape(seed, environment.density)
+        shapes.append(shape)
+        index = index + 1
+    }
+    var pass = 0
+    while pass < environment.passes {
+        shapes.each_move()
+        drawn = drawn + shapes.sum_drawn()
+        shapes.each_fade()
+        pass = pass + 1
+    }
+    positions = shapes.sum_position()
+    scales = shapes.sum_scale()
+}

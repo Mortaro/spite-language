@@ -1,0 +1,3 @@
+var events = 100000
+var density = 10
+var rounds = 40

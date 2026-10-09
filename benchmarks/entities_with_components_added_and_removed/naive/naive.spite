@@ -1,0 +1,51 @@
+var console = Console()
+var environment = Environment()
+var dealt: Long = 0
+var positions: Long = 0
+var points: Long = 0
+var burning = 0
+
+func Naive() {
+    var benchmark = Benchmark(simulate)
+    console.print("dealt", dealt, "positions", positions, "points", points, "burning", burning)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func simulate() {
+    var entities = List<Entity>()
+    var seed: Long = 42
+    var index = 0
+    while index < environment.items {
+        seed = seed * 48271 % 2147483647
+        var entity = Entity(seed, environment.density)
+        entities.append(entity)
+        index = index + 1
+    }
+    var pass = 0
+    while pass < environment.passes {
+        seed = ignite(entities, seed)
+        entities.each_move()
+        dealt = dealt + entities.sum_burn()
+        entities.each_cool()
+        entities.each_heal()
+        pass = pass + 1
+    }
+    positions = entities.sum_position()
+    points = entities.sum_points()
+    burning = entities.count_is_burning()
+}
+
+func ignite(entities: List<Entity>, start: Long): Long {
+    var seed = start
+    var turn = 0
+    while turn < environment.churn {
+        seed = seed * 48271 % 2147483647
+        var chosen: Integer = seed / 7 % entities.count()
+        crash entities[chosen]
+        var entity = entities[chosen]
+        entity.catch_fire(seed)
+        turn = turn + 1
+    }
+    return seed
+}

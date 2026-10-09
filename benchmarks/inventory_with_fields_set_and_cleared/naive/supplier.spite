@@ -1,0 +1,5 @@
+var lead_days = 0
+
+func Supplier(seed: Long) {
+    lead_days = seed / 99 % 30 + 1
+}

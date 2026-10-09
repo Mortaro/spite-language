@@ -1,0 +1,7 @@
+var width = 0
+var height = 0
+
+func Resize(seed: Long) {
+    width = seed / 7 % 3840 + 1
+    height = seed / 26880 % 2160 + 1
+}

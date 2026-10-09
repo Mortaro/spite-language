@@ -618,6 +618,11 @@ the compiler's own tree (and keeping the C reading as a cross-check while both e
 - Retires the engine's hand column headers, parallel arrays per field and swap-remove code.
 - Measured for programs that are not games, with the rules a compiler could prove and a build order:
   [proposals/data_oriented_layout.md](proposals/data_oriented_layout.md) (2026-10-08).
+- **Archetypes chosen by the compiler**: the items of one list grouped by which optional parts they have (one table
+  per set of present parts), a part that churns kept sparse beside the tables, and a loop that tests for parts
+  turned into a walk over the matching tables, with nothing for the programmer to mark. Measured on four cases
+  (shapes, an inventory, an event queue, entities), with the rules, the proofs and a build order:
+  [proposals/compiler_archetypes.md](proposals/compiler_archetypes.md) (2026-10-09).
 
 ### Stage 5: memory placed by the compiler (medium, D501's order)
 

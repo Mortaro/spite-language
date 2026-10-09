@@ -1,0 +1,7 @@
+var ticks = 0
+var damage = 0
+
+func Burning(seed: Long) {
+    ticks = seed / 5 % 8 + 1
+    damage = seed / 40 % 5 + 1
+}

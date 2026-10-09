@@ -1,0 +1,4 @@
+struct Entity
+Entity_burn
+Entity_cool
+List_Entity_sum_burn

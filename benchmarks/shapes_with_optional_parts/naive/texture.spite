@@ -1,0 +1,5 @@
+var scale = 0
+
+func Texture(seed: Long) {
+    scale = seed / 251 % 64
+}
