@@ -71,6 +71,13 @@ All of these are far easier on the two-level IR (D560), where control flow and v
 building the IR first. In this repository's worktrees, a shell command with `source` in a path may be refused by the
 sandbox: use the file tools for `bootstrap/source`.
 
+## The engine still places memory by hand (D564)
+
+44 files use `Raw()`, 25 use `Memory.` and 20 `TypedMemory`. Bytes and tables (zstd, PNG, texture compression,
+recipes, network, assets) can move to `List<Byte>` and plain lists now; the Vulkan, Windows and XInput bindings need
+the language's plain foreign structs first (D536's second half, `design/proposals/plain_bytes_and_foreign_structs.md`,
+and finding R17's six-step plan in `design/optimization_research.md`).
+
 ## The order of work after that (by what closes the engine gap)
 
 1. **Stress, one thread** (design/naive_programs.md, "Ninth pass"): of the hand edits on today's C (20.6 ms one
