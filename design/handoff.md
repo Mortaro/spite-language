@@ -12,6 +12,11 @@ nothing ships beside the program (zero runtime).
 
 ## Where the engine stands
 
+**The naive engine is the engine package's main branch since 2026-10-09 (D563).** The original, hand-optimised engine
+is the tag `original-hand-optimized`; its numbers, recorded in the engine's `design/original_engine.md`, are the
+targets. Never change the engine to go faster: only the compiler.
+
+
 Quiet measurement, compiler `579d35c5`, medians of 5 alternating rounds (design/naive_programs.md, "Quiet
 measurement"):
 
