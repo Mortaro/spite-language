@@ -54,11 +54,11 @@ never fire).
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 21 612 | 175 104 |
-| naive C: `naive.c`, `clang -O2` | 3 371 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 3 086 | 139 264 |
+| Spite: `naive/`, `--optimized` | 18 807 | 196 096 |
+| naive C: `naive.c`, `clang -O2` | 2 922 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 611 | 139 264 |
 
-Spite takes 6.41 times naive C's time and 7.00 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=21612 naive=3371 expert=3086 -->
+Spite takes 6.44 times naive C's time and 7.20 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=18807 naive=2922 expert=2611 -->
 <!-- /timings -->

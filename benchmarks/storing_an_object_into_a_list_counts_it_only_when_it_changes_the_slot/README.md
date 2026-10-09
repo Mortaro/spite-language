@@ -33,11 +33,11 @@ object. 39.6 ms for the loop against 9.8 after (one run each, the C compiled wit
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 9 302 | 180 736 |
-| naive C: `naive.c`, `clang -O2` | 6 926 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 4 578 | 139 264 |
+| Spite: `naive/`, `--optimized` | 8 595 | 203 264 |
+| naive C: `naive.c`, `clang -O2` | 6 382 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 4 260 | 139 264 |
 
-Spite takes 1.34 times naive C's time and 2.03 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking at the same time.
-<!-- measured spite=9302 naive=6926 expert=4578 -->
+Spite takes 1.35 times naive C's time and 2.02 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=8595 naive=6382 expert=4260 -->
 <!-- /timings -->

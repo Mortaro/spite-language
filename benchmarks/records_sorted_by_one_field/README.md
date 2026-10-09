@@ -42,13 +42,13 @@ order) and `expert.c` shows the cure: gather the records into sorted order once.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 591 668 | 233 984 |
-| naive C: `naive.c`, `clang -O2` | 693 851 | 141 312 |
-| expert C: `expert.c`, `clang -O2` | 89 569 | 142 848 |
+| Spite: `naive/`, `--optimized` | 552 279 | 254 976 |
+| naive C: `naive.c`, `clang -O2` | 639 736 | 141 312 |
+| expert C: `expert.c`, `clang -O2` | 84 685 | 142 848 |
 
-Spite takes 0.85 times naive C's time and 6.61 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=591668 naive=693851 expert=89569 -->
+Spite takes 0.86 times naive C's time and 6.52 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=552279 naive=639736 expert=84685 -->
 <!-- /timings -->
 
 At other sizes, and with each phase apart: [cases.md](../../design/proposals/data_oriented_layout/cases.md#records_sorted_by_one_field).

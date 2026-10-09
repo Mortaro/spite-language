@@ -37,11 +37,11 @@ threads as the Spite does, without its overflow checks.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 90 568 | 226 304 |
-| naive C: `naive.c`, `clang -O2` | 284 023 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 96 497 | 139 776 |
+| Spite: `naive/`, `--optimized` | 86 108 | 231 424 |
+| naive C: `naive.c`, `clang -O2` | 266 717 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 91 695 | 139 776 |
 
 Spite takes 0.32 times naive C's time and 0.94 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking at the same time.
-<!-- measured spite=90568 naive=284023 expert=96497 -->
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=86108 naive=266717 expert=91695 -->
 <!-- /timings -->

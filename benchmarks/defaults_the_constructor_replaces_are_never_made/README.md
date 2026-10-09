@@ -42,11 +42,11 @@ item where the compiler takes items from a pool. `expert.c` allocates nothing pe
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 29 679 | 178 688 |
-| naive C: `naive.c`, `clang -O2` | 56 403 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 355 | 139 776 |
+| Spite: `naive/`, `--optimized` | 23 311 | 200 192 |
+| naive C: `naive.c`, `clang -O2` | 40 829 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 340 | 139 776 |
 
-Spite takes 0.53 times naive C's time and 83.60 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=29679 naive=56403 expert=355 -->
+Spite takes 0.57 times naive C's time and 68.56 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=23311 naive=40829 expert=340 -->
 <!-- /timings -->

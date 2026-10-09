@@ -36,11 +36,11 @@ reads the rows without a `get_at` or its check.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 13 498 | 229 376 |
-| naive C: `naive.c`, `clang -O2` | 38 230 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 702 | 139 264 |
+| Spite: `naive/`, `--optimized` | 11 975 | 234 496 |
+| naive C: `naive.c`, `clang -O2` | 34 130 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 665 | 139 264 |
 
-Spite takes 0.35 times naive C's time and 19.23 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=13498 naive=38230 expert=702 -->
+Spite takes 0.35 times naive C's time and 18.01 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=11975 naive=34130 expert=665 -->
 <!-- /timings -->

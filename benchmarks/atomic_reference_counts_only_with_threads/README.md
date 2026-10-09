@@ -38,11 +38,11 @@ same way; `expert.c` counts nothing.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 20 865 | 178 176 |
-| naive C: `naive.c`, `clang -O2` | 28 207 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 2 280 | 139 776 |
+| Spite: `naive/`, `--optimized` | 15 838 | 198 656 |
+| naive C: `naive.c`, `clang -O2` | 17 561 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 149 | 139 776 |
 
-Spite takes 0.74 times naive C's time and 9.15 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=20865 naive=28207 expert=2280 -->
+Spite takes 0.90 times naive C's time and 7.37 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=15838 naive=17561 expert=2149 -->
 <!-- /timings -->

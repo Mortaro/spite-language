@@ -50,11 +50,11 @@ value never leaves `apply_all` once `apply` is inlined). `index = index + 1` is 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 1 210 | 194 560 |
-| naive C: `naive.c`, `clang -O2` | 1 607 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 1 450 | 139 264 |
+| Spite: `naive/`, `--optimized` | 1 208 | 201 728 |
+| naive C: `naive.c`, `clang -O2` | 1 207 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 1 215 | 139 264 |
 
-Spite takes 0.75 times naive C's time and 0.83 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=1210 naive=1607 expert=1450 -->
+Spite takes 1.00 times naive C's time and 0.99 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=1208 naive=1207 expert=1215 -->
 <!-- /timings -->

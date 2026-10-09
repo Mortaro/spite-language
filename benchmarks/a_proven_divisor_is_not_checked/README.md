@@ -38,11 +38,11 @@ breaks it halts at that line instead of dividing by zero. The C compiler then fo
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 31 204 | 176 128 |
-| naive C: `naive.c`, `clang -O2` | 32 479 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 28 691 | 139 264 |
+| Spite: `naive/`, `--optimized` | 28 797 | 197 632 |
+| naive C: `naive.c`, `clang -O2` | 28 845 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 25 921 | 139 264 |
 
-Spite takes 0.96 times naive C's time and 1.09 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=31204 naive=32479 expert=28691 -->
+Spite takes 1.00 times naive C's time and 1.11 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=28797 naive=28845 expert=25921 -->
 <!-- /timings -->

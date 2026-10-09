@@ -39,11 +39,11 @@ and a plain loop under one lock.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 71 587 | 233 472 |
-| naive C: `naive.c`, `clang -O2` | 334 091 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 3 084 | 140 288 |
+| Spite: `naive/`, `--optimized` | 67 926 | 239 104 |
+| naive C: `naive.c`, `clang -O2` | 294 735 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 904 | 140 288 |
 
-Spite takes 0.21 times naive C's time and 23.21 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=71587 naive=334091 expert=3084 -->
+Spite takes 0.23 times naive C's time and 23.39 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=67926 naive=294735 expert=2904 -->
 <!-- /timings -->

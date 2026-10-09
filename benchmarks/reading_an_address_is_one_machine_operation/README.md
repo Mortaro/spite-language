@@ -44,11 +44,11 @@ are already as cheap as they can be.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 21 039 | 183 296 |
-| naive C: `naive.c`, `clang -O2` | 6 262 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 6 399 | 139 264 |
+| Spite: `naive/`, `--optimized` | 17 103 | 205 312 |
+| naive C: `naive.c`, `clang -O2` | 5 437 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 3 918 | 139 264 |
 
-Spite takes 3.36 times naive C's time and 3.29 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=21039 naive=6262 expert=6399 -->
+Spite takes 3.15 times naive C's time and 4.37 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=17103 naive=5437 expert=3918 -->
 <!-- /timings -->

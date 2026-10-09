@@ -36,11 +36,11 @@ nothing.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 58 596 | 180 736 |
-| naive C: `naive.c`, `clang -O2` | 70 666 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 12 480 | 139 776 |
+| Spite: `naive/`, `--optimized` | 53 327 | 201 728 |
+| naive C: `naive.c`, `clang -O2` | 62 984 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 11 248 | 139 776 |
 
-Spite takes 0.83 times naive C's time and 4.70 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=58596 naive=70666 expert=12480 -->
+Spite takes 0.85 times naive C's time and 4.74 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=53327 naive=62984 expert=11248 -->
 <!-- /timings -->

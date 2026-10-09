@@ -31,11 +31,11 @@ both, the case took 3.79 times naive C's time. `index * 7` and `index * 3` carry
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 78 997 | 185 344 |
-| naive C: `naive.c`, `clang -O2` | 26 543 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 14 231 | 139 264 |
+| Spite: `naive/`, `--optimized` | 43 518 | 207 360 |
+| naive C: `naive.c`, `clang -O2` | 18 694 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 11 406 | 139 264 |
 
-Spite takes 2.98 times naive C's time and 5.55 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=78997 naive=26543 expert=14231 -->
+Spite takes 2.33 times naive C's time and 3.82 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=43518 naive=18694 expert=11406 -->
 <!-- /timings -->

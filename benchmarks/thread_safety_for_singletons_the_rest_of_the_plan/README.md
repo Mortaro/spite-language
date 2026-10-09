@@ -39,11 +39,11 @@ today with a mutex; `expert.c` does what the plan would.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 10 998 | 231 936 |
-| naive C: `naive.c`, `clang -O2` | 20 699 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 1 947 | 139 776 |
+| Spite: `naive/`, `--optimized` | 10 061 | 237 056 |
+| naive C: `naive.c`, `clang -O2` | 18 796 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 1 846 | 139 776 |
 
-Spite takes 0.53 times naive C's time and 5.65 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=10998 naive=20699 expert=1947 -->
+Spite takes 0.54 times naive C's time and 5.45 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=10061 naive=18796 expert=1846 -->
 <!-- /timings -->

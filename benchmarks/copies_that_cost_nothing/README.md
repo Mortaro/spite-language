@@ -56,11 +56,11 @@ on it are not counted) and the allocator set right after construction, which has
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 36 787 | 173 568 |
-| naive C: `naive.c`, `clang -O2` | 24 689 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 17 688 | 139 776 |
+| Spite: `naive/`, `--optimized` | 33 528 | 195 584 |
+| naive C: `naive.c`, `clang -O2` | 22 099 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 16 000 | 139 776 |
 
-Spite takes 1.49 times naive C's time and 2.08 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=36787 naive=24689 expert=17688 -->
+Spite takes 1.52 times naive C's time and 2.10 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=33528 naive=22099 expert=16000 -->
 <!-- /timings -->

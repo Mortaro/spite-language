@@ -38,11 +38,11 @@ each is atomic on its own): two locked additions per call are what is left betwe
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 52 634 | 229 376 |
-| naive C: `naive.c`, `clang -O2` | 76 369 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 2 806 | 139 264 |
+| Spite: `naive/`, `--optimized` | 35 589 | 236 032 |
+| naive C: `naive.c`, `clang -O2` | 52 527 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 198 | 139 264 |
 
-Spite takes 0.69 times naive C's time and 18.76 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=52634 naive=76369 expert=2806 -->
+Spite takes 0.68 times naive C's time and 16.19 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=35589 naive=52527 expert=2198 -->
 <!-- /timings -->

@@ -41,11 +41,11 @@ so part of the gap with `naive.c`, which `malloc`s and frees every visit, is tha
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 20 693 | 227 840 |
-| naive C: `naive.c`, `clang -O2` | 253 962 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 6 271 | 139 776 |
+| Spite: `naive/`, `--optimized` | 16 092 | 232 960 |
+| naive C: `naive.c`, `clang -O2` | 206 019 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 5 493 | 139 776 |
 
-Spite takes 0.08 times naive C's time and 3.30 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=20693 naive=253962 expert=6271 -->
+Spite takes 0.08 times naive C's time and 2.93 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=16092 naive=206019 expert=5493 -->
 <!-- /timings -->

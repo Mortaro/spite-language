@@ -48,11 +48,11 @@ waits in the system, takes 21.5 ms. `expert.c` takes no lock.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 9 862 | 232 960 |
-| naive C: `naive.c`, `clang -O2` | 33 075 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 742 | 139 776 |
+| Spite: `naive/`, `--optimized` | 7 166 | 238 080 |
+| naive C: `naive.c`, `clang -O2` | 18 807 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 473 | 139 776 |
 
-Spite takes 0.30 times naive C's time and 13.29 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=9862 naive=33075 expert=742 -->
+Spite takes 0.38 times naive C's time and 15.15 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=7166 naive=18807 expert=473 -->
 <!-- /timings -->

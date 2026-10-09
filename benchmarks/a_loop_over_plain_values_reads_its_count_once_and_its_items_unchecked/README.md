@@ -37,11 +37,11 @@ checks the overlap of its two arrays itself), but its `Float` sum stays in order
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 39 530 | 202 752 |
-| naive C: `naive.c`, `clang -O2` | 159 928 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 17 720 | 139 264 |
+| Spite: `naive/`, `--optimized` | 29 471 | 223 744 |
+| naive C: `naive.c`, `clang -O2` | 141 953 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 15 804 | 139 264 |
 
-Spite takes 0.25 times naive C's time and 2.23 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
-<!-- measured spite=39530 naive=159928 expert=17720 -->
+Spite takes 0.21 times naive C's time and 1.86 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=29471 naive=141953 expert=15804 -->
 <!-- /timings -->
