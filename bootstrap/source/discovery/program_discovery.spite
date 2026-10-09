@@ -278,7 +278,11 @@ func part_of_the_compiler(path: String): Boolean {
 }
 
 func internal_name_error(path: String, line: Integer, name: String): String {
-    return "{path}:{line}: error: {name} is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+    var place = path
+    if line > 0 {
+        place = "{path}:{line}"
+    }
+    return "{place}: error: {name} is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
 }
 
 func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {
@@ -1074,7 +1078,7 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     var existing = class_files.find_by_qualified_dotted(qualified_dotted)
     if existing and not walking_library and not internal_allowed and qualified_dotted.starts_with("Spite.Internal.") {
         has_error = true
-        error_message = internal_name_error(parsed_file.path, 1, qualified_dotted)
+        error_message = internal_name_error(parsed_file.path, 0, qualified_dotted)
         return
     }
     if existing {
@@ -1100,7 +1104,7 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
         if qualified_dotted.starts_with("Spite.Internal.") {
-            error_message = internal_name_error(parsed_file.path, 1, qualified_dotted)
+            error_message = internal_name_error(parsed_file.path, 0, qualified_dotted)
             has_error = true
             return
         }
