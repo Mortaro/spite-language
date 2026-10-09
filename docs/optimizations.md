@@ -3605,10 +3605,9 @@ So only the reading of the classes and the table's look-ups run, a few compariso
 classes may run together, which of them are worth a thread, and the code of both forms are all decided while
 compiling.
 
-**What you notice.** Speed, when the calls are big enough, and the same output. A program whose loop can run at
-once counts atomically the classes the overlapped calls count, as every program with threads does
-([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), also on the times the table sends it in
-order.
+**What you notice.** Speed, when the calls are big enough, and the same output. A class only one of the calls
+that can run together counts keeps plain counts; one that two of them count is counted atomically while they run
+at once ([counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)).
 
 ### A loop whose passes write only their own item runs in bands
 
@@ -3688,6 +3687,129 @@ which functions qualify, what they weigh and the count they need are decided whi
 **What you notice.** Speed on heavy passes over many elements, and the same output. A pass that counts a
 reference (it reads an object out of a list, or makes one) stays in order: counting from several threads would
 make the class's counts atomic everywhere ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)).
+
+### Counts stay plain for what one of the calls run at once counts
+
+**The case:** [benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](../benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/).
+
+**What it does.** A loop over different classes that runs them at once used to make every class its calls count
+atomic for the whole program ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), since its
+piece is code that runs on another thread. Now the compiler follows each class's call on its own: a class only one
+of the calls that can run together counts stays plain, and so does its pool of objects. A class two of them count is
+the meeting point: it is counted atomically while the loop runs at once and with plain arithmetic the rest of the
+time, and its pool is kept per thread.
+
+```gdscript title=own_shelves/letter.spite
+var words = 0
+
+func Letter(seed: Integer) {
+    words = seed * 7 % 1000
+}
+```
+```gdscript title=own_shelves/painting.spite
+var width = 0
+
+func Painting(seed: Integer) {
+    width = seed * 11 % 1000
+}
+```
+```gdscript title=own_shelves/archive.spite
+var letters = List<Letter>()
+var kept_total = 0
+
+func Archive() {
+    var index = 0
+    while index < 1000 {
+        var letter = Letter(index)
+        letters.append(letter)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 300 {
+        var kept = List<Letter>()
+        var index = 0
+        while index < letters.count() {
+            var letter = letters[index]
+            if letter.words % 3 == round % 3 {
+                kept.append(letter)
+            }
+            index = index + 1
+        }
+        kept_total = kept_total + kept.count()
+        round = round + 1
+    }
+}
+```
+```gdscript title=own_shelves/gallery.spite
+var paintings = List<Painting>()
+var hung_total = 0
+
+func Gallery() {
+    var index = 0
+    while index < 1000 {
+        var painting = Painting(index)
+        paintings.append(painting)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 300 {
+        var hung = List<Painting>()
+        var index = 0
+        while index < paintings.count() {
+            var painting = paintings[index]
+            if painting.width % 5 == round % 5 {
+                hung.append(painting)
+            }
+            index = index + 1
+        }
+        hung_total = hung_total + hung.count()
+        round = round + 1
+    }
+}
+```
+```gdscript title=own_shelves/own_shelves.spite entry
+type Collection {
+    sort()
+}
+
+var console = Console()
+var archive = Archive()
+var gallery = Gallery()
+var collections = List<Collection>()
+
+func OwnShelves() {
+    collections.append(archive)
+    collections.append(gallery)
+    collections.each_sort()
+    console.print(archive.kept_total, gallery.hung_total)
+}
+```
+```output
+100000 60000
+```
+
+The two sorts run at once. Only the archive's call counts a `Letter` and only the gallery's a `Painting`, so every
+`kept.append(letter)` and every list let go counts with a plain addition and subtraction, as in a program with no
+threads.
+
+**When.** Every production build of a program with such a loop. A class counted by code on another thread that is
+not one of these calls (a `Parallel`'s function, a callback) stays atomic everywhere, as before.
+
+**Why at run time.** The same function (a list's `append`, a release) runs inside the calls run at once and
+outside them, and telling the two apart while compiling would mean writing it twice. So for the classes two of the
+calls count, the count reads one flag the loop sets while it runs: a predictable branch the rest of the time.
+
+**What you notice.** Speed. The meeting points cost an atomic instruction only while the calls overlap; objects
+made on a worker go back to that worker's pool. Measured while the machine was in other use, the case above went
+from 21.7 to 14.1 ms; the game engine's stress test does not run its systems at once yet: they share objects of one class the
+facts cannot tell apart. [Proofs](proofs.md#what-one-of-the-calls-run-at-once-counts)
+states the proof.
 
 ### A crash's report is kept out of the way
 

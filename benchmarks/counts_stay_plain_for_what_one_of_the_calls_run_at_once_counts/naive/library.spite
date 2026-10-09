@@ -1,0 +1,10 @@
+singleton
+
+var archive = Archive()
+var gallery = Gallery()
+var collections = List<Collection>()
+
+func Library() {
+    collections.append(archive)
+    collections.append(gallery)
+}

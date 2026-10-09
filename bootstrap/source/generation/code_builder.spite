@@ -21,6 +21,7 @@ var folds = false
 var counts_by_class = false
 var count_sharing: CountSharing? = null
 var nested_lists = NestedLists()
+var row_together = Dictionary<String, Boolean>()
 var folded_functions = 0
 var host = HotReloadLibrary()
 var constant_texts = Dictionary<String, String>()
@@ -352,6 +353,7 @@ func render(): String {
     }
     if threads and shakes and counts_by_class {
         var sharing = CountSharing()
+        sharing.together = row_together
         bodies = sharing.plain_counts(typedef_text, bodies, main_function)
         typedef_text = sharing.unguarded_types(typedef_text)
         count_sharing = sharing

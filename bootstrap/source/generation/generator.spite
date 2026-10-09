@@ -157,6 +157,7 @@ var generating_overlap = false
 var listed_ended_in_return = false
 var overlap_groups = 0
 var row_groups = 0
+var rows_running_noted = false
 var row_sites = List<RowSite>()
 var band_threshold: Long = 1000000
 var band_minimum_weight: Long = 256
@@ -15448,7 +15449,8 @@ func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
 
 # ../../../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands
 func borrows_its_owner(function: Analysis.FunctionInfo): Boolean {
-    return function.name.starts_with("spite_band_") and function.name.ends_with("_piece")
+    var pieced = function.name.starts_with("spite_band_") or function.name.starts_with("spite_row_")
+    return pieced and function.name.ends_with("_piece")
 }
 
 func function_value(
@@ -35691,7 +35693,11 @@ func emit_row_each(
         inner,
         class_information,
     )
-    builder.add_user("{run_code.code};")
+    if banded {
+        builder.add_user("{run_code.code};")
+    } else {
+        builder.add_user("SPITE_ROWS_ENTER(); {run_code.code}; SPITE_ROWS_LEAVE();")
+    }
     emit_scope_drops(inner, false)
     generating_overlap = false
     builder.threads = threads_before
@@ -36077,6 +36083,22 @@ func settle_row_at(group: Integer, start: Integer, condition: String) {
     note_fact("flag parallel_used")
 }
 
+# ../../../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts
+func note_rows_running() {
+    assert not rows_running_noted
+    rows_running_noted = true
+    var lines = [
+        "/* A class two calls run at once both count is counted atomically only while they run */"
+        "static int32_t spite_rows_running = 0;"
+        "#define SPITE_ROWS_ENTER() __atomic_add_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)"
+        "#define SPITE_ROWS_LEAVE() __atomic_sub_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)"
+        "#define SPITE_ROW_COUNT_UP(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_UP(count) : SPITE_PLAIN_COUNT_UP(count))"
+        "#define SPITE_ROW_COUNT_DOWN(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_DOWN(count) : SPITE_PLAIN_COUNT_DOWN(count))"
+    ]
+    var joined = lines.join("\n")
+    builder.add_typedef(joined)
+}
+
 func row_marker_after(start: Integer, marker: String): Integer {
     var position = start
     while position < builder.user_bodies.count() and builder.user_at(position) != marker {
@@ -36142,6 +36164,7 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         index = index + 1
     }
     var table = List<String>()
+    var pairs_together = List<String>()
     var useful = false
     var first = 0
     while first < count {
@@ -36158,6 +36181,13 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
                 useful = true
             }
             if together {
+                crash targets[first]
+                crash targets[second]
+                var first_target = targets[first]
+                var second_target = targets[second]
+                pairs_together.append("{first_target}|{second_target}")
+            }
+            if together {
                 row.append("1")
             } else {
                 row.append("0")
@@ -36169,6 +36199,15 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
     }
     if not useful {
         return ""
+    }
+    if not rows_running_noted {
+        note_rows_running()
+    }
+    var pair_index = 0
+    while pair_index < pairs_together.count() {
+        var pair = pairs_together[pair_index]
+        builder.row_together[pair] = true
+        pair_index = pair_index + 1
     }
     var weights = List<String>()
     var cases = List<String>()

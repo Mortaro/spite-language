@@ -44,6 +44,12 @@ loop.
 | S2 | a class whose fields fall into groups read or written by different loops | access sets per field from every loop | one storage per group | one storage |
 | S3 | the same list read field by field in one phase and whole in another | the phases and the conversion cost | each phase reads its own shape; a compiled conversion between them | one shape |
 | S4 | objects of one class made where threads reach them and where they do not | per creation site flow | two classes after compilation, each with its own counts and pool | one class |
+
+S4 is **built per group** for T4b loops (D550, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
+[proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts)): a class only one of the calls that can run
+together counts keeps plain counts and its pool; a class two of them count counts atomically only while they run
+at once, with its pool per thread. Per creation site (R9) is not built.
+| S5 | a procedural loop over uniform records with independent steps | records are uniform; steps share nothing written | a pipeline of passes over columns | the loop as written |
 | S5 | a procedural loop over uniform records with independent steps | records are uniform; steps share nothing written | a pipeline of passes over columns | the loop as written |
 
 ## Already built (the base everything else stands on)
@@ -69,6 +75,7 @@ loop.
 | B1t: an item used at once (passed to a call that cannot change its list, read for an attribute, or asked a list's reading function) is read in its slot with no count (stress 27.3 to 25.9 ms a tick as one C file) | [optimizations](../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-used-at-once-is-not-counted) |
 | A1: an overflow check a range proves unneeded is left out (the compiler's own C 1 513 to 1 263 checks; the benchmark cases' loops still add `Integer` items or attributes, whose checks stay) | [optimizations](../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked), [proofs](../docs/proofs.md#a-range-proves-arithmetic-fits) |
 | B2b's run-time form: `list[index] = name` from a held name is written in place and counted only when the slot held another object (stress 38.0 to 33.3 ms a tick as one C file on a busy machine) | [optimizations](../docs/optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot) |
+| S4 per group (D550): what only one of the calls run at once counts stays plain, with its pool; a meeting point counts atomically only while they run | [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts), [proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
 
 ## Threads

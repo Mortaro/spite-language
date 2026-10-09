@@ -131,6 +131,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Classes in a list that share nothing written](#classes-in-a-list-that-share-nothing-written) | a loop over different classes runs them at once | in order, as written |
 | [Passes that write only their own item](#passes-that-write-only-their-own-item) | a loop over one class runs in bands | in order, as written |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
+| [What one of the calls run at once counts](#what-one-of-the-calls-run-at-once-counts) | plain counts and pools for what one call counts | atomic counts |
 | [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [No other thread touches a singleton](#no-other-thread-touches-a-singleton) | no lock, plain attributes | the form it had |
@@ -1186,6 +1187,22 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   that work classes of its own where the count matters.
 - **See.** [optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class);
   `conformance/stage6/plain_counts`.
+
+### What one of the calls run at once counts
+
+- **Proves.** In a loop over different classes that may run them at once, which classes the call of each class
+  retains, releases, makes or frees, through every function it calls, and which two of those calls can ever run
+  together.
+- **Rule.** [memory.md](../specs/memory.md#the-memory-model): read with [no other thread counts a
+  class](#no-other-thread-counts-a-class), with the loop's piece followed apart from the rest: the piece itself
+  counts only its elements, and each class's call is followed on its own (a singleton's teardown, run at exit, left
+  out). A class is a meeting point when two calls the loop's table lets run together both count it, or both make or
+  free it.
+- **Buys.** A class only one of those calls counts keeps plain counts and its pool; a meeting point counts
+  atomically only while the loop runs at once, and its pool is kept per thread.
+- **Falls back.** A class counted by other code that runs on another thread (a `Parallel`, a callback) is atomic
+  everywhere; a count the compiler cannot place makes every class atomic, as before.
+- **Shows it.** [optimizations.md](optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts).
 
 ### Objects a list holds, made on one thread
 

@@ -1,0 +1,5 @@
+var library = Library()
+
+func sort_all() {
+    library.collections.each_sort()
+}
