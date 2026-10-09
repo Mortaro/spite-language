@@ -825,6 +825,12 @@ static SpiteString spite_symbol_6 = SPITE_STATIC_STRING("spite_row_render_piece"
 #define spite_site_50() "library/thread_pool.spite:196 in ThreadPool.run_marked"
 static SpiteString spite_symbol_7 = { (int64_t)0x0072656765746e49ULL, (int64_t)0x0800000000000000ULL };
 static SpiteString spite_symbol_8 = { (int64_t)0x797469746e656469ULL, (int64_t)0x0700000000000000ULL };
+/* A class two calls run at once both count is counted atomically only while they run */
+static int32_t spite_rows_running = 0;
+#define SPITE_ROWS_ENTER() __atomic_add_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)
+#define SPITE_ROWS_LEAVE() __atomic_sub_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)
+#define SPITE_ROW_COUNT_UP(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_UP(count) : SPITE_PLAIN_COUNT_UP(count))
+#define SPITE_ROW_COUNT_DOWN(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_DOWN(count) : SPITE_PLAIN_COUNT_DOWN(count))
 typedef struct SpiteGuard { _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;
 #define SPITE_GUARDS_HELD() 0
 #define SPITE_GUARDS_COUNT(change) ((void)0)
@@ -1108,7 +1114,6 @@ void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* se
 void List_Naive_Voice___init(List_Naive_Voice* self);
 List_Naive_Voice* List_Naive_Voice___allocate(void);
 List_Naive_Voice* List_Naive_Voice___make(void);
-static inline List_Naive_Voice* List_Naive_Voice___retain(List_Naive_Voice* self);
 static inline void List_Naive_Voice___release(List_Naive_Voice* self);
 void List_Naive_Voice___free(List_Naive_Voice* self);
 void List_Naive_Voice_drop(List_Naive_Voice* self);
@@ -2239,10 +2244,6 @@ List_Naive_Voice* List_Naive_Voice___make(void) {
 List_Naive_Voice* self = List_Naive_Voice___allocate();
 return self;
 }
-static inline List_Naive_Voice* List_Naive_Voice___retain(List_Naive_Voice* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
-return self;
-}
 static inline void List_Naive_Voice___release(List_Naive_Voice* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2371,8 +2372,8 @@ List_Spite_Argument_append(described->_arguments_, Spite_Argument___make(spite_s
 Spite_Function* spite_function_value_List_Naive_Voice_spite_row_render_piece(List_Naive_Voice* owner) {
 Spite_Function* described = Spite_Function___make(spite_symbol_6, spite_class_object_Nothing());
 described->spite_add_arguments = spite_function_value_List_Naive_Voice_spite_row_render_piece___arguments;
-described->spite_owner = List_Naive_Voice___retain(owner);
-described->spite_release_owner = (void (*)(void*))List_Naive_Voice___release;
+described->spite_owner = (void*)owner;
+described->spite_release_owner = 0;
 described->spite_typed_call = (void*)List_Naive_Voice_spite_row_render_piece;
 return described;
 }
@@ -3210,7 +3211,7 @@ void Naive_render_all(Naive* self) {
 { int64_t spite_row_1_marks[64];
 
 if (({ List_Naive_Voice* spite_row_list = self->voices_; static const unsigned char spite_row_table[3][3] = {{0, 1, 1}, {1, 0, 1}, {1, 1, 0}}; static const unsigned char spite_row_heavy[3] = {1, 1, 1}; int32_t spite_row_n = spite_row_list->item_count_; int32_t spite_row_seen[64]; int32_t spite_row_heavies = 0; bool spite_row_ok = spite_row_n >= 2 && spite_row_n <= 3; for (int32_t spite_row_i = 0; spite_row_ok && spite_row_i < spite_row_n; spite_row_i++) { int32_t spite_row_k = -1; switch (((SpiteTagged*)(intptr_t)spite_row_list->items_)[spite_row_i].tag) { case 113: spite_row_k = 0; break; case 114: spite_row_k = 1; break; case 112: spite_row_k = 2; break; default: break; } spite_row_ok = spite_row_k >= 0; for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0; if (spite_row_ok) { spite_row_seen[spite_row_i] = spite_row_k; spite_row_1_marks[spite_row_i] = spite_row_heavy[spite_row_k]; spite_row_heavies += spite_row_heavy[spite_row_k]; } } spite_row_ok && spite_row_heavies >= 2; })) {
-List_Naive_Voice_spite_row_render(self->voices_, ((int64_t)(intptr_t)spite_row_1_marks));
+SPITE_ROWS_ENTER(); List_Naive_Voice_spite_row_render(self->voices_, ((int64_t)(intptr_t)spite_row_1_marks)); SPITE_ROWS_LEAVE();
 } else {
 
 List_Naive_Voice_each_render(self->voices_);
@@ -3830,7 +3831,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Naive_Voice___init, "-\t-", "List_Naive_Voice___init", 0},
 {(const void*)&List_Naive_Voice___allocate, "-\t-", "List_Naive_Voice___allocate", 0},
 {(const void*)&List_Naive_Voice___make, "-\t-", "List_Naive_Voice___make", 0},
-{(const void*)&List_Naive_Voice___retain, "-\t-", "List_Naive_Voice___retain", 0},
 {(const void*)&List_Naive_Voice___release, "-\t-", "List_Naive_Voice___release", 0},
 {(const void*)&List_Naive_Voice___free, "-\t-", "List_Naive_Voice___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
