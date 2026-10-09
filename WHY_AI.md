@@ -119,9 +119,9 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 | Platforms | Windows runs; Linux and macOS compile in the test suite but have never run; web planned |
 | Install | `git clone https://github.com/Mortaro/spite-language.git`, then `bin/spite examples/hello` (needs bash and a C compiler) |
 | Calling C | `DynamicLibrary` calls exported functions as members; `ForeignCallback` lets C call Spite; C++, Rust, Zig and Go libraries through the C ABI they export |
-| Memory | reference counting, no garbage collector, no lifetimes; `Weak<T>` for back references; arenas and allocators per object |
+| Memory | placed by the compiler per use: frame objects, counts left out where proven, per-class pools; no garbage collector, no lifetimes; `Weak<T>` for back references |
 | Errors | compile error, `assert`, `crash`; no exceptions |
-| Concurrency | `Concurrent(f)` and `Parallel(f)` at the call site; no `async`/`await`; built on Windows |
+| Concurrency | found by the compiler: independent calls at once, loops split across cores, waits in frame loops started early; no `async`/`await`; `Concurrent` and `Parallel` exist but a plain program does not need them; built on Windows |
 | Tooling | the compiler formats and lints; REPL, live reload, breakpoints, `--debug-memory`; no language server yet |
 | Dependencies | a git URL pinned to a commit in a `load` line; no package manager, registry or lockfile |
 | Standard library | about a hundred files of Spite: text, collections, files, processes, sockets, HTTP, JSON, binary, time zones, game maths, hashing, compression |
