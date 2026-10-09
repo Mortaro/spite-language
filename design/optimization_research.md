@@ -512,6 +512,19 @@ cause. Which join runs is chosen at run time by a guard on the handle's referenc
 frame is released before or after `start_both` returns, which depends on the clock against the 1 ms and 5 ms
 sleeps. Fix: one bookkeeping path for both joins, and no timing-dependent choice of join. Sent to a cloud agent.
 
+Found (2026-10-08, branch `fix-wait-cycle-race`, D545): the guard was not what produced the wrong cause. Nothing can
+step a frame before `start_both` returns, so the reference counts at the release are the same every run. Replaying
+the generated C with a clock that jumps at a chosen call found the two outcomes that differ: a jump of 45 ms or more
+at the main thread's first timer checks (a wait returning late under load) ends the 50 ms sleep before either
+`Concurrent` runs, the program prints "never printed", and the circle is met at exit, after the `Scheduler` singleton
+(made after `Board`, so destroyed before it) had let go of its loops; the drop that joined then read freed memory
+and halted at `idle_stepping` with nothing to wait for. A tick inside the first frame's `timer_start`/`timer_over`
+pair ends its 1 ms sleep at once, before the second `Concurrent` exists, so no circle forms at all. The fix runs
+every unfinished `Concurrent` to its end when the entry function returns, makes the in-place join record its waiter
+through `joins` (an in-place drop of one that waits for it at a join used to hang), and rewrites the program so its
+`Concurrent`s wait for flags rather than for the clock. The analysis's doubt, `_collect()` straight after `begin`, is
+not a bug: it collects only a frame that finished inside `begin`, and does nothing otherwise.
+
 **R15, overflow checks on sums of list items and attributes.** The range proof keeps intervals for locals only;
 `computed_range` has no case for an attribute or a list item, and the list-values machinery (D523) knows who fills a
 list, not the range of what it holds. Speculate-and-replay needs bounds on each term to make its after-loop test

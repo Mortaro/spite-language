@@ -81,7 +81,7 @@ again, so it always shows the latest measurement of every case.
 | [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not timed | not timed | not timed | | |
 | [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 21 039 | 6 262 | 6 399 | 3.36 | 3.29 |
 | [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 29 834 | 10 669 | 5 731 | 2.80 | 5.21 |
-| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 23 753 | 16 834 | 15 185 | 1.41 | 1.56 |
+| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 35 659 | 27 668 | 22 527 | 1.29 | 1.58 |
 | [records_sorted_by_one_field](records_sorted_by_one_field/) | 591 668 | 693 851 | 89 569 | 0.85 | 6.61 |
 | [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 13 980 | 14 561 | 2 944 | 0.96 | 4.75 |
 | [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed | not timed | | |
