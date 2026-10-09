@@ -573,6 +573,56 @@ for a `List`, only when every element is held by the list alone, so that no obje
 loop runs in order, as written. When no pass qualifies the statement is the plain loop. The same builds and places
 are left out as for calls in a row, and a crash halts the same way. `conformance/stage6/band_passes`.
 
+## A wait in a frame does not hold the frame
+
+A call that waits, made by the work a frame loop runs, is started the way `Concurrent` starts a function, so the
+frame goes on while it waits.
+
+- **A frame loop** is a `while` in a function of a class of the program (not `library/`, not a generic class's
+  template) whose body calls `sleep` on a `Program` (an attribute whose type is `Program`, or `Program()` itself),
+  directly or through calls by name to functions its own class declares (not its constructor), followed to any
+  depth. The calls are found in every statement and condition of the body, nested blocks included, but not inside
+  a `{...}` of a text.
+- **The frame's code** is the body of each frame loop, and every function of the loop's own class that a frame's
+  code calls by name, followed to any depth. A function of the frame's code is that code wherever it is called from.
+- **A started call** is a statement of the frame's code that is a call, and nothing else: `receiver.function()`,
+  with no arguments, its answer unused, where `receiver` is a name other than `this` or `self`, a path of
+  attributes, or a list item read by a name or a whole-number literal (`systems[index]`); where the receiver's
+  type is a class of the program that is not a singleton or a value class, whose `function` (not its constructor)
+  answers nothing, or a `type` that requires `function` answering nothing; and where that function can wait, as
+  `is_resumable` answers ([metaprogramming.md](metaprogramming.md#asking-a-question-while-compiling)): for a `type`,
+  when any of its classes' functions can. It is compiled as `Concurrent(receiver.function)`, which runs the work
+  until its first wait, and the handle is given to the `WaitsInFlight` singleton (`library/waits_in_flight.spite`)
+  instead of being dropped, so the statement does not wait for it. Every other statement, a call whose function
+  never waits included, is compiled as before.
+- **Where it moves on.** A started call is a `Concurrent`, so it moves on wherever one does (above): at every wait
+  on the program's thread, which in a frame loop is the frame's sleep, or only at `Scheduler().run_ready()` and at
+  joins after `resume_only_when_asked()`.
+- **In flight.** `WaitsInFlight` keeps each unfinished handle with the site (one per started statement) that made
+  it. Each time it is handed one, it first lets go of every handle that has finished, then keeps the new one when
+  it has not finished; while more than eight from the same site have not finished, it waits for the oldest of them
+  as dropping a `Concurrent` waits. So no site has more than eight in flight once its statement is done, and
+  nothing is ever dropped unfinished.
+- **Its end.** A started call that is never waited for is finished like any `Concurrent`: when the entry function
+  returns, every `Concurrent` runs to its end before standard output is flushed and before any singleton is
+  destroyed (above), so its work, its writes and its crash, if it crashes, all happen before the program ends.
+  `WaitsInFlight` lets go of the finished handles when it is destroyed.
+- **A failure.** A crash inside a started call halts the program with the report of that crash, naming its own line
+  and the stack of the work that ran it; nothing is kept back for a later frame to report. An `assert` that fails
+  inside it returns from its function, as anywhere.
+- **Where not.** Not in the standard library, not in the copy of a function a `Concurrent` runs (a state machine
+  waits there as before), not for a call whose answer is used (`var text = file.read()` waits where it is written),
+  and not for a call on the loop's own object (`tick()`, `wait_for_next_tick()`), which is the frame's pace.
+- **Answered once every function is compiled.** Whether the function can wait is known once every function it
+  reaches has been compiled, so each function of the frame's code holding a statement of that shape is compiled
+  after the others. If a function compiled later still changes the answer, the build fails at the statement:
+  `whether 'report.load' can wait was answered false here, before every function it reaches was compiled, and it
+  is true once they are, so this frame would wait where it should go on: call it from a function the frame loop's
+  own class declares` (`diagnostics/frame_wait_answer`, when it can be made to happen).
+- **What it costs.** A program in which no statement is started compiles as before. One in which some are uses the
+  scheduler as a program that writes `Concurrent` does, plus `WaitsInFlight`: two lists, scanned each time a call
+  is started. `conformance/stage6/frame_waits`.
+
 ---
 
 Next: [Standard library](standard_library.md).
