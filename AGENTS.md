@@ -179,6 +179,8 @@ docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned
 - `bootstrap/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.
 - `conformance/`, `examples/`, `tests/`, `diagnostics/`: what `bash check.sh` runs: programs with their exact
   expected output and balanced memory, the test package, and programs that must fail with exact errors.
+- `backend/`: what the own backend builds, one program per milestone, each loading what it proves out of
+  `bootstrap/source/backend/` and answering it on the system whose executable it writes.
 - `benchmarks/`: one folder per case, each a program in naive Spite, naive C and expert C with the whole C the
   compiler generates from it and the excerpt that shows the optimisation ([`benchmarks/README.md`](benchmarks/README.md)).
   Every benchmark compares Spite with C (D524); `check.sh` keeps each case's generated C current, and

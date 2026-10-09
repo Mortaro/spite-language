@@ -1,0 +1,287 @@
+# ../../../design/backend_windows_executable_format.md#what-the-writer-is-given
+var imported_names = List<String>()
+
+func WindowsExecutableWriter(starting_names: List<String>) {
+    imported_names = starting_names
+}
+
+func image_base(): Long {
+    return 5368709120
+}
+
+func section_size(): Integer {
+    return 4096
+}
+
+func file_alignment(): Integer {
+    return 512
+}
+
+func code_section_flags(): UnsignedInteger {
+    return 1610612768
+}
+
+func import_section_flags(): UnsignedInteger {
+    return 3221225536
+}
+
+func imports_address(): Integer {
+    return section_size() * 2
+}
+
+func library_name(): String {
+    return "kernel32.dll"
+}
+
+# ../../../design/backend_windows_executable_format.md#addressing-an-import
+func code_address(): Long {
+    return image_base() + section_size()
+}
+
+func address_of_import(name: String): Long {
+    var index = imported_names.index_of(name)
+    crash index
+    var slot = address_table_offset() + index * 8
+    return image_base() + imports_address() + slot
+}
+
+# ../../../design/backend_windows_executable_format.md#the-import-section
+func descriptor_size(): Integer {
+    return 40
+}
+
+func table_size(): Integer {
+    return (imported_names.count() + 1) * 8
+}
+
+func address_table_offset(): Integer {
+    return descriptor_size() + table_size()
+}
+
+func name_table_offset(): Integer {
+    return address_table_offset() + table_size()
+}
+
+func name_entry_size(name: String): Integer {
+    var size = 3 + name.length()
+    return size + size % 2
+}
+
+func name_entry_offset(index: Integer): Integer {
+    var offset = name_table_offset()
+    var walked = 0
+    while walked < index {
+        crash imported_names[walked]
+        offset = offset + name_entry_size(imported_names[walked])
+        walked = walked + 1
+    }
+    return offset
+}
+
+func names_size(): Integer {
+    return imported_names.sum(name_entry_size)
+}
+
+func library_name_offset(): Integer {
+    return name_table_offset() + names_size()
+}
+
+func import_section_size(): Integer {
+    var library_length = library_name().length()
+    return library_name_offset() + library_length + 1
+}
+
+func append_imports(bytes: List<Byte>) {
+    var lookup_table = imports_address() + descriptor_size()
+    var library_address = imports_address() + library_name_offset()
+    var slot_table = imports_address() + address_table_offset()
+    bytes.append_unsigned_integer(lookup_table)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(library_address)
+    bytes.append_unsigned_integer(slot_table)
+    append_zeros(bytes, 20)
+    append_import_tables(bytes)
+    var index = 0
+    while index < imported_names.count() {
+        append_name(bytes, imported_names[index])
+        index = index + 1
+    }
+    var library = library_name()
+    append_text(bytes, library)
+    bytes.append(0)
+}
+
+func append_import_tables(bytes: List<Byte>) {
+    var slots = List<Byte>()
+    var index = 0
+    while index < imported_names.count() {
+        var entry = imports_address() + name_entry_offset(index)
+        slots.append_long(entry)
+        index = index + 1
+    }
+    slots.append_long(0)
+    var slot_count = slots.count()
+    bytes.append_bytes(slots, 0, slot_count)
+    bytes.append_bytes(slots, 0, slot_count)
+}
+
+func append_name(bytes: List<Byte>, name: String) {
+    var padding = name_entry_size(name) - name.length() - 3
+    bytes.append_unsigned_short(0)
+    append_text(bytes, name)
+    bytes.append(0)
+    append_zeros(bytes, padding)
+}
+
+func append_text(bytes: List<Byte>, text: String) {
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        bytes.append(code)
+        index = index + 1
+    }
+}
+
+func append_zeros(bytes: List<Byte>, count: Integer) {
+    var written = 0
+    while written < count {
+        bytes.append(0)
+        written = written + 1
+    }
+}
+
+# ../../../design/backend_windows_executable_format.md#the-dos-header
+func append_dos_header(bytes: List<Byte>) {
+    bytes.append_unsigned_short(23117)
+    append_zeros(bytes, 58)
+    bytes.append_unsigned_integer(64)
+}
+
+# ../../../design/backend_windows_executable_format.md#the-file-header
+func append_file_header(bytes: List<Byte>) {
+    bytes.append_unsigned_integer(17744)
+    bytes.append_unsigned_short(34404)
+    bytes.append_unsigned_short(2)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_short(240)
+    bytes.append_unsigned_short(34)
+}
+
+# ../../../design/backend_windows_executable_format.md#the-optional-header
+func append_optional_header(bytes: List<Byte>, code_size: Integer, imports_size: Integer) {
+    var code_raw = raw_size(code_size)
+    var imports_raw = raw_size(imports_size)
+    var code_start = section_size()
+    var image_size = section_size() * 3
+    var base = image_base()
+    var alignment = file_alignment()
+    var import_table = imports_address()
+    var descriptors = descriptor_size()
+    bytes.append_unsigned_short(523)
+    bytes.append(0)
+    bytes.append(0)
+    bytes.append_unsigned_integer(code_raw)
+    bytes.append_unsigned_integer(imports_raw)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(code_start)
+    bytes.append_unsigned_integer(code_start)
+    bytes.append_unsigned_long(base)
+    bytes.append_unsigned_integer(code_start)
+    bytes.append_unsigned_integer(alignment)
+    bytes.append_unsigned_short(6)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_short(6)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(image_size)
+    bytes.append_unsigned_integer(alignment)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_short(3)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_long(1048576)
+    bytes.append_unsigned_long(code_start)
+    bytes.append_unsigned_long(1048576)
+    bytes.append_unsigned_long(code_start)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(16)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(import_table)
+    bytes.append_unsigned_integer(descriptors)
+    append_zeros(bytes, 112)
+}
+
+# ../../../design/backend_windows_executable_format.md#the-section-headers
+func append_section_headers(bytes: List<Byte>, code_size: Integer, imports_size: Integer) {
+    var code_raw = raw_size(code_size)
+    var imports_raw = raw_size(imports_size)
+    var text_address = section_size()
+    var code_place = file_alignment()
+    var imports_place = file_alignment() + code_raw
+    var imports_start = imports_address()
+    var code_flags = code_section_flags()
+    var imports_flags = import_section_flags()
+    append_section_header(bytes, ".text", code_size, text_address, code_raw, code_place, code_flags)
+    append_section_header(bytes, ".rdata", imports_size, imports_start, imports_raw, imports_place, imports_flags)
+}
+
+func append_section_header(
+    bytes: List<Byte>,
+    name: String,
+    virtual_size: Integer,
+    address: Integer,
+    raw: Integer,
+    place: Integer,
+    flags: UnsignedInteger,
+) {
+    crash name.length() <= 8
+    var name_room = 8 - name.length()
+    append_text(bytes, name)
+    append_zeros(bytes, name_room)
+    bytes.append_unsigned_integer(virtual_size)
+    bytes.append_unsigned_integer(address)
+    bytes.append_unsigned_integer(raw)
+    bytes.append_unsigned_integer(place)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_integer(0)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_short(0)
+    bytes.append_unsigned_integer(flags)
+}
+
+func raw_size(size: Integer): Integer {
+    var remainder = size % file_alignment()
+    if remainder > 0 {
+        return size + file_alignment() - remainder
+    }
+    return size
+}
+
+# ../../../design/backend_windows_executable_format.md#what-the-writer-is-given
+func write(path: String, code: List<Byte>) {
+    var code_size = code.count()
+    crash not code.is_empty()
+    crash code_size <= section_size()
+    var imports_size = import_section_size()
+    crash imports_size <= section_size()
+    var bytes = List<Byte>()
+    append_dos_header(bytes)
+    append_file_header(bytes)
+    append_optional_header(bytes, code_size, imports_size)
+    append_section_headers(bytes, code_size, imports_size)
+    var header_room = file_alignment() - bytes.count()
+    append_zeros(bytes, header_room)
+    bytes.append_bytes(code, 0, code_size)
+    var code_room = raw_size(code_size) - code_size
+    append_zeros(bytes, code_room)
+    append_imports(bytes)
+    var imports_room = raw_size(imports_size) - imports_size
+    append_zeros(bytes, imports_room)
+    var file = File(path)
+    crash file.write_bytes(bytes)
+}

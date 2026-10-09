@@ -216,6 +216,15 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   timing record or scratch list may run at once; an item of one singleton's list and an item of another's are told
   apart by comparing the two lists when the loop starts. Why: it is what keeps the naive engine's two stress
   systems apart, with no annotation.
+- **D567, the backend's Windows executable writer takes the imports and the code, and answers where an import lands
+  before the code exists**: one section for the code at 4096 and one for the imports at 8192, image base 5368709120,
+  no relocations and no dynamic base, the imports reached by a `lea` whose offset the caller takes from
+  `address_of_import` and `code_address`, and nothing laid out for a person to read (D561). The alternative was to
+  place the imports after the code and patch the call itself, which needs a relocation table before there is a
+  linker to hold one. Why: an import's place must not move when the code grows, or every call written before it
+  would point somewhere else. The layout is in [backend_windows_executable_format.md](design/backend_windows_executable_format.md),
+  and the writer's acceptance, an executable that calls `ExitProcess(42)` and exits with 42, runs in `check.sh` on
+  Windows alone.
 
 ## Open
 

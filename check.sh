@@ -1683,17 +1683,39 @@ echo "breakpoints: a breakpoint compiled into a running loop stopped it with its
 job_formatting() {
 formatting_tool="$work/formatting_tool"
 mkdir -p "$formatting_tool/scripts" "$formatting_tool/bootstrap"
-cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r bootstrap/source "$formatting_tool/bootstrap/" || {
+cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" \
+  && cp -r design "$formatting_tool/design" && cp -r bootstrap/source "$formatting_tool/bootstrap/" || {
   echo "FAILED: could not copy scripts/formatting"; exit 1; }
 "$work/generation_two.exe" "$formatting_tool/scripts/formatting" --build --executable-path="$work/formatting.exe" > /dev/null || {
   echo "FAILED: scripts/formatting does not build"; exit 1; }
-formatted_folders=(bootstrap launcher library tests conformance examples scripts benchmarks)
+formatted_folders=(backend bootstrap launcher library tests conformance examples scripts benchmarks)
 for folder in .spite/docs/*/; do
   [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
 done
 unformatted=$("$work/formatting.exe" "${formatted_folders[@]}" 2>&1 | tr -d '\r')
 if [ -n "$unformatted" ]; then echo "FAILED: not formatted (compile the program, or for library/, the program that loads it):"; echo "$unformatted"; exit 1; fi
 echo "formatting: every file is in the one style"
+}
+
+# The backend's own first executable (D558, M0): hand_built_executable loads the Windows executable writer out of
+# the compiler's sources, writes an executable whose code calls ExitProcess(42), runs it and answers the status it gave. The
+# executable is a Windows one, so it runs on Windows alone, and it is written in the folder it runs in, so the work
+# folder keeps the repository clean.
+job_backend() {
+if [ "$system" != "windows" ]; then
+  echo "own backend: SKIPPED, the executable milestone M0 writes is a Windows one"
+  return 0
+fi
+  local output balance
+  mkdir -p "$work/backend"
+  output=$(cd "$work/backend" && "$repository/$work/generation_two.exe" "$repository/backend/hand_built_executable" \
+    --debug-memory --executable-path="$work/backend/hand_built_executable.exe" < /dev/null 2>&1 | tr -d '\r')
+  balance=$(echo "$output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
+  if [ "$(echo "$output" | grep -v '^allocations: ')" != "the executable we wrote exited with 42" ] \
+     || [ "${balance% *}" != "${balance#* }" ]; then
+    echo "FAILED: the executable the backend wrote did not exit with 42"; echo "$output" | head -8; exit 1
+  fi
+  echo "own backend: an executable Spite wrote itself calls ExitProcess(42) and exits with 42"
 }
 
 # These checks need only generation 2 and the corpus's executables, and they are a second pool, run once the first
@@ -1704,6 +1726,7 @@ export port
 {
   echo places
   echo git_load
+  echo backend
   echo threads
   echo production_c
   echo wire

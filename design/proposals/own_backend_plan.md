@@ -67,15 +67,15 @@ Each is a separate pull of work. Do them in order; stop and report at the end of
 
 ### M0: a hand-built executable (Windows)
 
-Write `bootstrap/source/backend/pe_writer.spite`: given machine code bytes for `main` and a list of imported
-functions from `kernel32.dll`, write a valid PE executable. Acceptance: a test program builds an executable whose
-code calls `ExitProcess(42)`; running it exits with status 42. Add it to `check.sh` as a step that runs only on
-Windows.
+Write `bootstrap/source/backend/windows_executable_writer.spite`: given machine code bytes for `main` and a list of
+imported functions from `kernel32.dll`, write a valid Windows executable. Acceptance: a test program builds an
+executable whose code calls `ExitProcess(42)`; running it exits with status 42. Add it to `check.sh` as a step that
+runs only on Windows.
 
 ### M1: the same on Linux
 
-`elf_writer.spite`: a static ELF executable that makes the `exit` system call with 42. Acceptance as M0, run only on
-Linux.
+`linux_executable_writer.spite`: a static executable that makes the `exit` system call with 42. Acceptance as M0, run
+only on Linux.
 
 ### M2: x86-64 encoder
 
@@ -87,7 +87,15 @@ encodes each instruction and compares the bytes with a table checked by hand (ta
 
 `high_ir.spite`, `low_ir.spite` and `lower.spite`. The high-level IR is built from the compiler's typed tree and the
 facts the proof passes record; keep Spite's operations as operations (a list walk is one instruction with a body,
-not a hand-made loop). Lower it to the low-level IR for the smallest useful subset: whole-number and decimal locals,
+not a hand-made loop). The high level serves the compiler's own optimisations, not only code generation (Mortaro,
+2026-10-09): control flow stays explicit, a loop is one operation rather than a loop of instructions (a counted
+`while` included) so that a loop's body can be cut into band pieces, and each value carries what it reads and
+what it writes, per field and per owning object. Those facts live on the IR, so the analyses that read the
+generated C today (`overlap_facts.spite`, the plain counts of `count_sharing.spite`, the class pools of
+`class_pools.spite`, the lost-write proof of D554) move onto it instead of being written a second time. The first
+two users are what a function surely wrote when it answered `true`, and whether the passes of a loop write
+different slots (D559, its four steps in [handoff.md](../handoff.md)). M0 to M2 are built first. Lower it
+to the low-level IR for the smallest useful subset: whole-number and decimal locals,
 arithmetic with Spite's overflow checks (a checked operation jumps to a crash path that reports like the C path),
 `if`, `while`, calls to the program's own functions, returns. Then emit **C from the IR** for that subset and keep the
 current generator for everything else, function by function. Acceptance: a conformance program with a recursive

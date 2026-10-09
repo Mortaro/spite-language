@@ -1,0 +1,60 @@
+# ../../design/backend_windows_executable_format.md#the-entry-code
+var console = Console()
+var program = Program()
+
+func HandBuiltExecutable() {
+    load "../../bootstrap/source/backend"
+    var imported = List<String>()
+    imported.append("ExitProcess")
+    var image = WindowsExecutableWriter(imported)
+    var slot = image.address_of_import("ExitProcess")
+    var start = image.code_address()
+    var call_starts_at = 16
+    var code = exit_code_bytes(42, slot - start - call_starts_at)
+    var path = "hand_built_executable.exe"
+    image.write(path, code)
+    var no_arguments = List<String>()
+    var finished = Process(path, no_arguments)
+    var status = finished.run()
+    console.print("the executable we wrote exited with", status)
+    crash status == 42
+}
+
+func exit_code_bytes(status: Integer, offset: Long): List<Byte> {
+    var bytes = List<Byte>()
+    move_status_into_first_argument(bytes, status)
+    align_the_stack_for_the_call(bytes)
+    reach_the_import_slot(bytes, offset)
+    call_through_the_slot(bytes)
+    stop_if_the_call_returns(bytes)
+    return bytes
+}
+
+func move_status_into_first_argument(bytes: List<Byte>, status: Integer) {
+    bytes.append(185)
+    bytes.append_unsigned_integer(status)
+}
+
+func align_the_stack_for_the_call(bytes: List<Byte>) {
+    bytes.append(72)
+    bytes.append(131)
+    bytes.append(236)
+    bytes.append(8)
+}
+
+func reach_the_import_slot(bytes: List<Byte>, offset: Long) {
+    bytes.append(72)
+    bytes.append(141)
+    bytes.append(5)
+    bytes.append_integer(offset)
+}
+
+func call_through_the_slot(bytes: List<Byte>) {
+    bytes.append(255)
+    bytes.append(16)
+}
+
+func stop_if_the_call_returns(bytes: List<Byte>) {
+    bytes.append(15)
+    bytes.append(11)
+}
