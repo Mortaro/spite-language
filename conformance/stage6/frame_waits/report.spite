@@ -1,0 +1,10 @@
+var program = Program()
+var text = ""
+
+func fetch() {
+    program.sleep(100)
+    var file = File(".spite/frame_waits_report.txt")
+    var read = file.read()
+    crash read
+    text = read
+}

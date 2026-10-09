@@ -1,0 +1,10 @@
+var program = Program()
+var started = false
+var fetched = false
+
+func update() {
+    assert not started
+    started = true
+    program.sleep(60)
+    fetched = true
+}
