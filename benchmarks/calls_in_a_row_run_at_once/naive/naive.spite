@@ -3,9 +3,9 @@ var evens = Evens()
 var odds = Odds()
 
 func Naive() {
-    var result = Benchmark(count_both)
+    var benchmark = Benchmark(count_both)
     console.print(evens.total, odds.total)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

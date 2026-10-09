@@ -1,9 +1,9 @@
 var console = Console()
 
 func Naive() {
-    var result = Benchmark(turn_all)
-    console.print("across", result.answer)
-    var microseconds = result.duration.total('microseconds')
+    var benchmark = Benchmark(turn_all)
+    console.print("across", benchmark.answer)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -655,9 +655,9 @@ a class never declares `json_key_<attribute>()`, which is an error. A union, a `
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](https://github.com/Mortaro/spite-language/blob/master/docs/json.md)). `Json` no longer exists: it is the two classes above.
 Measure with `clock.elapsed_nanoseconds()`, the monotonic clock: a `Long`, no allocation, subtract two readings.
-To time one function, `var result = Benchmark(work)` calls `work` (no arguments, passed by name) once between two
-readings: `result.answer` is what it answered (a `Benchmark<Nothing>` for one that answers nothing) and
-`result.duration` a `Duration` (`result.duration.total('microseconds')`). There is no `clock.benchmark(...)`.
+To time one function, `var benchmark = Benchmark(work)` calls `work` (no arguments, passed by name) once between two
+readings: `benchmark.answer` is what it answered (a `Benchmark<Nothing>` for one that answers nothing) and
+`benchmark.duration` a `Duration` (`benchmark.duration.total('microseconds')`). There is no `clock.benchmark(...)`.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is

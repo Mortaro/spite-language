@@ -3,9 +3,9 @@ var built_length = 0
 var joined_length = 0
 
 func Naive() {
-    var result = Benchmark(build_texts)
+    var benchmark = Benchmark(build_texts)
     console.print("built", built_length, "joined", joined_length)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -2565,15 +2565,15 @@ Spite_Class___release(starting_returns_);
 SpiteString___release(starting_name_);
 }
 void Naive_Naive(Naive* self) {
-Benchmark__Nothing* result_ = Benchmark__Nothing___make(spite_function_value_Naive_fill_and_visit(self));
+Benchmark__Nothing* benchmark_ = Benchmark__Nothing___make(spite_function_value_Naive_fill_and_visit(self));
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[4]; int32_t spite_framed_1_count = 0;
 Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_9_box)); spite_framed_1_items[1] = spite_tagged_SpiteInteger(self->hits_); spite_framed_1_items[2] = spite_tagged_object(0, ((void*)&spite_lit_10_box)); spite_framed_1_items[3] = spite_tagged_SpiteInteger(self->last_); spite_framed_1_count = 4; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 4); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
-int64_t microseconds_ = Duration_total((result_)->duration_, Duration_Unit_microseconds);
+int64_t microseconds_ = Duration_total((benchmark_)->duration_, Duration_Unit_microseconds);
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
 Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_106_digits[24]; SpiteString spite_temp_106 = SPITE_STATIC_STRING(spite_temp_106_digits, spite_long_digits(spite_temp_106_digits, (int64_t)(microseconds_))); SpiteString spite_temp_107[] = {spite_lit_11, spite_temp_106}; SpiteString spite_temp_108 = spite_string_join(2, spite_temp_107); spite_temp_108; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
-Benchmark__Nothing___release(result_);
+Benchmark__Nothing___release(benchmark_);
 }
 void Naive_fill_and_visit(Naive* self) {
 int32_t index_ = 0;

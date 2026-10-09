@@ -110,9 +110,9 @@ around it: the setup before the line and the printing after it are not timed.
 var console = Console()
 
 func TimeBenchmark() {
-    var result = Benchmark(sum_to_a_million)
-    console.print("sum", result.answer)
-    var took = result.duration
+    var benchmark = Benchmark(sum_to_a_million)
+    console.print("sum", benchmark.answer)
+    var took = benchmark.duration
     console.print("measured:", not took.is_negative)
 }
 
@@ -135,7 +135,7 @@ What the work answered is kept, so the work is never left out as unused. Work th
 `Benchmark<Nothing>`, and what it computes is whatever it stores, read once the line has run. `Benchmark` is
 library code like the rest: a program that never names it carries none of it, and the work is called once, through
 its function value, between the two readings. To print the time, ask the `Duration` for the unit you want:
-`result.duration.total('microseconds')` ([spec](../specs/time.md#time-one-stored-instant-zones-for-presentation)).
+`benchmark.duration.total('microseconds')` ([spec](../specs/time.md#time-one-stored-instant-zones-for-presentation)).
 In a program that also starts a `Parallel`, the work is treated as code another thread may run, so the objects it
 counts are counted atomically and the singletons it calls keep their locks; to measure exactly what those cost,
 read the clock twice around the code instead.

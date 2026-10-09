@@ -5,10 +5,10 @@ type Measured {
 var console = Console()
 
 func Naive() {
-    var result = Benchmark(every_measure)
-    var whole: Long = result.answer
+    var benchmark = Benchmark(every_measure)
+    var whole: Long = benchmark.answer
     console.print("total", whole)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -3,9 +3,9 @@ var total: Long = 0
 var numbers = 0
 
 func Naive() {
-    var result = Benchmark(fill_and_simulate)
+    var benchmark = Benchmark(fill_and_simulate)
     console.print("total", total, "labels", numbers)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

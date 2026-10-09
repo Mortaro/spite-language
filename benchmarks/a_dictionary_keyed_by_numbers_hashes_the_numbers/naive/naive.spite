@@ -2,10 +2,10 @@ var console = Console()
 var by_number = Dictionary<Integer, Integer>()
 
 func Naive() {
-    var result = Benchmark(make_and_look_up)
+    var benchmark = Benchmark(make_and_look_up)
     var entries = by_number.count()
-    console.print("total", result.answer, "entries", entries)
-    var microseconds = result.duration.total('microseconds')
+    console.print("total", benchmark.answer, "entries", entries)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

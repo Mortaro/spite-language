@@ -3,9 +3,9 @@ var height_checksum: Long = 0
 var spread_checksum: Long = 0
 
 func Naive() {
-    var result = Benchmark(simulate)
+    var benchmark = Benchmark(simulate)
     console.print("height", height_checksum, "spread", spread_checksum)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

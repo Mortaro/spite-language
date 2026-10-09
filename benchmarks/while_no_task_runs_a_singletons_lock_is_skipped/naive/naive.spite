@@ -6,9 +6,9 @@ var total: Long = 0
 var calls = 0
 
 func Naive() {
-    var result = Benchmark(add_all)
+    var benchmark = Benchmark(add_all)
     console.print("first", first, "reached", reached, "calls", calls, "total", total)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

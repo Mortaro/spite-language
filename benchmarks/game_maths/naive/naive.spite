@@ -4,14 +4,14 @@ var combined = 0.0
 var transformed = 0.0
 
 func Naive() {
-    var result = Benchmark(all_passes)
+    var benchmark = Benchmark(all_passes)
     var ended_x: Long = ended_at.x * 1000.0
     var ended_y: Long = ended_at.y * 1000.0
     var ended_z: Long = ended_at.z * 1000.0
     var diagonal: Long = combined * 1000000.0
     var total: Long = transformed
     console.print("ended at", ended_x, ended_y, ended_z, "diagonal", diagonal, "total", total)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

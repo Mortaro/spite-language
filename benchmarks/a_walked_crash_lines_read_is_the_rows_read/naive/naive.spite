@@ -6,9 +6,9 @@ var velocities = Column<Velocity>()
 var entity_count = 100000
 
 func Naive() {
-    var result = Benchmark(spawn_and_move)
-    console.print("places", result.answer, "marked", mover.marked)
-    var microseconds = result.duration.total('microseconds')
+    var benchmark = Benchmark(spawn_and_move)
+    console.print("places", benchmark.answer, "marked", mover.marked)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

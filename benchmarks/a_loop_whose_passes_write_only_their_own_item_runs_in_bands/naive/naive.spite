@@ -3,10 +3,10 @@ var orbits = List<Orbit>()
 
 func Naive() {
     make_orbits(100000)
-    var result = Benchmark(advance_ticks)
+    var benchmark = Benchmark(advance_ticks)
     var turns = orbits.sum_turns()
     console.print("turns", turns)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

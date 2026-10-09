@@ -3,9 +3,9 @@ var total: Long = 0
 var large = 0
 
 func Naive() {
-    var result = Benchmark(count_all)
+    var benchmark = Benchmark(count_all)
     console.print("total", total, "large", large)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

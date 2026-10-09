@@ -6,7 +6,7 @@ var fingerprints: Long = 0
 var first_customer = 0
 
 func Naive() {
-    var result = Benchmark(report)
+    var benchmark = Benchmark(report)
     console.print(
         "units",
         units,
@@ -17,7 +17,7 @@ func Naive() {
         "first",
         first_customer,
     )
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

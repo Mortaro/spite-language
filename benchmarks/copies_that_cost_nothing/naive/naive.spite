@@ -2,9 +2,9 @@ var console = Console()
 var origin = Point(0, 0)
 
 func Naive() {
-    var result = Benchmark(every_trial)
-    console.print("total", result.answer, "origin", origin.x, origin.y)
-    var microseconds = result.duration.total('microseconds')
+    var benchmark = Benchmark(every_trial)
+    console.print("total", benchmark.answer, "origin", origin.x, origin.y)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

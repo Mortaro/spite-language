@@ -4,9 +4,9 @@ var found_keys = 0
 var found_total: Long = 0
 
 func Naive() {
-    var result = Benchmark(fill_and_look_up)
+    var benchmark = Benchmark(fill_and_look_up)
     console.print("entries", entries, "found", found_keys, "total", found_total)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -3,9 +3,9 @@ var checksum: Long = 0
 var ended: Long = 0
 
 func Naive() {
-    var result = Benchmark(steps)
+    var benchmark = Benchmark(steps)
     console.print("checksum", checksum, "ended at", ended)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

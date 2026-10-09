@@ -4,12 +4,12 @@ var ended_y = 0.0
 var ended_z = 0.0
 
 func Naive() {
-    var result = Benchmark(simulate_all)
+    var benchmark = Benchmark(simulate_all)
     var across: Long = ended_x * 1000.0
     var up: Long = ended_y * 1000.0
     var ahead: Long = ended_z * 1000.0
     console.print("ended at", across, up, ahead)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

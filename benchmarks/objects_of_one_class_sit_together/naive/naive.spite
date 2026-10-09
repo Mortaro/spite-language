@@ -5,9 +5,9 @@ var total: Long = 0
 var noted = 0
 
 func Naive() {
-    var result = Benchmark(make_and_sum)
+    var benchmark = Benchmark(make_and_sum)
     console.print("total", total, "notes", noted)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

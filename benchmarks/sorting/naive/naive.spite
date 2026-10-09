@@ -3,9 +3,9 @@ var sorted_in_order = false
 var weighted_sum: Long = 0
 
 func Naive() {
-    var result = Benchmark(sort_and_check)
+    var benchmark = Benchmark(sort_and_check)
     console.print("ordered", sorted_in_order, "checksum", weighted_sum)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

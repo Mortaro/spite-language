@@ -3,9 +3,9 @@ var characters_read = 0
 var removed = false
 
 func Naive() {
-    var result = Benchmark(write_read_and_remove)
+    var benchmark = Benchmark(write_read_and_remove)
     console.print("characters", characters_read, "removed", removed)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

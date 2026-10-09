@@ -4,9 +4,9 @@ var found = 0
 var keys = 0
 
 func Naive() {
-    var result = Benchmark(fill_and_probe)
+    var benchmark = Benchmark(fill_and_probe)
     console.print("found", found, "keys", keys)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

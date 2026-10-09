@@ -3,9 +3,9 @@ var meter: Meter = null
 
 func Naive() {
     meter = Meter()
-    var result = Benchmark(measure_every_reading)
-    console.print("total", result.answer)
-    var microseconds = result.duration.total('microseconds')
+    var benchmark = Benchmark(measure_every_reading)
+    console.print("total", benchmark.answer)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

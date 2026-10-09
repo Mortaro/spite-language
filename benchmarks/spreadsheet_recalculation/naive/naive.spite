@@ -5,9 +5,9 @@ var last_value: Long = 0
 var placements: Long = 0
 
 func Naive() {
-    var result = Benchmark(recalculate_all)
+    var benchmark = Benchmark(recalculate_all)
     console.print("total", recalculated_total, "last", last_value, "placements", placements)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

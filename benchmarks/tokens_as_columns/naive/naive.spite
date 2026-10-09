@@ -9,7 +9,7 @@ var number_total: Long = 0
 var checksums: Long = 0
 
 func Naive() {
-    var result = Benchmark(tokenize_and_count)
+    var benchmark = Benchmark(tokenize_and_count)
     console.print(
         "identifiers",
         identifiers,
@@ -22,7 +22,7 @@ func Naive() {
         "checksums",
         checksums,
     )
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

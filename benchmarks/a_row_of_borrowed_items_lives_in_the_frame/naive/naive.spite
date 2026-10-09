@@ -9,9 +9,9 @@ var places: Long = 0
 var amounts = 0
 
 func Naive() {
-    var result = Benchmark(spawn_and_tick)
+    var benchmark = Benchmark(spawn_and_tick)
     console.print("places", places, "health", amounts)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

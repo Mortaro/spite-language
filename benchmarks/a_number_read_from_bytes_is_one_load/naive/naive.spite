@@ -3,9 +3,9 @@ var records = List<Byte>()
 
 func Naive() {
     fill(100000)
-    var result = Benchmark(all_rounds)
-    console.print("total", result.answer)
-    var microseconds = result.duration.total('microseconds')
+    var benchmark = Benchmark(all_rounds)
+    console.print("total", benchmark.answer)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

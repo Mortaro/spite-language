@@ -3967,17 +3967,17 @@ SpiteString___release(starting_name_);
 }
 void Naive_Naive(Naive* self) {
 Naive_make_files(self);
-Benchmark__Long* result_ = Benchmark__Long___make(spite_function_value_Naive_all_reads(self));
+Benchmark__Long* benchmark_ = Benchmark__Long___make(spite_function_value_Naive_all_reads(self));
 bool first_removed_ = File_remove(self->first_file_);
 bool second_removed_ = File_remove(self->second_file_);
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[5]; int32_t spite_framed_1_count = 0;
-Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_16_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong((result_)->answer_); spite_framed_1_items[2] = spite_tagged_object(0, ((void*)&spite_lit_17_box)); spite_framed_1_items[3] = spite_tagged_SpiteBoolean(first_removed_); spite_framed_1_items[4] = spite_tagged_SpiteBoolean(second_removed_); spite_framed_1_count = 5; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 5); }));
+Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_16_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong((benchmark_)->answer_); spite_framed_1_items[2] = spite_tagged_object(0, ((void*)&spite_lit_17_box)); spite_framed_1_items[3] = spite_tagged_SpiteBoolean(first_removed_); spite_framed_1_items[4] = spite_tagged_SpiteBoolean(second_removed_); spite_framed_1_count = 5; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 5); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
-int64_t microseconds_ = Duration_total((result_)->duration_, Duration_Unit_microseconds);
+int64_t microseconds_ = Duration_total((benchmark_)->duration_, Duration_Unit_microseconds);
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
 Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_270_digits[24]; SpiteString spite_temp_270 = SPITE_STATIC_STRING(spite_temp_270_digits, spite_long_digits(spite_temp_270_digits, (int64_t)(microseconds_))); SpiteString spite_temp_271[] = {spite_lit_18, spite_temp_270}; SpiteString spite_temp_272 = spite_string_join(2, spite_temp_271); spite_temp_272; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
-Benchmark__Long___release(result_);
+Benchmark__Long___release(benchmark_);
 }
 void Naive_make_files(Naive* self) {
 SpiteString first_text_ = Naive_make_text(self, spite_lit_19, 4000);

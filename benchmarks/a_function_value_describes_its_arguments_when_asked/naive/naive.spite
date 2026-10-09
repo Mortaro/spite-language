@@ -2,13 +2,13 @@ var console = Console()
 var scorer: Scorer? = null
 
 func Naive() {
-    var result = Benchmark(make_and_apply)
-    var applied = result.answer
+    var benchmark = Benchmark(make_and_apply)
+    var applied = benchmark.answer
     crash scorer
     var scoring = scorer.score
     var argument_count = scoring.arguments.count()
     console.print("applied", applied, "arguments", argument_count)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -5,9 +5,9 @@ var hits = 0
 var last = 0
 
 func Naive() {
-    var result = Benchmark(fill_and_visit)
+    var benchmark = Benchmark(fill_and_visit)
     console.print("hits", hits, "last weight", last)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -2514,7 +2514,7 @@ Spite_Class___release(starting_returns_);
 SpiteString___release(starting_name_);
 }
 void Naive_Naive(Naive* self) {
-Benchmark__Nothing* result_ = Benchmark__Nothing___make(spite_function_value_Naive_all_passes(self));
+Benchmark__Nothing* benchmark_ = Benchmark__Nothing___make(spite_function_value_Naive_all_passes(self));
 int64_t ended_x_ = ({ float spite_temp_85 = ((self->ended_at_)->x_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_85 >= -9223372036854775808.0 && (double)spite_temp_85 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_85, "a Float", "a Long", spite_site_10()); (int64_t)spite_temp_85; });
 int64_t ended_y_ = ({ float spite_temp_86 = ((self->ended_at_)->y_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_86 >= -9223372036854775808.0 && (double)spite_temp_86 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_86, "a Float", "a Long", spite_site_11()); (int64_t)spite_temp_86; });
 int64_t ended_z_ = ({ float spite_temp_87 = ((self->ended_at_)->z_ * 1000.0f); if (__builtin_expect(!((double)spite_temp_87 >= -9223372036854775808.0 && (double)spite_temp_87 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_87, "a Float", "a Long", spite_site_12()); (int64_t)spite_temp_87; });
@@ -2523,11 +2523,11 @@ int64_t total_ = ({ float spite_temp_89 = self->transformed_; if (__builtin_expe
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[8]; int32_t spite_framed_1_count = 0;
 Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_9_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong(ended_x_); spite_framed_1_items[2] = spite_tagged_SpiteLong(ended_y_); spite_framed_1_items[3] = spite_tagged_SpiteLong(ended_z_); spite_framed_1_items[4] = spite_tagged_object(0, ((void*)&spite_lit_10_box)); spite_framed_1_items[5] = spite_tagged_SpiteLong(diagonal_); spite_framed_1_items[6] = spite_tagged_object(0, ((void*)&spite_lit_11_box)); spite_framed_1_items[7] = spite_tagged_SpiteLong(total_); spite_framed_1_count = 8; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 8); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
-int64_t microseconds_ = Duration_total((result_)->duration_, Duration_Unit_microseconds);
+int64_t microseconds_ = Duration_total((benchmark_)->duration_, Duration_Unit_microseconds);
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
 Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_90_digits[24]; SpiteString spite_temp_90 = SPITE_STATIC_STRING(spite_temp_90_digits, spite_long_digits(spite_temp_90_digits, (int64_t)(microseconds_))); SpiteString spite_temp_91[] = {spite_lit_12, spite_temp_90}; SpiteString spite_temp_92 = spite_string_join(2, spite_temp_91); spite_temp_92; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
-Benchmark__Nothing___release(result_);
+Benchmark__Nothing___release(benchmark_);
 }
 void Naive_all_passes(Naive* self) {
 Vector3__Float* spite_temp_93 = Naive_vector_pass(self);

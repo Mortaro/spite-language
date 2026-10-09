@@ -4,9 +4,9 @@ var logged = 0
 var count = 0
 
 func Naive() {
-    var result = Benchmark(log_and_count)
+    var benchmark = Benchmark(log_and_count)
     console.print("logged", logged, "entries", count)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

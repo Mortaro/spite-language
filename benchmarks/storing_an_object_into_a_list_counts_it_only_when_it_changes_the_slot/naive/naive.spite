@@ -4,9 +4,9 @@ var changed = 0
 var total = 0
 
 func Naive() {
-    var result = Benchmark(restock_and_total)
+    var benchmark = Benchmark(restock_and_total)
     console.print("changed", changed, "total", total)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

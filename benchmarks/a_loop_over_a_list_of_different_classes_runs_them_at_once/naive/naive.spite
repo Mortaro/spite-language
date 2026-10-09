@@ -10,9 +10,9 @@ var voices = List<Voice>()
 
 func Naive() {
     add_voices()
-    var result = Benchmark(render_all)
+    var benchmark = Benchmark(render_all)
     console.print(sine.level, square.level, saw.level)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

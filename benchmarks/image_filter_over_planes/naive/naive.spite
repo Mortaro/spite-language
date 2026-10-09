@@ -5,9 +5,9 @@ var bright = 0
 var weights: Long = 0
 
 func Naive() {
-    var result = Benchmark(filter_image)
+    var benchmark = Benchmark(filter_image)
     console.print("spread", spread, "bright", bright, "weights", weights)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

@@ -3,12 +3,12 @@ var writer = BinaryWriter<Reading>()
 var reader = BinaryReader<Reading>()
 
 func Naive() {
-    var result = Benchmark(accepted_headers)
+    var benchmark = Benchmark(accepted_headers)
     var sensor = sent_and_read_back(7)
-    console.print("accepted", result.answer, "sensor", sensor)
+    console.print("accepted", benchmark.answer, "sensor", sensor)
     var schema = writer.schema()
     console.print("schema", schema)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

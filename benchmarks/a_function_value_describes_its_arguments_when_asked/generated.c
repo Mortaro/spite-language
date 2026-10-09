@@ -2455,8 +2455,8 @@ List_Spite_Argument* spite_temp_107 = List_Spite_Argument___retain(self->_argume
 return spite_temp_107;
 }
 void Naive_Naive(Naive* self) {
-Benchmark__Long* result_ = Benchmark__Long___make(spite_function_value_Naive_make_and_apply(self));
-int64_t applied_ = (result_)->answer_;
+Benchmark__Long* benchmark_ = Benchmark__Long___make(spite_function_value_Naive_make_and_apply(self));
+int64_t applied_ = (benchmark_)->answer_;
 if (!(((self->scorer_) != 0))) {
 spite_failed_1(applied_);
 }
@@ -2465,12 +2465,12 @@ int32_t argument_count_ = ({ List_Spite_Argument* spite_temp_108 = Spite_Functio
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[4]; int32_t spite_framed_1_count = 0;
 Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_9_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong(applied_); spite_framed_1_items[2] = spite_tagged_object(0, ((void*)&spite_lit_10_box)); spite_framed_1_items[3] = spite_tagged_SpiteInteger(argument_count_); spite_framed_1_count = 4; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 4); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
-int64_t microseconds_ = Duration_total((result_)->duration_, Duration_Unit_microseconds);
+int64_t microseconds_ = Duration_total((benchmark_)->duration_, Duration_Unit_microseconds);
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
 Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_110_digits[24]; SpiteString spite_temp_110 = SPITE_STATIC_STRING(spite_temp_110_digits, spite_long_digits(spite_temp_110_digits, (int64_t)(microseconds_))); SpiteString spite_temp_111[] = {spite_lit_11, spite_temp_110}; SpiteString spite_temp_112 = spite_string_join(2, spite_temp_111); spite_temp_112; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
 Spite_Function___release(scoring_);
-Benchmark__Long___release(result_);
+Benchmark__Long___release(benchmark_);
 }
 static SPITE_CRASH_REPORT void spite_failed_1(int64_t applied_) {
 spite_crash_begin();

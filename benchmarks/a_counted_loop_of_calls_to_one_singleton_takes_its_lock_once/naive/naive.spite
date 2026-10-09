@@ -6,9 +6,9 @@ var calls = 0
 var largest = 0
 
 func Naive() {
-    var result = Benchmark(count_and_read)
+    var benchmark = Benchmark(count_and_read)
     console.print("counted", counted, "calls", calls, "total", total, "largest", largest)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

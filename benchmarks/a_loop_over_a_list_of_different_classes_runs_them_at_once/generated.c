@@ -3190,15 +3190,15 @@ SpiteString___release(starting_name_);
 }
 void Naive_Naive(Naive* self) {
 Naive_add_voices(self);
-Benchmark__Nothing* result_ = Benchmark__Nothing___make(spite_function_value_Naive_render_all(self));
+Benchmark__Nothing* benchmark_ = Benchmark__Nothing___make(spite_function_value_Naive_render_all(self));
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[3]; int32_t spite_framed_1_count = 0;
 Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_SpiteLong((self->sine_)->level_); spite_framed_1_items[1] = spite_tagged_SpiteLong((self->square_)->level_); spite_framed_1_items[2] = spite_tagged_SpiteLong((self->saw_)->level_); spite_framed_1_count = 3; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 3); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
-int64_t microseconds_ = Duration_total((result_)->duration_, Duration_Unit_microseconds);
+int64_t microseconds_ = Duration_total((benchmark_)->duration_, Duration_Unit_microseconds);
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
 Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_187_digits[24]; SpiteString spite_temp_187 = SPITE_STATIC_STRING(spite_temp_187_digits, spite_long_digits(spite_temp_187_digits, (int64_t)(microseconds_))); SpiteString spite_temp_188[] = {spite_lit_11, spite_temp_187}; SpiteString spite_temp_189 = spite_string_join(2, spite_temp_188); spite_temp_189; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
-Benchmark__Nothing___release(result_);
+Benchmark__Nothing___release(benchmark_);
 }
 void Naive_add_voices(Naive* self) {
 List_Naive_Voice_append(self->voices_, Naive_Voice___retain(spite_tagged_object(112, (void*)(self->sine_))));

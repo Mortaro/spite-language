@@ -4,11 +4,11 @@ var second_file = File(".spite/reads_in_a_row_second.txt")
 
 func Naive() {
     make_files()
-    var result = Benchmark(all_reads)
+    var benchmark = Benchmark(all_reads)
     var first_removed = first_file.remove()
     var second_removed = second_file.remove()
-    console.print("characters", result.answer, "removed", first_removed, second_removed)
-    var microseconds = result.duration.total('microseconds')
+    console.print("characters", benchmark.answer, "removed", first_removed, second_removed)
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

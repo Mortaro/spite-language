@@ -3,9 +3,9 @@ var sum: Long = 0
 var squares: Long = 0
 
 func Naive() {
-    var result = Benchmark(measure_rounds)
+    var benchmark = Benchmark(measure_rounds)
     console.print("sum", sum, "squares", squares)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

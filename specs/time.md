@@ -56,7 +56,7 @@ with Temporal's vocabulary and no stored zoned type.
   again, and keeps the result in `answer` and the difference in `duration`, a `Duration` in nanoseconds; nothing
   else runs between the readings but the call and the store of its answer. `$answer_type` is read from the
   argument (`Benchmark(sum_to_a_million)` is a `Benchmark<Long>`), and a function returning nothing makes a
-  `Benchmark<Nothing>`. Keeping the answer is what keeps the work: it is reachable from the result, so it is never
+  `Benchmark<Nothing>`. Keeping the answer is what keeps the work: it is reachable from the benchmark, so it is never
   removed as unused. There is no `clock.benchmark(...)`: only a class takes codegen values, so the answer's type
   can be carried only by a class made from the work ([metaprogramming.md](metaprogramming.md#codegen-values-)). It costs the
   function value made for `work` and the result's two objects (the `Benchmark` and its `Duration`), all made

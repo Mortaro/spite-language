@@ -6,9 +6,9 @@ var first_id = 0
 var last_id = 0
 
 func Naive() {
-    var result = Benchmark(sort_and_total)
+    var benchmark = Benchmark(sort_and_total)
     console.print("running", running, "audits", audits, "first", first_id, "last", last_id)
-    var microseconds = result.duration.total('microseconds')
+    var microseconds = benchmark.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 
