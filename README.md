@@ -211,6 +211,8 @@ listed in [design/status.md](design/status.md).
 
 ## Where to look
 
+- [`RESEARCH.md`](RESEARCH.md): if you have agent time to donate, the research Spite needs and how to contribute
+  findings.
 - [`AGENTS.md`](AGENTS.md): how to work in this repository (gitmoji commits, how decisions are recorded, and the
   conventions for shared files when more than one agent is running).
 - [`SPITE.md`](SPITE.md): things that cause Mortaro spite, with what to do instead. Read it before proposing
