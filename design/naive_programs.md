@@ -776,6 +776,57 @@ appends to `found`, which the item's own list could be, and growing never lets a
 argument uncounted and changed the C of most programs, and the tick moved by nothing measurable (7 169 to 7 201
 µs, best of 11), since the counts were only the first touch of a line the next read pays for anyway.
 
+### Tenth pass (2026-10-09)
+
+Engine `naive` at 5574e26, Spite from 4c298eb2, `--optimized --build`, medians of 5 interleaved runs on a machine
+other sessions also used (provisional; compare within a run).
+
+**Built: a write-back of what the slot already holds is not written** (pair B2b, hand edit W, decision D555). The
+compiler records what every statement of the program's own functions reads, assigns, stores, checks and calls, and
+walks those records from each function's known callers, following values rather than names: `fill_attribute`'s
+`row.attributes[attribute] = slot.fetch(...)` makes `Row.current.position` hold `Column<Position>.values[rows[0]]`,
+the `0` being what `cursor` holds after `fill_into` sets it to 0 (the `1` for `velocity` after the first template
+copy counts it up). The system writes only `position.left` and `position.top`, which neither fact reads, so at
+`Row.store`'s `store_attributes(current, entity)` every store already holds its value and every `crash` already
+passed in the fill: the call is left out, `cursor` is set to the 2 it would have ended at, and `store`'s opening
+`if entity != filled_entity` (which finds the slots again for another entity) keeps the call on its own path through
+a flag in the C. What the walk needed that B2 did not have: facts kept under a branch's condition (`fill_attribute`
+returns early when `kinds[position] == 3`, `store_attribute` when `kinds[position] != 0`, so the facts hold under
+`kinds[0] != 3` and the store's `assert` re-establishes it), attributes told apart by their type (`Runner.position`,
+an `Integer`, is not `current.position`), and a shape's attributes typed through the shape.
+
+| | before | after |
+|---|---|---|
+| stress tick, one C file | 20.2 ms | 17.2 ms |
+| stress tick, split build | 25.6 ms | 21.5 ms |
+| stress despawn, sixty ticks | 22.3 ms | 22.1 ms |
+| physics step | 7.60 ms | 7.41 ms (within the noise) |
+| the case, a hundred passes over 100 000 pages | 45.6 ms | 26.6 ms |
+
+Three rows of the stress program are proven (`Move`, `Regenerate`, `CountFrames`), two in physics; the engine's
+checks (`changed_check`, `relations_check`, `healing`, `physics_check`, `timers_check`, `tracking`, `without_check`,
+`attachment_check`, `interest_check`, `use_potion`) print the same. The other cases of `benchmarks/` compile to the
+same C. Compiling: the compiler's own build within the noise (3 085 candidate calls, none proven, 409 000 steps
+walked), the stress example about the same, physics about a tenth longer.
+
+**Measured: R, the row in locals with the system inlined, on today's C** (hand edits on the one C file the compiler
+now writes, `clang -O3`): the compiler's C 18.4 ms; F (the fused loop) 17.9; F and R 12.7; F and M 17.6; F, M and R
+10.0; with K as well 9.1. So R is worth about 5.2 ms on its own, 7.6 with M. What its proof needs, now that the
+facts above exist:
+
+- The values are known: at the system call `moving.position` is `Column<Position>.values[rows[0]]` and
+  `moving.velocity` is `Column<Velocity>.values[rows[1]]` (under the `kinds` conditions). A copy of the system per
+  use (D520) that takes those slot reads instead of the row object is decidable from the same facts; it needs the
+  calls between the runner's loop and the system made direct (C4), or a copy of each function on the path that
+  passes the two pointers instead of `current`.
+- The row's attributes then become stores nobody reads: `fill` writes `current.position` and `current.velocity`,
+  the system no longer reads them and `store` is left out. Dropping those stores (and the counts of assigning an
+  object attribute) needs a whole-program fact that no other function reads `Row<Moving>.current`'s attributes
+  (true in the engine: `row_argument`, the system and `store` are the only readers), with the store kept wherever
+  one may.
+- M (matching once) is a call repeated with the same arguments and nothing it reads changed between, which the same
+  walk can decide: `fill_into`'s `matches(entity)` after the runner's `candidates()` found the entity.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a

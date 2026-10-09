@@ -2218,7 +2218,7 @@ to the compiler: a function passed as a value, run on another thread, reached th
 library template is left as it is. Not in a program that uses `Concurrent`, or whose `drop()` stores into lists.
 
 **What you notice.** Speed. The case's hundred passes over 100 000 pages take 26.6 ms instead of 45.6; the naive
-engine's stress tick takes 17.9 ms instead of 23.4 as one C file (26.0 instead of 30.5 split). Allocations, the order
+engine's stress tick takes 17.2 ms instead of 20.2 as one C file (21.5 instead of 25.6 split). Allocations, the order
 of everything a program can see and what it prints are the same. Compiling takes longer for a program with many
 candidate calls, since each is followed through its callers.
 

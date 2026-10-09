@@ -18,6 +18,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
+- **D555, a write-back of what the slot already holds is not written, across calls**: a call made as a statement
+  is left out when the compiler proves, by following values through the calls from every known caller, that it only
+  stores into slots what they already hold, checks what was already checked and leaves numbers it can set in its
+  place; a branch that may break the proof keeps the call on its own path. Why: the naive engine's runner copies
+  each component into a row and stores it back after the system, and that store was 3 to 4 ms of a 20 ms tick.
 - **D552, a list held only by another list lives in its slot**: an inner list nothing names but through its slot is
   stored inside the outer list's block, decided per element type for the whole program and refused on any use
   that could keep or alias one. Why: the naive engine's physics grid reads a bucket per query, and the pointer to
