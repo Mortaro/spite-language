@@ -20,7 +20,7 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
   placement in the frame, proven reads, tree
   shaking, singleton lock elision. Not built: independent loops written as a `while`, reductions, layout chosen by the
   compiler (structure of arrays, hot and cold splitting, field order and cache-line alignment), waiting arranged by
-  the compiler outside a `Concurrent` beyond a frame loop's started calls (D552, below under concurrency), frame
+  the compiler outside a `Concurrent` beyond a frame loop's started calls (D554, below under concurrency), frame
   arenas, rings and deferred freeing.
 - "A plain program must reach the hand-written speed": not yet true of the engine package; its naive branch and
   the benchmark table in naive_programs.md track it.
@@ -137,13 +137,6 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
   dictionary that is still made.
 
 ### Nothing fails silently: still open
-
-- (found 2026-10-09 while building D552) A call a frame loop starts interleaves with the frame at its waits, as a
-  `Concurrent` does, and the program never wrote `Concurrent`: work that reads an attribute into a local, waits,
-  then writes the attribute from the local (`var count = totals.count; file.write(...); totals.count = count + 1`)
-  loses a write the frame made meanwhile, and two calls of it in flight from one line lose each other's. No proof
-  refuses or orders it yet; the fix is to find, in the state machines of started work, a value read from an
-  attribute before a wait and written back after it, and then wait in place (or refuse the program).
 
 - (suspected 2026-10-08, not reproduced) The integer `absolute` macro in `library/maths_primitives.spite` appears
   to answer the smallest value unchanged (`Integer.smallest.absolute()` cannot be represented). The generated C seen
@@ -524,12 +517,16 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Locked-wait check (D264) does not see: a handle that escapes the function and is read by another locked function; calls whose class is unknown (function value, union, unknown receiver); work reaching the singleton only through its attributes from outside; `parallel_each_` passes; generic singletons (`Column<T>`). The exact wording of the error was proposed, unconfirmed.
 - Not built: taking no lock at all where one `Parallel`'s work is provably the only thread touching a singleton while it runs (D207's handover extended to singletons). The game engine package also asked for no lock at all while every `Parallel` reaching a singleton only reads it, with writes between stages; not provable at compile time, so the reader-writer form was built instead.
 - Reads in a row overlap: `Directory` listing is not a waiting call yet (no helper thread), so it is not overlapped.
-- D552, a wait in a frame does not hold the frame (the pairs' W1 across frames): built for a statement
+- D554, a wait in a frame does not hold the frame (the pairs' W1 across frames): built for a statement
   `receiver.function()` with no arguments, answering nothing, on a name, a path or a list item of a program class
   or a `type`. Not built: W1 within one pass (a call whose answer is read later in the pass, started early and
   joined at its first use), W2 (several waiting calls in a row in flight at once, beyond reads in a row), calls with
   arguments, a local frame loop held by an object whose loop is in a function another class calls, and frame loops
-  paced by anything but `Program.sleep`. `diagnostics/frame_wait_answer` does not exist: no program has been found
+  paced by anything but `Program.sleep`. The proof that no write is lost reads the plain C, not the state
+  machines: it is conservative (a value written back to an attribute of the same name on any object counts, and
+  a plain parameter of a function that waits counts as read from anything), and a frame loop whose own code
+  writes back a stale value keeps its calls in place only after they were generated, so such a program still
+  carries the scheduler it would have used. `diagnostics/frame_wait_answer` does not exist: no program has been found
   that makes the answer change once every function is compiled, so the error text is untested.
 - Task-may-keep-what-was-handed-over (D207): implemented, conditions and error text unconfirmed.
 - Reads-in-a-row rule (D134's IO half) implemented; Mortaro's decision was "all our IO classes should use it", the reading of the rule unconfirmed.

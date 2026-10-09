@@ -381,7 +381,7 @@ The resumable-copy machinery for `Concurrent` and the helper thread for blocking
 the lifetime of a wait never needed, which line a failure a tick later reports, a bound on waits in flight, and
 whether the waiting-system rule is lifted (a decision).
 
-*Built (D552, 2026-10-09), and what it taught.* The cross-frame half is built for calls that answer nothing, which
+*Built (D554, 2026-10-09), and what it taught.* The cross-frame half is built for calls that answer nothing, which
 is what the naive engine's runner makes (`runners[index].start_waiting()` on a `type`), so "first needed" never
 arises there: the slot is `WaitsInFlight`, keyed by statement, and the collection is the next start from that
 line letting go of the finished ones, with the program's end as the last collection (D546). Three things the

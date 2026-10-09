@@ -41,7 +41,7 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **Engine, the waiting-system write rule**: with plain `List<T>` columns, the engine's rule refusing a waiting
   (IO) system that writes `Vector`-fitting components of its rows has lost its reason. Kept for now (it refuses,
   never silently drops); it goes when the compiler arranges waiting itself (D512).
-- **D552, a wait in a frame does not hold the frame**: inside a frame loop (a `while` that sleeps on a `Program`,
+- **D554, a wait in a frame does not hold the frame**: inside a frame loop (a `while` that sleeps on a `Program`,
   itself or through its own class's functions), `receiver.function()` with no arguments, answering nothing, on
   another object of the program, is started as a `Concurrent` when the function can wait. A started call nobody
   waits for still finishes before the program ends; a crash in it halts at once with its own report; at most eight
@@ -49,7 +49,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   engine's waiting-system rule stays after all: started work writes after the frame has moved on, so a row it
   wrote would be stored stale. Why: the naive engine's `io_systems` advanced 3 frames while its lookups waited
   (main 31); now 17, with the engine unchanged. Say if eight should be another number, or if the frame's own
-  calls should be started too (they are its pace, so starting them would make the loop spin).
+  calls should be started too (they are its pace, so starting them would make the loop spin). A call where either
+  side would write back a value read before a wait is not started (it waits in place and is listed in
+  `--optimization-report`); say if you would rather have it be a compile error.
 - **D513, plain counts per class**: in a program with threads, a class no other thread can count is counted with
   plain arithmetic; one used by threaded work stays atomic for all of its objects. Why: atomic counts were the
   largest single cost of the naive engine's stress test (105 ms a tick to 73), and the fallback is always atomic.

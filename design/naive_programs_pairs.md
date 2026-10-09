@@ -157,7 +157,7 @@ stays in order.
 
 | # | Naive code | Proof | Faster form | Falls back | Retires | Backend |
 |---|---|---|---|---|---|---|
-| W1 | a waiting call whose answer is read later in the pass | nothing between the call and the first read depends on it | started early, collected at the first read | waits in place | `Concurrent` per IO wait | **built across frames** for a call answering nothing (D552: [optimizations](../docs/optimizations.md#a-wait-in-a-frame-does-not-hold-the-frame), [proofs](../docs/proofs.md#a-wait-in-a-frame-is-started)); within one pass, a call whose answer is read later, is not |
+| W1 | a waiting call whose answer is read later in the pass | nothing between the call and the first read depends on it | started early, collected at the first read | waits in place | `Concurrent` per IO wait | **built across frames** for a call answering nothing (D554: [optimizations](../docs/optimizations.md#a-wait-in-a-frame-does-not-hold-the-frame), [proofs](../docs/proofs.md#a-wait-in-a-frame-is-started)); within one pass, a call whose answer is read later, is not |
 | W2 | several waiting calls in a row | they share nothing written (T4's proof plus IO ordering per resource) | all in flight at once | in order | "drain up to 8 a frame" | partly by W1: calls a frame starts on successive frames, or in a loop over a list, are in flight together, eight per statement; calls in a row inside one function are not |
 
 ## Code generation (for the C now, the backend later)
