@@ -62,7 +62,7 @@ it goes. The `Vector3` row shows both sides of it. `Vector3` is a class, so ever
 new object, and the program took 4.33 times as long as C. Then the compiler learned to keep an object that never
 leaves its function in the frame, and the same source, unchanged, took 1.25 times as long. Today `normalized()`'s
 answer falls back to the heap again, which is why the row is at 2.40: the case found it, and it is a bug to fix.
-The 80-odd cases of single optimisations are in the [summary](benchmarks/README.md#summary).
+The 80-odd cases of single optimisations are in the [summary](benchmarks/README.md#every-benchmark-against-c).
 
 ## One way to do each thing
 

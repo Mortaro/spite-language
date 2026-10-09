@@ -180,4 +180,5 @@ docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned
 - `benchmarks/`: one folder per case, each a program in naive Spite, naive C and expert C with the whole C the
   compiler generates from it and the excerpt that shows the optimisation ([`benchmarks/README.md`](benchmarks/README.md)).
   Every benchmark compares Spite with C (D524); `check.sh` keeps each case's generated C current, and
-  `bash benchmarks/run.sh` times them.
+  `bash benchmarks/run.sh` times them and rewrites the table at the top of `benchmarks/README.md` (every case's
+  Spite, naive C and expert C times): time every case a change affects, so that table stays current.

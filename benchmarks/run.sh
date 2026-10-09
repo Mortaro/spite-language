@@ -123,8 +123,8 @@ done
 
 # the summary: one row per case, from the line each README's table ends with
 {
-    echo "| case | Spite's time over naive C's | Spite's time over expert C's |"
-    echo "|---|---|---|"
+    echo "| case | Spite µs | naive C µs | expert C µs | Spite / naive C | Spite / expert C |"
+    echo "|---|---|---|---|---|---|"
     for folder in benchmarks/*/; do
         name=$(basename "$folder")
         [ -f "$folder/README.md" ] || continue
@@ -133,11 +133,11 @@ done
         naive_best=$(echo "$measured" | sed -n 's/.*naive=\([0-9]*\).*/\1/p')
         expert_best=$(echo "$measured" | sed -n 's/.*expert=\([0-9]*\).*/\1/p')
         if [ -n "$spite_best" ]; then
-            echo "| [$name]($name/) | $(ratio_of "$spite_best" "$naive_best") | $(ratio_of "$spite_best" "$expert_best") |"
+            echo "| [$name]($name/) | $(spaced "$spite_best") | $(spaced "$naive_best") | $(spaced "$expert_best") | $(ratio_of "$spite_best" "$naive_best") | $(ratio_of "$spite_best" "$expert_best") |"
         elif [ "$measured" == "untimed" ]; then
-            echo "| [$name]($name/) | not timed | not timed |"
+            echo "| [$name]($name/) | not timed | not timed | not timed | | |"
         else
-            echo "| [$name]($name/) | not measured yet | not measured yet |"
+            echo "| [$name]($name/) | not measured yet | | | | |"
         fi
     done
 } > "$work/summary.table"

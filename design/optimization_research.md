@@ -505,6 +505,41 @@ result must not depend on where it ran. The cheapest answer that keeps zero runt
 same maths functions as code into both forms (tree-shaken like any other function), so only reductions may differ,
 and those are already a decimal's last bits.
 
+**R14, the race in `concurrent_wait_cycle`.** There is no second thread: the two `Concurrent`s are frames stepped by
+one thread. `joins` records who waits for whom and sees the cycle; `wait_for`, the in-place join a
+`Concurrent.drop` runs, records nothing, so the cycle is invisible to it and the program halts naming a different
+cause. Which join runs is chosen at run time by a guard on the handle's reference count, which depends on whether a
+frame is released before or after `start_both` returns, which depends on the clock against the 1 ms and 5 ms
+sleeps. Fix: one bookkeeping path for both joins, and no timing-dependent choice of join. Sent to a cloud agent.
+
+**R15, overflow checks on sums of list items and attributes.** The range proof keeps intervals for locals only;
+`computed_range` has no case for an attribute or a list item, and the list-values machinery (D523) knows who fills a
+list, not the range of what it holds. Speculate-and-replay needs bounds on each term to make its after-loop test
+pass, so it only pays once item and attribute ranges exist (every write site's range, whole program): the two are
+one piece of work, ranges first. Replay is safe for a counted loop whose body writes only locals (checkpointed) and
+calls nothing with effects.
+
+**R16, the navigation numbers.** They are right. `next_stamp` clears the 16.8 MB table only when the stamp reaches
+1,000,000,000: the `assert stamp >= 1000000000` guard returns early on every other query, so a query costs about
+84 microseconds of A*. Two notes: the guard reads like an invariant but is the only thing that skips the clear, and
+the benchmark's timed window includes picking random goals and smoothing, so the figure is not search alone. If the
+clear were real, the compiler's form would be a generation stamp it chooses itself (L6 does not fit: untouched
+cells are read).
+
+**R17, a plan for foreign structs (D536's second half).** Today `passes_as_struct` and `shape_struct_code` accept
+only all-number types. Steps: a C layout with alignment (small); every attribute kind (Boolean and enum as 32 bits,
+text, nested inline, pointer for `type?`, lists, callbacks) built in the caller's frame (large); compiler-written
+counts (medium); reading back by name (medium); fixed arrays (medium); a size check against a header wherever one
+is named (small). First engine sites to move, since they can read wrong values today: the Vulkan device properties
+read at offset 720, the queue families at `index * 24`, the instance creation with its count written by hand, then
+`MSG`, `RECT` and `XINPUT_STATE`, which already cross as number-only types.
+
+**R18, scalar replacement of a row across a call.** The escape proof per parameter exists, and a callee that writes
+the parameter's fields still qualifies. The obstacles: frames are per function, a singleton's attribute (the row)
+cannot be a frame object, nothing proves the object filled in one call, used in the next and stored in a third is
+one object, and no per-field write set records which fields a callee assigns. Inlining the runner at the Spite level
+removes most of them; handed to the agent building it.
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
