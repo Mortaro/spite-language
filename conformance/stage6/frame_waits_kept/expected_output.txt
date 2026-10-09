@@ -1,0 +1,7 @@
+a call that writes back what it read before its wait waited in place: 3
+a call that changes a list at a place it read before its wait waited in place: 1, 2, 3
+a frame that writes back what it read before its sleep kept its call in place: 33
+## Waits that hold the frame (3)
+- [conformance/stage6/frame_waits_kept/frame_waits_kept.spite:10](../../conformance/stage6/frame_waits_kept/frame_waits_kept.spite#L10): `tally.add_late()` waits in place: Tally.add_late writes `count` from a value it read before a wait, and the frame could write it while the call waits
+- [conformance/stage6/frame_waits_kept/frame_waits_kept.spite:11](../../conformance/stage6/frame_waits_kept/frame_waits_kept.spite#L11): `queue.drop_last_later()` waits in place: Queue.drop_last_later passes a value read before a wait to a change of a list or dictionary, and the frame could write it while the call waits
+- [conformance/stage6/frame_waits_kept/pulse.spite:8](../../conformance/stage6/frame_waits_kept/pulse.spite#L8): `beat.count_later()` waits in place: the frame loop writes `beats` from a value it read before a wait, and the call could write it while the frame waits

@@ -15,7 +15,7 @@ void List_List_Order_drop(List_List_Order* self) {
     List_List_Order_clear(self);
     if (self->items_ != 0) for (int32_t spite_index = 0; spite_index < self->capacity_; spite_index++) { List_Order* spite_slot = &((List_Order*)(intptr_t)self->items_)[spite_index]; if (spite_slot->header.ref_count == -7) { spite_slot->header.ref_count = 0; List_Order_drop(spite_slot); } }
     if (((self->items_ != ((int64_t)(0))))) {
-        ({ Spite_Allocator spite_temp_1 = SPITE_ALLOCATOR_List_List_Order(self, spite_singleton_Memory_Heap); int64_t spite_temp_2 = self->items_; if (((SpiteHeader*)(spite_temp_1))->class_id == 94) { Memory_Arena_free(((Memory_Arena*)spite_temp_1), spite_temp_2); } else if (((SpiteHeader*)(spite_temp_1))->class_id == 95) { Memory_Heap_free(((Memory_Heap*)spite_temp_1), spite_temp_2); } });
+        ({ Spite_Allocator spite_temp_1 = SPITE_ALLOCATOR_List_List_Order(self, spite_singleton_Memory_Heap); int64_t spite_temp_2 = self->items_; if (((SpiteHeader*)(spite_temp_1))->class_id == 95) { Memory_Arena_free(((Memory_Arena*)spite_temp_1), spite_temp_2); } else if (((SpiteHeader*)(spite_temp_1))->class_id == 96) { Memory_Heap_free(((Memory_Heap*)spite_temp_1), spite_temp_2); } });
     }
 }
 

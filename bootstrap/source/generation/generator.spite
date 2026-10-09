@@ -189,6 +189,19 @@ var task_root_functions = List<Analysis.FunctionInfo>()
 var wait_facts = WaitFacts()
 var deferred_wait_classes = List<Analysis.ClassInfo>()
 var deferred_wait_functions = List<Analysis.FunctionInfo>()
+var frame_loops = FrameLoops()
+var frame_loop_depth = 0
+var started_wait_sites = 0
+var started_wait_questions = Dictionary<String, Boolean>()
+var started_site_classes = List<Analysis.ClassInfo>()
+var started_site_holders = List<String>()
+var started_site_paths = List<String>()
+var started_site_lines = List<Integer>()
+var started_site_calls = List<String>()
+var deferred_frame_classes = List<Analysis.ClassInfo>()
+var deferred_frame_functions = List<Analysis.FunctionInfo>()
+var frame_functions_released = false
+var generating_frame_function = false
 var task_value_arguments = 0
 var function_waits_table_used = false
 var listed_typed_calls = List<String>()
@@ -968,6 +981,8 @@ func generate(
     }
     settle_shape_members()
     emit_shape_bodies()
+    frame_functions_released = true
+    emit_pending_functions()
     emit_union_class_of_bodies()
     emit_union_attributes_bodies()
     var final_settle = 0
@@ -1025,6 +1040,9 @@ func generate(
     finish_wait_questions()
     if overlap_groups > 0 {
         finish_overlap_groups()
+    }
+    if started_wait_sites > 0 {
+        finish_started_waits()
     }
     if row_groups > 0 {
         finish_row_groups()
@@ -2424,7 +2442,7 @@ func any_expression_asks_waits(expressions: List<Syntax.Expressions.Expression>)
 func finish_wait_questions() {
     assert (not wait_facts.asked_names.is_empty() or function_waits_table_used) and not has_error
     settle_wait_facts()
-    var changed = wait_facts.first_changed_answer()
+    var changed = wait_facts.first_changed_answer(started_wait_questions)
     if changed >= 0 {
         crash wait_facts.asked_paths[changed]
         crash wait_facts.asked_lines[changed]
@@ -2440,6 +2458,12 @@ func finish_wait_questions() {
         var asked_name = wait_facts.asked_names[changed]
         var now_waits = wait_facts.may_wait(asked_name)
         var before = not now_waits
+        if started_wait_questions.has(asked_name) {
+            report(
+                "whether '{asked}' can wait was answered {before} here, before every function it reaches was compiled, and it is {now_waits} once they are, so this frame would wait where it should go on: call it from a function the frame loop's own class declares",
+            )
+            return
+        }
         report(
             "whether '{asked}' can wait was answered {before} here, before the functions that ask 'function_waits' were compiled, and it is {now_waits} once they are: it reaches one of them, or a function value made in one, so its answer would decide itself, so ask from a function that '{asked}' does not reach",
         )
@@ -7192,14 +7216,483 @@ func bound_to_own_class(): Boolean {
 
 func emit_pending_functions() {
     emit_pending_only()
-    while not deferred_wait_functions.is_empty() {
-        var information = deferred_wait_classes.remove_first()
-        var function = deferred_wait_functions.remove_first()
-        crash information
-        crash function
-        current_owner = information.qualified_dotted
-        emit_user_function_body(information, function)
+    while not deferred_wait_functions.is_empty() or frame_functions_released and not deferred_frame_functions.is_empty() {
+        if deferred_wait_functions.is_empty() {
+            var frame_information = deferred_frame_classes.remove_first()
+            var frame_function = deferred_frame_functions.remove_first()
+            crash frame_information
+            crash frame_function
+            current_owner = frame_information.qualified_dotted
+            generating_frame_function = true
+            emit_user_function_body(frame_information, frame_function)
+            generating_frame_function = false
+        } else {
+            var information = deferred_wait_classes.remove_first()
+            var function = deferred_wait_functions.remove_first()
+            crash information
+            crash function
+            current_owner = information.qualified_dotted
+            emit_user_function_body(information, function)
+        }
         emit_pending_only()
+    }
+}
+
+# ../../../docs/optimizations.md#a-wait-in-a-frame-does-not-hold-the-frame
+func studied_frame_loops(information: Analysis.ClassInfo): FrameLoops {
+    if not frame_loops.studied.has(information.c_name) {
+        frame_loops.study(information)
+    }
+    return frame_loops
+}
+
+func may_start_waits(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    if is_library_class(information) or information.is_generic_template {
+        return false
+    }
+    var loops = studied_frame_loops(information)
+    if not loops.is_own_code(information, function.name) and not loops.holds_frame_loop(information, function.name) {
+        return false
+    }
+    var members = List<Syntax.Expressions.MemberExpression>()
+    loops.collect_started_members(function.body, members)
+    var names = List<String>()
+    var index = 0
+    while index < members.count() {
+        var member = members[index]
+        crash member.object
+        var receiver_type = attribute_path_type(member.object, information)
+        if receiver_type {
+            if may_be_started_receiver(receiver_type) {
+                names.append(member.name)
+            }
+        }
+        index = index + 1
+    }
+    if names.is_empty() {
+        return false
+    }
+    preregister_started_shapes(names)
+    return true
+}
+
+func attribute_path_type(
+    expression: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var named = shape.as_identifier(expression)
+    if named {
+        var field = information.find_field(named.name)
+        assert field
+        return field.spite_type
+    }
+    var read = shape.as_member(expression)
+    if read {
+        crash read.object
+        var owner_type = attribute_path_type(read.object, information)
+        assert owner_type
+        var owner_reference = type_shape.as_class_ref(owner_type)
+        assert owner_reference
+        var owner = find_class_by_c_name(owner_reference.c_name)
+        assert owner
+        var owner_field = owner.find_field(read.name)
+        assert owner_field
+        return owner_field.spite_type
+    }
+    var indexed = shape.as_index(expression)
+    assert indexed
+    crash indexed.object
+    var listed_type = attribute_path_type(indexed.object, information)
+    assert listed_type
+    var listed = type_shape.as_list(listed_type)
+    assert listed
+    return listed.element
+}
+
+func may_be_started_receiver(receiver_type: Analysis.SpiteType): Boolean {
+    var union_type = type_shape.as_union(receiver_type)
+    if union_type {
+        var information = find_union_by_c_name(union_type.c_name)
+        if information {
+            return information.is_shape
+        }
+        return false
+    }
+    var class_reference = type_shape.as_class_ref(receiver_type)
+    if not class_reference {
+        return false
+    }
+    var target = find_class_by_c_name(class_reference.c_name)
+    if not target {
+        return false
+    }
+    return not target.is_singleton and not target.is_value_class and not is_library_class(target)
+}
+
+func may_be_started(statement: Syntax.Statements.Statement, class_information: Analysis.ClassInfo): Boolean {
+    if not generating_frame_function or not frame_loops.started_shape(statement) {
+        return false
+    }
+    return in_frame_code(class_information)
+}
+
+func in_frame_code(information: Analysis.ClassInfo): Boolean {
+    if resumable_mode or is_library_class(information) or information.is_generic_template {
+        return false
+    }
+    var loops = studied_frame_loops(information)
+    return frame_loop_depth > 0 or loops.is_own_code(information, current_function)
+}
+
+func started_wait(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Boolean {
+    var member = frame_loops.started_shape(statement)
+    if not member or not generating_frame_function or not in_frame_code(class_information) {
+        return false
+    }
+    crash member.object
+    var saved_counter = temporary_counter
+    var receiver = generate_expression(member.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var receiver_type = receiver.type
+    settle_wait_facts()
+    var call_text = "{operand_text(member.object)}.{member.name}"
+    var starts = started_classes(receiver_type, member.name, call_text)
+    if starts.is_empty() {
+        return false
+    }
+    started_wait_sites = started_wait_sites + 1
+    var site = started_wait_sites
+    var line = statement_line(statement)
+    note_fact("started wait {current_owner}.{current_function}:{line}")
+    builder.add_user("\{")
+    var inner = Scope(scope)
+    var receiver_name = "spite_started_receiver_{site}"
+    var receiver_declaration = Syntax.Statements.VariableDeclaration(receiver_name, null, member.object)
+    receiver_declaration.line = line
+    receiver_declaration.source_path = current_path
+    generate_statement(receiver_declaration, inner, class_information, function_information)
+    inner.mark_used(receiver_name)
+    var receiver_code = c_value_name(receiver_name)
+    started_site_classes.append(class_information)
+    started_site_holders.append(current_function_c_name)
+    started_site_paths.append(current_path)
+    started_site_lines.append(line)
+    started_site_calls.append("{operand_text(member.object)}.{member.name}")
+    builder.add_user("/*spite_started_{site} started*/")
+    var union_type = type_shape.as_union(receiver_type)
+    if not union_type {
+        start_kept(receiver_name, member.name, site, 0, line, inner, class_information, function_information)
+        var started_class = starts[0]
+        crash started_class
+        var started_function = shape_member_function(started_class, member.name)
+        crash started_function
+        builder.add_user("/*spite_started_{site} plain {started_function.c_name}({receiver_code});*/")
+        emit_scope_drops(inner, false)
+        builder.add_user("}")
+        return true
+    }
+    var index = 0
+    while index < starts.count() {
+        var started_class = starts[index]
+        var test = value_class_test(receiver_code, receiver_type, started_class)
+        var opening = "if"
+        if index > 0 {
+            opening = "else if"
+        }
+        builder.add_user("{opening} {test} \{")
+        var member_scope = Scope(inner)
+        var member_name = "spite_started_member_{site}_{index}"
+        var member_type = class_type_of(started_class)
+        member_scope.declare(member_name, member_type)
+        var member_code = member_value_code(receiver_code, receiver_type, started_class)
+        member_scope.set_override(member_name, member_code)
+        start_kept(member_name, member.name, site, index, line, member_scope, class_information, function_information)
+        builder.add_user("}")
+        index = index + 1
+    }
+    builder.add_user("else \{")
+    var plain_scope = Scope(inner)
+    var plain_receiver: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(receiver_name)
+    var plain_callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(plain_receiver, member.name)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var plain_call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(plain_callee, no_arguments)
+    var plain_statement = Syntax.Statements.ExpressionStatement(plain_call)
+    plain_statement.line = line
+    generate_statement(plain_statement, plain_scope, class_information, function_information)
+    emit_scope_drops(plain_scope, false)
+    builder.add_user("}")
+    var union_information = find_union_by_c_name(union_type.c_name)
+    crash union_information
+    var dispatcher = ensure_shape_caller(union_information, member.name)
+    builder.add_user("/*spite_started_{site} plain {dispatcher}({receiver_code});*/")
+    emit_scope_drops(inner, false)
+    builder.add_user("}")
+    return true
+}
+
+func start_kept(
+    receiver_local: String,
+    function_name: String,
+    site: Integer,
+    item: Integer,
+    line: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var keeper = waits_in_flight()
+    var handle_name = "spite_started_{site}_{item}"
+    var owner: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(receiver_local)
+    var bound_function: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(owner, function_name)
+    var concurrent: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("Concurrent")
+    var started_arguments = List<Syntax.Expressions.Expression>()
+    started_arguments.append(bound_function)
+    var started: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(concurrent, started_arguments)
+    var declared = Syntax.Statements.VariableDeclaration(handle_name, null, started)
+    declared.line = line
+    declared.source_path = current_path
+    var handle_scope = Scope(scope)
+    generate_statement(declared, handle_scope, class_information, function_information)
+    handle_scope.mark_used(handle_name)
+    handle_scope.forget_owned(handle_name)
+    var handle_type = handle_scope.lookup_type(handle_name)
+    crash handle_type
+    var handle_reference = type_shape.as_class_ref(handle_type)
+    crash handle_reference
+    var keep = find_or_instantiate_function(keeper, "_keep")
+    crash keep
+    var handle_code = c_value_name(handle_name)
+    builder.add_user(
+        "{keep.c_name}({singleton_call(keeper)}, {handle_reference.c_name}___retain({handle_code}), {site});",
+    )
+    builder.add_user("{handle_reference.c_name}___release({handle_code});")
+    emit_scope_drops(handle_scope, false)
+}
+
+func waits_in_flight(): Analysis.ClassInfo {
+    var template = find_class_by_qualified("WaitsInFlight")
+    crash template
+    var nothing: Analysis.SpiteType = Analysis.Types.ClassRefType("Nothing")
+    var label = "{template.c_name}__{type_label(nothing)}"
+    var existing = find_class_by_c_name(label)
+    if existing {
+        return existing
+    }
+    var types = List<Analysis.SpiteType>()
+    types.append(nothing)
+    var codes = [""]
+    var texts = [""]
+    return instantiated_with(template, types, codes, texts, label)
+}
+
+func started_classes(receiver_type: Analysis.SpiteType, name: String, call_text: String): List<Analysis.ClassInfo> {
+    var starts = List<Analysis.ClassInfo>()
+    var union_type = type_shape.as_union(receiver_type)
+    if union_type {
+        var information = find_union_by_c_name(union_type.c_name)
+        if not information {
+            return starts
+        }
+        if not information.is_shape or not find_required_function(information, name) {
+            return starts
+        }
+        var returned = shape_call_return_type(information, name)
+        if not type_shape.is_void(returned) {
+            return starts
+        }
+        var index = 0
+        while index < information.members.count() {
+            var candidate = information.members[index]
+            if started_class_waits(candidate, name, call_text) {
+                starts.append(candidate)
+            }
+            index = index + 1
+        }
+        return starts
+    }
+    var class_reference = type_shape.as_class_ref(receiver_type)
+    if not class_reference {
+        return starts
+    }
+    var target = find_class_by_c_name(class_reference.c_name)
+    if not target {
+        return starts
+    }
+    if started_class_waits(target, name, call_text) {
+        starts.append(target)
+    }
+    return starts
+}
+
+func started_class_waits(target: Analysis.ClassInfo, name: String, call_text: String): Boolean {
+    if target.is_singleton or target.is_value_class or is_library_class(target) {
+        return false
+    }
+    var function = shape_member_function(target, name)
+    if not function {
+        return false
+    }
+    if function.is_constructor or not type_shape.is_void(function.return_type) or not function.parameters.is_empty() {
+        return false
+    }
+    started_wait_questions[function.c_name] = true
+    var waits = wait_facts.answer(
+        function.c_name,
+        "{target.simple_name}.{name}",
+        current_path,
+        current_line,
+        current_owner,
+        current_function,
+    )
+    if not waits {
+        return false
+    }
+    var roots = [function.c_name]
+    var carried = carried_values_now()
+    var lost = carried.lost_write(roots)
+    if lost.is_empty() {
+        return true
+    }
+    optimization_report.wait_kept(
+        current_function_c_name,
+        current_path,
+        current_line,
+        call_text,
+        "{target.simple_name}.{name} {lost}, and the frame could write it while the call waits",
+    )
+    return false
+}
+
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func carried_values_now(): CarriedValues {
+    var facts = OverlapFacts()
+    facts.read_program(
+        builder.typedefs,
+        builder.prototypes,
+        builder.support_bodies,
+        builder.user_bodies,
+        builder.main_lines,
+    )
+    var program_names = Dictionary<String, Boolean>()
+    var class_index = 0
+    while class_index < classes.count() {
+        var information = classes[class_index]
+        if not is_library_class(information) {
+            var function_index = 0
+            while function_index < information.declared_functions.count() {
+                var declared = information.declared_functions[function_index]
+                program_names[declared.c_name] = true
+                program_names["{declared.c_name}___general"] = true
+                function_index = function_index + 1
+            }
+        }
+        class_index = class_index + 1
+    }
+    var shape_names = Dictionary<String, Boolean>()
+    var union_index = 0
+    while union_index < unions.count() {
+        var union_information = unions[union_index]
+        shape_names[union_information.c_name] = true
+        union_index = union_index + 1
+    }
+    return CarriedValues(facts, wait_facts.waits, program_names, shape_names)
+}
+
+func finish_started_waits() {
+    var carried = carried_values_now()
+    var checked = Dictionary<String, String>()
+    var index = 0
+    while index < started_site_classes.count() {
+        var information = started_site_classes[index]
+        var lost = ""
+        var known = checked[information.c_name]
+        if known {
+            lost = known
+        } else {
+            var roots = frame_loop_roots(information)
+            lost = carried.lost_write(roots)
+            checked[information.c_name] = lost
+        }
+        settle_started_site(index + 1, lost)
+        index = index + 1
+    }
+}
+
+func frame_loop_roots(information: Analysis.ClassInfo): List<String> {
+    var roots = List<String>()
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        if frame_loops.holds_frame_loop(information, function.name) {
+            roots.append(function.c_name)
+            roots.append("{function.c_name}___general")
+        }
+        index = index + 1
+    }
+    return roots
+}
+
+func settle_started_site(site: Integer, lost: String) {
+    var started_marker = "/*spite_started_{site} started*/"
+    var plain_prefix = "/*spite_started_{site} plain "
+    var position = 0
+    var start = -1
+    while position < builder.user_bodies.count() {
+        var line = builder.user_at(position)
+        if line == started_marker {
+            start = position
+        } else if start >= 0 and line.starts_with(plain_prefix) {
+            settle_started_lines(site, start, position, lost)
+            return
+        }
+        position = position + 1
+    }
+}
+
+func settle_started_lines(site: Integer, start: Integer, end: Integer, lost: String) {
+    builder.replace_user(start, "")
+    var plain_line = builder.user_at(end)
+    if lost.is_empty() {
+        builder.replace_user(end, "")
+        return
+    }
+    blank_user_range(start, end)
+    var prefix = "/*spite_started_{site} plain "
+    var prefix_length = prefix.length()
+    var line_length = plain_line.length()
+    var plain_call = plain_line.slice(prefix_length, line_length - 2)
+    builder.replace_user(end, plain_call)
+    crash started_site_holders[site - 1]
+    crash started_site_paths[site - 1]
+    crash started_site_lines[site - 1]
+    crash started_site_calls[site - 1]
+    optimization_report.wait_kept(
+        started_site_holders[site - 1],
+        started_site_paths[site - 1],
+        started_site_lines[site - 1],
+        started_site_calls[site - 1],
+        "the frame loop {lost}, and the call could write it while the frame waits",
+    )
+}
+
+func preregister_started_shapes(names: List<String>) {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        var name_index = 0
+        while information.is_shape and name_index < names.count() {
+            var name = names[name_index]
+            if find_required_function(information, name) {
+                ensure_shape_caller(information, name)
+            }
+            name_index = name_index + 1
+        }
+        index = index + 1
     }
 }
 
@@ -35359,7 +35852,10 @@ func generate_listed_statement(
     choose_allocator_after(statements, index)
     borrow_statements = statements
     borrow_index = index
-    var ended_in_return = generate_statement(statement, scope, class_information, function_information)
+    var ended_in_return = false
+    if not started_wait(statement, scope, class_information, function_information) {
+        ended_in_return = generate_statement(statement, scope, class_information, function_information)
+    }
     listed_ended_in_return = ended_in_return
     pending_allocator = null
     if walked_row_filled {
@@ -35490,6 +35986,9 @@ func overlap_run(
     var index = start
     while index < statements.count() {
         if not overlap_candidate(statements[index], scope, class_information) {
+            return count
+        }
+        if may_be_started(statements[index], class_information) {
             return count
         }
         count = count + 1
@@ -41599,9 +42098,16 @@ func generate_while_statement(
 ) {
     report_spinning_loop(while_statement)
     report_unstepped_poll(while_statement, scope, class_information)
+    var frame_loop = in_frame_loop(while_statement, class_information)
+    if frame_loop {
+        frame_loop_depth = frame_loop_depth + 1
+    }
     var coarse = coarse_singleton(while_statement, scope, class_information)
     if coarse.is_empty() {
         generate_while_loop(while_statement, scope, class_information, function_information)
+        if frame_loop {
+            frame_loop_depth = frame_loop_depth - 1
+        }
         return
     }
     var site = coarse_site_owners.count()
@@ -41617,6 +42123,17 @@ func generate_while_statement(
     var end = builder.user_count()
     coarse_site_ends.append(end)
     builder.add_user("spite_coarse_{site}_leave();")
+    if frame_loop {
+        frame_loop_depth = frame_loop_depth - 1
+    }
+}
+
+func in_frame_loop(while_statement: Syntax.Statements.WhileStatement, class_information: Analysis.ClassInfo): Boolean {
+    if resumable_mode or is_library_class(class_information) or class_information.is_generic_template {
+        return false
+    }
+    var loops = studied_frame_loops(class_information)
+    return loops.is_frame_loop(class_information, current_function, while_statement.line)
 }
 
 # ../../../docs/control_flow.md#while-is-the-only-loop
@@ -45391,6 +45908,11 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         deferred_wait_functions.append(function)
         return
     }
+    if may_start_waits(information, function) {
+        deferred_frame_classes.append(information)
+        deferred_frame_functions.append(function)
+        return
+    }
     emit_user_function_body(information, function)
 }
 
@@ -45713,6 +46235,7 @@ func lets_go_with_effect(held_type: Analysis.SpiteType): Boolean {
 
 func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     site_ordinal = 0
+    frame_loop_depth = 0
     folded_dictionaries = Dictionary<String, Syntax.Expressions.ObjectLiteralExpression>()
     frame_candidates.clear()
     placed_names.clear()

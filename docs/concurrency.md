@@ -328,6 +328,76 @@ program with a crash report at the scheduler's count. Which systems to start thi
 `$system_type.functions['update_each'].is_resumable` ([metaprogramming.md](metaprogramming.md#asking-a-question-while-compiling)),
 so a system never says that it does IO.
 
+### A wait in a frame does not hold the frame
+
+A **frame loop** is a `while` whose passes sleep until the next frame: it calls `program.sleep`, itself or through
+a function of its own object. The work such a loop runs often waits, for a file, a socket or a database, and a
+frame should not stop while it does. So, in the loop and in every function of its own object it calls, a call
+that waits and answers nothing, made on another object of the program (`report.fetch()`, `systems[index].update()`),
+is started the way `Concurrent` starts a function: it runs until its first wait, the frame goes on, and the rest
+of it runs while the loop sleeps. Nothing in the program says so.
+
+```gdscript title=frame_waits/report_file.spite
+var program = Program()
+var text = ""
+
+func fetch() {
+    program.sleep(100)
+    var file = File(".spite/documentation_report.txt")
+    var read = file.read()
+    crash read
+    text = read
+}
+```
+```gdscript title=frame_waits/frame_waits.spite entry
+var console = Console()
+var program = Program()
+var report = ReportFile()
+var frames = 0
+
+func FrameWaits() {
+    var file = File(".spite/documentation_report.txt")
+    file.write("sales are up")
+    while report.text.is_empty() {
+        frames = frames + 1
+        if frames == 1 {
+            report.fetch()
+        }
+        program.sleep(1)
+    }
+    console.print("loaded '{report.text}' while frames kept running:", frames > 1)
+}
+```
+```output
+loaded 'sales are up' while frames kept running: true
+```
+
+Written plainly, `report.fetch()` would have held the first frame for a tenth of a second, and the loop would have
+seen the text on its first test. Here it returns at its sleep, and the loop draws frames until the text is there.
+
+- **What stays the same.** The call does everything it did, in the order it is written; only when its waits end
+  has moved, to later frames. A crash inside it halts the program with its own report, at its own line, as a crash
+  anywhere does. A call whose function never waits is the plain call.
+- **What it waits for.** Anything a call waits for: a sleep, a file, a socket, a `Concurrent`'s value. It moves on
+  wherever the program waits, as a `Concurrent` does, which in a frame loop is the frame's sleep; an engine that
+  [chooses where `Concurrent`s resume](#choosing-where-concurrents-resume) chooses it for these too.
+- **How many at once.** Each call site keeps at most eight in flight. The ninth, made while eight from the same line
+  still wait, waits in place for the oldest of them, as the plain call would have waited for itself: the frame is
+  held, never a call dropped.
+- **None is lost.** A started call nobody waits for still runs to its end: the next time its line is reached, the
+  ones that finished are let go, and the program does not end until every one has finished, as it does for every
+  `Concurrent`.
+- **The frame's own waits stay.** Only a call on another object is started. The loop's sleep, and anything that
+  waits in a function of the loop's own object, is the frame's pace and waits where it is written, and so does a
+  call whose answer is used, or one made inside a `Concurrent`.
+- **No write is lost.** The call and the frame now take turns at their waits, so a value one of them read before
+  a wait may be out of date after it. When either side would write such a value back (`var seen = count`, a wait,
+  then `count = seen + 1`), the call is not started: it waits where it is written, as it always did, and
+  `--optimization-report` lists it under "Waits that hold the frame". Read the value again after the wait and the
+  call is started.
+
+The exact conditions are in [the rules](../specs/concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame).
+
 ## `Parallel`: work that computes
 
 `Concurrent` never makes a program faster at computing: every `Concurrent` runs on the program's one thread. For work that keeps a core

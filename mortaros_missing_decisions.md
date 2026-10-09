@@ -48,6 +48,17 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **Engine, the waiting-system write rule**: with plain `List<T>` columns, the engine's rule refusing a waiting
   (IO) system that writes `Vector`-fitting components of its rows has lost its reason. Kept for now (it refuses,
   never silently drops); it goes when the compiler arranges waiting itself (D512).
+- **D554, a wait in a frame does not hold the frame**: inside a frame loop (a `while` that sleeps on a `Program`,
+  itself or through its own class's functions), `receiver.function()` with no arguments, answering nothing, on
+  another object of the program, is started as a `Concurrent` when the function can wait. A started call nobody
+  waits for still finishes before the program ends; a crash in it halts at once with its own report; at most eight
+  per statement are in flight, and the ninth waits for the oldest (holding the frame, never dropping a call). The
+  engine's waiting-system rule stays after all: started work writes after the frame has moved on, so a row it
+  wrote would be stored stale. Why: the naive engine's `io_systems` advanced 3 frames while its lookups waited
+  (main 31); now 17, with the engine unchanged. Say if eight should be another number, or if the frame's own
+  calls should be started too (they are its pace, so starting them would make the loop spin). A call where either
+  side would write back a value read before a wait is not started (it waits in place and is listed in
+  `--optimization-report`); say if you would rather have it be a compile error.
 - **D513, plain counts per class**: in a program with threads, a class no other thread can count is counted with
   plain arithmetic; one used by threaded work stays atomic for all of its objects. Why: atomic counts were the
   largest single cost of the naive engine's stress test (105 ms a tick to 73), and the fallback is always atomic.
@@ -195,12 +206,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
   fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 20% and 13%,
   for about 7% of its tick, measured while the machine was in other use), since combinations the program never makes are copied too.
-- **D554, counts per group, and the despawn cost**: in a loop over different classes that may run them at once, a
+- **D555, counts per group, and the despawn cost**: in a loop over different classes that may run them at once, a
   class only one of the calls counts keeps plain counts and its pool, and one two of them count is atomic only
   while they run. The stress update stage went from about 28 to 15 ms, but the sixty ticks after despawning
   everything got about a tenth slower (caches on the other core, and a pool start per empty tick), which D214
   would refuse; kept because the tick is the number that matters. Say if it should wait for a cost model.
-- **D555, objects made for their owner are told apart**: an attribute only ever given an object constructed
+- **D556, objects made for their owner are told apart**: an attribute only ever given an object constructed
   where it is given holds an object no other such attribute holds, so two calls that each keep their own meter,
   timing record or scratch list may run at once; an item of one singleton's list and an item of another's are told
   apart by comparing the two lists when the loop starts. Why: it is what keeps the naive engine's two stress

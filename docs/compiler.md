@@ -470,6 +470,11 @@ The report has one section per optimisation, with how many places it lists:
   nothing proves or the ranges that let the answer pass its type
   (`` `product * 3` keeps its overflow check: 'product' runs from -2147483648 to 2147483647, so the answer may not
   fit in an Integer ``). Hold a total in a wider type, or bound a value where it is made, and the line goes.
+- **Waits that hold the frame**: each call a frame loop would have started
+  ([concurrency.md](concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame)) that waits in place instead,
+  because the call or the frame writes something back from a value it read before a wait
+  (`` `tally.add_late()` waits in place: Tally.add_late writes `count` from a value it read before a wait, and the
+  frame could write it while the call waits ``). Read the value again after the wait, and the line goes.
 
 A line looks like this, its link relative to the report's folder so it opens from wherever the file is read:
 

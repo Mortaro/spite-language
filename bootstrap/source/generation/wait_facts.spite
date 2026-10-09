@@ -112,11 +112,12 @@ func answer(name: String, text: String, path: String, line: Integer, owner: Stri
     return answered
 }
 
-func first_changed_answer(): Integer {
+func first_changed_answer(started: Dictionary<String, Boolean>): Integer {
     var index = 0
     while index < asked_names.count() {
         var name = asked_names[index]
-        if answers[name] == true != waits.has(name) {
+        var harmless = started.has(name) and not waits.has(name)
+        if answers[name] == true != waits.has(name) and not harmless {
             return index
         }
         index = index + 1

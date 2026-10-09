@@ -3,12 +3,12 @@
  * names numbered again from 1. check.sh compares it with what the compiler writes now. */
 
 Memory_Heap* spite_singleton_Memory_Heap(void) {
-    static Memory_Heap spite_object = { { 1, 95 } };
+    static Memory_Heap spite_object = { { 1, 96 } };
     return &spite_object;
 }
 
 TypedMemory__Long* spite_singleton_TypedMemory__Long(void) {
-    static TypedMemory__Long spite_object = { { 1, 120 } };
+    static TypedMemory__Long spite_object = { { 1, 121 } };
     return &spite_object;
 }
 

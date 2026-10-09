@@ -10,7 +10,7 @@ static void Item___init_constructed(Item* self) {
 static Item* Item___allocate_constructed(void) {
     Item* self = Item___pool_take();
     self->header.ref_count = 1;
-    self->header.class_id = 111;
+    self->header.class_id = 112;
     Item___init_constructed(self);
     #ifdef SPITE_TRACKS_Item
     spite_track_Item(self);

@@ -1,0 +1,282 @@
+var shape = Analysis.AstShape()
+var type_shape = Analysis.TypeShape()
+var studied = Dictionary<String, Boolean>()
+var own_functions = Dictionary<String, Boolean>()
+var loop_lines = Dictionary<String, Boolean>()
+var loop_functions = Dictionary<String, Boolean>()
+var visiting = List<String>()
+
+# ../../../docs/optimizations.md#a-wait-in-a-frame-does-not-hold-the-frame
+func study(information: Analysis.ClassInfo) {
+    assert not studied.has(information.c_name)
+    studied[information.c_name] = true
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        find_loops(information, function.name, function.body)
+        index = index + 1
+    }
+}
+
+func is_own_code(information: Analysis.ClassInfo, function_name: String): Boolean {
+    return own_functions.has("{information.c_name}#{function_name}")
+}
+
+func holds_frame_loop(information: Analysis.ClassInfo, function_name: String): Boolean {
+    return loop_functions.has("{information.c_name}#{function_name}")
+}
+
+func is_frame_loop(information: Analysis.ClassInfo, function_name: String, line: Integer): Boolean {
+    return loop_lines.has("{information.c_name}#{function_name}:{line}")
+}
+
+func find_loops(information: Analysis.ClassInfo, function_name: String, statements: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        switch statement {
+            Syntax.Statements.WhileStatement: {
+                visiting.clear()
+                if block_paces(information, statement.body) {
+                    loop_lines["{information.c_name}#{function_name}:{statement.line}"] = true
+                    loop_functions["{information.c_name}#{function_name}"] = true
+                    reach_own(information, statement.body)
+                }
+                find_loops(information, function_name, statement.body)
+            }
+            Syntax.Statements.IfStatement: {
+                find_loops(information, function_name, statement.then_branch)
+                find_loops(information, function_name, statement.else_branch)
+            }
+            Syntax.Statements.SwitchStatement: {
+                var case_index = 0
+                while case_index < statement.cases.count() {
+                    find_loops(information, function_name, statement.cases[case_index].body)
+                    case_index = case_index + 1
+                }
+            }
+            _: {}
+        }
+        index = index + 1
+    }
+}
+
+func block_paces(information: Analysis.ClassInfo, statements: List<Syntax.Statements.Statement>): Boolean {
+    var calls = List<Syntax.Expressions.CallExpression>()
+    collect_block_calls(statements, calls)
+    var index = 0
+    while index < calls.count() {
+        if call_paces(information, calls[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func call_paces(information: Analysis.ClassInfo, call: Syntax.Expressions.CallExpression): Boolean {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        return member.name == "sleep" and names_program(information, member.object)
+    }
+    var own = own_function(information, call.callee)
+    if not own or visiting.contains(own.name) {
+        return false
+    }
+    visiting.append(own.name)
+    return block_paces(information, own.body)
+}
+
+func names_program(information: Analysis.ClassInfo, receiver: Syntax.Expressions.Expression): Boolean {
+    var made = shape.as_call(receiver)
+    if made {
+        crash made.callee
+        var made_name = shape.as_identifier(made.callee)
+        if made_name {
+            return made_name.name == "Program"
+        }
+        return false
+    }
+    var named = shape.as_identifier(receiver)
+    if not named {
+        return false
+    }
+    var field = information.find_field(named.name)
+    if not field {
+        return false
+    }
+    crash field.spite_type
+    var program_class = type_shape.as_class_ref(field.spite_type)
+    if program_class {
+        return program_class.c_name == "Program"
+    }
+    return false
+}
+
+func own_function(information: Analysis.ClassInfo, callee: Syntax.Expressions.Expression): Analysis.FunctionInfo? {
+    var named = shape.as_identifier(callee)
+    assert named
+    var found = information.find_function(named.name)
+    assert found
+    assert not found.is_constructor
+    return found
+}
+
+func reach_own(information: Analysis.ClassInfo, statements: List<Syntax.Statements.Statement>) {
+    var calls = List<Syntax.Expressions.CallExpression>()
+    collect_block_calls(statements, calls)
+    var index = 0
+    while index < calls.count() {
+        crash calls[index].callee
+        var own = own_function(information, calls[index].callee)
+        if own {
+            var key = "{information.c_name}#{own.name}"
+            if not own_functions.has(key) {
+                own_functions[key] = true
+                reach_own(information, own.body)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func collect_block_calls(
+    statements: List<Syntax.Statements.Statement>,
+    calls: List<Syntax.Expressions.CallExpression>,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_calls(statements[index], calls)
+        index = index + 1
+    }
+}
+
+func collect_statement_calls(statement: Syntax.Statements.Statement, calls: List<Syntax.Expressions.CallExpression>) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.AssignmentStatement: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.IfStatement: {
+            collect_optional_calls(statement.condition, calls)
+            collect_block_calls(statement.then_branch, calls)
+            collect_block_calls(statement.else_branch, calls)
+        }
+        Syntax.Statements.WhileStatement: {
+            collect_optional_calls(statement.condition, calls)
+            collect_block_calls(statement.body, calls)
+        }
+        Syntax.Statements.SwitchStatement: {
+            collect_optional_calls(statement.subject, calls)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_block_calls(statement.cases[case_index].body, calls)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.ReturnStatement: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.ExpressionStatement: collect_optional_calls(statement.value, calls)
+        _: return
+    }
+}
+
+func collect_optional_calls(
+    expression: Syntax.Expressions.Expression?,
+    calls: List<Syntax.Expressions.CallExpression>,
+) {
+    assert expression
+    collect_calls(expression, calls)
+}
+
+func collect_calls(expression: Syntax.Expressions.Expression, calls: List<Syntax.Expressions.CallExpression>) {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            calls.append(expression)
+            collect_optional_calls(expression.callee, calls)
+            var index = 0
+            while index < expression.arguments.count() {
+                collect_calls(expression.arguments[index], calls)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.BinaryExpression: {
+            collect_optional_calls(expression.left, calls)
+            collect_optional_calls(expression.right, calls)
+        }
+        Syntax.Expressions.UnaryExpression: collect_optional_calls(expression.operand, calls)
+        Syntax.Expressions.MemberExpression: collect_optional_calls(expression.object, calls)
+        Syntax.Expressions.IndexExpression: {
+            collect_optional_calls(expression.object, calls)
+            collect_optional_calls(expression.index, calls)
+        }
+        _: return
+    }
+}
+
+func started_shape(statement: Syntax.Statements.Statement): Syntax.Expressions.MemberExpression? {
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    var call = shape.as_call(expression_statement.value)
+    assert call
+    assert call.arguments.is_empty()
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    assert is_receiver_path(member.object)
+    return member
+}
+
+func is_receiver_path(expression: Syntax.Expressions.Expression): Boolean {
+    var named = shape.as_identifier(expression)
+    if named {
+        return named.name != "this" and named.name != "self"
+    }
+    var read = shape.as_member(expression)
+    if read {
+        crash read.object
+        return is_receiver_path(read.object)
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        crash indexed.object
+        crash indexed.index
+        if not shape.as_identifier(indexed.index) and not shape.as_integer_literal(indexed.index) {
+            return false
+        }
+        return is_receiver_path(indexed.object)
+    }
+    return false
+}
+
+func collect_started_members(
+    statements: List<Syntax.Statements.Statement>,
+    members: List<Syntax.Expressions.MemberExpression>,
+) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var member = started_shape(statement)
+        if member {
+            members.append(member)
+        }
+        switch statement {
+            Syntax.Statements.IfStatement: {
+                collect_started_members(statement.then_branch, members)
+                collect_started_members(statement.else_branch, members)
+            }
+            Syntax.Statements.WhileStatement: collect_started_members(statement.body, members)
+            Syntax.Statements.SwitchStatement: {
+                var case_index = 0
+                while case_index < statement.cases.count() {
+                    collect_started_members(statement.cases[case_index].body, members)
+                    case_index = case_index + 1
+                }
+            }
+            _: {}
+        }
+        index = index + 1
+    }
+}

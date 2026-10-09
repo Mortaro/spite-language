@@ -1,0 +1,7 @@
+var program = Program()
+var beats = 0
+
+func count_later() {
+    program.sleep(20)
+    beats = beats + 1
+}

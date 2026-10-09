@@ -20,7 +20,8 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
   placement in the frame, proven reads, tree
   shaking, singleton lock elision. Not built: independent loops written as a `while`, reductions, layout chosen by the
   compiler (structure of arrays, hot and cold splitting, field order and cache-line alignment), waiting arranged by
-  the compiler outside a `Concurrent`, frame arenas, rings and deferred freeing.
+  the compiler outside a `Concurrent` beyond a frame loop's started calls (D554, below under concurrency), frame
+  arenas, rings and deferred freeing.
 - "A plain program must reach the hand-written speed": not yet true of the engine package; its naive branch and
   the benchmark table in naive_programs.md track it.
 - `optimizations.md` now says every section names its proof; most existing sections do not yet name one. Each
@@ -487,14 +488,14 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - D505, calls in a row run at once: built for `receiver.function()` and the class's own `function()` with no
   arguments, including rows that mix light and heavy calls. Not built: calls with arguments, telling apart two
-  objects of one class that are not held by attributes made for their owner (D555), and a cost model finer than
+  objects of one class that are not held by attributes made for their owner (D556), and a cost model finer than
   "reaches a loop".
   The conditions beyond D505 itself are proposed by Claude, unconfirmed.
 - D539, a loop over a list of different classes runs them at once: built for `list.each_function()` and
   `list.each(own_function)` over a `List` of a `type`, with the table of classes decided while compiling and the
   classes read at run time. Not built: a loop written as a `while`, counts per creation site (R9; counts are
-  decided per group, D554), and a cost model that leaves calls with nothing to do in order (the naive engine's
-  ticks after despawning pay a pool start each). D555 tells objects made for their owner apart; a function value's
+  decided per group, D555), and a cost model that leaves calls with nothing to do in order (the naive engine's
+  ticks after despawning pay a pool start each). D556 tells objects made for their owner apart; a function value's
   owner is still taken as let go on another thread, which makes every class it reaches atomic.
 - D542, a loop whose passes write only their own item runs in bands: built for `list.each_function()` and
   `list.each(own_function)` over a `List` or `Vector` of a class. Not built: reductions (T2), a scratch per band
@@ -516,6 +517,17 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Locked-wait check (D264) does not see: a handle that escapes the function and is read by another locked function; calls whose class is unknown (function value, union, unknown receiver); work reaching the singleton only through its attributes from outside; `parallel_each_` passes; generic singletons (`Column<T>`). The exact wording of the error was proposed, unconfirmed.
 - Not built: taking no lock at all where one `Parallel`'s work is provably the only thread touching a singleton while it runs (D207's handover extended to singletons). The game engine package also asked for no lock at all while every `Parallel` reaching a singleton only reads it, with writes between stages; not provable at compile time, so the reader-writer form was built instead.
 - Reads in a row overlap: `Directory` listing is not a waiting call yet (no helper thread), so it is not overlapped.
+- D554, a wait in a frame does not hold the frame (the pairs' W1 across frames): built for a statement
+  `receiver.function()` with no arguments, answering nothing, on a name, a path or a list item of a program class
+  or a `type`. Not built: W1 within one pass (a call whose answer is read later in the pass, started early and
+  joined at its first use), W2 (several waiting calls in a row in flight at once, beyond reads in a row), calls with
+  arguments, a local frame loop held by an object whose loop is in a function another class calls, and frame loops
+  paced by anything but `Program.sleep`. The proof that no write is lost reads the plain C, not the state
+  machines: it is conservative (a value written back to an attribute of the same name on any object counts, and
+  a plain parameter of a function that waits counts as read from anything), and a frame loop whose own code
+  writes back a stale value keeps its calls in place only after they were generated, so such a program still
+  carries the scheduler it would have used. `diagnostics/frame_wait_answer` does not exist: no program has been found
+  that makes the answer change once every function is compiled, so the error text is untested.
 - Task-may-keep-what-was-handed-over (D207): implemented, conditions and error text unconfirmed.
 - Reads-in-a-row rule (D134's IO half) implemented; Mortaro's decision was "all our IO classes should use it", the reading of the rule unconfirmed.
 - Removed wording: the page said "`check.sh` holds its C" for `conformance/stage6/singleton_reads` and `unshared_locks`; those conformance programs exist and their generated C is checked.

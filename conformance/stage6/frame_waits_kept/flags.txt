@@ -1,0 +1,1 @@
+--optimization-report=.spite/reports/frame_waits_kept.md

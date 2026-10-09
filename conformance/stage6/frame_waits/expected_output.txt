@@ -1,0 +1,5 @@
+a call on another object did not hold the frame: true
+a waiting system did not hold the others: true
+never more than eight in flight from one line: true and all 12 done
+the entry function returns
+the closing work a frame started finished before the program ended
