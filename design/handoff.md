@@ -99,6 +99,17 @@ and finding R17's six-step plan in `design/optimization_research.md`).
 
 When the engine is at least as fast everywhere, the naive branch replaces main (D550), after a quiet re-timing.
 
+## Saved branches (cleanup of 2026-10-09)
+
+Every clone and worktree that held unfinished work was pushed to a `saved-*` branch before its folder was removed,
+in both repositories: in the language `saved-checker-d284` (**"refuse a program class that re-creates a standard
+library class"**, never merged, relevant to the status.md item about reopenings that copy library work),
+`saved-fx-backup` (singleton lock backoff), `saved-dictionary-two-generics`, `saved-work-dictionary`,
+`saved-unit-placement-experiment`, `saved-t1-work-in-progress`, `saved-interop`, `saved-testdocs`,
+`saved-concurrencydocs`, `saved-fastbuild`, `saved-mono`, `saved-mono3`, `saved-nomap`, `saved-record`; in the engine
+`saved-cascaded-shadows`, `saved-index-in-cache`, `saved-materials-merge`. Branches merged into master or main were
+deleted. The engine works in `D:\Projects\SlopEngine` (main is the naive engine).
+
 ## How to work here (lessons from this session)
 
 - **Agent isolation "remote" did not offload**: those agents ran in local worktrees on Mortaro's PC. Count every
