@@ -51,12 +51,12 @@ static Offset* simulate(int32_t steps) {
 int main(void) {
     int64_t start = now_nanoseconds();
     Offset* ended = simulate(20000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int64_t across = (int64_t)(ended->x * 1000.0f);
     int64_t up = (int64_t)(ended->y * 1000.0f);
     int64_t ahead = (int64_t)(ended->z * 1000.0f);
     printf("ended at %lld %lld %lld\n", (long long)across, (long long)up, (long long)ahead);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(ended);
     return 0;
 }

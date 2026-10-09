@@ -105,7 +105,7 @@ int main(int argument_count, char** arguments) {
     for (int32_t level = 0; level < 256; level = level + 1) spread = spread + histogram[level] * (level % 7 + 1);
     int64_t finished = now_nanoseconds();
     printf("spread %lld bright %d weights %lld\n", (long long)spread, bright, (long long)weights);
-    fprintf(stderr, "microseconds %lld\n", (long long)((finished - start) / 1000));
+    print_microseconds((finished - start) / 1000);
     fprintf(stderr, "phases make %lld filter %lld measure %lld\n", (long long)((made - start) / 1000),
         (long long)((filtered - made) / 1000), (long long)((finished - filtered) / 1000));
     return 0;

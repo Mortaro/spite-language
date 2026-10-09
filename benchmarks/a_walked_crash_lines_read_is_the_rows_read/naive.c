@@ -183,8 +183,8 @@ int main(void) {
     for (int32_t index = 0; index < positions->count; index = index + 1) {
         places = places + ((int64_t)positions->values[index].left + positions->values[index].top);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("places %lld marked %d\n", (long long)places, marked);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

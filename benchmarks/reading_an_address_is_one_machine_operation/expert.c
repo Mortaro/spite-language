@@ -46,9 +46,9 @@ int main(void) {
         __asm__ volatile("" : : "r"(output) : "memory");
         total += length + output[round];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(bytes);
     free(output);
     return 0;

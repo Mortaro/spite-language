@@ -141,9 +141,9 @@ int main(void) {
     int32_t counted = record_on_four(250000);
     int32_t recorded = registry_recorded(&registry);
     int64_t total = registry_sum(&registry);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("counted %d recorded %d total %lld\n", counted, recorded, (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(registry.weights->items);
     free(registry.weights);
     mutex_free(&registry.mutex);

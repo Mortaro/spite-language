@@ -42,9 +42,9 @@ int main(void) {
     }
     int64_t places = 0;
     for (int32_t index = 0; index < ENTITY_COUNT; index++) places += (int64_t)lefts[index] + tops[index];
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("places %lld marked %d\n", (long long)places, marked);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(position_place);
     free(lefts);
     free(tops);

@@ -133,9 +133,9 @@ int main(void) {
     for (int32_t round = 0; round < 40; round = round + 1) {
         total = total + party_total(party);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < party->count; index = index + 1) {
         free(party->items[index]);
     }

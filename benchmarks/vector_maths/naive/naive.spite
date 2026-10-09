@@ -1,8 +1,15 @@
 var console = Console()
-var clock = Clock()
+var checksum: Long = 0
+var ended: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(steps)
+    console.print("checksum", checksum, "ended at", ended)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func steps() {
     var position = Vector3(0.0, 0.0, 0.0)
     var velocity = Vector3(1.0, 0.5, 0.25)
     var axis = Vector3(0.0, 1.0, 0.0)
@@ -17,9 +24,6 @@ func Naive() {
         total = total + position.dot(velocity)
         step = step + 1
     }
-    var checksum: Long = total
-    var ended: Long = position.length() * 1000.0
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("checksum", checksum, "ended at", ended)
-    console.error("microseconds {microseconds}")
+    checksum = total
+    ended = position.length() * 1000.0
 }

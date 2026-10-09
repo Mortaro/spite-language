@@ -11,7 +11,7 @@
 Node* Node___allocate(void) {
     Node* self = (Node*)SPITE_MALLOC(sizeof(Node));
     self->header.ref_count = 1;
-    self->header.class_id = 110;
+    self->header.class_id = 111;
     Node___init(self);
     #ifdef SPITE_TRACKS_Node
     spite_track_Node(self);

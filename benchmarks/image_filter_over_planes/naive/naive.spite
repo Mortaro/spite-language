@@ -1,9 +1,17 @@
 var console = Console()
-var clock = Clock()
 var environment = Environment()
+var spread: Long = 0
+var bright = 0
+var weights: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(filter_image)
+    console.print("spread", spread, "bright", bright, "weights", weights)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func filter_image() {
     var pixels = List<Pixel>()
     var seed: Long = 11
     var index = 0
@@ -16,12 +24,9 @@ func Naive() {
     pixels.each_brighten()
     pixels.each_contrast()
     var histogram = histogram_of(pixels)
-    var bright = pixels.count_is_bright()
-    var weights = pixels.sum_weight()
-    var spread = spread_of(histogram)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("spread", spread, "bright", bright, "weights", weights)
-    console.error("microseconds {microseconds}")
+    bright = pixels.count_is_bright()
+    weights = pixels.sum_weight()
+    spread = spread_of(histogram)
 }
 
 func histogram_of(pixels: List<Pixel>): List<Integer> {

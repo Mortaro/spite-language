@@ -1,8 +1,13 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(all_meetings)
+    console.print("characters", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func all_meetings(): Long {
     var names = List<String>()
     var index = 0
     while index < 1000 {
@@ -16,9 +21,7 @@ func Naive() {
         total = total + meetings(names)
         round = round + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("characters", total)
-    console.error("microseconds {microseconds}")
+    return total
 }
 
 func meetings(names: List<String>): Integer {

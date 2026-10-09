@@ -68,9 +68,9 @@ int main(void) {
     }
     int64_t total = 0;
     for (int32_t round = 0; round < 20; round++) total += measure(values);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(values);
     return 0;
 }

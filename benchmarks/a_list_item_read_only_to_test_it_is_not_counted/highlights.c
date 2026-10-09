@@ -18,7 +18,7 @@ int32_t Naive_probe(Naive* self, int32_t probes_) {
         index_ = (index_ + 1);
     }
     if (!(((({ int32_t spite_temp_3 = found_; int32_t spite_temp_4 = missing_; int32_t spite_temp_5; if (__builtin_expect(__builtin_add_overflow(spite_temp_3, spite_temp_4, &spite_temp_5), 0)) spite_overflowed("found + missing", "an Integer", "+", (int64_t)spite_temp_3, (int64_t)spite_temp_4, spite_site_1()); spite_temp_5; }) == probes_)))) {
-        spite_failed_1(found_, missing_, probes_, at_, index_);
+        spite_failed_1(found_, missing_, probes_, at_, index_, self);
     }
     int32_t spite_temp_6 = found_;
     return spite_temp_6;

@@ -174,7 +174,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   change, yours to decide), or a `clock.benchmark(work)` taking only work that answers nothing and returning just
   the `Duration`, with the work storing its results in attributes. The cost to confirm: the function value is made
   on the heap with its reflection (a constructor of a library class gets no framed value yet), outside the
-  measured time; the call through it is one pointer.
+  measured time; the call through it is one pointer. In a program that starts a `Parallel`, the work counts as
+  code another thread may run (values are matched to a thread's calls by argument count), so five cases whose point
+  is a lock or a plain count left out keep their two clock readings (design/status.md).
 
 ## Open
 

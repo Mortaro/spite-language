@@ -118,9 +118,9 @@ int main(void) {
     fill(&positions, &velocities, 100000);
     ticks(&positions, &velocities);
     int64_t total = sum_place(&positions);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(positions.items);
     free(velocities.items);
     return 0;

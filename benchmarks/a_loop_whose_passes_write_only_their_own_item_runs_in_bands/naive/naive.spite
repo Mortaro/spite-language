@@ -1,22 +1,28 @@
 var console = Console()
-var clock = Clock()
+var orbits = List<Orbit>()
 
 func Naive() {
-    var orbits = List<Orbit>()
+    make_orbits(100000)
+    var result = Benchmark(advance_ticks)
+    var turns = orbits.sum_turns()
+    console.print("turns", turns)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func make_orbits(count: Integer) {
     var index = 0
-    while index < 100000 {
+    while index < count {
         var orbit = Orbit(index)
         orbits.append(orbit)
         index = index + 1
     }
-    var start = clock.elapsed_nanoseconds()
+}
+
+func advance_ticks() {
     var tick = 0
     while tick < 10 {
         orbits.each_advance()
         tick = tick + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    var turns = orbits.sum_turns()
-    console.print("turns", turns)
-    console.error("microseconds {microseconds}")
 }

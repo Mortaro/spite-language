@@ -48,9 +48,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     Point* origin = point_make(3, -4);
     int64_t total = all_trials(origin, 20000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld origin %d %d\n", (long long)total, origin->x, origin->y);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(origin);
     return 0;
 }

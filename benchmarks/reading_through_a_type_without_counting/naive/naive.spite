@@ -1,17 +1,19 @@
 var console = Console()
-var clock = Clock()
 var mover = Mover()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(move_all)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func move_all(): Long {
     var positions = Vector<Position>()
     var velocities = Vector<Velocity>()
     fill(positions, velocities, 100000)
     ticks(positions, velocities)
-    var total = positions.sum_place()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
-    console.error("microseconds {microseconds}")
+    return positions.sum_place()
 }
 
 func fill(positions: Vector<Position>, velocities: Vector<Velocity>, count: Integer) {

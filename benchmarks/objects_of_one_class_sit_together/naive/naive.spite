@@ -1,16 +1,20 @@
 var console = Console()
-var clock = Clock()
 var points = List<Point>()
 var notes = List<Note>()
+var total: Long = 0
+var noted = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    make_both(300000)
-    var total = sum_points()
-    var noted = notes.count()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(make_and_sum)
     console.print("total", total, "notes", noted)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func make_and_sum() {
+    make_both(300000)
+    total = sum_points()
+    noted = notes.count()
 }
 
 func make_both(count: Integer) {

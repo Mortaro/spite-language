@@ -28,9 +28,9 @@ int main(void) {
     for (int32_t index = 0; index < COLUMN_COUNT; index++) {
         hit_total += hits[index];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("hits %d last weight %d\n", hit_total, weights[COLUMN_COUNT - 1]);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(hits);
     free(steps);
     free(weights);

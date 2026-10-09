@@ -1,14 +1,17 @@
 var console = Console()
-var clock = Clock()
+var by_number = Dictionary<Integer, Integer>()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var by_number = make_table(100000)
-    var total = look_up(by_number, 100000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(make_and_look_up)
     var entries = by_number.count()
-    console.print("total", total, "entries", entries)
+    console.print("total", result.answer, "entries", entries)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func make_and_look_up(): Long {
+    by_number = make_table(100000)
+    return look_up(by_number, 100000)
 }
 
 func key_of(index: Integer): Integer {

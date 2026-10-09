@@ -23,9 +23,9 @@ int main(void) {
         for (int32_t index = 0; index < ITEM_COUNT; index++) sum += prices[index] + ages[index];
         total += sum;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(prices);
     free(ages);
     return 0;

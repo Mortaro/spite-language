@@ -115,9 +115,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     Dictionary* by_number = make_table(100000);
     int64_t total = look_up(by_number, 100000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld entries %d\n", (long long)total, by_number->count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     dictionary_free(by_number);
     return 0;
 }

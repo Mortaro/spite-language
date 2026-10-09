@@ -17,8 +17,8 @@ int main(void) {
     }
     int32_t total = 0;
     for (int32_t index = 0; index < 16; index = index + 1) total = total + slots[index];
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("changed %d total %d\n", changed, total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

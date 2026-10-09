@@ -116,9 +116,9 @@ int main(void) {
     int32_t hits = sum_hits(columns);
     if (weights->count <= 99999) abort();
     int32_t last = weights->items[99999];
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("hits %d last weight %d\n", hits, last);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < columns->count; index = index + 1) {
         free(columns->items[index]);
     }

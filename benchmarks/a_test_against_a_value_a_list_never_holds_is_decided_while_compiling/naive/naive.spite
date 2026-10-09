@@ -1,8 +1,13 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(price_all)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func price_all(): Long {
     var checkout = Pipeline()
     checkout.add('discount')
     checkout.add('tax')
@@ -15,7 +20,5 @@ func Naive() {
         total = total + priced
         index = index + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
-    console.error("microseconds {microseconds}")
+    return total
 }

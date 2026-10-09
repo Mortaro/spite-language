@@ -1,8 +1,16 @@
 var console = Console()
-var clock = Clock()
+var entries = 0
+var found_keys = 0
+var found_total: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(fill_and_look_up)
+    console.print("entries", entries, "found", found_keys, "total", found_total)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func fill_and_look_up() {
     var scores = Dictionary<Integer, Integer>()
     var index = 0
     while index < 500000 {
@@ -24,8 +32,7 @@ func Naive() {
         }
         round = round + 1
     }
-    var entries = scores.count()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("entries", entries, "found", found, "total", total)
-    console.error("microseconds {microseconds}")
+    entries = scores.count()
+    found_keys = found
+    found_total = total
 }

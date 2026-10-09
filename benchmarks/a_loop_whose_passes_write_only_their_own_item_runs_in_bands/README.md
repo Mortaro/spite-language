@@ -23,7 +23,7 @@ the list's count with it, and checks that no element is held twice, when it star
 
 ## What to look at in highlights.c
 
-`Naive_Naive` compares the list's count with the smallest count at which bands pay, a constant the compiler worked
+`Naive_advance_ticks` compares the list's count with the smallest count at which bands pay, a constant the compiler worked
 out from what `advance` weighs (its loop of 1000 steps), and checks that every orbit is held by the list alone
 (`ref_count == 1`). Then `List_Orbit_spite_band_advance` hands its piece to `ThreadPool_run_bands`, which cuts the
 list into a band for each thread, runs the first on the program's thread and waits for the rest; otherwise the

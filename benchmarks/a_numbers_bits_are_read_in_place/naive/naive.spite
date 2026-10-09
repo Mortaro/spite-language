@@ -1,12 +1,14 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var total = round_trips(30000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    var result = Benchmark(every_round_trip)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func every_round_trip(): Long {
+    return round_trips(30000000)
 }
 
 func round_trips(count: Integer): Long {

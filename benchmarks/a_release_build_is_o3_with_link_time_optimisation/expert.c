@@ -11,8 +11,8 @@ int main(void) {
     for (uint32_t index = 0; index < 50000000u; index++) {
         total += ((index & 65535u) * factor + 7u) % 1000u;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("checksum %llu\n", (unsigned long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

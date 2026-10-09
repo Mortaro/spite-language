@@ -82,9 +82,9 @@ int main(void) {
         across[across_count] = across[tick];
         across_count++;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(across);
     return 0;
 }

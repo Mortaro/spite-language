@@ -65,9 +65,9 @@ int main(void) {
     ledger.total = total;
     ledger.notes = 10000000;
     ledger.milestone_count = milestones;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("counted %d large %d seen %d notes %d milestones %d total %lld\n", counted, large, seen, ledger.notes,
            ledger.milestone_count, (long long)ledger.total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

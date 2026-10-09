@@ -1,13 +1,16 @@
 var console = Console()
-var clock = Clock()
+var origin = Point(0, 0)
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var origin = Point(3, -4)
-    var total = all_trials(origin, 20000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total, "origin", origin.x, origin.y)
+    var result = Benchmark(every_trial)
+    console.print("total", result.answer, "origin", origin.x, origin.y)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func every_trial(): Long {
+    origin = Point(3, -4)
+    return all_trials(origin, 20000000)
 }
 
 func all_trials(origin: Point, trials: Integer): Long {

@@ -1,13 +1,15 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var values = make_values(90000)
-    var total = measure_rounds(values)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    var result = Benchmark(make_and_measure)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func make_and_measure(): Long {
+    var values = make_values(90000)
+    return measure_rounds(values)
 }
 
 func make_values(count: Integer): List<Printable> {

@@ -77,12 +77,12 @@ int main(void) {
 #endif
         characters += first.length + second.length;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int first_removed = remove(first.path) == 0;
     int second_removed = remove(second.path) == 0;
     printf("characters %lld removed %s %s\n", (long long)characters, first_removed ? "true" : "false",
         second_removed ? "true" : "false");
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(first.buffer);
     free(second.buffer);
     return 0;

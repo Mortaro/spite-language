@@ -1,12 +1,14 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var total = stream_on_the_pool(3000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    var result = Benchmark(stream_all)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func stream_all(): Integer {
+    return stream_on_the_pool(3000000)
 }
 
 func stream_on_the_pool(entity_count: Integer): Integer {

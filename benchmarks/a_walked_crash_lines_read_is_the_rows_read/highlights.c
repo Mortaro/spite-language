@@ -25,10 +25,10 @@ void Runner__Mover_Moving_run___held_0(Runner__Mover_Moving* self, Mover* system
             if (!(((spite_temp_4) != 0))) {
                 spite_failed_4(entity_count_, entity_, self);
             }
-            Entity spite_temp_5 = { { 1, 111 } };
+            Entity spite_temp_5 = { { 1, 112 } };
             Entity___init(&spite_temp_5);
             Entity_Entity(&spite_temp_5, entity_);
-            Object_entity_Entity_position_Position_velocity_Velocity spite_temp_6 = { { 1, 180 } };
+            Object_entity_Entity_position_Position_velocity_Velocity spite_temp_6 = { { 1, 182 } };
             spite_temp_6.entity_ = (&spite_temp_5);
             spite_temp_6.position_ = spite_temp_2;
             spite_temp_6.velocity_ = spite_temp_4;

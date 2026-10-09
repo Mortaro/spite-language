@@ -26,9 +26,9 @@ int main(void) {
     }
     int64_t total = 0;
     for (int32_t index = 0; index < ENTITY_COUNT; index++) total += (int64_t)lefts[index] + tops[index];
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(lefts);
     free(tops);
     free(acrosses);

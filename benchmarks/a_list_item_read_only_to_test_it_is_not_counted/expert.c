@@ -28,9 +28,9 @@ int main(void) {
     for (int32_t index = 0; index < ENTRY_COUNT; index++) {
         key_total += keys[index];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("found %d keys %d\n", found, key_total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(keys);
     free(present);
     return 0;

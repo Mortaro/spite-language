@@ -1,8 +1,15 @@
 var console = Console()
-var clock = Clock()
+var total: Long = 0
+var numbers = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(fill_and_simulate)
+    console.print("total", total, "labels", numbers)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func fill_and_simulate() {
     var bodies = List<Body>()
     var labels = List<Label>()
     var index = 0
@@ -13,11 +20,8 @@ func Naive() {
         labels.append(label)
         index = index + 1
     }
-    var total = simulate(bodies)
-    var numbers = labels.sum_number()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total, "labels", numbers)
-    console.error("microseconds {microseconds}")
+    total = simulate(bodies)
+    numbers = labels.sum_number()
 }
 
 func simulate(bodies: List<Body>): Long {

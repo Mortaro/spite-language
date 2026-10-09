@@ -54,9 +54,9 @@ int main(void) {
         list_each(values, count_value);
         free(count_value);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld large %d\n", (long long)tally->total, tally->large);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(tally);
     free(values->items);
     free(values);

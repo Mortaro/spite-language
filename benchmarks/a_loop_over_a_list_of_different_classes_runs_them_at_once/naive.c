@@ -54,9 +54,9 @@ int main(void) {
     voices[2] = make_voice(saw_render);
     int64_t start = now_nanoseconds();
     for (int index = 0; index < 3; index = index + 1) voices[index]->render(voices[index]);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("%lld %lld %lld\n", (long long)voices[0]->level, (long long)voices[1]->level, (long long)voices[2]->level);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int index = 0; index < 3; index = index + 1) free(voices[index]);
     return 0;
 }

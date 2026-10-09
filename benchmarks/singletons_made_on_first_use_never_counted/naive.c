@@ -127,9 +127,9 @@ int main(void) {
     mutex_make(&rules_mutex);
     int64_t start = now_nanoseconds();
     int64_t fetched = fetch_on_two(10000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("fetched %lld\n", (long long)fetched);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     if (rules_made != NULL) rules_release(rules_made);
     mutex_free(&rules_mutex);
     return 0;

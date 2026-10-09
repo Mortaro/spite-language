@@ -24,9 +24,9 @@ int main(void) {
     for (int32_t index = 0; index < PARTICLE_COUNT; index++) {
         total += left[index];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %d\n", total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(left);
     free(speed);
     return 0;

@@ -75,9 +75,9 @@ int main(void) {
     make_both(300000);
     int64_t total = sum_points();
     int32_t noted = notes.count;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld notes %d\n", (long long)total, noted);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     list_free(&points);
     list_free(&notes);
     return 0;

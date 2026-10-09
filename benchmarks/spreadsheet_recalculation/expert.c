@@ -87,7 +87,7 @@ int main(int argument_count, char** arguments) {
     }
     int64_t finished = now_nanoseconds();
     printf("total %lld last %lld placements %lld\n", (long long)total, (long long)values[count - 1], (long long)placements);
-    fprintf(stderr, "microseconds %lld\n", (long long)((finished - start) / 1000));
+    print_microseconds((finished - start) / 1000);
     fprintf(stderr, "phases make %lld recalculate %lld place %lld\n", (long long)((made - start) / 1000),
         (long long)((recalculated - made) / 1000), (long long)((finished - recalculated) / 1000));
     return 0;

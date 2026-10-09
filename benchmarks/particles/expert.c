@@ -47,9 +47,9 @@ int main(void) {
         height = height + position_y[index];
         spread = spread + position_x[index] + position_z[index];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("height %lld spread %lld\n", (long long)(int64_t)height, (long long)(int64_t)spread);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(position_x);
     free(position_y);
     free(position_z);

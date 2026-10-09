@@ -96,8 +96,8 @@ int main(void) {
     pthread_join(sine, NULL);
     pthread_join(square, NULL);
 #endif
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("%lld %lld %lld\n", (long long)voices[0].level, (long long)voices[1].level, (long long)voices[2].level);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

@@ -1,14 +1,18 @@
 var console = Console()
-var clock = Clock()
+var characters_read = 0
+var removed = false
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var notes = File(".spite/concurrency_machinery_notes.txt")
-    var characters = write_and_read(notes, 50)
-    var removed = notes.remove()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("characters", characters, "removed", removed)
+    var result = Benchmark(write_read_and_remove)
+    console.print("characters", characters_read, "removed", removed)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func write_read_and_remove() {
+    var notes = File(".spite/concurrency_machinery_notes.txt")
+    characters_read = write_and_read(notes, 50)
+    removed = notes.remove()
 }
 
 func write_and_read(notes: File, rounds: Integer): Integer {

@@ -65,9 +65,9 @@ int main(void) {
         total += recorders[index].total;
     }
     int32_t recorded = rounds * 4;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("counted %d recorded %d total %lld\n", counted, recorded, (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(weights);
     return 0;
 }

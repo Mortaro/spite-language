@@ -1,12 +1,17 @@
 var console = Console()
-var clock = Clock()
 var despawns = Despawns()
 var item_total = 200000
 var velocities = Items<Velocity>()
 var entities = List<Integer>()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(all_rounds)
+    console.print("checksum", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func all_rounds(): Long {
     var checksum: Long = 0
     var round = 0
     while round < 40 {
@@ -21,9 +26,7 @@ func Naive() {
         checksum = checksum + kept_sum()
         round = round + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("checksum", checksum)
-    console.error("microseconds {microseconds}")
+    return checksum
 }
 
 func fill() {

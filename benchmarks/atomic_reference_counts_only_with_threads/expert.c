@@ -30,9 +30,9 @@ int main(void) {
         near_count += kept_count;
         last_kept = kept[kept_count > 0 ? kept_count - 1 : 0];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("near %lld\n", (long long)near_count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(across);
     free(down);
     free(kept);

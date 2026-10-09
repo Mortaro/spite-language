@@ -83,9 +83,9 @@ int main(void) {
     }
     float total = sum_across(points);
     int32_t whole = (int32_t)roundf(total);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("across %d\n", whole);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < points->count; index = index + 1) {
         free(points->items[index]);
     }

@@ -85,11 +85,11 @@ int main(void) {
     Scorer* scorer = malloc(sizeof(Scorer));
     scorer->bonus = 3;
     int64_t applied = apply_all(scorer, 2000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     FunctionValue* scoring = scorer_score_value(scorer);
     int32_t argument_count = scoring->arguments->count;
     printf("applied %lld arguments %d\n", (long long)applied, argument_count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     function_value_free(scoring);
     free(scorer);
     return 0;

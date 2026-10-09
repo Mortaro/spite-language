@@ -49,8 +49,8 @@ int main(void) {
     pthread_join(thread, NULL);
 #endif
     int64_t total = evens.result + odds.result;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

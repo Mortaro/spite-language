@@ -54,9 +54,9 @@ int main(void) {
             }
         }
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("entries %d found %d total %lld\n", count, found, (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(keys);
     free(values);
     return 0;

@@ -1,19 +1,15 @@
 var console = Console()
-var clock = Clock()
 var environment = Environment()
 var words = ["alpha", "beta", "gamma", "delta", "value", "count", "index", "total"]
 var symbols = ["+", "=", "(", ")", ";", "*"]
+var identifiers: Long = 0
+var numbers: Long = 0
+var symbol_count: Long = 0
+var number_total: Long = 0
+var checksums: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var source = written(environment.pieces)
-    var tokens = tokenized(source)
-    var identifiers = tokens.count_identifier()
-    var numbers = tokens.count_number()
-    var symbol_count = tokens.count_symbol()
-    var number_total = total_of_numbers(tokens)
-    var checksums = tokens.sum_checksum()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(tokenize_and_count)
     console.print(
         "identifiers",
         identifiers,
@@ -26,7 +22,18 @@ func Naive() {
         "checksums",
         checksums,
     )
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func tokenize_and_count() {
+    var source = written(environment.pieces)
+    var tokens = tokenized(source)
+    identifiers = tokens.count_identifier()
+    numbers = tokens.count_number()
+    symbol_count = tokens.count_symbol()
+    number_total = total_of_numbers(tokens)
+    checksums = tokens.sum_checksum()
 }
 
 func written(pieces: Integer): String {

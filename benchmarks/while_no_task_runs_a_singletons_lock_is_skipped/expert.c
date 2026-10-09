@@ -52,8 +52,8 @@ int main(void) {
     }
     tally.total = total;
     tally.calls = calls;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("first %d reached %d calls %d total %lld\n", first, index, tally.calls, (long long)tally.total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

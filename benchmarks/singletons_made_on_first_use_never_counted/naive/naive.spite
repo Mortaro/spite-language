@@ -1,12 +1,14 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var fetched = fetch_on_two(10000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("fetched", fetched)
+    var result = Benchmark(fetch_all)
+    console.print("fetched", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func fetch_all(): Long {
+    return fetch_on_two(10000000)
 }
 
 func fetch_on_two(rounds: Integer): Long {

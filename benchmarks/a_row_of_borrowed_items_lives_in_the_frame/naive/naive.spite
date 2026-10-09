@@ -1,21 +1,25 @@
 var console = Console()
-var clock = Clock()
 var mover = Mover()
 var healer = Healer()
 var positions = Vector<Position>()
 var velocities = Vector<Velocity>()
 var healths = Vector<Health>()
 var regenerations = Vector<Regeneration>()
+var places: Long = 0
+var amounts = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(spawn_and_tick)
+    console.print("places", places, "health", amounts)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func spawn_and_tick() {
     spawn_all(100000)
     run_ticks(100)
-    var places = positions.sum_place()
-    var amounts = healths.sum_amount()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("places", places, "health", amounts)
-    console.error("microseconds {microseconds}")
+    places = positions.sum_place()
+    amounts = healths.sum_amount()
 }
 
 func spawn_all(count: Integer) {

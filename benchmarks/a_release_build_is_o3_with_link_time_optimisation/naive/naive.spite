@@ -1,13 +1,15 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var mixer = Mixer(31)
-    var total = checksum(mixer, 50000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("checksum", total)
+    var result = Benchmark(mix_all)
+    console.print("checksum", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func mix_all(): Long {
+    var mixer = Mixer(31)
+    return checksum(mixer, 50000000)
 }
 
 func checksum(mixer: Mixer, count: Integer): Long {

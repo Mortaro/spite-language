@@ -126,9 +126,9 @@ int main(void) {
     int64_t total = tally_sum(&tally);
     int32_t calls = tally_call_count(&tally);
     int32_t largest = tally_largest_amount(&tally);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("counted %d calls %d total %lld largest %d\n", counted, calls, (long long)total, largest);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     mutex_free(&tally.mutex);
     return 0;
 }

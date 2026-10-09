@@ -1,8 +1,15 @@
 var console = Console()
-var clock = Clock()
+var sorted_in_order = false
+var weighted_sum: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(sort_and_check)
+    console.print("ordered", sorted_in_order, "checksum", weighted_sum)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func sort_and_check() {
     var numbers = List<Integer>()
     var seed: Long = 42
     var index = 0
@@ -27,9 +34,8 @@ func Naive() {
         }
         index = index + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("ordered", ordered, "checksum", checksum)
-    console.error("microseconds {microseconds}")
+    sorted_in_order = ordered
+    weighted_sum = checksum
 }
 
 func sort(numbers: List<Integer>, low: Integer, high: Integer) {

@@ -17,8 +17,8 @@ int main(void) {
         int32_t values[4] = {round % 10, round % 7, round % 13, round % 3};
         total += largest(values, 4);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

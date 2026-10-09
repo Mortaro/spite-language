@@ -68,7 +68,7 @@ int main(int argument_count, char** arguments) {
     int64_t finished = now_nanoseconds();
     printf("units %lld by region and quarter %lld fingerprints %lld first %d\n", (long long)units, (long long)by_cell,
         (long long)fingerprints, sales[0].customer);
-    fprintf(stderr, "microseconds %lld\n", (long long)((finished - start) / 1000));
+    print_microseconds((finished - start) / 1000);
     fprintf(stderr, "phases make %lld one %lld five %lld all %lld\n", (long long)((made - start) / 1000),
         (long long)((summed - made) / 1000), (long long)((profited - summed) / 1000), (long long)((finished - profited) / 1000));
     return 0;

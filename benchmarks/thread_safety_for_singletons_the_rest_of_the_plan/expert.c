@@ -70,9 +70,9 @@ int main(void) {
         free(loggers[index].buffer);
     }
     __asm__ volatile("" : : "r"(entries) : "memory");   /* the log is merged, as the program asks, not only counted */
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("logged %d entries %d\n", logged, count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(entries);
     return 0;
 }

@@ -124,7 +124,15 @@ again, so it always shows the latest measurement of every case.
 | `README.md` | what the case shows, links to its section and its proof, what to look at in `highlights.c`, and the timings with both ratios |
 
 All three programs print the same answer on their standard output, and each times its own work with the same clock
-([clock.h](clock.h)) and prints `microseconds <n>` on its error output, so starting a process is not counted.
+([clock.h](clock.h)) and prints `microseconds <n>` on its error output, so starting a process is not counted. In
+`naive/` the entry function shows only the measuring and the printing: `var result = Benchmark(work)` runs the
+case's work, a function of its own, once between two readings of the clock
+([Measuring a piece of work](../docs/time.md#measuring-a-piece-of-work)), and what is not measured (filling a
+list before the work, say) is a function called before that line. Five cases about the locks and counts a
+`Parallel` brings read the clock twice instead, since the work `Benchmark` runs counts as code another thread may
+run in a program with a `Parallel` ([time.md](../docs/time.md#measuring-a-piece-of-work)). The C programs read the clock the same way,
+`int64_t start = now_nanoseconds();` before the work and `microseconds_since(start)` after it, and print the line
+with `print_microseconds`.
 
 ## How to read the numbers
 

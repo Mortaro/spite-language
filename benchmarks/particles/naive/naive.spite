@@ -1,8 +1,15 @@
 var console = Console()
-var clock = Clock()
+var height_checksum: Long = 0
+var spread_checksum: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(simulate)
+    console.print("height", height_checksum, "spread", spread_checksum)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func simulate() {
     var particles = Vector<Particle>()
     var index = 0
     while index < 100000 {
@@ -24,9 +31,6 @@ func Naive() {
         spread = spread + particle.position_x + particle.position_z
         index = index + 1
     }
-    var height_checksum: Long = height
-    var spread_checksum: Long = spread
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("height", height_checksum, "spread", spread_checksum)
-    console.error("microseconds {microseconds}")
+    height_checksum = height
+    spread_checksum = spread
 }

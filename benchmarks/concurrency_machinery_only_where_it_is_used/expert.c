@@ -45,8 +45,8 @@ int main(void) {
     close(file);
 #endif
     int removed = remove(path) == 0;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("characters %d removed %s\n", characters, removed ? "true" : "false");
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

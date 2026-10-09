@@ -90,7 +90,7 @@ int main(int argument_count, char** arguments) {
     }
     int64_t finished = now_nanoseconds();
     printf("running %lld audits %lld first %d last %d\n", (long long)running, (long long)audits, ids[by_time[0].index], ids[by_time[count - 1].index]);
-    fprintf(stderr, "microseconds %lld\n", (long long)((finished - start) / 1000));
+    print_microseconds((finished - start) / 1000);
     fprintf(stderr, "phases make %lld sort %lld walk %lld\n", (long long)((made - start) / 1000),
         (long long)((sorted - made) / 1000), (long long)((finished - sorted) / 1000));
     return 0;

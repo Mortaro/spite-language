@@ -1,10 +1,18 @@
 var console = Console()
-var clock = Clock()
 var writer = BinaryWriter<Reading>()
 var reader = BinaryReader<Reading>()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(accepted_headers)
+    var sensor = sent_and_read_back(7)
+    console.print("accepted", result.answer, "sensor", sensor)
+    var schema = writer.schema()
+    console.print("schema", schema)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func accepted_headers(): Integer {
     var headers = received_headers(200000)
     var accepted = 0
     var round = 0
@@ -12,12 +20,7 @@ func Naive() {
         accepted = accepted + headers.count(is_current)
         round = round + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    var sensor = sent_and_read_back(7)
-    console.print("accepted", accepted, "sensor", sensor)
-    var schema = writer.schema()
-    console.print("schema", schema)
-    console.error("microseconds {microseconds}")
+    return accepted
 }
 
 func received_headers(count: Integer): List<Long> {

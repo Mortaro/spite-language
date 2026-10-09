@@ -3,15 +3,17 @@ type Measured {
 }
 
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var total = measure_all(20000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    var whole: Long = total
+    var result = Benchmark(every_measure)
+    var whole: Long = result.answer
     console.print("total", whole)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func every_measure(): Double {
+    return measure_all(20000000)
 }
 
 func measure_all(steps: Integer): Double {

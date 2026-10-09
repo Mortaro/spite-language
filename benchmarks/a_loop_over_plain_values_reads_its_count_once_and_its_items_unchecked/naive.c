@@ -69,9 +69,9 @@ int main(void) {
     }
     int64_t start = now_nanoseconds();
     int64_t total = rounds(from, into);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total in quarters %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     list_free(from);
     list_free(into);
     return 0;

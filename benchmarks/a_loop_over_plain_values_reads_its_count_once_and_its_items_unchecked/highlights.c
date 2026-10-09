@@ -4,7 +4,7 @@
 
 void Naive_scale_list___held_0_1(Naive* self, List_Float* from_, List_Float* into_, float offset_) {
     int32_t index_ = 0;
-    int32_t spite_temp_1 = spite_folded_List_Float_count(from_);
+    int32_t spite_temp_1 = List_Float_count(from_);
     float* spite_temp_2 = (float*)(intptr_t)(from_)->items_;
     int32_t spite_temp_3 = (into_)->item_count_;
     float* spite_temp_4 = (float*)(intptr_t)(into_)->items_;
@@ -30,7 +30,7 @@ void Naive_scale_list___held_0_1(Naive* self, List_Float* from_, List_Float* int
 float Naive_add_up___held_0(Naive* self, List_Float* values_) {
     float total_ = 0.0;
     int32_t index_ = 0;
-    int32_t spite_temp_5 = spite_folded_List_Float_count(values_);
+    int32_t spite_temp_5 = List_Float_count(values_);
     float* spite_temp_6 = (float*)(intptr_t)(values_)->items_;
     while (index_ < spite_temp_5) {
         #if defined(__clang__)

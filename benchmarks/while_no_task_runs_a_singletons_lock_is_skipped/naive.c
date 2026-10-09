@@ -98,9 +98,9 @@ int main(void) {
     int32_t reached = add_many(10000000);
     int64_t total = tally_sum(&tally);
     int32_t calls = tally_call_count(&tally);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("first %d reached %d calls %d total %lld\n", first, reached, calls, (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     mutex_free(&tally.mutex);
     return 0;
 }

@@ -60,9 +60,9 @@ int main(void) {
         list_append(values, quarters * 0.25);
     }
     double total = rounds(values);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     list_free(values);
     return 0;
 }

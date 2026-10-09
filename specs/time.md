@@ -62,7 +62,11 @@ with Temporal's vocabulary and no stored zoned type.
   function value made for `work` and the result's two objects (the `Benchmark` and its `Duration`), all made
   outside the measured time, and one call through the value inside it; a program that names no `Benchmark`
   carries none of it. `duration.total('microseconds')` rounds toward zero, so it is the difference of the two
-  readings divided by 1000.
+  readings divided by 1000. In a program that starts a `Parallel`, `work` counts as code that may run on another
+  thread, since a function value is matched to the calls a thread makes by its count of arguments and a worker
+  calls values of none ([optimizations.md](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)):
+  the classes `work` counts are counted atomically and the singletons it calls keep their locks, so work whose point
+  is the cost of those is timed with two `elapsed_nanoseconds()` readings instead.
 
 The conformance programs are `conformance/stage6/instant_arithmetic`, `calendar_math`, `daylight_saving`,
 `zone_files`, `fixed_offsets`, `time_text_round_trips` and `time_text_errors`.

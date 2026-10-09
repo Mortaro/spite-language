@@ -172,7 +172,7 @@ int main(int argument_count, char** arguments) {
     int64_t finished = now_nanoseconds();
     printf("identifiers %d numbers %d symbols %d number total %lld checksums %lld\n", identifiers, numbers, symbol_count,
         (long long)number_total, (long long)checksums);
-    fprintf(stderr, "microseconds %lld\n", (long long)((finished - start) / 1000));
+    print_microseconds((finished - start) / 1000);
     fprintf(stderr, "phases write %lld tokenise %lld passes %lld\n", (long long)((wrote - start) / 1000),
         (long long)((tokenised - wrote) / 1000), (long long)((finished - tokenised) / 1000));
     return 0;

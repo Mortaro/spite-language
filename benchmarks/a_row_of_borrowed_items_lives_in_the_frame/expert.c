@@ -33,9 +33,9 @@ int main(void) {
         places += (int64_t)lefts[entity] + tops[entity];
         health += amounts[entity];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("places %lld health %d\n", (long long)places, health);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(lefts);
     free(tops);
     free(acrosses);

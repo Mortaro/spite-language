@@ -23,9 +23,9 @@ int main(void) {
         total += round_total;
         large += round_large;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld large %d\n", (long long)total, large);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(values);
     return 0;
 }

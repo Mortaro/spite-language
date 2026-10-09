@@ -57,9 +57,9 @@ int main(void) {
     }
     int64_t start = now_nanoseconds();
     int32_t total = playlist_listen(playlist, 10000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %d\n", total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < playlist->tracks->count; index = index + 1) free(playlist->tracks->items[index]);
     free(playlist->tracks->items);
     free(playlist->tracks);
