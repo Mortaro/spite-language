@@ -55,6 +55,10 @@ re-read the end of `design/decisions.md` right before appending).
    attributes are dead between passes; F and M (the candidate list's producer and consumer fused, the repeated
    match dropped) are 2.7 ms. All five edits together reach 7.4 ms on one thread.
 2. **Stress, two cores**: the per-object facts are merged; measure, and build what still keeps the two systems apart; the original's 5.95 ms is two systems at 5.6 ms each at once.
+   Measured 2026-10-09 (machine in use): the two systems now run at once, naive 10.9 ms against the original's
+   6.6 ms. Each system's row loop in chunks of 1,024 on the pool, by hand in the C, gave 5.5 ms; it is not built
+   because it needs two proofs the facts lack (scratch written before read only when `matches` answers true, and
+   `ColumnIndex.rows` mapping different entities to different rows): design/naive_programs.md, "Eleventh pass".
 3. **Physics** (design/naive_programs.md, "Physics pass"): smaller List objects; stamps instead of a visited list
    (about 0.3 ms); the runner's fill and store (about 0.5 ms, shared with stress); a flat counting sort needs a
    proof that the grid's filling loop is safe to run twice.

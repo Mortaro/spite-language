@@ -845,6 +845,67 @@ appends to `found`, which the item's own list could be, and growing never lets a
 argument uncounted and changed the C of most programs, and the tick moved by nothing measurable (7 169 to 7 201
 µs, best of 11), since the counts were only the first touch of a line the next read pays for anyway.
 
+### Eleventh pass: a system's rows in chunks on every core, measured by hand (2026-10-09)
+
+Engine `naive` at 5574e26 and `main` at 4ad2129, unchanged; Spite at d2ed6188, `--optimized`; the naive stress C
+written as one file (`SPITE_TRANSLATION_UNITS=1`, `--c-source`) and built with `clang -O3`. **Measured while the
+machine was in other use (a game was running): provisional.** Medians of 5 interleaved rounds, stress tick in µs:
+
+| Build | tick |
+|---|---|
+| original (main), split build | 6,588 |
+| naive, one file, as generated (Move and Regenerate already at once, D555 and D556) | 10,903 |
+| naive, by hand: header reads in `store_attribute` borrowed (B1), runner loop as written | about 10,000 |
+| naive, by hand: B1, and each runner's row loop in chunks of 4,096 rows on the pool | 6,232 |
+| the same, chunks of 2,048 | 6,061 |
+| the same, chunks of 1,024 | 5,491 |
+
+The hand edit (D557's form, only in the generated C): the `while combination < total` loop of `run_update_each`
+runs as chunks submitted to `ThreadPool` (both runners submit at once, 31 workers); every chunk but the last gets
+a private copy of the runner (its own `chosen`) and of the `Row<T>` singleton (its own `rows`, its own `current`
+object with empty attributes), reached through a thread-local the singleton's accessor tests first; the last chunk
+runs on the shared ones, so the scratch the loop leaves behind is the one the plain loop leaves. Two things had to
+change besides: the private scratch is made on the submitting thread (an object made inside a chunk comes from a
+class pool that is not per thread), and the counted read of the shared `ColumnIndex` in `store_attribute` had to be
+borrowed (B1): with it counted, every chunk counts the same two headers atomically and the tick was 28 ms, three
+times slower than in order. The results were not compared value by value.
+
+Where the rest goes (cycle counts by hand): the candidate gathering (`Row.candidates`, a filter over every row of
+the driving column calling `matches`) is about 1.2 ms per system and still runs on one thread; the chunked loop
+itself scales only about 2.6 times on 16 cores, because the pass touches about 250 bytes per row (two column
+slots, two component objects whose counts it writes, two row lookups, two stamps), so two systems at once stream
+about 100 MB a tick and memory, not the cores, is the limit. Gathering in chunks too (pair T3, per-chunk lists joined
+in order) would take the tick to about 4.3 ms; fewer bytes per row (no count written on a component a pass only
+reads, components stored in place: L1) would take more.
+
+**Why it is not built yet: two proofs the overlap facts cannot give.**
+
+1. *Scratch overwritten before it is read (T8).* Most of the shared scratch is plainly written first in every pass
+   (`chosen` cleared, `position`, `skipping`, `related`, `cursor`, `filled_entity`, the attributes of `current`).
+   `Row.rows` is not: `find_row` sets `rows[index]` on every path but one (`entity >= header.rows.count()`), and
+   that one returns false, which ends `match_into` and makes `fill_into` crash. So every slot `fill_attribute`
+   reads was written in the same pass, but only through a fact about the answer of `matches` (true means every slot
+   was written). The facts would need conditional must-write summaries (what a function surely wrote when it
+   answered true), which nothing in the compiler has.
+2. *Passes write different slots (T1 through an index).* Each pass writes `values[row]` of two columns, the fields
+   of the component objects held there, and `stamps[entity]` of two indexes, where `entity` is the pass's candidate
+   and `row` is `ColumnIndex.rows[entity] - 1`, carried from `find_row` to `store_attribute` through `Row.rows`.
+   Two passes touch the same slot unless the candidates are distinct and `rows` maps different entities to
+   different rows. Both are invariants of `ColumnIndex` (`rows[entities[r]] == r + 1` for every row, kept by
+   `add_row` and `remove_row`), and the program even checks each pass's half of it (`crash
+   index.entity_at(row) == entity` in `Slot.fetch`), but the compiler proves no invariant of a class, and a check
+   at run time would have to recompute the index chain the passes compute, which means slicing it out of five
+   functions.
+
+Neither can be checked after the fact: a wrong guess has already lost a write, and the passes cannot be undone. What
+would make it buildable, in order of size: (a) conditional must-write summaries for the scratch, and an inverse-pair
+invariant for two integer lists of one class, proved from the functions that write them (`add_row`,
+`remove_row`), with the candidates' distinctness following from `entities` being one side of the pair; (b) the same
+summaries, with the pair checked at run time once per loop (two sequential passes over the index, in chunks, far
+cheaper than the loop) instead of proved; (c) a decision from Mortaro that a chunked loop may crash with a named
+cause when a run-time check finds two passes reaching one object where the plain loop would have run, which trades
+"never a wrong value" (D244) for a loud failure that a correct program would not have.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a
