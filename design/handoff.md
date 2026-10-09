@@ -42,11 +42,11 @@ re-read the end of `design/decisions.md` right before appending).
 
 | Work | Where | State | Next |
 |---|---|---|---|
-| Per-object facts and counts per group (stress on two cores) | branch `wip-per-object-facts` (clone `D:\sf`, 7 commits, last check reported green after merging master; rows numbered D555, D556) | built: objects made for their owner told apart in the overlap facts; counts per group of overlapped calls | verify on stress that Move and Regenerate now overlap (by hand two cores were worth 1.75x on the stage); re-check, renumber, merge |
-| In-place writes on attribute paths (stress, hand edit W, 4.1 ms) | branch `wip-attribute-paths` (clone `D:\s7`, 1 commit plus 7 uncommitted files) | "leave out a call that only writes back what its slots already hold" committed; engine checks agreed; the R measurement (row in locals, 5.5 ms) was next | finish docs and case, measure, merge; then R |
-| Memory: deep copies shared when nothing writes (M7), pools for classes no list holds, arenas, presized lists | branch `memory-wins` (worktree `.claude/worktrees/agent-a19777fa565b84228`, 2 commits pushed, 155 uncommitted files) | M7 built ("share a deep copy that nothing changes while it lives"); its decision row (planned D555, will collide) not yet written | commit the rest, renumber, check, merge; then shrink List objects (40 bytes to 24 or 16: the physics broad phase's remaining cost) |
-| Singletons: plain attributes under a held or skipped lock, per-thread reductions, files kept open | branch `singleton-wins` (worktree `.claude/worktrees/agent-a667c5b716ea97b51`, 1 commit pushed, 12 uncommitted files) | B built for attributes nothing reads past the lock | finish, check, merge; then A (privatised reductions) |
-| Archetypes chosen by the compiler (research with experiments) | worktree `.claude/worktrees/agent-ad0a790df5f4cc7b0`, branch `research-archetypes`, nothing pushed, 2 uncommitted files | the sweep was running | restart the study; write `design/proposals/compiler_archetypes.md` |
+| Per-object facts and counts per group (stress on two cores) | **merged on master** (4a4f17b3, decisions D555, D556); last full check green before the merge, which added only docs | built: objects made for their owner told apart in the overlap facts; counts per group of overlapped calls | measure on a quiet machine whether Move and Regenerate now overlap on stress (by hand two cores were worth 1.75x on the stage) |
+| In-place writes on attribute paths (stress, hand edit W, 4.1 ms) | branch `wip-attribute-paths` (58717e49: 1 checked commit plus a work-in-progress commit, unchecked) | "leave out a call that only writes back what its slots already hold" built; engine checks agreed; the R measurement (row in locals, 5.5 ms) was next | merge master, finish docs and its case, check, merge; then R |
+| Memory: deep copies shared when nothing writes (M7), pools for classes no list holds, arenas, presized lists | branch `memory-wins` (2592bb1d: 2 checked commits plus a work-in-progress merge of master, unchecked) | M7 built ("share a deep copy that nothing changes while it lives"); its decision row not yet written | finish the merge, write the row (next free number), check, merge; then shrink List objects (40 bytes to 24 or 16: the physics broad phase's remaining cost) |
+| Singletons: plain attributes under a held or skipped lock, per-thread reductions, files kept open | branch `singleton-wins` (dd5b2cbe: 1 checked commit plus work in progress, unchecked) | B built for attributes nothing reads past the lock | merge master, check, merge; then A (privatised reductions) |
+| Archetypes chosen by the compiler (research with experiments) | branch `research-archetypes` (4501d529: work in progress, unchecked: cases with several expert layouts) | cases and expert forms written; the sweep and the proposal were not finished | finish the sweep, write `design/proposals/compiler_archetypes.md`, check, merge |
 
 ## The order of work after that (by what closes the engine gap)
 
@@ -54,7 +54,7 @@ re-read the end of `design/decisions.md` right before appending).
    file), R (the row in locals with the system inlined) is 5.5 ms and needs a whole-program proof that the row's
    attributes are dead between passes; F and M (the candidate list's producer and consumer fused, the repeated
    match dropped) are 2.7 ms. All five edits together reach 7.4 ms on one thread.
-2. **Stress, two cores**: merge `wip-per-object-facts`; the original's 5.95 ms is two systems at 5.6 ms each at once.
+2. **Stress, two cores**: the per-object facts are merged; measure, and build what still keeps the two systems apart; the original's 5.95 ms is two systems at 5.6 ms each at once.
 3. **Physics** (design/naive_programs.md, "Physics pass"): smaller List objects; stamps instead of a visited list
    (about 0.3 ms); the runner's fill and store (about 0.5 ms, shared with stress); a flat counting sort needs a
    proof that the grid's filling loop is safe to run twice.
