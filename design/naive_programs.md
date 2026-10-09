@@ -67,6 +67,21 @@ benchmarks (the others already match or win): first the runner made direct (S1 s
 then the two stress systems on two cores (per-object facts and per-site counts), then physics (profile first).
 Benchmark cases that do not move the engine wait unless they are cheap.
 
+**Quiet measurement (2026-10-09, final, nothing else running).** Compiler `579d35c5`, `--optimized --build`, 5
+rounds alternating original and naive, medians in microseconds (the spread across rounds stayed within 4%):
+
+| Benchmark | Original (main) | Naive | Naive / original |
+|---|---|---|---|
+| stress tick | 5,953 | 24,180 | 4.06 |
+| stress despawn, sixty ticks | 23,915 | 20,909 | 0.87 |
+| physics step | 5,691 | 6,941 | 1.22 |
+| physics MoveCharacters | 4,966 | 5,692 | 1.15 |
+| physics SortColliders | 275 | 688 | 2.50 |
+| physics ReadCharacters | 179 | 362 | 2.02 |
+
+The original's stress tick runs its two systems on two threads (5.6 ms each, at once); the naive one runs them one
+after the other (12.2 ms each). One thread each, the gap is about 2.2x per system.
+
 **Also required before the switch (found 2026-10-09):** on the naive branch, `io_systems` finds its database lookups
 but the game advances only 3 frames while they wait, against 31 on main: the naive runner drains a waiting system's
 queue with a plain call, so frames stop while IO runs. The check stays as it is; the fix is the compiler arranging
