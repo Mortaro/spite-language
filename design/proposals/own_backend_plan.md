@@ -34,6 +34,11 @@ milestone is small, has an exact acceptance test, and leaves the compiler workin
   and refuses em dashes anywhere in the message.
 - Read `AGENTS.md` and `SPITE.md` first. The backend is written in Spite, in `bootstrap/source/backend/`.
 - Each milestone ends with its acceptance test passing and `bash check.sh` still green (the C path must never break).
+- **Nothing in the compiler exists only for a human to read** (D561). Humans skim the final program, not the
+  compiler's steps: the IR has no text format, pretty printer or readable names unless a test or a diagnostic needs
+  them; the generated C and machine code need no comments, layout or naming meant for people. What a crash report
+  or an error message must name (D244) stays, because that is for whoever reads the failure. Spend the effort on
+  speed of the build and of the program.
 - When unsure, keep the C path: a function the backend refuses is compiled through C, never miscompiled. Anything
   that can go wrong silently is a bug (D244): a wrong instruction is worse than a slow build.
 
