@@ -139,6 +139,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Reading functions share the lock](#reading-functions-share-the-lock) | readers never contend | the plain lock |
 | [A counted loop takes the lock once](#a-counted-loop-takes-a-singletons-lock-once) | one lock per loop | one lock per call |
 | [No attribute is read past the lock](#no-attribute-is-read-past-the-lock) | plain attributes under the lock | atomic attributes |
+| [A loop that starts no task tests for tasks once](#a-loop-that-starts-no-task-tests-for-tasks-once) | one test per loop | one test per call |
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
 | [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [A poll that nothing steps](#a-poll-that-nothing-steps-is-an-error) | refuses a hang | the run-time halt |
@@ -1295,6 +1296,22 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 
 While no task is on the thread pool, a locked function also skips its lock. That is a run-time test of a
 counter, one load per call, not a proof: [optimizations.md](optimizations.md#while-no-task-runs-a-singletons-lock-is-skipped).
+
+### A loop that starts no task tests for tasks once
+
+- **Proves.** Nothing a loop runs can start a task or wait, so a count of tasks in flight that is zero when the loop
+  starts stays zero until it ends.
+- **Rule.** The conditions of [a counted loop](#a-counted-loop-takes-a-singletons-lock-once) but being counted: a
+  `while` outside the singleton that cannot `return`, calls only that singleton's functions and plain-value list
+  functions, computes only plain values, every `while` inside it counted, and whose calls reach no wait and no
+  `Parallel`, `Concurrent`, `ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`; at least one
+  call takes the lock; a thread can reach the singleton.
+- **Buys.** One test of the count for the loop, and the unlocked bodies inlined into it: 41.5 to 9.5 ms for ten
+  million calls.
+- **Falls back.** A test per call, as before, and the lock on every call when a task was in flight at the start.
+- **See.** [optimizations.md: A loop of calls to one singleton tests for tasks
+  once](optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once);
+  `benchmarks/while_no_task_runs_a_singletons_lock_is_skipped`.
 
 ### No attribute is read past the lock
 

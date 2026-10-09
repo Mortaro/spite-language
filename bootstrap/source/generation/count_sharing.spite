@@ -208,6 +208,9 @@ func unguarded_types(types: String): String {
         } else if line.starts_with("#define ") and frees_a_guard(line) {
             var head = macro_head(line)
             type_lines[index] = "{head} ((void)0)"
+            if head.ends_with("_skip_enter()") {
+                type_lines[index] = "{head} 0"
+            }
             var name_end = head.index_of("(")
             var name = head.slice(8, name_end)
             quieted[name] = true

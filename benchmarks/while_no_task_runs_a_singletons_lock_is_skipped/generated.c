@@ -834,6 +834,8 @@ static SpiteString spite_symbol_8 = { (int64_t)0x797469746e656469ULL, (int64_t)0
 typedef struct SpiteGuard { _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;
 #define SPITE_GUARDS_HELD() 0
 #define SPITE_GUARDS_COUNT(change) ((void)0)
+#define spite_coarse_1_skip_enter() spite_skip_enter((void*)&Tally___guard)
+#define spite_coarse_1_skip_leave(skipping) spite_skip_leave((skipping), &Tally___guard)
 #define SPITE_SINGLETON_LOAD(owner, place) (owner##___atomic ? __atomic_load_n(&(place), __ATOMIC_SEQ_CST) : (place))
 #define SPITE_SINGLETON_STORE(owner, place, value) do { if (owner##___atomic) __atomic_store_n(&(place), (value), __ATOMIC_SEQ_CST); else (place) = (value); } while (0)
 #define SPITE_SINGLETON_ADD(owner, place, value) do { if (owner##___atomic) __atomic_fetch_add(&(place), (value), __ATOMIC_SEQ_CST); else (place) += (value); } while (0)
@@ -2740,6 +2742,20 @@ if (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);
 }
 static SpiteGuard Tally___guard = { 0, 0 };
 static void spite_enter_skipped(void* guard) { spite_guard_enter((SpiteGuard*)guard); }
+static inline int32_t spite_skip_enter(void* guard) {
+if (spite_skipped_depth >= 16 || __atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) != 0) return 0;
+int32_t spite_skip = spite_skipped_depth;
+spite_skipped[spite_skip] = guard;
+spite_skipped_taken[spite_skip] = 0;
+spite_skipped_depth = spite_skip + 1;
+return 1;
+}
+static inline void spite_skip_leave(int32_t skipping, SpiteGuard* guard) {
+if (!skipping) return;
+int32_t spite_skip = spite_skipped_depth - 1;
+spite_skipped_depth = spite_skip;
+if (spite_skipped_taken[spite_skip]) spite_guard_leave(guard);
+}
 void Launcher_Launcher(Launcher* self) {
 (void)0;
 (void)0;
@@ -3337,9 +3353,11 @@ return spite_temp_190;
 }
 int32_t Naive_add_many(Naive* self, int32_t count_) {
 int32_t index_ = 0;
+int32_t spite_coarse_1_skipping = spite_coarse_1_skip_enter();
 while (((index_ < count_))) {
-index_ = Tally_add(self->tally_, index_);
+index_ = (spite_coarse_1_skipping ? Tally_add___unguarded(self->tally_, index_) : Tally_add(self->tally_, index_));
 }
+spite_coarse_1_skip_leave(spite_coarse_1_skipping);
 int32_t spite_temp_193 = index_;
 return spite_temp_193;
 }
@@ -4068,6 +4086,8 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_guard_wait, "-\t-", "spite_guard_wait", 0},
 {(const void*)&spite_guard_enter, "-\t-", "spite_guard_enter", 0},
 {(const void*)&spite_guard_leave, "-\t-", "spite_guard_leave", 0},
+{(const void*)&spite_skip_enter, "-\t-", "spite_skip_enter", 0},
+{(const void*)&spite_skip_leave, "-\t-", "spite_skip_leave", 0},
 {(const void*)&Launcher_Launcher, "launcher/launcher.spite\tLauncher", "Launcher", 3},
 {(const void*)&SpiteBoolean_to_string, "library/boolean.spite\tBoolean", "to_string", 3},
 {(const void*)&Clock_Clock, "library/windows/clock.spite\tClock", "Clock", 4},

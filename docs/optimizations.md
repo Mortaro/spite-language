@@ -68,6 +68,7 @@ emit nothing.
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [A counted loop of calls to one singleton takes its lock once](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once) | every but `--hot-reload`, `--repl`, `--repl-port`, decided per loop | one lock for the loop instead of one per call, only with `Parallel` |
 | [An attribute read only under its singleton's lock is a plain number](#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number) | every but `--hot-reload`, `--repl`, `--repl-port`, decided per singleton | nothing but speed |
+| [A loop of calls to one singleton tests for tasks once](#a-loop-of-calls-to-one-singleton-tests-for-tasks-once) | every but `--hot-reload`, `--repl`, `--repl-port`, only with `Parallel` | one test per loop instead of one per call |
 | [A singleton's reading functions do not exclude each other](#a-singletons-reading-functions-do-not-exclude-each-other) | every but `--hot-reload`, decided per singleton | readers count on their own cache line; 2 KiB of counts per such singleton |
 | [While no task runs, a singleton's lock is skipped](#while-no-task-runs-a-singletons-lock-is-skipped) | every but `--hot-reload`, only with `Parallel` | one load per locked call, two atomic additions per task |
 | [The fault handler is in every program](#the-fault-handler-is-in-every-program) | every | a cost, not an optimisation: about 3.7 KB of code and 32 bytes and a name per function; one store per foreign call |
@@ -1217,7 +1218,8 @@ singleton locked exactly as it would have, and nothing it can see differs.
 
 **When.** In every wrapper the lock gives a function, writing and reading ones alike, in a program that makes a
 `Parallel` or a `parallel_each_` pass; sixteen skipped singletons deep at most, beyond which the lock is taken as
-before. Writes and reads of attributes from other classes and counted loops keep their lock.
+before. Writes and reads of attributes from other classes and counted loops keep their lock. A loop of calls that would take the lock once but
+for not being counted [tests once for the whole loop](#a-loop-of-calls-to-one-singleton-tests-for-tasks-once).
 
 **What you notice.** Speed where the program's own thread calls a locked singleton while nothing runs on the pool, an
 engine applying queued inserts between stages for example: [its case](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/),
@@ -1479,6 +1481,80 @@ the atomics form keeps its atomics, since nothing locks it.
 four workers making 5 million calls each under the lock they take once, the 20 million calls took 76.6 ms with two
 locked additions each and 24.4 ms with plain ones. Nothing a program prints changes: every read and write was already
 made under the lock, or while no other thread ran.
+
+### A loop of calls to one singleton tests for tasks once
+
+**The case:** [benchmarks/while_no_task_runs_a_singletons_lock_is_skipped](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/).
+
+**What it does.** A `while` that calls a locked singleton's functions, and that would take [its lock
+once](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once) but for not being counted (its index is what a
+call answers, or it ends on a condition), asks once, before it starts, whether any task is on the thread pool. When
+none is, it notes on its thread's stack that it skipped the singleton's lock, as [a skipped
+call](#while-no-task-runs-a-singletons-lock-is-skipped) does, and calls the functions' unlocked bodies directly for
+the whole loop; when one is, every call takes the lock as before. Each call is written as both direct calls,
+`(spite_coarse_<n>_skipping ? <function>___unguarded(...) : <function>(...))`, so the C compiler inlines the unlocked
+body into a copy of the loop it makes for the skipping case.
+
+```gdscript title=tested_once/tally.spite
+singleton
+
+var total = 0
+var calls = 0
+
+func add(amount: Integer): Integer {
+    total = total + amount
+    calls = calls + 1
+    return amount + 1
+}
+
+func sum(): Integer {
+    return total
+}
+```
+```gdscript title=tested_once/worker.spite
+var tally = Tally()
+
+func run(): Integer {
+    return tally.add(1)
+}
+```
+```gdscript title=tested_once/tested_once.spite entry
+var console = Console()
+var tally = Tally()
+
+func TestedOnce() {
+    var worker = Worker()
+    var first: Integer = Parallel(worker.run)
+    var index = 0
+    while index < 1000 {
+        index = tally.add(index)
+    }
+    var total = tally.sum()
+    console.print("first", first, "reached", index, "total", total)
+}
+```
+```output
+first 2 reached 1000 total 499501
+```
+
+The `Parallel` makes `Tally` locked, and once it has been read no task is on the pool. The loop's index is what
+`tally.add` answers, so it is not a counted loop, but it locks nothing else and waits for nothing: it tests
+`spite_tasks_in_flight` once, and its thousand calls are `Tally_add___unguarded`.
+
+**When.** Where a counted loop would take the lock once in every respect but being counted: a `while` outside the
+singleton that cannot `return`, calls only that singleton's functions through the attribute that binds it and
+plain-value lists, computes only plain values, and whose calls reach no wait and no `Parallel`, `Concurrent`,
+`ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`; every `while` inside it counted; at least
+one call taking the lock; and a singleton that the walk while compiling finds a thread can reach. Not in
+`--hot-reload`, `--repl` or `--repl-port` builds, nor in the resumable copy of a function a `Concurrent` runs.
+
+**What you notice.** Speed:
+[its case](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/), ten million calls on the program's
+thread with no task in flight, took 41.5 ms testing for tasks on every call and 9.5 ms testing once. Nothing a
+program prints changes. Nothing in the loop can start a task, and while none runs only the program's own thread runs
+the program, so no other thread can call the singleton until the loop ends; if a task were started anyway, the pool
+would take the skipped lock for this thread first, as for a skipped call, and let it go when the loop ends. A loop
+that started with a task in flight takes the lock on every call, as before, even if the task ends while it runs.
 
 ### An argument its caller holds is passed without counting
 

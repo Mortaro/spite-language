@@ -122,6 +122,12 @@ var coarse_site_calls = List<String>()
 var coarse_site_keys = List<String>()
 var coarse_site_starts = List<Integer>()
 var coarse_site_ends = List<Integer>()
+var coarse_site_counted = List<Integer>()
+var coarse_counted = true
+var skip_loops_used = false
+var skip_reached_known = false
+var skip_reached_names = Dictionary<String, Boolean>()
+var coarse_owner_dotted = ""
 var atomic_fields = List<String>()
 var lone_atomic_answers = Dictionary<String, String>()
 var lone_read_past_lock = Dictionary<String, Boolean>()
@@ -42046,13 +42052,27 @@ func generate_while_statement(
     coarse_site_calls.append(called)
     var keys = coarse_keys.join(" ")
     coarse_site_keys.append(keys)
-    builder.add_user("spite_coarse_{site}_enter();")
+    var counted = coarse_counted
+    var counted_mark = 0
+    if counted {
+        counted_mark = 1
+    }
+    coarse_site_counted.append(counted_mark)
+    if counted {
+        builder.add_user("spite_coarse_{site}_enter();")
+    } else {
+        builder.add_user("int32_t spite_coarse_{site}_skipping = spite_coarse_{site}_skip_enter();")
+    }
     var start = builder.user_count()
     coarse_site_starts.append(start)
     generate_while_loop(while_statement, scope, class_information, function_information)
     var end = builder.user_count()
     coarse_site_ends.append(end)
-    builder.add_user("spite_coarse_{site}_leave();")
+    if counted {
+        builder.add_user("spite_coarse_{site}_leave();")
+    } else {
+        builder.add_user("spite_coarse_{site}_skip_leave(spite_coarse_{site}_skipping);")
+    }
     if frame_loop {
         frame_loop_depth = frame_loop_depth - 1
     }
@@ -42147,9 +42167,7 @@ func coarse_singleton(
     coarse_called = List<String>()
     coarse_keys = List<String>()
     coarse_locals = List<String>()
-    if not coarse_counts(while_statement, scope, class_information) {
-        return ""
-    }
+    coarse_counted = coarse_counts(while_statement, scope, class_information)
     crash while_statement.condition
     if not coarse_expression(while_statement.condition, true, scope, class_information) {
         return ""
@@ -42160,7 +42178,18 @@ func coarse_singleton(
     if coarse_called.is_empty() {
         return ""
     }
+    if not coarse_counted and not skipping_loop_reached(coarse_owner_dotted) {
+        return ""
+    }
     return coarse_owner
+}
+
+func skipping_loop_reached(dotted: String): Boolean {
+    if not skip_reached_known {
+        skip_reached_known = true
+        skip_reached_names = call_effects.thread_reached_classes()
+    }
+    return skip_reached_names.has(dotted)
 }
 
 func coarse_block(
@@ -42420,6 +42449,7 @@ func coarse_holder_class(name: String, class_information: Analysis.ClassInfo): A
     assert coarse_holder.is_empty() or coarse_holder == name
     coarse_holder = name
     coarse_owner = held.c_name
+    coarse_owner_dotted = held.qualified_dotted
     return held
 }
 
@@ -42494,7 +42524,11 @@ func finish_coarse_loops() {
         var keys = keys_text.split(" ")
         var holds = coarse_holds(owner, called, keys)
         var reading = read_guarded_names.contains(owner) and all_reading(called)
-        if holds and reading {
+        crash coarse_site_counted[index]
+        var counted = coarse_site_counted[index] == 1
+        if not counted {
+            finish_skipping_loop(index, owner, called, holds)
+        } else if holds and reading {
             builder.add_typedef(
                 "#define spite_coarse_{index}_enter() int64_t* spite_coarse_reading_{index} = spite_read_enter(&{owner}___guard, {owner}___readers)",
             )
@@ -42516,6 +42550,114 @@ func finish_coarse_loops() {
         }
         index = index + 1
     }
+}
+
+# ../../../docs/optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once
+func finish_skipping_loop(site: Integer, owner: String, called: List<String>, holds: Boolean) {
+    if not holds {
+        builder.add_typedef("#define spite_coarse_{site}_skip_enter() 0")
+        builder.add_typedef("#define spite_coarse_{site}_skip_leave(skipping) ((void)(skipping))")
+        return
+    }
+    if not skip_loops_used {
+        skip_loops_used = true
+        builder.add_support(
+            "static inline int32_t spite_skip_enter(void* guard) \{\nif (spite_skipped_depth >= 16 || __atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) != 0) return 0;\nint32_t spite_skip = spite_skipped_depth;\nspite_skipped[spite_skip] = guard;\nspite_skipped_taken[spite_skip] = 0;\nspite_skipped_depth = spite_skip + 1;\nreturn 1;\n}\nstatic inline void spite_skip_leave(int32_t skipping, SpiteGuard* guard) \{\nif (!skipping) return;\nint32_t spite_skip = spite_skipped_depth - 1;\nspite_skipped_depth = spite_skip;\nif (spite_skipped_taken[spite_skip]) spite_guard_leave(guard);\n}",
+        )
+    }
+    builder.add_typedef("#define spite_coarse_{site}_skip_enter() spite_skip_enter((void*)&{owner}___guard)")
+    builder.add_typedef(
+        "#define spite_coarse_{site}_skip_leave(skipping) spite_skip_leave((skipping), &{owner}___guard)",
+    )
+    crash coarse_site_starts[site]
+    crash coarse_site_ends[site]
+    var line_index = coarse_site_starts[site]
+    var end = coarse_site_ends[site]
+    var unguarded = with_wrapped_copies(called)
+    while line_index < end {
+        var line = builder.user_at(line_index)
+        var changed = line
+        var index = 0
+        while index < unguarded.count() {
+            var name = unguarded[index]
+            if wrapped_function_names.has(name) {
+                changed = skipping_calls(changed, name, "spite_coarse_{site}_skipping")
+            }
+            index = index + 1
+        }
+        if changed != line {
+            builder.replace_user(line_index, changed)
+        }
+        line_index = line_index + 1
+    }
+}
+
+func skipping_calls(line: String, name: String, flag: String): String {
+    var from = "{name}("
+    var pieces = line.split(from)
+    crash pieces[0]
+    var result = pieces[0]
+    var index = 1
+    while index < pieces.count() {
+        crash pieces[index - 1]
+        var before = pieces[index - 1]
+        var piece = pieces[index]
+        var last_position = before.length() - 1
+        var last = before.code_at(last_position)
+        var joins_a_name = last >= 97 and last <= 122 or last >= 65 and last <= 90 or last >= 48 and last <= 57 or last == 95
+        if not before.is_empty() and joins_a_name {
+            result = result + from + piece
+        } else {
+            var close = closing_parenthesis(piece)
+            if close < 0 {
+                return line
+            }
+            var arguments = piece.slice(0, close)
+            var piece_length = piece.length()
+            var rest = piece.slice(close + 1, piece_length)
+            result = result + "({flag} ? {name}___unguarded({arguments}) : {name}({arguments}))" + rest
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func closing_parenthesis(text: String): Integer {
+    var depth = 1
+    var index = 0
+    var length = text.length()
+    while index < length {
+        var code = text.code_at(index)
+        if code == 34 or code == 39 {
+            index = closing_quote(text, index)
+        } else if code == 40 {
+            depth = depth + 1
+        } else if code == 41 {
+            depth = depth - 1
+        }
+        if depth == 0 {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func closing_quote(text: String, start: Integer): Integer {
+    var quote = text.code_at(start)
+    var index = start + 1
+    var length = text.length()
+    while index < length {
+        var code = text.code_at(index)
+        if code == quote {
+            return index
+        }
+        if code == 92 {
+            index = index + 1
+        }
+        index = index + 1
+    }
+    return length
 }
 
 func all_reading(called: List<String>): Boolean {

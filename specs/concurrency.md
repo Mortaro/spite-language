@@ -462,7 +462,11 @@ counted; the wrapper lets each go as its call returns. So a task never sees a si
 unlocked. This is sound without any analysis of where tasks start, which the call effects cannot always see (a
 function value passed to a list's `each`). Proving "no `Parallel` live" per call site is not possible at
 compile time, since handles kept in attributes and lists make it unprovable. `conformance/stage6/unshared_locks` starts
-work inside a skipped call that writes the same singleton. **A `Weak` a `Parallel` reaches is a
+work inside a skipped call that writes the same singleton. A `while` that meets every condition of the counted loop above but being counted tests the count
+once before it starts: when it is zero it pushes the lock on the same stack for the whole loop and calls the unlocked
+bodies, and when it is not every call takes the lock as before. Nothing the loop runs can start a task or wait, so
+the count stays zero until the loop ends
+([optimizations.md](../docs/optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once)). **A `Weak` a `Parallel` reaches is a
 compile error** too ([memory.md](memory.md), `diagnostics/weak_across_threads`).
 
 A program without `Parallel` gets none of it: an atomic singleton compiles to plain reads and writes, and no

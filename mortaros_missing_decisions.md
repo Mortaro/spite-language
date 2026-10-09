@@ -211,6 +211,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   atomic additions bought nothing (76.6 to 24.4 ms on the counted loop's case). The cost to confirm: none at run
   time; one read from another class anywhere in the program makes every lone atomic attribute of that singleton
   atomic again.
+- **D556, a loop of calls to one singleton tests for tasks once**: a loop that would take its singleton's lock once
+  but is not counted (its index is what a call answers) asks once whether a task is in flight and, when none is,
+  calls the unlocked bodies for the whole loop. Why: the test, push and pop per call were most of a call (41.5 to
+  9.5 ms for ten million). The cost to confirm: a loop that starts while a task is in flight takes the lock on every
+  call even after the task ends, as before; the loop is written once with both calls in it.
 
 ## Open
 
