@@ -28,11 +28,13 @@ loop calls `Tally_add___unguarded`, so a worker takes the tally's lock once for 
 holds it the other three wait for the whole of its loop, so the four loops run one after another. `naive.c` takes the
 mutex 20 million times, handing it from core to core; `expert.c` takes nothing.
 
-The unlocked body still writes `total` and `calls` with `__atomic_fetch_add` (sequentially consistent) and reads and
-writes `largest` through `SPITE_SINGLETON_LOAD` and `SPITE_SINGLETON_STORE`, because `Tally___atomic` is 1: those
-attributes are atomic on their own, so another class could read them without the lock. Inside the loop the lock is
-held, so the loop pays one lock and two locked additions per call; the additions are what is left between the Spite
-and a plain loop under one lock.
+The unlocked body adds to `total` and `calls` and compares `largest` plainly, its `if (Tally___atomic)` tests
+folding away: `Tally___atomic` is 0 (in `generated.c`), because the
+program reads the three only through `sum`, `call_count` and `largest_amount`, which take the lock, so nothing reads
+them past it ([An attribute read only under its singleton's lock is a plain
+number](../../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)). What is left
+between the Spite and `expert.c` is that the four loops run one after another under the one lock, where `expert.c`
+runs them at once, each on a tally of its own.
 
 ## Timings
 

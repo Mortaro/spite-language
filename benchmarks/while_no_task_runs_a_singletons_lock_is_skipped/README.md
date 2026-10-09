@@ -28,10 +28,12 @@ lock, and a task it starts before it returns takes the lock first, so nothing a 
 pushes `&Tally___guard` on `spite_skipped`, calls `Tally_add___unguarded` and pops it, and only otherwise takes
 `spite_guard_enter`. `ThreadPool__task_begun` adds one to `spite_tasks_in_flight` for every task handed out, after
 taking every lock its thread skipped (`spite_enter_skipped`), and `ThreadPool__task_ended` takes it away. So the ten
-million calls each make one load of a counter no thread writes, and no compare-and-swap. The body still adds to
-`total_` and `calls_` with `__atomic_fetch_add`, because `Tally___atomic` is 1 (each is written once by `add`, so
-each is atomic on its own): two locked additions per call are what is left between the Spite and `expert.c`.
-`naive.c` takes and lets go of its mutex on every call.
+million calls each make one load of a counter no thread writes, and no compare-and-swap. The body adds to `total_`
+and `calls_` plainly: each is written once by `add`, so each is atomic on its own, but no other class reads them
+past the lock, so `Tally___atomic` is 0 (in `generated.c`) and its `if (Tally___atomic)` tests fold away
+([its section](../../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)). The
+test, the push and the pop on every call are what is left between the Spite and `expert.c`. `naive.c` takes and lets
+go of its mutex on every call.
 
 ## Timings
 

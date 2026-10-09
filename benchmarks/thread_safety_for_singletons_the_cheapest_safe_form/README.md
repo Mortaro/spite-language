@@ -32,9 +32,8 @@ its functions touches it once. `Journal_note` appends with no lock and no atomic
 turn with nothing around them. `naive.c` takes a mutex twice per round, once for the step and once for the hit;
 `expert.c` makes the hits in registers and writes the shared count once per thread.
 
-One thing differs from the page: the page says a singleton that never changes is read plainly, but `Settings___atomic`
-is 1 too, so `SPITE_SINGLETON_LOAD` reads `step_` with a sequentially consistent `__atomic_load_n`. On x86 that is
-the same plain load, so it costs nothing here; on a machine with a weaker memory order it is an ordered load, slower than a plain one.
+`Settings___atomic` is 0 (in `generated.c`), so that load is a plain one, as the page says of a singleton that never
+changes.
 The four workers' atomic additions on one line are what is left between the Spite and `expert.c`.
 
 ## Timings

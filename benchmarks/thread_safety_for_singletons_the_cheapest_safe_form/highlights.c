@@ -4,7 +4,7 @@
 
 #define HitCounter___atomic 1
 
-#define Settings___atomic 1
+#define Settings___atomic 0
 
 int32_t Worker_run(Worker* self) {
     int32_t index_ = 0;

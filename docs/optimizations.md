@@ -67,6 +67,7 @@ emit nothing.
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | every but `--hot-reload`, decided per program | an uncontended lock per call, only with `Parallel` |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [A counted loop of calls to one singleton takes its lock once](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once) | every but `--hot-reload`, `--repl`, `--repl-port`, decided per loop | one lock for the loop instead of one per call, only with `Parallel` |
+| [An attribute read only under its singleton's lock is a plain number](#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number) | every but `--hot-reload`, `--repl`, `--repl-port`, decided per singleton | nothing but speed |
 | [A singleton's reading functions do not exclude each other](#a-singletons-reading-functions-do-not-exclude-each-other) | every but `--hot-reload`, decided per singleton | readers count on their own cache line; 2 KiB of counts per such singleton |
 | [While no task runs, a singleton's lock is skipped](#while-no-task-runs-a-singletons-lock-is-skipped) | every but `--hot-reload`, only with `Parallel` | one load per locked call, two atomic additions per task |
 | [The fault handler is in every program](#the-fault-handler-is-in-every-program) | every | a cost, not an optimisation: about 3.7 KB of code and 32 bytes and a name per function; one store per foreign call |
@@ -1163,7 +1164,9 @@ Only when none of these applies does the singleton take [the lock](#singletons-a
    it too) is atomic on its own. Reading it from another class is one atomic load and takes no lock; the
    singleton's functions still take their lock and read and write it atomically; a write to it from another class
    still takes the lock. Since no write leaves it half done and every writer holds the lock, a reader that takes no
-   lock sees a value some locked step left, exactly as if it had waited for the lock and read it.
+   lock sees a value some locked step left, exactly as if it had waited for the lock and read it. Only a read from
+   another class reads it past the lock, so where the program has no such read, the attribute is a plain number
+   again ([below](#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)).
 
 ```gdscript
 singleton
@@ -1401,6 +1404,81 @@ exactly as before, and other threads' calls on the singleton wait until the loop
 between two of its calls, which is one of the orders they could already run in. A long counted loop keeps other
 threads that want the singleton waiting for all of it. In the C, the loop is between `spite_coarse_<n>_enter()` and
 `spite_coarse_<n>_leave()` and calls `<function>___unguarded` (`conformance/stage6/coarse_locks`).
+
+### An attribute read only under its singleton's lock is a plain number
+
+**The case:** [benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/).
+
+**What it does.** A locked singleton's attribute that is [atomic on its
+own](#thread-safety-for-singletons-the-cheapest-safe-form) is made atomic so that another class can read it without
+the lock. When no other class reads it directly anywhere in the program (every read of it is in one of the
+singleton's own functions, which hold the lock, or skip it [while no task
+runs](#while-no-task-runs-a-singletons-lock-is-skipped)), nothing ever reads it past the lock, and its reads and
+writes are plain loads, stores and additions: `total = total + amount` is one addition and its overflow test, not a
+locked `fetch_add`.
+
+```gdscript title=locked_tally/tally.spite
+singleton
+
+var total = 0
+var calls = 0
+
+func add(amount: Integer) {
+    total = total + amount
+    calls = calls + 1
+}
+
+func sum(): Integer {
+    return total
+}
+
+func call_count(): Integer {
+    return calls
+}
+```
+```gdscript title=locked_tally/counter.spite
+var tally = Tally()
+
+func run(): Integer {
+    var index = 0
+    while index < 1000 {
+        tally.add(index % 3)
+        index = index + 1
+    }
+    return index
+}
+```
+```gdscript title=locked_tally/locked_tally.spite entry
+var console = Console()
+var tally = Tally()
+
+func LockedTally() {
+    var first = Counter()
+    var second = Counter()
+    var first_run = Parallel(first.run)
+    var second_run = Parallel(second.run)
+    var counted = first_run + second_run
+    var total = tally.sum()
+    var calls = tally.call_count()
+    console.print("counted", counted, "total", total, "calls", calls)
+}
+```
+```output
+counted 2000 total 1998 calls 2000
+```
+
+`add` writes `total` and `calls` once each, so both are atomic on their own, but the program reads them only through
+`sum` and `call_count`, which take `Tally`'s lock: `Tally___atomic` is 0, and `Tally_add___unguarded` adds to them
+plainly. Reading `tally.total` from `LockedTally` instead would read it past the lock and keep it atomic.
+
+**When.** In every build that has lone atomic attributes (not `--hot-reload`, `--repl` or `--repl-port`), for a
+locked singleton none of whose attributes is read from another class by a read that takes no lock. A singleton in
+the atomics form keeps its atomics, since nothing locks it.
+
+**What you notice.** Speed: in [the counted loop's case](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/),
+four workers making 5 million calls each under the lock they take once, the 20 million calls took 76.6 ms with two
+locked additions each and 24.4 ms with plain ones. Nothing a program prints changes: every read and write was already
+made under the lock, or while no other thread ran.
 
 ### An argument its caller holds is passed without counting
 

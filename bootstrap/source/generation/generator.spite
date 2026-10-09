@@ -124,6 +124,7 @@ var coarse_site_starts = List<Integer>()
 var coarse_site_ends = List<Integer>()
 var atomic_fields = List<String>()
 var lone_atomic_answers = Dictionary<String, String>()
+var lone_read_past_lock = Dictionary<String, Boolean>()
 var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
 var atomic_class_names = List<String>()
@@ -48634,6 +48635,9 @@ func guarded_outside_read(
     var atomic = atomic_singleton_fields(target_class)
     var lone = lone_atomic_fields(target_class)
     var loaded_atomically = atomic.contains(field.name) or lone.contains(field.name)
+    if lone.contains(field.name) and not atomic.contains(field.name) {
+        lone_read_past_lock[owner] = true
+    }
     if loaded_atomically {
         if not atomic_class_names.contains(owner) {
             atomic_class_names.append(owner)
@@ -48677,9 +48681,11 @@ func finish_atomic_singletons() {
     var index = 0
     while index < atomic_classes.count() {
         var information = atomic_classes[index]
+        var atomic_name = information.c_name
         var threaded = parallel_used and (reached.has(information.qualified_dotted) or called_implicitly(information))
+        var locked_only = atomic_singleton_fields(information).is_empty() and not lone_read_past_lock.has(atomic_name)
         var flag = "0"
-        if threaded {
+        if threaded and not locked_only {
             flag = "1"
         }
         builder.add_typedef("#define {information.c_name}___atomic {flag}")

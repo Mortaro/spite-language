@@ -206,6 +206,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
   fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 20% and 13%,
   for about 7% of its tick, measured while the machine was in other use), since combinations the program never makes are copied too.
+- **D555, an attribute read only under its singleton's lock is a plain number**: a locked singleton's attribute
+  stays atomic only when some other class reads it directly. Why: nothing else reads it without the lock, so the
+  atomic additions bought nothing (76.6 to 24.4 ms on the counted loop's case). The cost to confirm: none at run
+  time; one read from another class anywhere in the program makes every lone atomic attribute of that singleton
+  atomic again.
 
 ## Open
 

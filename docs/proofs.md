@@ -138,6 +138,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A function that touches no changing state](#a-function-that-touches-no-changing-state-takes-no-lock) | no lock for it | the lock |
 | [Reading functions share the lock](#reading-functions-share-the-lock) | readers never contend | the plain lock |
 | [A counted loop takes the lock once](#a-counted-loop-takes-a-singletons-lock-once) | one lock per loop | one lock per call |
+| [No attribute is read past the lock](#no-attribute-is-read-past-the-lock) | plain attributes under the lock | atomic attributes |
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
 | [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [A poll that nothing steps](#a-poll-that-nothing-steps-is-an-error) | refuses a hang | the run-time halt |
@@ -1294,6 +1295,21 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 
 While no task is on the thread pool, a locked function also skips its lock. That is a run-time test of a
 counter, one load per call, not a proof: [optimizations.md](optimizations.md#while-no-task-runs-a-singletons-lock-is-skipped).
+
+### No attribute is read past the lock
+
+- **Proves.** No code reads a locked singleton's attribute without holding its lock or knowing that no other thread
+  runs.
+- **Rule.** Of the attributes atomic on their own, none is read directly from another class (the one read that
+  takes no lock); every other read is in the singleton's functions, behind the lock, its readers' side or the skip
+  while no task runs.
+- **Buys.** Its attributes are read and written plainly: one addition where there were locked `fetch_add`s, 76.6 to
+  24.4 ms for 20 million calls under a lock taken once.
+- **Falls back.** Atomic attributes, as soon as one read from another class names one of them; the atomics form keeps
+  its atomics.
+- **See.** [optimizations.md: An attribute read only under its singleton's lock is a plain
+  number](optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number);
+  `conformance/stage6/lone_atomic_counter` keeps `stage` atomic, since a task reads it from another class.
 
 ### A lock that would wait forever is an error
 

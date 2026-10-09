@@ -30,9 +30,10 @@ You write no lock: the source is the same as in a program with one thread, and t
 `spite_tasks_in_flight`, which is not zero here while the recorders run, so it takes
 `spite_guard_enter(&Registry___guard)`, calls `Registry_record___unguarded` and lets go with `spite_guard_leave`.
 `SpiteGuard` is aligned to 64 bytes, so the lock has a cache line of its own. `Registry` holds a `List`, so it can
-take none of the cheaper forms; its `total` is written once by `record`, so it is also atomic on its own
-(`Registry___atomic` is 1 and the body adds it with `__atomic_fetch_add`), which lets another class read it without
-the lock. The loop is not [one counted loop of calls](../a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/)
+take none of the cheaper forms; its `total` is written once by `record`, so it is atomic on its own, but no other
+class reads it past the lock, so it is a plain number (`Registry___atomic` is 0 in `generated.c`, and the body's
+`if (Registry___atomic)` tests fold away;
+[its section](../../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)). The loop is not [one counted loop of calls](../a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/)
 because it also calls `weight_of`, a function of the recorder's own, so each call takes the lock.
 
 `spite_guard_enter` takes the lock with one compare-and-swap when it is free. When another thread holds it,

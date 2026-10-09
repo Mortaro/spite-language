@@ -837,7 +837,7 @@ typedef struct SpiteGuard { _Alignas(64) int64_t owner; int64_t depth; } SpiteGu
 #define SPITE_SINGLETON_LOAD(owner, place) (owner##___atomic ? __atomic_load_n(&(place), __ATOMIC_SEQ_CST) : (place))
 #define SPITE_SINGLETON_STORE(owner, place, value) do { if (owner##___atomic) __atomic_store_n(&(place), (value), __ATOMIC_SEQ_CST); else (place) = (value); } while (0)
 #define SPITE_SINGLETON_ADD(owner, place, value) do { if (owner##___atomic) __atomic_fetch_add(&(place), (value), __ATOMIC_SEQ_CST); else (place) += (value); } while (0)
-#define Tally___atomic 1
+#define Tally___atomic 0
 Memory_Heap* spite_singleton_Memory_Heap(void);
 Console_Printable Console_Printable___retain(Console_Printable self);
 void Console_Printable___release(Console_Printable self);
