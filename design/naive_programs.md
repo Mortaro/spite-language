@@ -743,22 +743,38 @@ adds and letting the list go frees the marked blocks. Against master at 106d5e56
 
 | | master | both built |
 |---|---|---|
-| physics tick, one C file | 7 466 µs | 7 051 µs |
-| physics tick, split build | 7 764 µs | 7 274 µs |
-| physics step, split build | 7 377 µs | 6 885 µs |
-| `SortColliders`, split | 691 µs | 448 µs |
-| `MoveCharacters`, split | 6 065 µs | 5 837 µs |
-| `ReadCharacters`, split | 393 µs | 379 µs |
-| the hand engine, split: tick, step, `SortColliders`, `MoveCharacters`, `ReadCharacters` | 5 866, 5 706, 277, 5 021, 180 µs | |
+| physics tick, one C file | 7 628 µs | 7 156 µs |
+| physics tick, split build | 7 793 µs | 7 345 µs |
+| physics step, split build | 7 402 µs | 6 955 µs |
+| `SortColliders`, split | 698 µs | 445 µs |
+| `MoveCharacters`, split | 6 091 µs | 5 896 µs |
+| `ReadCharacters`, split | 390 µs | 392 µs |
+| the hand engine, split: tick, step, `SortColliders`, `MoveCharacters`, `ReadCharacters` | 6 018, 5 869, 293, 5 153, 188 µs | |
 | the case, 200 000 orders in 32 768 lists forty times | 316 ms | 106 ms (with D552 alone 267) |
 
-So the physics step is 1.18 ms behind the hand engine's, down from 1.67 ms. What is left, by the profile of R: the
+(Best of 11 interleaved runs on a quiet machine, every form built from the same engine commits; the stress
+program's C is byte for byte the same before and after both changes.)
+
+So the physics step is 1.09 ms behind the hand engine's, down from 1.53 ms. What is left, by the profile of R: the
 broad phase's counted reads of each collider it passes on (the `entries[at]` read and `note`'s append: B1t across a
 call that appends to another list of the same class, about 0.1 ms by hand on the quiet machine, Q in the scratch
 folder), `set_aside_candidates` and `forget_candidates` (the naive form's visited list against main's stamps, about
 0.3 ms), and the runner's fill and store of each row in `MoveCharacters` and `ReadCharacters` (about 0.5 ms), which
 is S1 step 3's runner made direct. D, the counting sort, would take `SortColliders` from 448 to about 180 µs and
 `MoveCharacters` a further 0.3 ms; it needs a proof that the grid's filling loop can be run twice.
+
+The profile of the built form against main (about 25 000 samples each) puts what is left of the broad phase in its
+first touch of each bucket: `gather` is 1.37 ms of a 7.16 ms tick against main's 0.72, and its self time sits in
+the count up and down of the slot it reads, the first access to a 40-byte record where main reads 4-byte starts. A
+slot is a whole list object (header, `heap`, `values`, items, count, room); H's 16-byte record was worth about 0.3 ms
+more. Two general steps would close part of it: attributes bound to a singleton and never assigned not stored in
+the object (every `List` and `Dictionary` holds two, so a slot would be 24 bytes and every list 16 bytes smaller),
+and a slot record of the items, count and room alone where nothing asks the inner list for its header.
+
+Tried and not kept: letting a held item pass to a call that grows a list of its class (`note(entries[at], found)`
+appends to `found`, which the item's own list could be, and growing never lets an item go). It made `note`'s
+argument uncounted and changed the C of most programs, and the tick moved by nothing measurable (7 169 to 7 201
+µs, best of 11), since the counts were only the first touch of a line the next read pays for anyway.
 
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
