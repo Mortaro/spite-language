@@ -8,6 +8,21 @@ List_Order* TypedMemory__List_Order_read_value(TypedMemory__List_Order* self, in
 
 void TypedMemory__List_Order_write_value(TypedMemory__List_Order* self, int64_t address_, int32_t index_, List_Order* value_) {
     List_Order* spite_slot = &((List_Order*)(intptr_t)address_)[index_];
+    if (spite_slot->header.ref_count == -7) {
+        if (value_->items_ == 0) {
+            int64_t spite_room = spite_slot->items_;
+            int32_t spite_capacity = spite_slot->capacity_;
+            memcpy(spite_slot, value_, sizeof(List_Order));
+            spite_slot->items_ = spite_room;
+            spite_slot->capacity_ = spite_capacity;
+            spite_slot->item_count_ = 0;
+            spite_slot->header.ref_count = 1073741824;
+            List_Order___release(value_);
+            return;
+        }
+        spite_slot->header.ref_count = 0;
+        List_Order_drop(spite_slot);
+    }
     memcpy(spite_slot, value_, sizeof(List_Order));
     spite_slot->header.ref_count = 1073741824;
     value_->items_ = 0;

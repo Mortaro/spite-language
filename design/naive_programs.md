@@ -737,6 +737,29 @@ candidates come from a call) are not.
 The split build gains less: the slot's memory functions sit in another unit than the code reading the slots, so it
 is link-time inlining that removes the calls (C4 across units).
 
+**Built: a list of lists filled again keeps each list's room** (D553, pair L6b): R of the hand edits, made general.
+Clearing marks each slot and keeps its block; the next empty list put there takes it; growth zeroes the room it
+adds and letting the list go frees the marked blocks. Against master at 106d5e56 (best of 11, interleaved):
+
+| | master | both built |
+|---|---|---|
+| physics tick, one C file | 7 466 µs | 7 051 µs |
+| physics tick, split build | 7 764 µs | 7 274 µs |
+| physics step, split build | 7 377 µs | 6 885 µs |
+| `SortColliders`, split | 691 µs | 448 µs |
+| `MoveCharacters`, split | 6 065 µs | 5 837 µs |
+| `ReadCharacters`, split | 393 µs | 379 µs |
+| the hand engine, split: tick, step, `SortColliders`, `MoveCharacters`, `ReadCharacters` | 5 866, 5 706, 277, 5 021, 180 µs | |
+| the case, 200 000 orders in 32 768 lists forty times | 316 ms | 106 ms (with D552 alone 267) |
+
+So the physics step is 1.18 ms behind the hand engine's, down from 1.67 ms. What is left, by the profile of R: the
+broad phase's counted reads of each collider it passes on (the `entries[at]` read and `note`'s append: B1t across a
+call that appends to another list of the same class, about 0.1 ms by hand on the quiet machine, Q in the scratch
+folder), `set_aside_candidates` and `forget_candidates` (the naive form's visited list against main's stamps, about
+0.3 ms), and the runner's fill and store of each row in `MoveCharacters` and `ReadCharacters` (about 0.5 ms), which
+is S1 step 3's runner made direct. D, the counting sort, would take `SortColliders` from 448 to about 180 µs and
+`MoveCharacters` a further 0.3 ms; it needs a proof that the grid's filling loop can be run twice.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a

@@ -27,8 +27,9 @@ again, so it always shows the latest measurement of every case.
 | [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed | not timed | | |
 | [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 50 755 | 51 280 | 50 791 | 0.99 | 1.00 |
 | [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 1 208 | 1 207 | 1 215 | 1.00 | 0.99 |
-| [a_list_held_only_by_another_list_lives_in_its_slot](a_list_held_only_by_another_list_lives_in_its_slot/) | 226 800 | 252 065 | 36 935 | 0.90 | 6.14 |
+| [a_list_held_only_by_another_list_lives_in_its_slot](a_list_held_only_by_another_list_lives_in_its_slot/) | 142 935 | 289 137 | 37 739 | 0.49 | 3.79 |
 | [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 53 327 | 62 984 | 11 248 | 0.85 | 4.74 |
+| [a_list_of_lists_filled_again_keeps_each_lists_room](a_list_of_lists_filled_again_keeps_each_lists_room/) | 121 142 | 342 006 | 6 829 | 0.35 | 17.74 |
 | [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 22 520 | 29 074 | 2 122 | 0.77 | 10.61 |
 | [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 23 178 | 22 919 | 22 417 | 1.01 | 1.03 |
 | [a_loop_over_a_list_of_different_classes_runs_them_at_once](a_loop_over_a_list_of_different_classes_runs_them_at_once/) | 86 108 | 266 717 | 91 695 | 0.32 | 0.94 |

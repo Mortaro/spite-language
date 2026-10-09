@@ -83,6 +83,18 @@ func shelve() {
         console.print("shelf", position, "size", size, "second", second)
         position = position + 1
     }
+    shelves.clear()
+    var again = List<Integer>()
+    shelves.insert(0, again)
+    var after = List<Integer>()
+    after.append(7)
+    shelves.append(after)
+    crash shelves[1]
+    shelves[1].append(8)
+    crash shelves[0]
+    var first_size = shelves[0].count()
+    var second_size = shelves[1].count()
+    console.print("refilled", first_size, second_size)
 }
 
 func keep() {

@@ -1,0 +1,65 @@
+var console = Console()
+var orders = List<Order>()
+var buckets = List<List<Order>>()
+var total: Long = 0
+var seed: Long = 777
+
+func Naive() {
+    make_orders(200000)
+    var benchmark = Benchmark(regroup)
+    console.print("total", total)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func make_orders(count: Integer) {
+    var index = 0
+    while index < count {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        var customer: Integer = seed % 32768
+        var order = Order(customer)
+        orders.append(order)
+        index = index + 1
+    }
+}
+
+func regroup() {
+    var round = 0
+    while round < 40 {
+        group(round)
+        total = total + largest()
+        round = round + 1
+    }
+}
+
+func group(round: Integer) {
+    buckets.clear()
+    var made = 0
+    while made < 32768 {
+        var bucket = List<Order>()
+        buckets.append(bucket)
+        made = made + 1
+    }
+    var index = 0
+    while index < orders.count() {
+        var order = orders[index]
+        var customer = (order.customer + round) % 32768
+        crash buckets[customer]
+        buckets[customer].append(order)
+        index = index + 1
+    }
+}
+
+func largest(): Integer {
+    var most = 0
+    var customer = 0
+    while customer < buckets.count() {
+        var bucket = buckets[customer]
+        var size = bucket.count()
+        if size > most {
+            most = size
+        }
+        customer = customer + 1
+    }
+    return most
+}

@@ -1061,7 +1061,8 @@ have moved.
   lists of that `T`; and no code the compiler writes on its own reads its items. A local whose type the compiler
   cannot name while it studies a function that reads a collection with `[ ]` stops it for the whole program.
 - **Buys.** Each inner list's object in the outer list's block: a read of an item is the slot's address, one load
-  fewer and no count, and the lists sit side by side.
+  fewer and no count, and the lists sit side by side; a slot cleared keeps its list's block for the next list put
+  there ([optimizations.md](optimizations.md#a-list-of-lists-filled-again-keeps-each-lists-room)).
 - **Falls back.** The list of references, for every `List<List<T>>` of that `T`, whenever any part of the rule fails
   anywhere, and in inspectable builds.
 - **See.** [optimizations.md: A list held only by another list lives in its

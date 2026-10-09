@@ -3,6 +3,7 @@ var studied = Dictionary<String, Boolean>()
 var everything_refused = ""
 var every_reasons = List<String>()
 var inlined = List<String>()
+var kept_rooms = List<String>()
 var reasons = List<String>()
 var lines = List<String>()
 var starts = List<Integer>()
@@ -47,6 +48,9 @@ func place_inline(types: String, prototypes: String, outer: String, inner: Strin
         return
     }
     rewrite(inner)
+    if keep_rooms(outer, inner) {
+        kept_rooms.append(inner)
+    }
     inlined.append(inner)
 }
 
@@ -639,4 +643,126 @@ func hook_body(hook: String, inner: String): String {
         }
         _: return ""
     }
+}
+
+func keep_rooms(outer: String, inner: String): Boolean {
+    var clear_at = function_index_named("{outer}_clear")
+    var drop_at = function_index_named("{outer}_drop")
+    var grow_at = function_index_named("{outer}__grow")
+    var write_at = function_index_named("TypedMemory__{inner}_write_value")
+    var inner_clear_at = function_index_named("{inner}_clear")
+    if clear_at < 0 or drop_at < 0 or grow_at < 0 or write_at < 0 or inner_clear_at < 0 {
+        return false
+    }
+    var released = "TypedMemory__{inner}_release_value(self->values_, self->items_, index_);"
+    var cleared = "{outer}_clear(self);"
+    var grown = "self->capacity_ = grown_;"
+    var written = "{inner}* spite_slot = &(({inner}*)(intptr_t)address_)[index_];"
+    var released_line = line_in(clear_at, released)
+    var cleared_line = line_in(drop_at, cleared)
+    var grown_line = line_in(grow_at, grown)
+    crash starts[write_at]
+    var written_line = starts[write_at] + 1
+    crash lines[written_line]
+    if not lines[written_line].starts_with("{written}\n") {
+        written_line = -1
+    }
+    if released_line < 0 or cleared_line < 0 or grown_line < 0 or written_line < 0 {
+        return false
+    }
+    var made_room = "{outer}_make_room(self);"
+    var insert_at = function_index_named("{outer}_insert")
+    var room_line = -1
+    if insert_at >= 0 {
+        room_line = line_in(insert_at, made_room)
+        if room_line < 0 {
+            return false
+        }
+    }
+    if not grows_only_by_grow(outer, grow_at) {
+        return false
+    }
+    var slot = "&(({inner}*)(intptr_t)self->items_)"
+    lines[released_line] = "\{ {inner}* spite_slot = {slot}[index_]; {inner}_clear(spite_slot); spite_slot->header.ref_count = -7; }"
+    var freed = "\{ {inner}* spite_slot = {slot}[spite_index]; if (spite_slot->header.ref_count == -7) \{ spite_slot->header.ref_count = 0; {free_drop}(spite_slot); } }"
+    var kept_loop = "if (self->items_ != 0) for (int32_t spite_index = 0; spite_index < self->capacity_; spite_index++) {freed}"
+    crash lines[cleared_line]
+    lines[cleared_line] = "{lines[cleared_line]}\n{kept_loop}"
+    var zeroed = "memset((char*)(intptr_t)self->items_ + (int64_t)self->capacity_ * (int64_t)sizeof({inner}), 0, (size_t)(grown_ - self->capacity_) * sizeof({inner}));"
+    crash lines[grown_line]
+    lines[grown_line] = "{zeroed}\n{lines[grown_line]}"
+    var reused = [
+        "if (spite_slot->header.ref_count == -7) \{"
+        "if (value_->items_ == 0) \{"
+        "int64_t spite_room = spite_slot->items_;"
+        "int32_t spite_capacity = spite_slot->capacity_;"
+        "memcpy(spite_slot, value_, sizeof({inner}));"
+        "spite_slot->items_ = spite_room;"
+        "spite_slot->capacity_ = spite_capacity;"
+        "spite_slot->item_count_ = 0;"
+        "spite_slot->header.ref_count = 1073741824;"
+        "{inner}___release(value_);"
+        "return;"
+        "}"
+        "spite_slot->header.ref_count = 0;"
+        "{free_drop}(spite_slot);"
+        "}"
+    ]
+    crash lines[written_line]
+    var joined_reuse = reused.join("\n")
+    lines[written_line] = lines[written_line].replace("{written}\n", "{written}\n{joined_reuse}\n")
+    if room_line >= 0 {
+        var forgotten = "\{ {inner}* spite_slot = {slot}[self->item_count_]; if (spite_slot->header.ref_count == -7) \{ spite_slot->header.ref_count = 0; {free_drop}(spite_slot); } }"
+        crash lines[room_line]
+        lines[room_line] = "{lines[room_line]}\n{forgotten}"
+    }
+    return true
+}
+
+func function_index_named(name: String): Integer {
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func line_in(function_index: Integer, wanted: String): Integer {
+    crash starts[function_index]
+    crash ends[function_index]
+    var line_index = starts[function_index] + 1
+    var found = -1
+    while line_index < ends[function_index] {
+        crash lines[line_index]
+        if lines[line_index] == wanted {
+            if found >= 0 {
+                return -1
+            }
+            found = line_index
+        }
+        line_index = line_index + 1
+    }
+    return found
+}
+
+func grows_only_by_grow(outer: String, grow_at: Integer): Boolean {
+    var resized = "{outer}__resized("
+    crash starts[grow_at]
+    crash ends[grow_at]
+    var first = starts[grow_at]
+    var last = ends[grow_at]
+    var line_index = 0
+    while line_index < lines.count() {
+        var line = lines[line_index]
+        var inside_grow = line_index > first and line_index < last
+        var defines = line.starts_with("int64_t {resized}")
+        if line.contains(resized) and not inside_grow and not defines {
+            return false
+        }
+        line_index = line_index + 1
+    }
+    return true
 }

@@ -1012,11 +1012,18 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   confirm). Not built: the decision per list of lists rather than per element type (two `List<List<T>>` of one `T`
   share their C functions, so one that keeps references keeps every one of them); `list[index] = fresh` (the store
   writes the slot's reference in place, so the pass refuses it); a list put in from a call's answer or a list
-  literal; a nested list read through a `Dictionary` or `Items`; keeping each slot's room when the list of lists is
-  cleared and filled again; the inner list's own header and singleton attributes kept out of the slot (a slot is
+  literal; a nested list read through a `Dictionary` or `Items`; the inner list's own header and singleton attributes kept out of the slot (a slot is
   the whole 40-byte object); the optimisation report does not yet list the lists of lists kept by reference, or why.
   In the split build the slot's memory functions sit in another C unit from the code that reads the slots, so link
   time inlining is what removes the call (pair C4): the engine's physics step gains 0.13 ms split, 0.3 ms as one file.
+
+### A list of lists filled again keeps each list's room
+
+- Built (pair L6b of [naive_programs_pairs.md](naive_programs_pairs.md), D553; decided by Claude under D509, to
+  confirm). Not built: a list of lists that keeps references (its lists may be named elsewhere, so they are let go
+  as before); keeping the inner lists' items' own room when an inner list is cleared rather than the outer one; a
+  bound on the memory kept by slots past the count after the list of lists shrinks, which stays until it is filled
+  that far again or let go.
 
 ### Identical functions are folded into one
 

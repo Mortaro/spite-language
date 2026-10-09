@@ -2513,8 +2513,9 @@ The list of lists itself is only named by the path it was made in: never given a
 
 **What you notice.** Speed: in [its case](../benchmarks/a_list_held_only_by_another_list_lives_in_its_slot/), 400 000
 orders grouped by customer into 65 536 lists ten times and asked 400 000 questions each time, and in a game engine's
-physics step, whose broad phase keeps its colliders in a grid of lists. What a program prints, `--debug-memory`'s
-allocations and frees, and every crash report are the same: the object `List<T>()` makes is still made and let go.
+physics step, whose broad phase keeps its colliders in a grid of lists. What a program prints and every crash report
+are the same, and so are `--debug-memory`'s allocations and frees, but for a list of lists filled again
+([below](#a-list-of-lists-filled-again-keeps-each-lists-room)): the object `List<T>()` makes is still made and let go.
 
 **When it does not apply.** The list of lists keeps references, as before, when an inner list is put in from
 anywhere but a fresh `List<T>()`, read and kept, passed, compared, returned or named twice, used past a line that
@@ -2523,6 +2524,72 @@ returned or given a second name; when the program asks it anything else than `co
 `prepend`, `insert`, `[ ]`, `get_at`, `first`, `last`, `remove_at`, `remove_swapping`, `truncate`, `swap`, `reverse`
 or `clear`; when a `Dictionary` or `Items` holds lists of the same `T`; and when the compiler writes code of its own
 that reads such lists (a deep copy, reflection, serialisers).
+
+### A list of lists filled again keeps each list's room
+
+**The case:** [benchmarks/a_list_of_lists_filled_again_keeps_each_lists_room](../benchmarks/a_list_of_lists_filled_again_keeps_each_lists_room/).
+
+**What it does.** A list of lists whose lists live in its slots ([above](#a-list-held-only-by-another-list-lives-in-its-slot))
+is often cleared and filled again with empty lists, every pass of a program: a grid of buckets, an index by key, the
+groups of a report. Each slot already holds a block of items its list grew into, so clearing the list of lists lets
+go of each list's items but keeps its block where the slot is, and the next empty list put in that slot takes the
+block instead of growing from nothing.
+
+```gdscript title=letters_twice/letters_twice.spite entry
+var console = Console()
+var monday = ["ant", "bee", "asp", "cat"]
+var tuesday = ["bat", "cow", "cod", "ape"]
+var groups = List<List<String>>()
+
+func LettersTwice() {
+    group(monday)
+    group(tuesday)
+}
+
+func group(words: List<String>) {
+    groups.clear()
+    var made = 0
+    while made < 3 {
+        var letters = List<String>()
+        groups.append(letters)
+        made = made + 1
+    }
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var letter = word.code_at(0) - 97
+        crash groups[letter]
+        groups[letter].append(word)
+        index = index + 1
+    }
+    crash groups[0]
+    crash groups[1]
+    crash groups[2]
+    var a_words = groups[0].count()
+    var b_words = groups[1].count()
+    var c_words = groups[2].count()
+    console.print("a", a_words, "b", b_words, "c", c_words)
+}
+```
+```output
+a 2 b 1 c 1
+a 1 b 1 c 2
+```
+
+The second `group` finds the three slots `groups.clear()` left with their blocks, and `groups.append(letters)` puts
+each new list in its slot with that block: `groups[letter].append(word)` writes into memory the first call already
+had. A slot keeps its block until a list is put there again or the list of lists is let go, which frees it; putting
+in a list that already has items of its own, or inserting before the end, frees the kept block first.
+
+**When.** Wherever a list of lists keeps its lists in its slots, and its block grows only by appending (the
+library's own growth, never `reserve`): every build but the inspectable ones.
+
+**What you notice.** Speed, and fewer allocations: `--debug-memory` counts one allocation fewer for each slot whose
+block is taken again (`conformance/stage6/nested_lists` makes 84 instead of 94), and every one is still freed. In
+[its case](../benchmarks/a_list_of_lists_filled_again_keeps_each_lists_room/), 200 000 orders grouped into 32 768
+lists forty times, the work takes 0.34 of the time it took with the lists in their slots alone; the naive engine's
+physics grid sorts its colliders in 448 µs instead of 691. The cost is memory: a list of lists cleared and filled
+with fewer lists than before keeps the other slots' blocks until it is filled that far again or let go.
 
 ### A dictionary hashes a key once, cheaply
 

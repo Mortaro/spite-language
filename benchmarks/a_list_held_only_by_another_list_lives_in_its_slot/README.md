@@ -37,11 +37,11 @@ and `TypedMemory__List_Order_release_value` drops the list where it lies. In `Na
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 226 800 | 208 384 |
-| naive C: `naive.c`, `clang -O2` | 252 065 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 36 935 | 139 776 |
+| Spite: `naive/`, `--optimized` | 142 935 | 208 896 |
+| naive C: `naive.c`, `clang -O2` | 289 137 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 37 739 | 139 776 |
 
-Spite takes 0.90 times naive C's time and 6.14 times expert C's (lower is faster).
+Spite takes 0.49 times naive C's time and 3.79 times expert C's (lower is faster).
 Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=226800 naive=252065 expert=36935 -->
+<!-- measured spite=142935 naive=289137 expert=37739 -->
 <!-- /timings -->
