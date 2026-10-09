@@ -37,7 +37,7 @@ int32_t Naive_largest_remainder(Naive* self, int32_t round_) {
 static List_Integer* List_Integer___framed(List_Integer* self, int64_t items, int32_t count) {
     List_Integer___init(self);
     self->header.ref_count = 2;
-    self->header.class_id = 121;
+    self->header.class_id = 122;
     self->items_ = items;
     self->item_count_ = count;
     self->capacity_ = count;
