@@ -20,6 +20,7 @@ var debug_memory = false
 var folds = false
 var counts_by_class = false
 var count_sharing: CountSharing? = null
+var nested_lists = NestedLists()
 var folded_functions = 0
 var host = HotReloadLibrary()
 var constant_texts = Dictionary<String, String>()
@@ -354,6 +355,9 @@ func render(): String {
         bodies = sharing.plain_counts(typedef_text, bodies, main_function)
         typedef_text = sharing.unguarded_types(typedef_text)
         count_sharing = sharing
+    }
+    if shakes and counts_by_class {
+        bodies = nested_lists.with_slots(typedef_text, prototype_lines, bodies)
     }
     if shakes and configured_values {
         var copies = ConfiguredCopies()

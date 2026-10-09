@@ -38,6 +38,7 @@ var range_lowest = List<Long>()
 var range_highest = List<Long>()
 var loop_ranges: LoopRanges? = null
 var entered_loop: LoopRanges? = null
+var declared_types = NestedLocalTypes()
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -106,6 +107,7 @@ func counted_items_of(key: String): String {
 }
 
 func declare(name: String, spite_type: Analysis.SpiteType) {
+    declared_types.note(name, spite_type)
     forget_range_here(name)
     entry_names.append(name)
     entry_types.append(spite_type)

@@ -18,6 +18,13 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
+- **D552, a list held only by another list lives in its slot**: an inner list nothing names but through its slot is
+  stored inside the outer list's block, decided per element type for the whole program and refused on any use
+  that could keep or alias one. Why: the naive engine's physics grid reads a bucket per query, and the pointer to
+  each bucket object was one dependent load too many.
+- **D553, a list of lists filled again keeps each list's room**: clearing such a list keeps each slot's block for
+  the next empty list put there, so a grid rebuilt every tick allocates nothing after the first. Why: the cost is
+  only memory kept past the count, which a list filled the same way every pass uses again.
 - **D510, item 280**: a walk's extra values are extra arguments to `each_<member>(...)`. Why: keeps the binary
   format's walker a stateless singleton, no allocation and no state shared between threads.
 - **D510, item 281**: a loop that can never leave, and whose calls can neither end the program nor wait, is a

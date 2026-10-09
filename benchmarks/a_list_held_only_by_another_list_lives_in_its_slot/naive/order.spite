@@ -1,0 +1,7 @@
+var customer = 0
+var amount = 0
+
+func Order(starting_customer: Integer, starting_amount: Integer) {
+    customer = starting_customer
+    amount = starting_amount
+}

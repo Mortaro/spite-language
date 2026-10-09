@@ -670,6 +670,112 @@ is slower than one C file (20.8 ms) on the same C. Placing every function that h
 translation unit, so the C compiler sees the pair together, changed nothing (25.0 to 25.1 ms, medians of seven while
 the machine was in other use), so the gap is not calls split across units by the name hash. Not committed.
 
+### Physics pass (2026-10-09)
+
+Engine `naive` at 3100303 and `main` at 346efda, Spite from 4a4c6120 (rebased onto 106d5e56), the same machine,
+`physics_bench` (5 000 characters, 10 000 boxes, 200 triggers) built `--optimized`. Hand edits were made to the
+one-file C and built with `clang -O3`; "best" is the best of 9 to 11 interleaved runs, which on this shared machine
+is steadier than the median. The coordinator's quiet measurement on master 8ba6a9fa: step 5,691 µs original against
+6,941 naive; `MoveCharacters` 4,966 against 5,692, `SortColliders` 275 against 688, `ReadCharacters` 179 against 362.
+
+**How it was profiled.** The third pass's sampler, written again (`sampler.c` and `prof.py` in the session's scratch
+folder): a thread suspends the program's thread about every 0.1 ms while the 100 ticks run, walks its stack with
+`RtlVirtualUnwind`, and `llvm-symbolizer --inlining` names the frames. About 35 000 samples over three runs of each
+form. Inclusive microseconds per tick, the naive form scaled to an 11.6 ms tick and main to 8.3 ms (that hour's
+loaded machine; the shares are what matter):
+
+| Function | main | naive | What main does by hand |
+|---|---|---|---|
+| `Colliders.collect`, the broad phase | 1 350 | 2 905 | the grid is a counting sort into three flat `List<Integer>` (starts, entries) and a stamp per slot |
+| `Grid.gather` within it | 1 098 | 2 836 | reads two neighbouring starts and a run of slot numbers; naive reads a pointer to each bucket's list object, the object, then its items, and counts each list and each collider it passes on |
+| `Grid.build` (`SortColliders`) | 217 | 1 443 | clears and refills the same three arrays; naive frees 65 536 bucket lists and makes 65 536 new ones a tick, each growing from nothing |
+| `set_aside_candidates` and `forget_candidates` | 0 | 690 | a new stamp per query; naive keeps a `visited` list and clears `gathered` flags |
+| the runner's fill and store of a row (`MoveCharacters`, `ReadCharacters`) | 0 | 1 100 | a `Stream` over the columns; naive's runner, the subject of S1 step 3 |
+| narrow phase (`Geometry.sweep`, `squared_distance_to`) | 6 279 | 5 655 | the same code; naive is no slower here |
+
+So the gaps are the grid's representation and what the runner does per row; the narrow phase, colliders as objects
+and `seen_from`'s returned shape (built in the caller's slot already, M5) cost nothing measurable.
+
+**What each gap is worth, by hand.** Each is an edit of the naive build's C (`edits.py` in the scratch folder).
+Ticks are the best of 9 to 11 interleaved runs; each row is read against the unedited build of its own run (in
+brackets), since the machine's speed moved between runs:
+
+| Hand edit | What it stands for | Tick µs | `SortColliders` | `MoveCharacters` |
+|---|---|---|---|---|
+| A: `gather` reads its buckets and their items uncounted | B1 and B1t on the bucket reads | about 2% faster (loaded machine) | same | about 2% |
+| G: a pooled list keeps its storage when freed | storage kept with the pooled object | about 3% (loaded machine) | 1 404 to 1 101 | same |
+| B: the buckets keep their lists and storage from one build to the next | L6 for a list of lists | 7 339 (7 674) | 336 (684) | 6 218 (6 230) |
+| I: each bucket's whole list object inside the outer list's block | M8b, built below | 7 236 (7 498) | 658 (667) | 5 858 (6 057) |
+| H: each bucket as an inline record of count, room and items, kept from build to build | M8b with a 16-byte record, plus B | 6 890 (7 674) | 239 (684) | 5 895 (6 230) |
+| D: the grid as one flat array of colliders and an array of starts (a counting sort) | what main does | 6 485 (7 674) | 175 (684) | 5 581 (6 230) |
+| R: I, plus clearing the list of lists keeps each slot's room for the next empty list put there | M8b plus L6 inside the slots | 7 105 (7 610) | 411 (675) | 5 956 (6 139) |
+| main, the hand engine | | 6 069 to 6 162 | 249 to 256 | 5 349 to 5 411 |
+
+D, the counting sort, is the hand engine's form, and it is faster than main's own `SortColliders`: it closes most of
+the gap. It is not general: building it needs the grid's filling loop run twice (once to count), which only a
+proof that the loop's other effects can be repeated allows. H, its general approximation, is the inner lists merged
+into the outer list (M8b) with their room kept (L6): within 0.4 ms of D. I measures M8b alone and R adds L6 inside
+the slots, the two steps below.
+
+**Built: a list held only by another list lives in its slot** (D552, pair M8b). A typed study of every function the
+program compiles (`study_nested_lists`, after its body is generated, with the locals' types the scopes recorded)
+proves that no inner list of a `List<List<T>>` is named but through its slot; then a pass over the written C
+(`nested_lists.spite`, before function folding) checks that only those functions and the list's own touch the slots,
+and rewrites `TypedMemory<List<T>>`'s five functions and every slot read for the inline form. In the engine program
+`List<List<Physics.Collider>>` (the grids' buckets and `owned`) is inlined; `List<List<App.Runnable>>` (a stage is
+passed to `conflicts`), `List<List<String>>` (the recipe watcher keeps one) and `List<List<Integer>>` (the runner's
+candidates come from a call) are not.
+
+| | before | after |
+|---|---|---|
+| physics tick, one C file, best of 9 (quiet) | 7 674 µs | 7 358 µs |
+| `MoveCharacters`, one C file | 6 230 µs | 5 926 µs |
+| physics step, split build, best of 11 | 7 260 µs | 7 136 µs |
+| the case, 400 000 orders in 65 536 lists ten times | about 320 ms | 227 ms (naive C 252, expert C 37) |
+| every other case | | the same C |
+
+The split build gains less: the slot's memory functions sit in another unit than the code reading the slots, so it
+is link-time inlining that removes the calls (C4 across units).
+
+**Built: a list of lists filled again keeps each list's room** (D553, pair L6b): R of the hand edits, made general.
+Clearing marks each slot and keeps its block; the next empty list put there takes it; growth zeroes the room it
+adds and letting the list go frees the marked blocks. Against master at 106d5e56 (best of 11, interleaved):
+
+| | master | both built |
+|---|---|---|
+| physics tick, one C file | 7 628 µs | 7 156 µs |
+| physics tick, split build | 7 793 µs | 7 345 µs |
+| physics step, split build | 7 402 µs | 6 955 µs |
+| `SortColliders`, split | 698 µs | 445 µs |
+| `MoveCharacters`, split | 6 091 µs | 5 896 µs |
+| `ReadCharacters`, split | 390 µs | 392 µs |
+| the hand engine, split: tick, step, `SortColliders`, `MoveCharacters`, `ReadCharacters` | 6 018, 5 869, 293, 5 153, 188 µs | |
+| the case, 200 000 orders in 32 768 lists forty times | 316 ms | 106 ms (with D552 alone 267) |
+
+(Best of 11 interleaved runs on a quiet machine, every form built from the same engine commits; the stress
+program's C is byte for byte the same before and after both changes.)
+
+So the physics step is 1.09 ms behind the hand engine's, down from 1.53 ms. What is left, by the profile of R: the
+broad phase's counted reads of each collider it passes on (the `entries[at]` read and `note`'s append: B1t across a
+call that appends to another list of the same class, about 0.1 ms by hand on the quiet machine, Q in the scratch
+folder), `set_aside_candidates` and `forget_candidates` (the naive form's visited list against main's stamps, about
+0.3 ms), and the runner's fill and store of each row in `MoveCharacters` and `ReadCharacters` (about 0.5 ms), which
+is S1 step 3's runner made direct. D, the counting sort, would take `SortColliders` from 448 to about 180 µs and
+`MoveCharacters` a further 0.3 ms; it needs a proof that the grid's filling loop can be run twice.
+
+The profile of the built form against main (about 25 000 samples each) puts what is left of the broad phase in its
+first touch of each bucket: `gather` is 1.37 ms of a 7.16 ms tick against main's 0.72, and its self time sits in
+the count up and down of the slot it reads, the first access to a 40-byte record where main reads 4-byte starts. A
+slot is a whole list object (header, `heap`, `values`, items, count, room); H's 16-byte record was worth about 0.3 ms
+more. Two general steps would close part of it: attributes bound to a singleton and never assigned not stored in
+the object (every `List` and `Dictionary` holds two, so a slot would be 24 bytes and every list 16 bytes smaller),
+and a slot record of the items, count and room alone where nothing asks the inner list for its header.
+
+Tried and not kept: letting a held item pass to a call that grows a list of its class (`note(entries[at], found)`
+appends to `found`, which the item's own list could be, and growing never lets an item go). It made `note`'s
+argument uncounted and changed the C of most programs, and the tick moved by nothing measurable (7 169 to 7 201
+µs, best of 11), since the counts were only the first touch of a line the next read pays for anyway.
+
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
 The two language gaps that keep the naive engine on `Memory` (D512): bytes from files and sockets become a

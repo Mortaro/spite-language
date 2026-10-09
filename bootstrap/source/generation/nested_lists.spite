@@ -1,0 +1,768 @@
+var refused = Dictionary<String, String>()
+var studied = Dictionary<String, Boolean>()
+var everything_refused = ""
+var every_reasons = List<String>()
+var inlined = List<String>()
+var kept_rooms = List<String>()
+var reasons = List<String>()
+var lines = List<String>()
+var starts = List<Integer>()
+var ends = List<Integer>()
+var names = List<String>()
+var free_drop = ""
+
+# ../../../docs/optimizations.md#a-list-held-only-by-another-list-lives-in-its-slot
+func with_slots(types: String, prototypes: String, bodies: String): String {
+    if not everything_refused.is_empty() {
+        return bodies
+    }
+    var pairs = candidates(types)
+    if pairs.is_empty() {
+        return bodies
+    }
+    lines = bodies.split("\n")
+    find_functions()
+    var index = 0
+    while index < pairs.count() {
+        var pair = pairs[index].split(" ")
+        crash pair[0]
+        crash pair[1]
+        place_inline(types, prototypes, pair[0], pair[1])
+        index = index + 1
+    }
+    if inlined.is_empty() {
+        return bodies
+    }
+    return lines.join("\n")
+}
+
+func place_inline(types: String, prototypes: String, outer: String, inner: String) {
+    if refused.has(inner) {
+        crash refused[inner]
+        reasons.append("{inner}: {refused[inner]}")
+        return
+    }
+    var problem = slot_problem(types, prototypes, outer, inner)
+    if not problem.is_empty() {
+        reasons.append("{inner}: {problem}")
+        return
+    }
+    rewrite(inner)
+    if keep_rooms(outer, inner) {
+        kept_rooms.append(inner)
+    }
+    inlined.append(inner)
+}
+
+func candidates(types: String): List<String> {
+    var found = List<String>()
+    var memory_fields = Dictionary<String, Integer>()
+    var outer_of = Dictionary<String, String>()
+    var type_lines = types.split("\n")
+    var current = ""
+    var index = 0
+    while index < type_lines.count() {
+        var line = type_lines[index]
+        current = struct_after(line, current)
+        if not current.is_empty() {
+            note_memory_field(line, current, memory_fields, outer_of)
+        }
+        index = index + 1
+    }
+    var memories = outer_of.keys()
+    index = 0
+    while index < memories.count() {
+        var memory = memories[index]
+        crash outer_of[memory]
+        var outer = outer_of[memory]
+        var fields = memory_fields[memory]
+        crash fields
+        if fields == 1 and memory.starts_with("List_") and outer.starts_with("List_") {
+            found.append("{outer} {memory}")
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func struct_after(line: String, current: String): String {
+    if line.starts_with("struct ") and line.ends_with(" \{") {
+        var line_length = line.length()
+        return line.slice(7, line_length - 2)
+    }
+    if line == "};" {
+        return ""
+    }
+    return current
+}
+
+func note_memory_field(
+    line: String,
+    current: String,
+    memory_fields: Dictionary<String, Integer>,
+    outer_of: Dictionary<String, String>,
+) {
+    assert line.contains("TypedMemory__") and not line.starts_with("struct ")
+    var spoken = line.split("TypedMemory__")
+    crash spoken[1]
+    var rest = spoken[1]
+    var end = rest.index_of("*")
+    assert end > 0
+    var memory = rest.slice(0, end)
+    var named_values = line == "TypedMemory__{memory}* values_;"
+    var earlier = memory_fields.has(memory)
+    if named_values and not earlier {
+        memory_fields[memory] = 1
+        outer_of[memory] = current
+        return
+    }
+    memory_fields[memory] = 2
+}
+
+func find_functions() {
+    starts.clear()
+    ends.clear()
+    names.clear()
+    var depth = 0
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var change = brace_change(line)
+        if depth == 0 and opens_function(line) {
+            starts.append(index)
+            var name = function_name(line)
+            names.append(name)
+            if change == 0 {
+                ends.append(index)
+            }
+        }
+        var before = depth
+        depth = depth + change
+        if before > 0 and depth <= 0 and starts.count() > ends.count() {
+            ends.append(index)
+        }
+        if depth < 0 {
+            depth = 0
+        }
+        index = index + 1
+    }
+    while ends.count() < starts.count() {
+        var final_line = lines.count() - 1
+        ends.append(final_line)
+    }
+}
+
+func opens_function(line: String): Boolean {
+    var one_line = line.contains(") \{ ") and line.ends_with("}")
+    if line.is_empty() or not line.ends_with(") \{") and not one_line {
+        return false
+    }
+    var first = line.code_at(0)
+    if first == 32 or first == 9 or first == 35 {
+        return false
+    }
+    var open = line.index_of("(")
+    if open <= 0 {
+        return false
+    }
+    var head = line.slice(0, open)
+    var keywords = ["if", "while", "for", "switch", "else", "do", "return"]
+    var words = head.split(" ")
+    var final_index = words.count() - 1
+    crash words[final_index]
+    var last_word = words[final_index]
+    return not keywords.contains(last_word) and not head.contains("=") and not head.starts_with("struct ")
+}
+
+func function_name(line: String): String {
+    var open = line.index_of("(")
+    var head = line.slice(0, open)
+    var words = head.split(" ")
+    var final_index = words.count() - 1
+    crash words[final_index]
+    var name = words[final_index]
+    while name.starts_with("*") {
+        var name_length = name.length()
+        name = name.slice(1, name_length)
+    }
+    return name
+}
+
+func brace_change(line: String): Integer {
+    var change = 0
+    var index = 0
+    var line_length = line.length()
+    var quote = 0
+    while index < line_length {
+        var code = line.code_at(index)
+        var step = 1
+        if quote != 0 {
+            step = quoted_step(code)
+            if code == quote {
+                quote = 0
+            }
+        } else if code == 34 or code == 39 {
+            quote = code
+        } else if code == 123 {
+            change = change + 1
+        } else if code == 125 {
+            change = change - 1
+        }
+        index = index + step
+    }
+    return change
+}
+
+func quoted_step(code: Integer): Integer {
+    if code == 92 {
+        return 2
+    }
+    return 1
+}
+
+func slot_problem(types: String, prototypes: String, outer: String, inner: String): String {
+    if not prototypes.contains("#define SPITE_ALLOCATOR_{inner}(object, heap) ((void)(object),") {
+        return "its lists may each have an allocator of their own"
+    }
+    if types.contains("#define SPITE_TRACKS_{inner}\n") or types.contains("#define SPITE_WEAK_{inner} ") {
+        return "its lists are tracked or weakly referenced"
+    }
+    if not struct_has_list_layout(types, inner) {
+        return "it is not laid out as a list"
+    }
+    free_drop = ""
+    var line_index = 0
+    var function_index = 0
+    while line_index < lines.count() {
+        var opens = function_index < starts.count() and line_index == starts[function_index]
+        if opens {
+            var problem = function_problem(function_index, outer, inner)
+            if not problem.is_empty() {
+                return problem
+            }
+            crash ends[function_index]
+            line_index = ends[function_index] + 1
+            function_index = function_index + 1
+        } else {
+            crash lines[line_index]
+            var line = lines[line_index]
+            if outside_problem(line, outer, inner) {
+                return "a line outside any function reads its items: {line}"
+            }
+            line_index = line_index + 1
+        }
+    }
+    if free_drop.is_empty() {
+        return "its lists are never let go"
+    }
+    return ""
+}
+
+func outside_problem(line: String, outer: String, inner: String): Boolean {
+    if line.contains("{outer}___framed(") or line.contains("{inner}___framed(") {
+        return true
+    }
+    return dangerous(line, outer, inner)
+}
+
+func struct_has_list_layout(types: String, inner: String): Boolean {
+    var parts = types.split("\nstruct {inner} \{\n")
+    if parts.count() != 2 {
+        return false
+    }
+    var body = parts[1].split("\n};")
+    crash body[0]
+    var fields = body[0]
+    var counted = fields.starts_with("SpiteHeader header;") and fields.contains("int64_t items_;")
+    return counted and fields.contains("int32_t item_count_;") and fields.contains("int32_t capacity_;")
+}
+
+func function_problem(function_index: Integer, outer: String, inner: String): String {
+    crash starts[function_index]
+    crash ends[function_index]
+    crash names[function_index]
+    var first = starts[function_index]
+    var last = ends[function_index]
+    var name = names[function_index]
+    if name == "{inner}___free" {
+        note_free_drop(first, inner)
+    }
+    var memory_prefix = "TypedMemory__{inner}_"
+    if name.starts_with(memory_prefix) {
+        crash lines[first]
+        return hook_problem(name, memory_prefix, lines[first])
+    }
+    if not mentions_items(first, last, outer, inner) {
+        return framed_problem(first, last, outer, inner)
+    }
+    var pooled = name == "{inner}___pool_take" or name == "{inner}___pool_give"
+    var allowed = name.starts_with("{outer}_") or pooled or was_studied(name) or name.starts_with("spite_failed_")
+    if not allowed {
+        return "'{name}' reads or writes the items of a list of them, written by the compiler"
+    }
+    var framed = framed_problem(first, last, outer, inner)
+    if not framed.is_empty() {
+        return framed
+    }
+    var line_index = first + 1
+    while line_index < last {
+        crash lines[line_index]
+        var line = lines[line_index]
+        var problem = line_problem(line, name, inner, pooled)
+        if not problem.is_empty() {
+            return problem
+        }
+        line_index = line_index + 1
+    }
+    return ""
+}
+
+func was_studied(name: String): Boolean {
+    if studied.has(name) {
+        return true
+    }
+    var guarded = name.split("___unguarded")
+    crash guarded[0]
+    return guarded.count() == 2 and studied.has(guarded[0])
+}
+
+func note_free_drop(first: Integer, inner: String) {
+    crash lines[first + 1]
+    var dropped = lines[first + 1]
+    if dropped == "{inner}_drop(self);" {
+        free_drop = "{inner}_drop"
+    }
+}
+
+func mentions_items(first: Integer, last: Integer, outer: String, inner: String): Boolean {
+    var line_index = first
+    while line_index <= last {
+        crash lines[line_index]
+        var line = lines[line_index]
+        if dangerous(line, outer, inner) {
+            return true
+        }
+        line_index = line_index + 1
+    }
+    return false
+}
+
+func framed_problem(first: Integer, last: Integer, outer: String, inner: String): String {
+    var line_index = first
+    while line_index <= last {
+        crash lines[line_index]
+        var line = lines[line_index]
+        if line.contains("{outer}___framed(") or line.contains("{inner}___framed(") {
+            return "a list of them is made in a frame"
+        }
+        line_index = line_index + 1
+    }
+    return ""
+}
+
+func line_problem(line: String, name: String, inner: String, pooled: Boolean): String {
+    if line.contains("sizeof({inner}*)") {
+        return "'{name}' measures an item of a list of them as a reference"
+    }
+    if pooled {
+        var stripped = line.replace("*({inner}**)self", "")
+        if contains_word(stripped, "{inner}**") {
+            return "'{name}' reads a list of them as references"
+        }
+        return ""
+    }
+    var rewritten = slots_rewritten(line, inner)
+    if rewritten.is_empty() {
+        return "'{name}' writes or points into an item of a list of them"
+    }
+    return ""
+}
+
+func hook_problem(name: String, memory_prefix: String, definition: String): String {
+    var prefix_length = memory_prefix.length()
+    var name_length = name.length()
+    var hook = name.slice(prefix_length, name_length)
+    var hooks = ["read_value", "write_value", "release_value", "value_bytes", "swap_values", "__release"]
+    if not hooks.contains(hook) {
+        return "'{hook}' of its lists' memory is used, which a slot cannot answer"
+    }
+    var parameters = ["address_", "index_"]
+    if hook == "write_value" {
+        parameters.append("value_")
+    }
+    if hook == "swap_values" {
+        parameters = ["address_", "first_index_", "second_index_"]
+    }
+    if hook == "value_bytes" or hook == "__release" {
+        return ""
+    }
+    var index = 0
+    while index < parameters.count() {
+        var parameter = parameters[index]
+        if not definition.contains("{parameter},") and not definition.contains("{parameter})") {
+            return "its memory's '{hook}' does not take '{parameter}'"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func dangerous(line: String, outer: String, inner: String): Boolean {
+    if line.contains("TypedMemory__{inner}_") or contains_word(line, "{inner}**") or line.contains("sizeof({inner}*)") {
+        return true
+    }
+    var parts = line.split("{outer}_")
+    var index = 1
+    while index < parts.count() {
+        crash parts[index - 1]
+        if calls_into_items(parts[index - 1], parts[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func calls_into_items(before: String, part: String): Boolean {
+    if not before.is_empty() {
+        var before_length = before.length()
+        var previous = before.code_at(before_length - 1)
+        if is_name_code(previous) {
+            return false
+        }
+    }
+    var open = part.index_of("(")
+    if open <= 0 {
+        return false
+    }
+    var called = part.slice(0, open + 1)
+    if called.contains(" ") {
+        return false
+    }
+    var safe = [
+        "__make("
+        "__allocate("
+        "__init("
+        "__release("
+        "__retain("
+        "__free("
+        "count("
+        "is_empty("
+        "clear("
+        "drop("
+        "truncate("
+        "remove_at("
+        "remove_swapping("
+        "swap("
+        "make_room("
+        "_grow("
+        "_resized("
+        "reverse("
+        "move_items("
+    ]
+    return not safe.contains(called)
+}
+
+func contains_word(line: String, word: String): Boolean {
+    var parts = line.split(word)
+    var index = 1
+    while index < parts.count() {
+        crash parts[index - 1]
+        var before = parts[index - 1]
+        if before.is_empty() or ends_apart(before) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func ends_apart(text: String): Boolean {
+    var text_length = text.length()
+    var previous = text.code_at(text_length - 1)
+    return not is_name_code(previous)
+}
+
+func is_name_code(code: Integer): Boolean {
+    var letter = code >= 65 and code <= 90 or code >= 97 and code <= 122
+    return code == 95 or code >= 48 and code <= 57 or letter
+}
+
+func slots_rewritten(line: String, inner: String): String {
+    var opening = "(({inner}**)(intptr_t)"
+    var opening_length = opening.length()
+    var written = List<String>()
+    var rest = line
+    while rest.contains(opening) {
+        var at = rest.index_of(opening)
+        var before = rest.slice(0, at)
+        if before.ends_with("&") or not before.is_empty() and not ends_apart(before) {
+            return ""
+        }
+        var closing = matching(rest, at, 40, 41)
+        var rest_length = rest.length()
+        if closing < 0 or closing + 1 >= rest_length or rest.code_at(closing + 1) != 91 {
+            return ""
+        }
+        var bracket = matching(rest, closing + 1, 91, 93)
+        if bracket < 0 {
+            return ""
+        }
+        var following = rest.slice(bracket + 1, rest_length)
+        var after = following.trim()
+        if writes_slot(after) {
+            return ""
+        }
+        var address = rest.slice(at + opening_length, closing)
+        var subscript = rest.slice(closing + 1, bracket + 1)
+        written.append(before)
+        written.append("(&(({inner}*)(intptr_t){address}){subscript})")
+        rest = following
+    }
+    if contains_word(rest, "{inner}**") {
+        return ""
+    }
+    written.append(rest)
+    var result = written.join("")
+    if result.is_empty() {
+        return " "
+    }
+    return result
+}
+
+func writes_slot(after: String): Boolean {
+    if after.starts_with("=") and not after.starts_with("==") {
+        return true
+    }
+    return after.starts_with("++") or after.starts_with("--") or after.starts_with("+=") or after.starts_with("-=")
+}
+
+func matching(text: String, start: Integer, open: Integer, close: Integer): Integer {
+    var depth = 0
+    var index = start
+    var text_length = text.length()
+    var quote = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        var step = 1
+        if quote != 0 {
+            step = quoted_step(code)
+            if code == quote {
+                quote = 0
+            }
+        } else if code == 34 or code == 39 {
+            quote = code
+        } else if code == open {
+            depth = depth + 1
+        } else if code == close {
+            depth = depth - 1
+            if depth == 0 {
+                return index
+            }
+        }
+        index = index + step
+    }
+    return -1
+}
+
+func rewrite(inner: String) {
+    var memory_prefix = "TypedMemory__{inner}_"
+    var function_index = 0
+    while function_index < starts.count() {
+        crash ends[function_index]
+        crash names[function_index]
+        var name = names[function_index]
+        var pooled = name == "{inner}___pool_take" or name == "{inner}___pool_give"
+        if name.starts_with(memory_prefix) {
+            rewrite_hook(function_index, memory_prefix, inner)
+        } else if not pooled {
+            rewrite_slots(starts[function_index], ends[function_index], inner)
+        }
+        function_index = function_index + 1
+    }
+}
+
+func rewrite_hook(function_index: Integer, memory_prefix: String, inner: String) {
+    crash starts[function_index]
+    crash ends[function_index]
+    crash names[function_index]
+    var first = starts[function_index]
+    var last = ends[function_index]
+    var name = names[function_index]
+    var prefix_length = memory_prefix.length()
+    var name_length = name.length()
+    var hook = name.slice(prefix_length, name_length)
+    var body = hook_body(hook, inner)
+    assert not body.is_empty()
+    lines[first + 1] = body
+    var cleared = first + 2
+    while cleared < last {
+        lines[cleared] = ""
+        cleared = cleared + 1
+    }
+}
+
+func rewrite_slots(first: Integer, last: Integer, inner: String) {
+    var line_index = first + 1
+    while line_index < last {
+        crash lines[line_index]
+        var line = lines[line_index]
+        if line.contains("(({inner}**)(intptr_t)") {
+            lines[line_index] = slots_rewritten(line, inner)
+        }
+        line_index = line_index + 1
+    }
+}
+
+func hook_body(hook: String, inner: String): String {
+    var slot = "&(({inner}*)(intptr_t)address_)"
+    var slots = "(({inner}*)(intptr_t)address_)"
+    switch hook {
+        "read_value": return "return {inner}___retain({slot}[index_]);"
+        "write_value": {
+            var written = [
+                "{inner}* spite_slot = {slot}[index_];"
+                "memcpy(spite_slot, value_, sizeof({inner}));"
+                "spite_slot->header.ref_count = 1073741824;"
+                "value_->items_ = 0;"
+                "value_->item_count_ = 0;"
+                "value_->capacity_ = 0;"
+                "{inner}___release(value_);"
+            ]
+            return written.join("\n")
+        }
+        "release_value": return "{free_drop}({slot}[index_]);"
+        "value_bytes": return "return (int64_t)sizeof({inner});"
+        "swap_values": {
+            var swapped = [
+                "{inner} spite_held = {slots}[first_index_];"
+                "{slots}[first_index_] = {slots}[second_index_];"
+                "{slots}[second_index_] = spite_held;"
+            ]
+            return swapped.join("\n")
+        }
+        _: return ""
+    }
+}
+
+func keep_rooms(outer: String, inner: String): Boolean {
+    var clear_at = function_index_named("{outer}_clear")
+    var drop_at = function_index_named("{outer}_drop")
+    var grow_at = function_index_named("{outer}__grow")
+    var write_at = function_index_named("TypedMemory__{inner}_write_value")
+    var inner_clear_at = function_index_named("{inner}_clear")
+    if clear_at < 0 or drop_at < 0 or grow_at < 0 or write_at < 0 or inner_clear_at < 0 {
+        return false
+    }
+    var released = "TypedMemory__{inner}_release_value(self->values_, self->items_, index_);"
+    var cleared = "{outer}_clear(self);"
+    var grown = "self->capacity_ = grown_;"
+    var written = "{inner}* spite_slot = &(({inner}*)(intptr_t)address_)[index_];"
+    var released_line = line_in(clear_at, released)
+    var cleared_line = line_in(drop_at, cleared)
+    var grown_line = line_in(grow_at, grown)
+    crash starts[write_at]
+    var written_line = starts[write_at] + 1
+    crash lines[written_line]
+    if not lines[written_line].starts_with("{written}\n") {
+        written_line = -1
+    }
+    if released_line < 0 or cleared_line < 0 or grown_line < 0 or written_line < 0 {
+        return false
+    }
+    var made_room = "{outer}_make_room(self);"
+    var insert_at = function_index_named("{outer}_insert")
+    var room_line = -1
+    if insert_at >= 0 {
+        room_line = line_in(insert_at, made_room)
+        if room_line < 0 {
+            return false
+        }
+    }
+    if not grows_only_by_grow(outer, grow_at) {
+        return false
+    }
+    var slot = "&(({inner}*)(intptr_t)self->items_)"
+    lines[released_line] = "\{ {inner}* spite_slot = {slot}[index_]; {inner}_clear(spite_slot); spite_slot->header.ref_count = -7; }"
+    var freed = "\{ {inner}* spite_slot = {slot}[spite_index]; if (spite_slot->header.ref_count == -7) \{ spite_slot->header.ref_count = 0; {free_drop}(spite_slot); } }"
+    var kept_loop = "if (self->items_ != 0) for (int32_t spite_index = 0; spite_index < self->capacity_; spite_index++) {freed}"
+    crash lines[cleared_line]
+    lines[cleared_line] = "{lines[cleared_line]}\n{kept_loop}"
+    var zeroed = "memset((char*)(intptr_t)self->items_ + (int64_t)self->capacity_ * (int64_t)sizeof({inner}), 0, (size_t)(grown_ - self->capacity_) * sizeof({inner}));"
+    crash lines[grown_line]
+    lines[grown_line] = "{zeroed}\n{lines[grown_line]}"
+    var reused = [
+        "if (spite_slot->header.ref_count == -7) \{"
+        "if (value_->items_ == 0) \{"
+        "int64_t spite_room = spite_slot->items_;"
+        "int32_t spite_capacity = spite_slot->capacity_;"
+        "memcpy(spite_slot, value_, sizeof({inner}));"
+        "spite_slot->items_ = spite_room;"
+        "spite_slot->capacity_ = spite_capacity;"
+        "spite_slot->item_count_ = 0;"
+        "spite_slot->header.ref_count = 1073741824;"
+        "{inner}___release(value_);"
+        "return;"
+        "}"
+        "spite_slot->header.ref_count = 0;"
+        "{free_drop}(spite_slot);"
+        "}"
+    ]
+    crash lines[written_line]
+    var joined_reuse = reused.join("\n")
+    lines[written_line] = lines[written_line].replace("{written}\n", "{written}\n{joined_reuse}\n")
+    if room_line >= 0 {
+        var forgotten = "\{ {inner}* spite_slot = {slot}[self->item_count_]; if (spite_slot->header.ref_count == -7) \{ spite_slot->header.ref_count = 0; {free_drop}(spite_slot); } }"
+        crash lines[room_line]
+        lines[room_line] = "{lines[room_line]}\n{forgotten}"
+    }
+    return true
+}
+
+func function_index_named(name: String): Integer {
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func line_in(function_index: Integer, wanted: String): Integer {
+    crash starts[function_index]
+    crash ends[function_index]
+    var line_index = starts[function_index] + 1
+    var found = -1
+    while line_index < ends[function_index] {
+        crash lines[line_index]
+        if lines[line_index] == wanted {
+            if found >= 0 {
+                return -1
+            }
+            found = line_index
+        }
+        line_index = line_index + 1
+    }
+    return found
+}
+
+func grows_only_by_grow(outer: String, grow_at: Integer): Boolean {
+    var resized = "{outer}__resized("
+    crash starts[grow_at]
+    crash ends[grow_at]
+    var first = starts[grow_at]
+    var last = ends[grow_at]
+    var line_index = 0
+    while line_index < lines.count() {
+        var line = lines[line_index]
+        var inside_grow = line_index > first and line_index < last
+        var defines = line.starts_with("int64_t {resized}")
+        if line.contains(resized) and not inside_grow and not defines {
+            return false
+        }
+        line_index = line_index + 1
+    }
+    return true
+}

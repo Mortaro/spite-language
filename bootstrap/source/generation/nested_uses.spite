@@ -1,0 +1,7 @@
+var name = ""
+var total = 0
+var kept = 0
+
+func NestedUses(watched_name: String) {
+    name = watched_name
+}

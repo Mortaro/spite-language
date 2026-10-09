@@ -355,6 +355,17 @@ var constant_texts = Dictionary<String, String>()
 var borrow_statements = List<Syntax.Statements.Statement>()
 var folded_dictionaries = Dictionary<String, Syntax.Expressions.ObjectLiteralExpression>()
 var borrow_index = 0
+var nested_lists = NestedLists()
+var nested_declared = NestedLocalTypes()
+var nested_trusted = ""
+var nested_locals = Dictionary<String, Analysis.SpiteType>()
+var nested_unknown_locals = Dictionary<String, Boolean>()
+var nested_named = Dictionary<String, String>()
+var nested_sources = Dictionary<String, String>()
+var nested_typed = true
+var nested_quiet = false
+var nested_quiet_reported = false
+var nested_declaring = ""
 var borrowed_names = List<String>()
 var items_sources = Dictionary<String, String>()
 var borrow_site = ""
@@ -508,6 +519,10 @@ func function_line_in(owner: Analysis.ClassInfo?, function_name: String): Intege
 }
 
 func report(message: String) {
+    if nested_quiet {
+        nested_quiet_reported = true
+        return
+    }
     has_error = true
     assert not statement_poisoned
     assert not refused_serialiser or not is_serialiser_path(current_path)
@@ -1075,6 +1090,7 @@ func generate(
     builder.folds = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.counts_by_class = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.debug_memory = debug_memory
+    builder.nested_lists = nested_lists
     builder.constant_texts = constant_texts
     if item_values_on {
         item_values.settle()
@@ -31373,6 +31389,1002 @@ func report_borrowed_reassignment(assignment: Syntax.Statements.AssignmentStatem
     return true
 }
 
+# ../../../docs/proofs.md#a-list-held-only-in-a-slot-of-another-list
+func study_nested_lists(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    scope: Scope,
+    declared_from: Integer,
+) {
+    nested_trusted = ""
+    var library_list = information.qualified_dotted == "List" and is_library_class(information)
+    if library_list and current_path.starts_with("library/") and not information.codegen_types.is_empty() {
+        var listed: Analysis.SpiteType = Analysis.Types.ListType(information.codegen_types[0])
+        nested_trusted = nested_inner(listed)
+    }
+    nested_lists.studied[function.c_name] = true
+    nested_locals = Dictionary<String, Analysis.SpiteType>()
+    nested_unknown_locals = Dictionary<String, Boolean>()
+    nested_named = Dictionary<String, String>()
+    nested_sources = Dictionary<String, String>()
+    var declared_index = declared_from
+    while declared_index < nested_declared.names.count() {
+        crash nested_declared.types[declared_index]
+        note_nested_local(nested_declared.names[declared_index], nested_declared.types[declared_index])
+        declared_index = declared_index + 1
+    }
+    nested_declared.keep_first(declared_from)
+    var parameter_index = 0
+    while parameter_index < function.parameters.count() {
+        var parameter = function.parameters[parameter_index]
+        var parameter_type = parameter.type
+        var parameter_inner = nested_inner(parameter_type)
+        var parameter_list = type_shape.as_list(parameter_type)
+        var variadic = false
+        if parameter_list {
+            variadic = parameter_list.is_variadic
+        }
+        if variadic and not parameter_inner.is_empty() {
+            refuse_nested(parameter_inner, "a function takes lists of them as variadic arguments")
+        }
+        parameter_index = parameter_index + 1
+    }
+    var saved_line = current_line
+    nested_quiet = true
+    study_nested_block(function.body, scope, information)
+    nested_quiet = false
+    current_line = saved_line
+    nested_declared.keep_first(declared_from)
+}
+
+func note_nested_local(name: String, spite_type: Analysis.SpiteType) {
+    assert not nested_unknown_locals.has(name)
+    var earlier = nested_locals[name]
+    if not earlier {
+        nested_locals[name] = spite_type
+        return
+    }
+    var earlier_plain = without_nullable_layer(earlier)
+    var plain = without_nullable_layer(spite_type)
+    if not types_equal(earlier_plain, plain) {
+        nested_locals.remove(name)
+        nested_unknown_locals[name] = true
+    }
+}
+
+func without_nullable_layer(spite_type: Analysis.SpiteType): Analysis.SpiteType {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        return nullable.inner
+    }
+    return spite_type
+}
+
+func refuse_nested(inner: String, reason: String) {
+    assert not inner.is_empty() and inner != nested_trusted and not nested_lists.refused.has(inner)
+    nested_lists.refused[inner] = "{reason} (in {current_owner}.{current_function})"
+}
+
+func nested_inner(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        return ""
+    }
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.inner
+    }
+    var listed = type_shape.as_list(plain)
+    if not listed {
+        return ""
+    }
+    var element = listed.element
+    if not element {
+        return ""
+    }
+    if not type_shape.as_list(element) {
+        return ""
+    }
+    var element_name = c_type_name(element)
+    if not element_name.ends_with("*") {
+        return ""
+    }
+    var name_length = element_name.length()
+    return element_name.slice(0, name_length - 1)
+}
+
+func nested_memory_inner(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        return ""
+    }
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if not class_ref {
+        return ""
+    }
+    if not class_ref.c_name.starts_with("TypedMemory__List_") {
+        return ""
+    }
+    var memory_name = class_ref.c_name
+    var memory_length = memory_name.length()
+    return memory_name.slice(13, memory_length)
+}
+
+func study_nested_block(statements: List<Syntax.Statements.Statement>, scope: Scope, information: Analysis.ClassInfo) {
+    var index = 0
+    while index < statements.count() {
+        study_nested_statement(statements, index, scope, information)
+        index = index + 1
+    }
+}
+
+func study_nested_statement(
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    var statement = statements[index]
+    crash statement
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            nested_declaring = statement.name
+            visit_nested(statement.value, "declared", statements, index, scope, information)
+            nested_declaring = ""
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = statement.target
+            var named = shape.as_identifier(target)
+            if named {
+                if nested_named.has(named.name) {
+                    crash nested_named[named.name]
+                    refuse_nested(
+                        nested_named[named.name],
+                        "a name borrowing an item of a list of them is assigned again",
+                    )
+                }
+            }
+            var indexed = shape.as_index(target)
+            if indexed {
+                crash indexed.object
+                crash indexed.index
+                nested_typed = true
+                var written_type = nested_type(indexed.object, scope, information)
+                if not nested_typed {
+                    refuse_every_nested(
+                        "a list whose type is not known while studying it is written with [ ]",
+                        indexed.object,
+                    )
+                }
+                var written_inner = nested_inner(written_type)
+                if not written_inner.is_empty() {
+                    nested_fresh(statement.value, written_inner, statements, index)
+                }
+                visit_nested(indexed.object, "indexed", statements, index, scope, information)
+                visit_nested(indexed.index, "value", statements, index, scope, information)
+            }
+            var member = shape.as_member(target)
+            if member {
+                crash member.object
+                visit_nested(member.object, "member", statements, index, scope, information)
+            }
+            visit_nested(statement.value, "value", statements, index, scope, information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            visit_nested(statement.condition, "test", statements, index, scope, information)
+            study_nested_block(statement.then_branch, scope, information)
+            study_nested_block(statement.else_branch, scope, information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            visit_nested(statement.condition, "test", statements, index, scope, information)
+            study_nested_block(statement.body, scope, information)
+        }
+        Syntax.Statements.SwitchStatement: {
+            crash statement.subject
+            visit_nested(statement.subject, "value", statements, index, scope, information)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                study_nested_block(statement.cases[case_index].body, scope, information)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            visit_nested(statement.value, "test", statements, index, scope, information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                visit_nested(statement.value, "value", statements, index, scope, information)
+            }
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            visit_nested(statement.value, "discarded", statements, index, scope, information)
+        }
+        _: return
+    }
+}
+
+func refuse_every_nested(reason: String, expression: Syntax.Expressions.Expression) {
+    var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(expression)
+    nested_lists.every_reasons.append("{reason}: '{written}' (in {current_owner}.{current_function})")
+    if nested_lists.everything_refused.is_empty() {
+        nested_lists.everything_refused = "{reason}: '{written}' (in {current_owner}.{current_function})"
+    }
+}
+
+func visit_nested(
+    expression: Syntax.Expressions.Expression,
+    context: String,
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    refuse_nested_alias(expression, context, scope, information)
+    switch expression {
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            nested_typed = true
+            var object_type = nested_type(expression.object, scope, information)
+            if not nested_typed {
+                refuse_every_nested(
+                    "a collection whose type is not known while studying it is read with [ ]",
+                    expression.object,
+                )
+            }
+            var inner = nested_inner(object_type)
+            if not inner.is_empty() and inner != nested_trusted {
+                nested_item_read(expression.object, inner, context, null, statements, index, scope, information)
+            }
+            visit_nested(expression.object, "indexed", statements, index, scope, information)
+            visit_nested(expression.index, "value", statements, index, scope, information)
+        }
+        Syntax.Expressions.CallExpression: visit_nested_call(expression, context, statements, index, scope, information)
+        Syntax.Expressions.GenericCallExpression: {
+            var argument_index = 0
+            while argument_index < expression.arguments.count() {
+                visit_nested(expression.arguments[argument_index], "argument", statements, index, scope, information)
+                argument_index = argument_index + 1
+            }
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            visit_nested(expression.object, "member", statements, index, scope, information)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            var operands = "operand"
+            var logical = expression.operator == 'logical_and' or expression.operator == 'logical_or'
+            if context == "test" and logical {
+                operands = "test"
+            }
+            visit_nested(expression.left, operands, statements, index, scope, information)
+            visit_nested(expression.right, operands, statements, index, scope, information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            var negated = "operand"
+            if context == "test" and expression.operator == 'logical_not' {
+                negated = "test"
+            }
+            visit_nested(expression.operand, negated, statements, index, scope, information)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var element_index = 0
+            while element_index < expression.elements.count() {
+                var element = expression.elements[element_index].value
+                crash element
+                nested_typed = true
+                var element_type = nested_type(element, scope, information)
+                var element_listed = false
+                if element_type {
+                    if type_shape.as_list(element_type) {
+                        element_listed = true
+                    }
+                }
+                if element_listed or not nested_typed {
+                    var listed: Analysis.SpiteType? = null
+                    if element_type {
+                        listed = Analysis.Types.ListType(element_type)
+                    }
+                    var listed_inner = nested_inner(listed)
+                    if listed_inner.is_empty() {
+                        refuse_every_nested(
+                            "a list literal holds a list whose type is not known while studying it",
+                            element,
+                        )
+                    } else {
+                        refuse_nested(listed_inner, "a list literal holds lists of them")
+                    }
+                }
+                visit_nested(element, "element", statements, index, scope, information)
+                element_index = element_index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var field_index = 0
+            while field_index < expression.fields.count() {
+                var field_value = expression.fields[field_index].value
+                if field_value {
+                    visit_nested(field_value, "element", statements, index, scope, information)
+                }
+                field_index = field_index + 1
+            }
+        }
+        Syntax.Expressions.IdentifierExpression: {
+            assert nested_named.has(expression.name)
+            crash nested_named[expression.name]
+            var named_inner = nested_named[expression.name]
+            var allowed = ["receiver", "indexed", "test", "discarded"]
+            if not allowed.contains(context) {
+                refuse_nested(
+                    named_inner,
+                    "'{expression.name}', an item of a list of them, is kept, passed or compared",
+                )
+            }
+        }
+        _: return
+    }
+}
+
+func refuse_nested_alias(
+    expression: Syntax.Expressions.Expression,
+    context: String,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    var copying = ["value", "declared", "argument", "element"]
+    assert copying.contains(context) and not is_empty_list_construction(expression)
+    assert could_name_a_list(expression)
+    nested_typed = true
+    var copied_type = nested_type(expression, scope, information)
+    var inner = nested_inner(copied_type)
+    assert not inner.is_empty() and inner != nested_trusted
+    refuse_nested(inner, "a list of them is given a second name, passed or returned")
+}
+
+func could_name_a_list(expression: Syntax.Expressions.Expression): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.MemberExpression: return true
+        Syntax.Expressions.CallExpression: return true
+        Syntax.Expressions.IndexExpression: return true
+        _: return false
+    }
+}
+
+func visit_nested_call(
+    call: Syntax.Expressions.CallExpression,
+    context: String,
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        nested_typed = true
+        var receiver_type = nested_type(member.object, scope, information)
+        var item_methods = [
+            "get_at"
+            "first"
+            "last"
+            "append"
+            "prepend"
+            "insert"
+            "set_at"
+            "remove_last"
+            "remove_first"
+            "copy"
+            "each"
+            "contains"
+            "index_of"
+            "read_value"
+            "write_value"
+        ]
+        if not nested_typed and item_methods.contains(member.name) {
+            refuse_every_nested(
+                "'{member.name}' is called on a value whose type is not known while studying it",
+                member.object,
+            )
+        }
+        var memory_inner = nested_memory_inner(receiver_type)
+        if not memory_inner.is_empty() {
+            refuse_nested(memory_inner, "the memory of a list of them is used directly")
+        }
+        var inner = nested_inner(receiver_type)
+        if not inner.is_empty() and inner != nested_trusted {
+            var reads = ["get_at", "first", "last"]
+            var plain = ["count", "is_empty", "clear", "truncate", "remove_at", "remove_swapping", "swap", "reverse"]
+            if reads.contains(member.name) {
+                nested_item_read(member.object, inner, context, null, statements, index, scope, information)
+            } else if member.name == "append" or member.name == "prepend" {
+                crash call.arguments[0]
+                nested_fresh(call.arguments[0], inner, statements, index)
+            } else if member.name == "insert" or member.name == "set_at" {
+                crash call.arguments[1]
+                nested_fresh(call.arguments[1], inner, statements, index)
+            } else if not plain.contains(member.name) {
+                refuse_nested(inner, "'{member.name}' is called on a list of them")
+            }
+        }
+        visit_nested_receiver(member.object, call, statements, index, scope, information)
+    }
+    var argument_index = 0
+    while argument_index < call.arguments.count() {
+        visit_nested(call.arguments[argument_index], "argument", statements, index, scope, information)
+        argument_index = argument_index + 1
+    }
+}
+
+func visit_nested_receiver(
+    receiver: Syntax.Expressions.Expression,
+    call: Syntax.Expressions.CallExpression,
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    var indexed = shape.as_index(receiver)
+    if indexed {
+        crash indexed.object
+        crash indexed.index
+        nested_typed = true
+        var object_type = nested_type(indexed.object, scope, information)
+        if not nested_typed {
+            refuse_every_nested(
+                "a collection whose type is not known while studying it is read with [ ]",
+                indexed.object,
+            )
+        }
+        var inner = nested_inner(object_type)
+        if not inner.is_empty() and inner != nested_trusted {
+            nested_item_read(indexed.object, inner, "receiver", call, statements, index, scope, information)
+        }
+        visit_nested(indexed.object, "indexed", statements, index, scope, information)
+        visit_nested(indexed.index, "value", statements, index, scope, information)
+        return
+    }
+    var named = shape.as_identifier(receiver)
+    if named {
+        if nested_named.has(named.name) {
+            crash nested_named[named.name]
+            var named_inner = nested_named[named.name]
+            var source = nested_sources[named.name]
+            crash source
+            nested_receiver_resizes(call, source, named_inner, scope, information)
+        }
+        return
+    }
+    visit_nested(receiver, "receiver", statements, index, scope, information)
+}
+
+func nested_item_read(
+    outer: Syntax.Expressions.Expression,
+    inner: String,
+    context: String,
+    call: Syntax.Expressions.CallExpression?,
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    assert context != "test" and context != "discarded" and context != "indexed"
+    var source = operand_text(outer)
+    if source.is_empty() {
+        refuse_nested(inner, "an item is read from a list of them that has no name")
+        return
+    }
+    if context == "receiver" {
+        crash call
+        nested_receiver_resizes(call, source, inner, scope, information)
+        return
+    }
+    if context == "declared" and not nested_declaring.is_empty() {
+        var name = nested_declaring
+        nested_named[name] = inner
+        nested_sources[name] = source
+        nested_quiet_reported = false
+        borrow_outlives_resize(name, source, statements, index + 1, scope, information)
+        if nested_quiet_reported {
+            refuse_nested(inner, "'{name}' borrows an item of a list of them past a line that may resize it")
+        }
+        return
+    }
+    refuse_nested(inner, "an item of a list of them is kept, passed or compared")
+}
+
+func nested_receiver_resizes(
+    call: Syntax.Expressions.CallExpression,
+    source: String,
+    inner: String,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+) {
+    var calls = List<Syntax.Expressions.Expression>()
+    collect_each_expression_call(call.arguments, calls)
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    crash member
+    var library_methods = [
+        "count"
+        "is_empty"
+        "append"
+        "prepend"
+        "insert"
+        "get_at"
+        "set_at"
+        "remove_at"
+        "remove_swapping"
+        "remove_last"
+        "remove_first"
+        "truncate"
+        "swap"
+        "first"
+        "last"
+        "clear"
+        "reverse"
+        "contains"
+        "index_of"
+        "join"
+        "copy"
+        "each"
+        "filter"
+        "map"
+        "any"
+        "all"
+    ]
+    if not library_methods.contains(member.name) {
+        var called: Syntax.Expressions.Expression = call
+        calls.append(called)
+    }
+    var call_index = 0
+    while call_index < calls.count() {
+        var resize = call_resizes(calls[call_index], source, scope, information)
+        if not resize.is_empty() {
+            refuse_nested(inner, "an item of '{source}' is used by {resize}, which may resize it")
+            return
+        }
+        call_index = call_index + 1
+    }
+    var argument_index = 0
+    while argument_index < call.arguments.count() {
+        var argument = call.arguments[argument_index]
+        if names_a_function_value(argument, information) {
+            var effects = called_effects(argument, scope, information)
+            var no_arguments = List<Syntax.Expressions.Expression>()
+            if effects_resize(effects, source, no_arguments, scope, information) {
+                refuse_nested(inner, "an item of '{source}' is handed to a function that may resize it")
+                return
+            }
+        }
+        argument_index = argument_index + 1
+    }
+}
+
+func names_a_function_value(argument: Syntax.Expressions.Expression, information: Analysis.ClassInfo): Boolean {
+    if shape.as_member(argument) {
+        return true
+    }
+    var named = shape.as_identifier(argument)
+    if not named {
+        return false
+    }
+    if nested_locals.has(named.name) or nested_unknown_locals.has(named.name) or information.find_field(named.name) {
+        return false
+    }
+    if information.find_function(named.name) {
+        return true
+    }
+    return false
+}
+
+func nested_fresh(
+    value: Syntax.Expressions.Expression?,
+    inner: String,
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+) {
+    crash value
+    assert not is_empty_list_construction(value)
+    var named = shape.as_identifier(value)
+    if not named {
+        refuse_nested(inner, "a list put into a list of them is not one made empty for it")
+        return
+    }
+    var declared_at = -1
+    var position = 0
+    while position < index {
+        var declaration = shape.as_variable_declaration(statements[position])
+        if declaration {
+            if declaration.name == named.name {
+                declared_at = position
+                if not declaration.value or declaration.type_reference {
+                    declared_at = -2
+                } else {
+                    crash declaration.value
+                    if not is_empty_list_construction(declaration.value) {
+                        declared_at = -2
+                    }
+                }
+            }
+        }
+        position = position + 1
+    }
+    if declared_at < 0 {
+        refuse_nested(inner, "'{named.name}', put into a list of them, is not a list made empty just before")
+        return
+    }
+    position = declared_at + 1
+    while position < statements.count() {
+        var uses = NestedUses(named.name)
+        nested_statement_uses(statements[position], uses)
+        if position < index and uses.kept > 0 {
+            refuse_nested(inner, "'{named.name}' is shared before it is put into a list of them")
+            return
+        }
+        if position == index and (uses.total != 1 or uses.kept != 1) {
+            refuse_nested(inner, "'{named.name}' is used again on the line that puts it into a list of them")
+            return
+        }
+        if position > index and uses.total > 0 {
+            refuse_nested(inner, "'{named.name}' is used after it is put into a list of them")
+            return
+        }
+        position = position + 1
+    }
+}
+
+func is_empty_list_construction(value: Syntax.Expressions.Expression): Boolean {
+    var construction = shape.as_generic_call(value)
+    if not construction {
+        return false
+    }
+    crash construction.callee
+    var callee = shape.as_identifier(construction.callee)
+    if not callee {
+        return false
+    }
+    return callee.name == "List" and construction.arguments.is_empty()
+}
+
+func nested_statement_uses(statement: Syntax.Statements.Statement, uses: NestedUses) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: nested_optional_uses(statement.value, "kept", uses)
+        Syntax.Statements.AssignmentStatement: {
+            nested_optional_uses(statement.target, "kept", uses)
+            nested_optional_uses(statement.value, "kept", uses)
+        }
+        Syntax.Statements.IfStatement: {
+            nested_optional_uses(statement.condition, "test", uses)
+            nested_block_uses(statement.then_branch, uses)
+            nested_block_uses(statement.else_branch, uses)
+        }
+        Syntax.Statements.WhileStatement: {
+            nested_optional_uses(statement.condition, "test", uses)
+            nested_block_uses(statement.body, uses)
+        }
+        Syntax.Statements.SwitchStatement: {
+            nested_optional_uses(statement.subject, "kept", uses)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                nested_block_uses(statement.cases[case_index].body, uses)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: nested_optional_uses(statement.value, "test", uses)
+        Syntax.Statements.ReturnStatement: nested_optional_uses(statement.value, "kept", uses)
+        Syntax.Statements.ExpressionStatement: nested_optional_uses(statement.value, "discarded", uses)
+        _: return
+    }
+}
+
+func nested_block_uses(statements: List<Syntax.Statements.Statement>, uses: NestedUses) {
+    var index = 0
+    while index < statements.count() {
+        nested_statement_uses(statements[index], uses)
+        index = index + 1
+    }
+}
+
+func nested_optional_uses(expression: Syntax.Expressions.Expression?, context: String, uses: NestedUses) {
+    assert expression
+    nested_expression_uses(expression, context, uses)
+}
+
+func nested_expression_uses(expression: Syntax.Expressions.Expression, context: String, uses: NestedUses) {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: {
+            if expression.name == uses.name {
+                uses.total = uses.total + 1
+                if context != "receiver" and context != "test" and context != "discarded" {
+                    uses.kept = uses.kept + 1
+                }
+            }
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var member = shape.as_member(expression.callee)
+            if member {
+                crash member.object
+                nested_expression_uses(member.object, "receiver", uses)
+            } else {
+                nested_expression_uses(expression.callee, "kept", uses)
+            }
+            var argument_index = 0
+            while argument_index < expression.arguments.count() {
+                nested_expression_uses(expression.arguments[argument_index], "kept", uses)
+                argument_index = argument_index + 1
+            }
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            var argument_index = 0
+            while argument_index < expression.arguments.count() {
+                nested_expression_uses(expression.arguments[argument_index], "kept", uses)
+                argument_index = argument_index + 1
+            }
+        }
+        Syntax.Expressions.IndexExpression: {
+            nested_optional_uses(expression.object, "kept", uses)
+            nested_optional_uses(expression.index, "kept", uses)
+        }
+        Syntax.Expressions.MemberExpression: nested_optional_uses(expression.object, "kept", uses)
+        Syntax.Expressions.BinaryExpression: {
+            var operands = "kept"
+            var logical = expression.operator == 'logical_and' or expression.operator == 'logical_or'
+            if context == "test" and logical {
+                operands = "test"
+            }
+            nested_optional_uses(expression.left, operands, uses)
+            nested_optional_uses(expression.right, operands, uses)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            var negated = "kept"
+            if context == "test" and expression.operator == 'logical_not' {
+                negated = "test"
+            }
+            nested_optional_uses(expression.operand, negated, uses)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var element_index = 0
+            while element_index < expression.elements.count() {
+                nested_optional_uses(expression.elements[element_index].value, "kept", uses)
+                element_index = element_index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var field_index = 0
+            while field_index < expression.fields.count() {
+                nested_optional_uses(expression.fields[field_index].value, "kept", uses)
+                field_index = field_index + 1
+            }
+        }
+        Syntax.Expressions.StringLiteralExpression: {
+            if expression.value.contains(uses.name) {
+                uses.total = uses.total + 1
+                uses.kept = uses.kept + 1
+            }
+        }
+        _: return
+    }
+}
+
+func nested_type(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: {
+            if nested_unknown_locals.has(expression.name) {
+                nested_typed = false
+                return null
+            }
+            if nested_locals.has(expression.name) {
+                return nested_locals[expression.name]
+            }
+            var written = scope.written_type(expression.name)
+            if written {
+                return written
+            }
+            var field = information.find_field(expression.name)
+            if field {
+                return field.type
+            }
+            return null
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            var object_type = nested_type(expression.object, scope, information)
+            if not object_type {
+                if nested_typed {
+                    var static_class = nested_static_class(expression.object, information)
+                    if static_class {
+                        var static_field = static_class.find_field(expression.name)
+                        if static_field {
+                            return static_field.type
+                        }
+                    }
+                }
+                return null
+            }
+            var owner = nested_class_of(object_type)
+            assert owner
+            var field = owner.find_field(expression.name)
+            if field {
+                return field.type
+            }
+            var getter = owner.find_function(expression.name)
+            if getter {
+                if getter.parameters.is_empty() {
+                    return getter.return_type
+                }
+            }
+            var reflected_members = ["attributes", "arguments", "functions", "name", "class"]
+            if not reflected_members.contains(expression.name) {
+                nested_typed = false
+            }
+            return null
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            var listed_type = nested_type(expression.object, scope, information)
+            assert listed_type
+            var plain = listed_type
+            var nullable = type_shape.as_nullable(listed_type)
+            if nullable {
+                plain = nullable.inner
+            }
+            var listed = type_shape.as_list(plain)
+            if listed {
+                return listed.element
+            }
+            var dictionary = type_shape.as_dictionary(plain)
+            if dictionary {
+                return dictionary.element
+            }
+            var owner = nested_class_of(plain)
+            if owner {
+                var get_at = owner.find_function("get_at")
+                if get_at {
+                    return get_at.return_type
+                }
+            }
+            nested_typed = false
+            return null
+        }
+        Syntax.Expressions.CallExpression: return nested_call_type(expression, scope, information)
+        Syntax.Expressions.GenericCallExpression: {
+            var type_index = 0
+            while type_index < expression.type_arguments.count() {
+                var argument = shape.as_type_argument(expression.type_arguments[type_index])
+                if argument {
+                    crash argument.value
+                    var named_type = shape.as_named_type(argument.value)
+                    if named_type {
+                        if named_type.path.contains("List") {
+                            nested_typed = false
+                        }
+                    }
+                }
+                type_index = type_index + 1
+            }
+            return null
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            nested_typed = false
+            return null
+        }
+        _: return null
+    }
+}
+
+func nested_call_type(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    crash call.callee
+    var constructed = nested_static_class(call.callee, information)
+    if constructed {
+        var constructed_type: Analysis.SpiteType = Analysis.Types.ClassRefType(constructed.c_name)
+        return constructed_type
+    }
+    var identifier = shape.as_identifier(call.callee)
+    if identifier {
+        var own = information.find_function(identifier.name)
+        if own {
+            return own.return_type
+        }
+        nested_typed = false
+        return null
+    }
+    var member = shape.as_member(call.callee)
+    if not member {
+        nested_typed = false
+        return null
+    }
+    crash member.object
+    var receiver_type = nested_type(member.object, scope, information)
+    if not receiver_type {
+        if nested_typed {
+            var static_class = nested_static_class(member.object, information)
+            if static_class {
+                var static_function = static_class.find_function(member.name)
+                if static_function {
+                    return static_function.return_type
+                }
+            }
+        }
+        nested_typed = false
+        return null
+    }
+    var plain = receiver_type
+    var nullable = type_shape.as_nullable(receiver_type)
+    if nullable {
+        plain = nullable.inner
+    }
+    var listed = type_shape.as_list(plain)
+    if listed {
+        var element_reads = ["get_at", "first", "last", "remove_last", "remove_first"]
+        if element_reads.contains(member.name) {
+            return listed.element
+        }
+        if member.name == "copy" {
+            return plain
+        }
+        var plain_answers = ["count", "is_empty", "contains", "index_of", "join"]
+        if not plain_answers.contains(member.name) {
+            nested_typed = false
+        }
+        return null
+    }
+    var owner = nested_class_of(plain)
+    if owner {
+        var function = owner.find_function(member.name)
+        if function {
+            return function.return_type
+        }
+    }
+    assert not type_shape.as_string(plain) and not type_shape.as_scalar(plain)
+    nested_typed = false
+    return null
+}
+
+func nested_class_of(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref and not class_ref.has_signature
+    return find_class_by_c_name(class_ref.c_name)
+}
+
+func nested_static_class(
+    expression: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var root = expression
+    while shape.as_member(root) {
+        var member = shape.as_member(root)
+        crash member
+        crash member.object
+        root = member.object
+    }
+    var root_name = shape.as_identifier(root)
+    assert root_name
+    assert not nested_locals.has(root_name.name) and not nested_unknown_locals.has(root_name.name)
+    assert not information.find_field(root_name.name) and not information.find_function(root_name.name)
+    return try_resolve_static_path(expression, information.qualified_dotted)
+}
+
 func report_borrow_past_resize(name: String, source: String, scope: Scope, class_information: Analysis.ClassInfo) {
     var statements = borrow_statements
     var start = borrow_index + 1
@@ -45252,7 +46264,9 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         builder.add_prototype("static bool spite_function_waits(void* typed_call);")
         builder.add_user("self->_waits_ = spite_function_waits(self->spite_typed_call);")
     }
+    var declared_from = nested_declared.names.count()
     var scope = parameter_scope(function)
+    nested_lists.studied[defined_name] = true
     var outer_item_function = item_function
     var outer_item_scope = item_function_scope
     item_function = function
@@ -45264,6 +46278,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     var outer_leaving = leaving_statements
     leaving_statements = List<Syntax.Statements.Statement>()
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    study_nested_lists(information, function, scope, declared_from)
     item_function = outer_item_function
     item_function_scope = outer_item_scope
     terminal_if = null
@@ -51081,6 +52096,7 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
     var outer_fact_owner = fact_owner
     fact_owner = information.c_name
     var start = builder.user_count()
+    var declared_from = nested_declared.names.count()
     var scope = parameter_scope(function)
     var outer_item_function = item_function
     var outer_item_scope = item_function_scope
@@ -51091,6 +52107,7 @@ func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis
     body_assigned_paths = List<String>()
     collect_body_facts(function.body)
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    study_nested_lists(information, function, scope, declared_from)
     item_function = outer_item_function
     item_function_scope = outer_item_scope
     terminal_if = null

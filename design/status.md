@@ -1018,6 +1018,25 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   library's allocator; giving a run of blocks back once every object in it is let go; the optimisation report does
   not yet list the classes pooled and the ones left out, with why.
 
+### A list held only by another list lives in its slot
+
+- Built (pair M8b of [naive_programs_pairs.md](naive_programs_pairs.md), D552; decided by Claude under D509, to
+  confirm). Not built: the decision per list of lists rather than per element type (two `List<List<T>>` of one `T`
+  share their C functions, so one that keeps references keeps every one of them); `list[index] = fresh` (the store
+  writes the slot's reference in place, so the pass refuses it); a list put in from a call's answer or a list
+  literal; a nested list read through a `Dictionary` or `Items`; the inner list's own header and singleton attributes kept out of the slot (a slot is
+  the whole 40-byte object); the optimisation report does not yet list the lists of lists kept by reference, or why.
+  In the split build the slot's memory functions sit in another C unit from the code that reads the slots, so link
+  time inlining is what removes the call (pair C4): the engine's physics step gains 0.13 ms split, 0.3 ms as one file.
+
+### A list of lists filled again keeps each list's room
+
+- Built (pair L6b of [naive_programs_pairs.md](naive_programs_pairs.md), D553; decided by Claude under D509, to
+  confirm). Not built: a list of lists that keeps references (its lists may be named elsewhere, so they are let go
+  as before); keeping the inner lists' items' own room when an inner list is cleared rather than the outer one; a
+  bound on the memory kept by slots past the count after the list of lists shrinks, which stays until it is filled
+  that far again or let go.
+
 ### Identical functions are folded into one
 
 - Built (D296, D340). Proposed by Claude, unconfirmed: the normalisation details (layout equality by attribute order and type, numbered temporaries, texts by content, a site shared by two versions or instances reporting the first one met); function values of folded functions comparing equal, with the alternative that folding keeps a function apart when the program compares function values; no folding in `--hot-reload` builds and the REPL.
