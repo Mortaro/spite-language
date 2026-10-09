@@ -1,0 +1,135 @@
+func known_constant(number: Long): MirrorValue {
+    var made = MirrorValue("const", "")
+    made.number = number
+    return made.with_text()
+}
+
+func named_value(kind: String, name: String, klass: String): MirrorValue {
+    var made = MirrorValue(kind, name)
+    made.klass = klass
+    return made.with_text()
+}
+
+func field_value(object: MirrorValue, name: String, klass: String): MirrorValue {
+    var made = MirrorValue("field", name)
+    made.klass = klass
+    made.parts.append(object)
+    return made.with_text()
+}
+
+func item_value(list: MirrorValue, index: MirrorValue, klass: String): MirrorValue {
+    var made = MirrorValue("item", "")
+    made.klass = klass
+    made.parts.append(list)
+    made.parts.append(index)
+    return made.with_text()
+}
+
+func counted_list(list: MirrorValue): MirrorValue {
+    var made = MirrorValue("count", "")
+    made.parts.append(list)
+    return made.with_text()
+}
+
+func unary_value(name: String, operand: MirrorValue): MirrorValue {
+    var made = MirrorValue("op", name)
+    made.parts.append(operand)
+    return made.with_text()
+}
+
+func binary_value(name: String, left: MirrorValue, right: MirrorValue): MirrorValue {
+    var made = MirrorValue("op", name)
+    made.parts.append(left)
+    made.parts.append(right)
+    return made.with_text()
+}
+
+func present_value(list: MirrorValue, index: MirrorValue): MirrorValue {
+    return binary_value("present", list, index)
+}
+
+func negated_value(condition: MirrorValue): MirrorValue {
+    if condition.is_const() {
+        return truth_value(condition.number == 0)
+    }
+    if condition.kind != "op" {
+        return unary_value("not", condition)
+    }
+    var first = condition.part_at(0)
+    if condition.name == "not" {
+        return first
+    }
+    if condition.parts.count() != 2 {
+        return unary_value("not", condition)
+    }
+    var second = condition.part_at(1)
+    var flipped = negated_comparison(condition.name)
+    if not flipped.is_empty() {
+        return binary_value(flipped, first, second)
+    }
+    var first_negated = negated_value(first)
+    var second_negated = negated_value(second)
+    if condition.name == "and" {
+        return binary_value("or", first_negated, second_negated)
+    }
+    if condition.name == "or" {
+        return binary_value("and", first_negated, second_negated)
+    }
+    return unary_value("not", condition)
+}
+
+func negated_comparison(name: String): String {
+    switch name {
+        "eq": return "ne"
+        "ne": return "eq"
+        "lt": return "ge"
+        "ge": return "lt"
+        "le": return "gt"
+        "gt": return "le"
+        _: return ""
+    }
+}
+
+func is_comparison(name: String): Boolean {
+    return not negated_comparison(name).is_empty()
+}
+
+func folded_operation(name: String, left: MirrorValue, right: MirrorValue): MirrorValue {
+    if not left.is_const() or not right.is_const() {
+        return binary_value(name, left, right)
+    }
+    var first = left.number
+    var second = right.number
+    var highest: Long = 1000000000
+    var lowest: Long = 0
+    lowest = lowest - highest
+    var small = first < highest and first > lowest and second < highest and second > lowest
+    if small and name == "add" {
+        return known_constant(first + second)
+    }
+    if small and name == "subtract" {
+        return known_constant(first - second)
+    }
+    return compared_constants(name, first, second, left, right)
+}
+
+func compared_constants(name: String, first: Long, second: Long, left: MirrorValue, right: MirrorValue): MirrorValue {
+    switch name {
+        "eq": return truth_value(first == second)
+        "ne": return truth_value(first != second)
+        "lt": return truth_value(first < second)
+        "le": return truth_value(first <= second)
+        "gt": return truth_value(first > second)
+        "ge": return truth_value(first >= second)
+        "and": return truth_value(first != 0 and second != 0)
+        "or": return truth_value(first != 0 or second != 0)
+        _: return binary_value(name, left, right)
+    }
+}
+
+func truth_value(holds: Boolean): MirrorValue {
+    if holds {
+        return known_constant(1)
+    }
+    return known_constant(0)
+}

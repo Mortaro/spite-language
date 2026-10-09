@@ -1,0 +1,1122 @@
+var walked_functions = Dictionary<String, MirrorFunction>()
+var callers = Dictionary<String, List<String>>()
+var unknown_callers = Dictionary<String, Boolean>()
+var unknown_names = Dictionary<String, Boolean>()
+var unknown_classes = Dictionary<String, Boolean>()
+var singletons = Dictionary<String, Boolean>()
+var drop_fields = List<String>()
+var volatile_fields = List<String>()
+var volatile_lists = List<String>()
+var disabled = false
+var counter = MirrorCounter()
+var maker = MirrorMaker()
+var entries = Dictionary<String, MirrorState>()
+var entering = Dictionary<String, Boolean>()
+var site_walks = Dictionary<String, Dictionary<String, MirrorState>>()
+var failed_walks = Dictionary<String, Boolean>()
+var shape_writes = 0
+var reason = ""
+var limit = 4000000
+var started_at = 0
+var candidate_limit = 60000
+
+# ../../../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from
+func index_callers() {
+    var keys = walked_functions.keys()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        var function = walked_functions[key]
+        crash function
+        note_callers(function.steps, key)
+        index = index + 1
+    }
+}
+
+func note_callers(steps: List<MirrorStep>, caller: String) {
+    var index = 0
+    while index < steps.count() {
+        var step = steps[index]
+        if step.kind == "call" or step.kind == "make" {
+            note_known_caller(step.name, caller)
+        }
+        if step.kind == "taken" {
+            unknown_callers[step.name] = true
+        }
+        if step.kind == "class" {
+            unknown_classes[step.name] = true
+        }
+        note_callers(step.then_steps, caller)
+        note_callers(step.else_steps, caller)
+        index = index + 1
+    }
+}
+
+func note_known_caller(callee: String, caller: String) {
+    if not callers.has(callee) {
+        var first = List<String>()
+        callers[callee] = first
+    }
+    var known = callers[callee]
+    crash known
+    if not known.contains(caller) {
+        known.append(caller)
+    }
+}
+
+func decide(id: Integer, key: String): MirrorDecision? {
+    var function = walked_functions[key]
+    assert function and not disabled
+    var step = candidate_step(function.steps, id)
+    assert step
+    shape_writes = 0
+    started_at = counter.steps
+    var seen = List<String>()
+    var shaped = dry_shape(step.name, 0, seen)
+    reason = "shape {shaped} writes {shape_writes}"
+    assert shaped and shape_writes > 0
+    var plain = List<Integer>()
+    var decided = try_decide(function, id, plain)
+    if decided {
+        return decided
+    }
+    assert not step.flags.is_empty()
+    return try_decide(function, id, step.flags)
+}
+
+func candidate_step(steps: List<MirrorStep>, id: Integer): MirrorStep? {
+    var index = 0
+    while index < steps.count() {
+        var step = steps[index]
+        if step.kind == "call" and step.candidate == id {
+            return step
+        }
+        var inner = candidate_step(step.then_steps, id)
+        if inner {
+            return inner
+        }
+        var other = candidate_step(step.else_steps, id)
+        if other {
+            return other
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func try_decide(function: MirrorFunction, id: Integer, skipped: List<Integer>): MirrorDecision? {
+    var state = entry_of(function.key, 0)
+    var run = MirrorRun()
+    run.target = id
+    run.skipped_lines = skipped
+    var self_value = state.local_value("self")
+    assert self_value
+    run.owner = self_value.text
+    var returns = MirrorReturns()
+    walk_steps(function.steps, state, run, returns)
+    reason = "{run.reason} seen {run.seen}"
+    assert not run.failed and run.seen > 0 and run.proven
+    var decision = MirrorDecision(id)
+    decision.flags = skipped
+    var names = run.finals.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var number = run.finals[name]
+        crash number
+        decision.writes.append(name)
+        decision.numbers.append(number)
+        index = index + 1
+    }
+    return decision
+}
+
+func dry_shape(key: String, depth: Integer, seen: List<String>): Boolean {
+    if depth > 12 or seen.contains(key) {
+        return false
+    }
+    var function = walked_functions[key]
+    if not function {
+        return false
+    }
+    seen.append(key)
+    var shaped = steps_shaped(function.steps, depth, seen)
+    seen.remove_last()
+    return shaped
+}
+
+func steps_shaped(steps: List<MirrorStep>, depth: Integer, seen: List<String>): Boolean {
+    var index = 0
+    while index < steps.count() {
+        var step = steps[index]
+        if not step_shaped(step, depth, seen) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func step_shaped(step: MirrorStep, depth: Integer, seen: List<String>): Boolean {
+    var allowed = ["local", "crash", "assert", "return", "taken"]
+    if allowed.contains(step.kind) {
+        return true
+    }
+    if step.kind == "slot" or step.kind == "list" and step.name == "set_at" {
+        shape_writes = shape_writes + 1
+        var stored = step.values.last()
+        crash stored
+        return stored.kind == "name" or stored.kind == "field" or stored.kind == "item"
+    }
+    switch step.kind {
+        "field": return step.scalar
+        "list": return pure_list_method(step.name)
+        "if": return steps_shaped(step.then_steps, depth, seen) and steps_shaped(step.else_steps, depth, seen)
+        "call": return dry_shape(step.name, depth + 1, seen)
+        "effects": return step.effects_known and step.effects.is_empty()
+        _: return false
+    }
+}
+
+func pure_list_method(name: String): Boolean {
+    var pure = ["count", "is_empty", "get_at", "contains", "index_of", "first", "last"]
+    return pure.contains(name)
+}
+
+func top_state(function: MirrorFunction): MirrorState {
+    var state = MirrorState(counter)
+    var frame = MirrorFrame(function.key)
+    var own = self_root(function)
+    frame.bind_name("self", own)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var root = maker.named_value("param", "{function.key}:{parameter}", "")
+        frame.bind_name(parameter, root)
+        index = index + 1
+    }
+    state.frames.append(frame)
+    return state
+}
+
+func self_root(function: MirrorFunction): MirrorValue {
+    if function.singleton {
+        return maker.named_value("single", function.class_c_name, function.class_c_name)
+    }
+    return maker.named_value("self", function.class_c_name, function.class_c_name)
+}
+
+func entry_of(key: String, depth: Integer): MirrorState {
+    var function = walked_functions[key]
+    crash function
+    var memo = entries[key]
+    if memo {
+        return memo.copied_state()
+    }
+    if depth > 6 or entering.has(key) or not knows_every_caller(function) {
+        return top_state(function)
+    }
+    entering[key] = true
+    var joined = met_callers(key, depth)
+    entering.remove(key)
+    var result = top_state(function)
+    if joined {
+        result = joined
+    }
+    entries[key] = result
+    return result.copied_state()
+}
+
+func met_callers(key: String, depth: Integer): MirrorState? {
+    var callers_of = callers[key]
+    assert callers_of
+    var joined: MirrorState? = null
+    var index = 0
+    while index < callers_of.count() {
+        var caller = callers_of[index]
+        var sites = sites_of(caller, depth + 1)
+        assert not failed_walks.has(caller)
+        var site = sites[key]
+        if site {
+            joined = joined_with(joined, site)
+        }
+        index = index + 1
+    }
+    return joined
+}
+
+func joined_with(joined: MirrorState?, site: MirrorState): MirrorState {
+    if joined {
+        return joined.merged_state(site)
+    }
+    return site.copied_state()
+}
+
+func knows_every_caller(function: MirrorFunction): Boolean {
+    if unknown_callers.has(function.key) or unknown_names.has(function.name) or unknown_classes.has(function.class_c_name) {
+        return false
+    }
+    return callers.has(function.key)
+}
+
+func sites_of(caller: String, depth: Integer): Dictionary<String, MirrorState> {
+    var memo = site_walks[caller]
+    if memo {
+        return memo
+    }
+    var function = walked_functions[caller]
+    crash function
+    var state = entry_of(caller, depth)
+    var run = MirrorRun()
+    run.collect = true
+    var returns = MirrorReturns()
+    walk_steps(function.steps, state, run, returns)
+    if run.failed {
+        failed_walks[caller] = true
+    }
+    site_walks[caller] = run.sites
+    return run.sites
+}
+
+func walk_steps(steps: List<MirrorStep>, state: MirrorState, run: MirrorRun, returns: MirrorReturns) {
+    var index = 0
+    while index < steps.count() and not state.dead and not run.failed {
+        counter.steps = counter.steps + 1
+        run.budget = run.budget - 1
+        if counter.steps > limit or counter.steps - started_at > candidate_limit {
+            run.mark_failed("walk_steps 1")
+        }
+        var step = steps[index]
+        walk_step(step, state, run, returns)
+        kill_volatile(state)
+        index = index + 1
+    }
+}
+
+func kill_volatile(state: MirrorState) {
+    var any = maker.named_value("any", "", "")
+    var index = 0
+    while index < volatile_fields.count() {
+        var field_name = volatile_fields[index]
+        state.kill_where_field(field_name, any, "")
+        index = index + 1
+    }
+    index = 0
+    while index < volatile_lists.count() {
+        var list_name = volatile_lists[index]
+        state.kill_where_list_named(list_name)
+        index = index + 1
+    }
+}
+
+func walk_step(step: MirrorStep, state: MirrorState, run: MirrorRun, returns: MirrorReturns) {
+    switch step.kind {
+        "local": {
+            var recorded_value = step.recorded_value(0)
+            var value = evaluated(recorded_value, state, run)
+            state.set_local(step.name, value)
+        }
+        "field": walk_field(step, state, run)
+        "slot": walk_slot(step, state, run)
+        "crash": walk_crash(step, state, run)
+        "assert": walk_assert(step, state, run, returns)
+        "call": walk_call(step, state, run)
+        "make": walk_call(step, state, run)
+        "list": walk_list(step, state, run)
+        "if": walk_if(step, state, run, returns)
+        "loop": walk_loop(step, state, run, returns)
+        "return": walk_return(step, state, run, returns)
+        "effects": walk_effects(step, state, run)
+        "taken": return
+        "class": return
+        _: walk_opaque(state, run)
+    }
+}
+
+func walk_opaque(state: MirrorState, run: MirrorRun) {
+    if run.dry {
+        run.mark_failed("walk_opaque 1")
+        return
+    }
+    state.kill_all()
+}
+
+func walk_field(step: MirrorStep, state: MirrorState, run: MirrorRun) {
+    var recorded_object = step.recorded_value(0)
+    var recorded_value = step.recorded_value(1)
+    var object = evaluated(recorded_object, state, run)
+    var assigned = evaluated(recorded_value, state, run)
+    assign_field(object, step, assigned, state, run)
+}
+
+func walk_slot(step: MirrorStep, state: MirrorState, run: MirrorRun) {
+    var recorded_list = step.recorded_value(0)
+    var recorded_position = step.recorded_value(1)
+    var recorded_stored = step.recorded_value(2)
+    var list = evaluated(recorded_list, state, run)
+    var position = evaluated(recorded_position, state, run)
+    var stored = evaluated(recorded_stored, state, run)
+    write_slot(list, position, stored, state, run)
+}
+
+func walk_crash(step: MirrorStep, state: MirrorState, run: MirrorRun) {
+    var recorded_check = step.recorded_value(0)
+    var checked = evaluated(recorded_check, state, run)
+    if run.dry and not state.implied_condition(checked) {
+        run.mark_failed("a crash not proven")
+        return
+    }
+    state.add_holds(checked)
+}
+
+func walk_return(step: MirrorStep, state: MirrorState, run: MirrorRun, returns: MirrorReturns) {
+    var returned = maker.named_value("none", "", "")
+    if not step.values.is_empty() {
+        var recorded_returned = step.recorded_value(0)
+        returned = evaluated(recorded_returned, state, run)
+    }
+    var ended = state.copied_state()
+    returns.note_return(ended, returned)
+    state.dead = true
+}
+
+func walk_effects(step: MirrorStep, state: MirrorState, run: MirrorRun) {
+    var harmless = step.effects_known and step.effects.is_empty()
+    if run.dry and not harmless {
+        run.mark_failed("walk_effects 1")
+        return
+    }
+    apply_effects(step, state)
+}
+
+func walk_assert(step: MirrorStep, state: MirrorState, run: MirrorRun, returns: MirrorReturns) {
+    var recorded_check = step.recorded_value(0)
+    var checked = evaluated(recorded_check, state, run)
+    if checked.is_const() {
+        if checked.number == 0 {
+            var leaving_value = maker.named_value("none", "", "")
+            var ended = state.copied_state()
+            returns.note_return(ended, leaving_value)
+            state.dead = true
+        }
+        return
+    }
+    var leaving = state.copied_state()
+    var opposite = maker.negated_value(checked)
+    leaving.add_holds(opposite)
+    if not leaving.dead {
+        var nothing = maker.named_value("none", "", "")
+        returns.note_return(leaving, nothing)
+    }
+    state.add_holds(checked)
+}
+
+func walk_if(step: MirrorStep, state: MirrorState, run: MirrorRun, returns: MirrorReturns) {
+    assert run.depth != 0 or not run.skipped_lines.contains(step.line)
+    var recorded_condition = step.recorded_value(0)
+    var condition = evaluated(recorded_condition, state, run)
+    if condition.is_const() {
+        walk_constant_if(step, condition, state, run, returns)
+        return
+    }
+    var taken = state.copied_state()
+    taken.add_holds(condition)
+    if not taken.dead {
+        walk_steps(step.then_steps, taken, run, returns)
+    }
+    var opposite = maker.negated_value(condition)
+    state.add_holds(opposite)
+    if not state.dead {
+        walk_steps(step.else_steps, state, run, returns)
+    }
+    var joined = taken.merged_state(state)
+    adopt(state, joined)
+}
+
+func walk_constant_if(
+    step: MirrorStep,
+    condition: MirrorValue,
+    state: MirrorState,
+    run: MirrorRun,
+    returns: MirrorReturns,
+) {
+    if condition.number != 0 {
+        walk_steps(step.then_steps, state, run, returns)
+        return
+    }
+    walk_steps(step.else_steps, state, run, returns)
+}
+
+func adopt(state: MirrorState, other: MirrorState) {
+    state.facts = other.facts
+    state.frames = other.frames
+    state.dead = other.dead
+}
+
+func walk_loop(step: MirrorStep, state: MirrorState, run: MirrorRun, returns: MirrorReturns) {
+    if run.dry {
+        run.mark_failed("walk_loop 1")
+        return
+    }
+    var saved_collect = run.collect
+    var saved_target = run.target
+    run.collect = false
+    run.target = -1
+    var head = state.copied_state()
+    var rounds = 0
+    var stable = false
+    while rounds < 4 and not stable and not run.failed {
+        var trial = head.copied_state()
+        var scratch = MirrorReturns()
+        walk_steps(step.then_steps, trial, run, scratch)
+        var next = head.merged_state(trial)
+        stable = same_facts(next, head)
+        head = next
+        rounds = rounds + 1
+    }
+    run.collect = saved_collect
+    run.target = saved_target
+    if not stable {
+        head.kill_all()
+    }
+    var body = head.copied_state()
+    walk_steps(step.then_steps, body, run, returns)
+    adopt(state, head)
+}
+
+func same_facts(left: MirrorState, right: MirrorState): Boolean {
+    if left.facts.count() != right.facts.count() {
+        return false
+    }
+    var index = 0
+    while index < left.facts.count() {
+        var fact = left.facts[index]
+        if not has_same_fact(right, fact) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func has_same_fact(state: MirrorState, fact: MirrorFact): Boolean {
+    var index = 0
+    while index < state.facts.count() {
+        var other = state.facts[index]
+        if other.same_as(fact) and other.guards.count() == fact.guards.count() {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func evaluated(recorded: MirrorValue, state: MirrorState, run: MirrorRun): MirrorValue {
+    var value = evaluated_value(recorded, state, run)
+    if value.text.length() > 240 {
+        return counter.fresh_value(value.klass)
+    }
+    return value
+}
+
+func evaluated_value(recorded: MirrorValue, state: MirrorState, run: MirrorRun): MirrorValue {
+    switch recorded.kind {
+        "const": return recorded
+        "single": return recorded
+        "enum": return recorded
+        "none": return recorded
+        "name": return evaluated_name(recorded.name, recorded, state)
+        "self": return evaluated_name("self", recorded, state)
+        "field": return evaluated_field(recorded, state, run)
+        "item": return evaluated_item(recorded, state, run)
+        "count": {
+            var recorded_list = recorded.part_at(0)
+            var counted = evaluated(recorded_list, state, run)
+            return maker.counted_list(counted)
+        }
+        "op": return evaluated_operation(recorded, state, run)
+        "made": {
+            if run.dry {
+                run.mark_failed("evaluated 1")
+            }
+            return counter.fresh_value(recorded.klass)
+        }
+        _: return counter.fresh_value(recorded.klass)
+    }
+}
+
+func evaluated_name(name: String, recorded: MirrorValue, state: MirrorState): MirrorValue {
+    var held = state.local_value(name)
+    if held {
+        return held
+    }
+    return counter.fresh_value(recorded.klass)
+}
+
+func evaluated_field(recorded: MirrorValue, state: MirrorState, run: MirrorRun): MirrorValue {
+    if singletons.has(recorded.klass) {
+        return maker.named_value("single", recorded.klass, recorded.klass)
+    }
+    var recorded_object = recorded.part_at(0)
+    var object = evaluated(recorded_object, state, run)
+    var location = maker.field_value(object, recorded.name, recorded.klass)
+    var known = state.known_value_of(location)
+    if known {
+        return known
+    }
+    return location
+}
+
+func evaluated_item(recorded: MirrorValue, state: MirrorState, run: MirrorRun): MirrorValue {
+    var recorded_list = recorded.part_at(0)
+    var recorded_position = recorded.part_at(1)
+    var list = evaluated(recorded_list, state, run)
+    var position = evaluated(recorded_position, state, run)
+    var slot = maker.item_value(list, position, recorded.klass)
+    var held = state.known_value_of(slot)
+    if held {
+        return held
+    }
+    return slot
+}
+
+func evaluated_operation(recorded: MirrorValue, state: MirrorState, run: MirrorRun): MirrorValue {
+    var name = recorded.name
+    var recorded_first = recorded.part_at(0)
+    var first = evaluated(recorded_first, state, run)
+    if recorded.parts.count() == 1 {
+        return evaluated_unary(name, first, run)
+    }
+    var recorded_second = recorded.part_at(1)
+    var second = evaluated(recorded_second, state, run)
+    if name == "present" {
+        return maker.present_value(first, second)
+    }
+    if maker.is_comparison(name) {
+        return compared_values(name, first, second)
+    }
+    if name == "and" or name == "or" {
+        return maker.folded_operation(name, first, second)
+    }
+    if name == "add" or name == "subtract" {
+        var sum = maker.folded_operation(name, first, second)
+        if run.dry and not sum.is_const() {
+            run.mark_failed("evaluated_operation 1")
+        }
+        return sum
+    }
+    if run.dry {
+        run.mark_failed("evaluated_operation 2")
+    }
+    return maker.binary_value(name, first, second)
+}
+
+func evaluated_unary(name: String, operand: MirrorValue, run: MirrorRun): MirrorValue {
+    if name == "not" {
+        return maker.negated_value(operand)
+    }
+    if name == "negate" and operand.is_const() {
+        var zero: Long = 0
+        return maker.known_constant(zero - operand.number)
+    }
+    if name != "some" and run.dry {
+        run.mark_failed("evaluated_unary 1")
+    }
+    return maker.unary_value(name, operand)
+}
+
+func compared_values(name: String, left: MirrorValue, right: MirrorValue): MirrorValue {
+    if left.text == right.text {
+        var same = name == "eq" or name == "le" or name == "ge"
+        return maker.truth_value(same)
+    }
+    if left.is_const() and not right.is_const() {
+        var mirrored = swapped_comparison(name)
+        return maker.folded_operation(mirrored, right, left)
+    }
+    return maker.folded_operation(name, left, right)
+}
+
+func swapped_comparison(name: String): String {
+    switch name {
+        "lt": return "gt"
+        "gt": return "lt"
+        "le": return "ge"
+        "ge": return "le"
+        _: return name
+    }
+}
+
+func assign_field(object: MirrorValue, step: MirrorStep, assigned: MirrorValue, state: MirrorState, run: MirrorRun) {
+    var name = step.name
+    var scalar = step.scalar
+    if run.dry {
+        if not scalar or object.text != run.owner {
+            run.mark_failed("assign_field 1")
+            return
+        }
+        if not run.written.contains(name) {
+            run.written.append(name)
+        }
+    }
+    state.kill_where_field(name, object, step.klass)
+    if not scalar {
+        kill_dropped(state)
+    }
+    var location = maker.field_value(object, name, assigned.klass)
+    if not assigned.mentions_field(name, object, step.klass) {
+        state.set_known_value(location, assigned)
+    }
+}
+
+func write_slot(list: MirrorValue, position: MirrorValue, stored: MirrorValue, state: MirrorState, run: MirrorRun) {
+    var slot = maker.item_value(list, position, stored.klass)
+    var unchanged = stored.text == slot.text
+    var held = state.known_value_of(slot)
+    if held {
+        if held.text == stored.text {
+            unchanged = true
+        }
+    }
+    var within = maker.present_value(list, position)
+    if unchanged and run.dry and not state.implied_condition(within) {
+        run.mark_failed("write_slot 1")
+        return
+    }
+    assert not unchanged
+    if run.dry {
+        run.mark_failed("a write that changes the slot")
+        return
+    }
+    state.kill_where_list(list, false)
+    kill_dropped(state)
+    if not stored.mentions_list(list) {
+        state.set_known_value(slot, stored)
+    }
+}
+
+func kill_dropped(state: MirrorState) {
+    var any = maker.named_value("any", "", "")
+    var index = 0
+    while index < drop_fields.count() {
+        var field_name = drop_fields[index]
+        state.kill_where_field(field_name, any, "")
+        index = index + 1
+    }
+}
+
+func walk_list(step: MirrorStep, state: MirrorState, run: MirrorRun) {
+    var recorded_list = step.recorded_value(0)
+    var list = evaluated(recorded_list, state, run)
+    var arguments = List<MirrorValue>()
+    var index = 1
+    while index < step.values.count() {
+        var recorded_argument = step.recorded_value(index)
+        var argument = evaluated(recorded_argument, state, run)
+        arguments.append(argument)
+        index = index + 1
+    }
+    var result = listed_result(step.name, list, arguments, state, run)
+    if not step.result.is_empty() {
+        state.set_local(step.result, result)
+    }
+}
+
+func listed_result(
+    name: String,
+    list: MirrorValue,
+    arguments: List<MirrorValue>,
+    state: MirrorState,
+    run: MirrorRun,
+): MirrorValue {
+    if name == "count" {
+        return maker.counted_list(list)
+    }
+    if name == "get_at" and arguments.count() == 1 {
+        var position = arguments[0]
+        return read_slot(list, position, state)
+    }
+    if name == "set_at" and arguments.count() == 2 {
+        var written_position = arguments[0]
+        var written_value = arguments[1]
+        write_slot(list, written_position, written_value, state, run)
+        return counter.fresh_value("")
+    }
+    if not pure_list_method(name) {
+        change_list(name, list, state, run)
+    }
+    return counter.fresh_value("")
+}
+
+func read_slot(list: MirrorValue, position: MirrorValue, state: MirrorState): MirrorValue {
+    var slot = maker.item_value(list, position, "")
+    var held = state.known_value_of(slot)
+    if held {
+        return held
+    }
+    return slot
+}
+
+func change_list(name: String, list: MirrorValue, state: MirrorState, run: MirrorRun) {
+    if run.dry {
+        run.mark_failed("change_list 1")
+        return
+    }
+    if name == "append" {
+        state.kill_where_count(list)
+        return
+    }
+    state.kill_where_list(list, true)
+    kill_dropped(state)
+}
+
+func walk_call(step: MirrorStep, state: MirrorState, run: MirrorRun) {
+    var receiver = maker.named_value("none", "", "")
+    if not step.values.is_empty() {
+        var recorded_receiver = step.recorded_value(0)
+        receiver = evaluated(recorded_receiver, state, run)
+    }
+    var arguments = List<MirrorValue>()
+    var index = 1
+    while index < step.values.count() {
+        var recorded_argument = step.recorded_value(index)
+        var argument = evaluated(recorded_argument, state, run)
+        arguments.append(argument)
+        index = index + 1
+    }
+    assert not run.failed
+    var key = step.name
+    if run.collect and run.depth == 0 {
+        note_call_site(key, state, receiver, arguments, run)
+    }
+    if step.candidate >= 0 and step.candidate == run.target and run.depth == 0 {
+        check_candidate(step, state, receiver, arguments, run)
+    }
+    var result = called_result(step, state, receiver, arguments, run)
+    kill_dropped(state)
+    if not step.result.is_empty() {
+        state.set_local(step.result, result)
+    }
+}
+
+func called_result(
+    step: MirrorStep,
+    state: MirrorState,
+    receiver: MirrorValue,
+    arguments: List<MirrorValue>,
+    run: MirrorRun,
+): MirrorValue {
+    var made = step.kind == "make"
+    if made and run.dry {
+        run.mark_failed("called_result 1")
+        return counter.fresh_value("")
+    }
+    var result = counter.fresh_value(receiver.klass)
+    var function = walked_functions[step.name]
+    var inlines = false
+    if function {
+        inlines = run.depth < 10 and run.budget > 0 and not run.stack.contains(step.name)
+    }
+    if not inlines or not function {
+        if run.dry {
+            run.mark_failed("called_result 2")
+            return result
+        }
+        apply_effects(step, state)
+        return result
+    }
+    if made {
+        walk_function(function, state, result, arguments, run)
+        return result
+    }
+    return walk_function(function, state, receiver, arguments, run)
+}
+
+func walk_function(
+    function: MirrorFunction,
+    state: MirrorState,
+    receiver: MirrorValue,
+    arguments: List<MirrorValue>,
+    run: MirrorRun,
+): MirrorValue {
+    var frame = MirrorFrame(function.key)
+    var self_value = receiver
+    if function.singleton {
+        self_value = self_root(function)
+    }
+    frame.bind_name("self", self_value)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var passed = counter.fresh_value("")
+        if index < arguments.count() {
+            passed = arguments[index]
+        }
+        frame.bind_name(parameter, passed)
+        index = index + 1
+    }
+    state.frames.append(frame)
+    var returns = MirrorReturns()
+    run.depth = run.depth + 1
+    run.stack.append(function.key)
+    walk_steps(function.steps, state, run, returns)
+    run.depth = run.depth - 1
+    run.stack.remove_last()
+    if not state.dead {
+        var nothing = maker.named_value("none", "", "")
+        var ended = state.copied_state()
+        returns.note_return(ended, nothing)
+    }
+    return function_exit(state, returns)
+}
+
+func function_exit(state: MirrorState, returns: MirrorReturns): MirrorValue {
+    var result = counter.fresh_value("")
+    if returns.states.is_empty() {
+        state.dead = true
+        state.frames.remove_last()
+        return result
+    }
+    var exit = returns.states[0]
+    var value = returns.values[0]
+    crash value
+    var same = true
+    var index = 1
+    while index < returns.states.count() {
+        var other = returns.states[index]
+        exit = exit.merged_state(other)
+        var other_value = returns.values[index]
+        crash other_value
+        if other_value.text != value.text {
+            same = false
+        }
+        index = index + 1
+    }
+    exit.frames.remove_last()
+    adopt(state, exit)
+    if same {
+        return value
+    }
+    return result
+}
+
+func check_candidate(
+    step: MirrorStep,
+    state: MirrorState,
+    receiver: MirrorValue,
+    arguments: List<MirrorValue>,
+    run: MirrorRun,
+) {
+    run.seen = run.seen + 1
+    var function = walked_functions[step.name]
+    if not function {
+        run.proven = false
+        return
+    }
+    var dry = MirrorRun()
+    dry.dry = true
+    dry.owner = run.owner
+    dry.depth = 1
+    dry.stack = run.stack.copy()
+    var trial = state.copied_state()
+    walk_function(function, trial, receiver, arguments, dry)
+    if dry.failed or trial.dead {
+        run.reason = "dry {dry.reason}"
+        run.proven = false
+        return
+    }
+    var owner_self = state.local_value("self")
+    crash owner_self
+    var index = 0
+    while index < dry.written.count() {
+        var name = dry.written[index]
+        note_final(name, owner_self, trial, run)
+        index = index + 1
+    }
+}
+
+func note_final(name: String, owner_self: MirrorValue, trial: MirrorState, run: MirrorRun) {
+    var location = maker.field_value(owner_self, name, "")
+    var known = trial.known_value_of(location)
+    if not known {
+        run.reason = "final {name} unknown"
+        run.proven = false
+        return
+    }
+    if not known.is_const() {
+        run.reason = "final {name} is {known.text}"
+        run.proven = false
+        return
+    }
+    var number: String = known.number
+    var earlier = run.finals[name]
+    if earlier {
+        if earlier != number {
+            run.proven = false
+        }
+        return
+    }
+    run.finals[name] = number
+}
+
+func note_call_site(
+    key: String,
+    state: MirrorState,
+    receiver: MirrorValue,
+    arguments: List<MirrorValue>,
+    run: MirrorRun,
+) {
+    var function = walked_functions[key]
+    assert function
+    var entry = transferred(function, state, receiver, arguments)
+    var earlier = run.sites[key]
+    if earlier {
+        run.sites[key] = earlier.merged_state(entry)
+        return
+    }
+    run.sites[key] = entry
+}
+
+func transferred(
+    function: MirrorFunction,
+    state: MirrorState,
+    receiver: MirrorValue,
+    arguments: List<MirrorValue>,
+): MirrorState {
+    var result = MirrorState(counter)
+    var frame = MirrorFrame(function.key)
+    var renames = MirrorRenames()
+    var self_value = self_root(function)
+    var drop_self_root = false
+    if not function.singleton {
+        renames.own_roots.append(self_value.text)
+        if receiver.text != self_value.text {
+            drop_self_root = true
+            self_value = bound_or_root(receiver, self_value, renames)
+        }
+    }
+    frame.bind_name("self", self_value)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var root = maker.named_value("param", "{function.key}:{parameter}", "")
+        renames.own_roots.append(root.text)
+        var bound = root
+        if index < arguments.count() {
+            var argument = arguments[index]
+            bound = bound_or_root(argument, root, renames)
+        }
+        frame.bind_name(parameter, bound)
+        index = index + 1
+    }
+    result.frames.append(frame)
+    var probe = maker.named_value("self", function.class_c_name, function.class_c_name)
+    var fact_index = 0
+    while fact_index < state.facts.count() {
+        var fact = state.facts[fact_index]
+        var kept = not drop_self_root or not fact.mentions_value(probe)
+        if kept {
+            var renamed = renames.applied_to(fact)
+            if only_own_roots(renamed, renames.own_roots) {
+                result.facts.append(renamed)
+            }
+        }
+        fact_index = fact_index + 1
+    }
+    return result
+}
+
+func bound_or_root(passed: MirrorValue, root: MirrorValue, renames: MirrorRenames): MirrorValue {
+    if is_root(passed) {
+        renames.from.append(passed.text)
+        renames.to.append(root)
+        return root
+    }
+    if is_global(passed) {
+        return passed
+    }
+    return root
+}
+
+func is_root(value: MirrorValue): Boolean {
+    return value.kind == "self" or value.kind == "param"
+}
+
+func is_global(value: MirrorValue): Boolean {
+    return not value.mentions_kind("self") and not value.mentions_kind("param")
+}
+
+func only_own_roots(fact: MirrorFact, own_roots: List<String>): Boolean {
+    var roots = List<MirrorValue>()
+    collect_roots(fact.subject, roots)
+    collect_roots(fact.value, roots)
+    var index = 0
+    while index < fact.guards.count() {
+        var guard = fact.guards[index]
+        collect_roots(guard, roots)
+        index = index + 1
+    }
+    index = 0
+    while index < roots.count() {
+        var root = roots[index]
+        if not own_roots.contains(root.text) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func collect_roots(value: MirrorValue, roots: List<MirrorValue>) {
+    if is_root(value) {
+        roots.append(value)
+        return
+    }
+    var index = 0
+    while index < value.parts.count() {
+        var part = value.parts[index]
+        collect_roots(part, roots)
+        index = index + 1
+    }
+}
+
+func apply_effects(step: MirrorStep, state: MirrorState) {
+    if not step.effects_known {
+        state.kill_all()
+        return
+    }
+    var index = 0
+    while index < step.effects.count() {
+        var effect = step.effects[index]
+        apply_effect(effect, state)
+        index = index + 1
+    }
+}
+
+func apply_effect(effect: String, state: MirrorState) {
+    var any = maker.named_value("any", "", "")
+    if effect == "release" or effect == "release:value" {
+        kill_dropped(state)
+        return
+    }
+    var parts = effect.split("#")
+    var named = parts.last()
+    crash named
+    if effect.starts_with("field:") and named != "*" and parts.count() == 2 {
+        state.kill_where_field(named, any, "")
+        return
+    }
+    if effect.starts_with("grow:") {
+        state.kill_mentioning_kind("count")
+        return
+    }
+    if effect.starts_with("store:") {
+        state.kill_where_list(any, false)
+        return
+    }
+    if effect.starts_with("shrink:") or effect.starts_with("parameter:") {
+        state.kill_where_list(any, true)
+        return
+    }
+    state.kill_all()
+}

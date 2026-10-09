@@ -93,6 +93,15 @@ func typedef_count(): Integer {
     return typedefs.count()
 }
 
+func drop_typedefs_after(count: Integer) {
+    while typedefs.count() > count {
+        typedefs.remove_last()
+    }
+    if scanned_typedefs > count {
+        scanned_typedefs = count
+    }
+}
+
 func replace_typedef(position: Integer, line: String) {
     typedefs[position] = line
     if position < scanned_typedefs {
@@ -507,4 +516,170 @@ func kept_binding(part: String, kept_names: List<String>): String {
         return "{line}{rest}"
     }
     return rest
+}
+
+# ../../../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written
+func rewrite_mirrors(decisions: Dictionary<String, MirrorDecision>, atomic: Dictionary<String, List<String>>) {
+    var counts = Dictionary<String, Integer>()
+    var broken = Dictionary<String, Boolean>()
+    var index = 0
+    while index < user_bodies.count() {
+        var line = user_bodies[index]
+        if line.starts_with("/*spite-mirror-") {
+            var marker = mirror_marker(line)
+            var counted = 1
+            var earlier = counts[marker]
+            if earlier {
+                counted = earlier + 1
+            }
+            counts[marker] = counted
+            var words = marker.split(" ")
+            if words[0] == "open" {
+                var id = words[1]
+                crash id
+                var closed = index + 2 < user_bodies.count()
+                if closed {
+                    var closing = user_bodies[index + 2]
+                    closed = closing == "/*spite-mirror-close {id}*/"
+                }
+                if not closed {
+                    broken[id] = true
+                }
+            }
+        }
+        index = index + 1
+    }
+    var accepted = Dictionary<String, MirrorDecision>()
+    var ids = decisions.keys()
+    index = 0
+    while index < ids.count() {
+        var decided_id = ids[index]
+        var decision = decisions[decided_id]
+        crash decision
+        if mirror_markers_whole(decided_id, decision, counts, broken, atomic) {
+            accepted[decided_id] = decision
+        }
+        index = index + 1
+    }
+    var rewritten = List<String>()
+    var skipping = false
+    index = 0
+    while index < user_bodies.count() {
+        var body_line = user_bodies[index]
+        if not body_line.starts_with("/*spite-mirror-") {
+            if not skipping {
+                rewritten.append(body_line)
+            }
+            skipping = false
+        } else {
+            skipping = mirror_rewritten(body_line, accepted, rewritten)
+        }
+        index = index + 1
+    }
+    user_bodies = rewritten
+}
+
+func mirror_marker(line: String): String {
+    var length = line.length()
+    return line.slice(15, length - 2)
+}
+
+func mirror_markers_whole(
+    id: String,
+    decision: MirrorDecision,
+    counts: Dictionary<String, Integer>,
+    broken: Dictionary<String, Boolean>,
+    atomic: Dictionary<String, List<String>>,
+): Boolean {
+    var opens = counts["open {id}"]
+    var closes = counts["close {id}"]
+    if not opens or not closes or broken.has(id) {
+        return false
+    }
+    if opens != closes {
+        return false
+    }
+    var atomic_fields = atomic[id]
+    if atomic_fields {
+        var write_index = 0
+        while write_index < decision.writes.count() {
+            var written = decision.writes[write_index]
+            if atomic_fields.contains(written) {
+                return false
+            }
+            write_index = write_index + 1
+        }
+    }
+    var index = 0
+    while index < decision.flags.count() {
+        var flag = decision.flags[index]
+        var declared = counts["flag {id} {flag}"]
+        var set = counts["set {id} {flag}"]
+        if not declared or not set {
+            return false
+        }
+        if declared != opens or set != opens {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func mirror_rewritten(line: String, accepted: Dictionary<String, MirrorDecision>, rewritten: List<String>): Boolean {
+    var words = mirror_marker(line).split(" ")
+    var kind = words[0]
+    var id = words[1]
+    crash kind
+    crash id
+    var decision = accepted[id]
+    if not decision {
+        return false
+    }
+    if kind == "flag" or kind == "set" {
+        var flag = words[2]
+        crash flag
+        var flag_number = flag.to_integer()
+        crash flag_number
+        if decision.flags.contains(flag_number) {
+            mirror_flag_line(kind, id, flag, rewritten)
+        }
+        return false
+    }
+    if kind == "open" {
+        if decision.flags.is_empty() {
+            return true
+        }
+        var conditions = List<String>()
+        var index = 0
+        while index < decision.flags.count() {
+            conditions.append("spite_mirror_{id}_{decision.flags[index]}")
+            index = index + 1
+        }
+        rewritten.append("if ({conditions.join(" || ")}) \{")
+        return false
+    }
+    if not decision.flags.is_empty() and not decision.writes.is_empty() {
+        rewritten.append("} else \{")
+    }
+    var write_index = 0
+    while write_index < decision.writes.count() {
+        var written = decision.writes[write_index]
+        var number = decision.numbers[write_index]
+        crash number
+        rewritten.append("self->{written}_ = {number};")
+        write_index = write_index + 1
+    }
+    if not decision.flags.is_empty() {
+        rewritten.append("}")
+    }
+    return false
+}
+
+func mirror_flag_line(kind: String, id: String, flag: String, rewritten: List<String>) {
+    if kind == "flag" {
+        rewritten.append("bool spite_mirror_{id}_{flag} = false;")
+        return
+    }
+    rewritten.append("spite_mirror_{id}_{flag} = true;")
 }

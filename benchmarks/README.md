@@ -53,6 +53,7 @@ again, so it always shows the latest measurement of every case.
 | [a_wait_in_a_frame_does_not_hold_the_frame](a_wait_in_a_frame_does_not_hold_the_frame/) | 929 323 | 1 185 375 | 930 923 | 0.78 | 1.00 |
 | [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 61 083 | 17 943 | 4 433 | 3.40 | 13.78 |
 | [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 11 316 | 264 806 | 3 234 | 0.04 | 3.50 |
+| [a_write_back_of_what_the_slot_already_holds_is_not_written](a_write_back_of_what_the_slot_already_holds_is_not_written/) | 25 999 | 5 752 | 782 | 4.52 | 33.25 |
 | [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 76 960 | 58 695 | 2 769 | 1.31 | 27.79 |
 | [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 45 811 | 73 094 | 1 972 | 0.63 | 23.23 |
 | [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 11 975 | 34 130 | 665 | 0.35 | 18.01 |

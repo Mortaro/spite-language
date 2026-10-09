@@ -1,0 +1,13 @@
+var key = ""
+var class_c_name = ""
+var name = ""
+var parameters = List<String>()
+var steps = List<MirrorStep>()
+var singleton = false
+var library = false
+
+func MirrorFunction(function_key: String, owner_c_name: String, function_name: String) {
+    key = function_key
+    class_c_name = owner_c_name
+    name = function_name
+}

@@ -1,0 +1,5 @@
+var words = 0
+
+func Page(starting_words: Integer) {
+    words = starting_words
+}

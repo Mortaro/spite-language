@@ -2117,6 +2117,111 @@ still read and counted.
 for every entity and component, ticks in 43.8 ms instead of 48.1 (40.3 instead of 43.3 as one C file). What a
 crash report says, allocations and everything a program prints are the same.
 
+### A write-back of what the slot already holds is not written
+
+**The case:** [benchmarks/a_write_back_of_what_the_slot_already_holds_is_not_written](../benchmarks/a_write_back_of_what_the_slot_already_holds_is_not_written/).
+
+**What it does.** A common shape splits the read and the write-back between functions: one copies an item of a list
+into an attribute, the caller changes the item through that attribute, and another function stores the attribute
+back into the slot:
+
+```gdscript title=written_back_across_calls/page.spite
+var words = 0
+
+func Page(starting_words: Integer) {
+    words = starting_words
+}
+```
+```gdscript title=written_back_across_calls/shelf.spite
+singleton
+
+var pages = List<Page>()
+var open = Page(0)
+var at = 0
+
+func stock(count: Integer) {
+    var index = 0
+    while index < count {
+        var made = Page(index * 10)
+        pages.append(made)
+        index = index + 1
+    }
+}
+
+func take(index: Integer) {
+    at = index
+    crash pages[at]
+    open = pages[at]
+}
+
+func put_back() {
+    pages[at] = open
+}
+
+func total(): Integer {
+    return pages.sum_words()
+}
+```
+```gdscript title=written_back_across_calls/written_back_across_calls.spite entry
+var console = Console()
+var shelf = Shelf()
+
+func WrittenBackAcrossCalls() {
+    shelf.stock(4)
+    var round = 0
+    while round < 3 {
+        shelf.take(1)
+        shelf.open.words = shelf.open.words + 3
+        shelf.put_back()
+        round = round + 1
+    }
+    var total = shelf.total()
+    console.print(total)
+}
+```
+```output
+69
+```
+
+The compiler follows the values themselves through the calls. After `shelf.take(1)`, `at` holds 1 and `open` holds
+the object `pages[1]` holds; changing `shelf.open.words` changes that object and assigns neither `open`, `at` nor the
+list. So in `put_back`, `pages[at] = open` stores into `pages[1]` the object `pages[1]` already holds, and its bounds
+check is the one `take` already passed: the call does nothing a program could see, and the compiler writes no call
+for it. The loop above becomes:
+
+```c
+while (((round_ < 3))) {
+Shelf_take(self->shelf_, 1);
+/* shelf.open.words = shelf.open.words + 3, overflow checked */
+round_ = (round_ + 1);
+}
+```
+
+The same holds when the read, the change and the write-back are each several calls deep, which is how an entity
+system copies components into a row, runs a system on the row and stores the row back: a copy through templates and
+helpers into a row's attributes, with the row's position in each column followed through an attribute that counts
+up as the attributes are filled, is a copy of exactly the slots the write-back stores into. Whatever the dropped call
+would also have left behind is kept: a counter it would have left at 2 is set to 2.
+
+When a path between the copy and the write-back may change what the proof relies on, the write-back is kept on that
+path only. If the function that writes back starts by finding the slot again for an entity other than the one copied
+(`if entity != filled { ... }`), the generated C remembers whether that branch ran and stores only then. And anything
+in the way keeps the write exactly as written: storing another page into the slot, assigning `open` or `at`, removing
+from or reordering the list, a call through a function value, a wait, or a thread the program starts that may write
+the list. What may come between, and why, is [the proof](proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from).
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, in the program's own classes,
+for a call made as a statement whose arguments are names, attributes, items and numbers, and whose function only
+reads, checks what the program already checked, assigns numbers to attributes of the object it runs on, and stores
+into lists what their slots already hold. Every place the function holding the call can be called from must be known
+to the compiler: a function passed as a value, run on another thread, reached through reflection or called by a
+library template is left as it is. Not in a program that uses `Concurrent`, or whose `drop()` stores into lists.
+
+**What you notice.** Speed. The case's hundred passes over 100 000 pages take 26.6 ms instead of 45.6; the naive
+engine's stress tick takes 17.2 ms instead of 20.2 as one C file (21.5 instead of 25.6 split). Allocations, the order
+of everything a program can see and what it prints are the same. Compiling takes longer for a program with many
+candidate calls, since each is followed through its callers.
+
 ### An item a name holds from its list is not counted
 
 **The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).

@@ -1,0 +1,38 @@
+var key = ""
+var names = List<String>()
+var values = List<MirrorValue>()
+
+func MirrorFrame(function_key: String) {
+    key = function_key
+}
+
+func copied_frame(): MirrorFrame {
+    var copied = MirrorFrame(key)
+    copied.names = names.copy()
+    copied.values = values.copy()
+    return copied
+}
+
+func bind_name(name: String, value: MirrorValue) {
+    var index = names.count() - 1
+    while index >= 0 {
+        if names[index] == name {
+            values[index] = value
+            return
+        }
+        index = index - 1
+    }
+    names.append(name)
+    values.append(value)
+}
+
+func position_named(name: String): Integer {
+    var index = names.count() - 1
+    while index >= 0 {
+        if names[index] == name {
+            return index
+        }
+        index = index - 1
+    }
+    return -1
+}

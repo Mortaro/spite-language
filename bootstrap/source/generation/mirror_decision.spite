@@ -1,0 +1,9 @@
+var id = 0
+var owner = ""
+var flags = List<Integer>()
+var writes = List<String>()
+var numbers = List<String>()
+
+func MirrorDecision(decided: Integer) {
+    id = decided
+}

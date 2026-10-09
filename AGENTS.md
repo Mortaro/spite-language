@@ -53,6 +53,7 @@ else disagrees with the specification, the specification wins; a docs page that 
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
+- [`RESEARCH.md`](RESEARCH.md) is for people donating agent time: what research is useful and how to contribute it.
 - [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
   claim in them is true of Spite today or marked as the direction.
 

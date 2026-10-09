@@ -12,6 +12,11 @@ nothing ships beside the program (zero runtime).
 
 ## Where the engine stands
 
+**The naive engine is the engine package's main branch since 2026-10-09 (D563).** The original, hand-optimised engine
+is the tag `original-hand-optimized`; its numbers, recorded in the engine's `design/original_engine.md`, are the
+targets. Never change the engine to go faster: only the compiler.
+
+
 Quiet measurement, compiler `579d35c5`, medians of 5 alternating rounds (design/naive_programs.md, "Quiet
 measurement"):
 
@@ -48,6 +53,49 @@ re-read the end of `design/decisions.md` right before appending).
 | Singletons: plain attributes under a held or skipped lock, per-thread reductions, files kept open | branch `singleton-wins` (dd5b2cbe: 1 checked commit plus work in progress, unchecked) | B built for attributes nothing reads past the lock | merge master, check, merge; then A (privatised reductions) |
 | Archetypes chosen by the compiler (research with experiments) | branch `research-archetypes` (4501d529: work in progress, unchecked: cases with several expert layouts) | cases and expert forms written; the sweep and the proposal were not finished | finish the sweep, write `design/proposals/compiler_archetypes.md`, check, merge |
 
+## D559, chunked loops for the engine: what a Sonnet session found (2026-10-09)
+
+Not built. It is several sessions of compiler work, not one: the overlap facts (`overlap_facts.spite`) are a
+line-by-line analysis of the generated C with no control flow, so "what a function surely wrote when it answered
+true" is a new analysis layer; and the engine's loop is a counted `while`, which the band machinery (D542, only
+`list.each_<function>()`) does not recognise. Each step its own checked commit:
+
+1. Conditional must-write summaries (a function that fills a scratch on every path but one that answers false; a
+   caller that reads it only after a true answer), with a conformance program and its docs/proofs.md entry.
+2. Counted `while` loops as band sites: recognise, cut the body into a piece function, clone the scratch on the
+   submitting thread (a thread-local redirect of singleton accessors; the last band keeps the shared scratch).
+3. The once-per-loop distinctness check, with an inverse-pair index chain and one that is not.
+4. Apply to the naive engine: bands of 1,024 rows, the `ColumnIndex` read kept borrowed.
+
+All of these are far easier on the two-level IR (D560), where control flow and values are explicit; consider
+building the IR first. In this repository's worktrees, a shell command with `source` in a path may be refused by the
+sandbox: use the file tools for `bootstrap/source`.
+
+## The engine still places memory by hand (D564)
+
+44 files use `Raw()`, 25 use `Memory.` and 20 `TypedMemory`. Bytes and tables (zstd, PNG, texture compression,
+recipes, network, assets) can move to `List<Byte>` and plain lists now; the Vulkan, Windows and XInput bindings need
+the language's plain foreign structs first (D536's second half, `design/proposals/plain_bytes_and_foreign_structs.md`,
+and finding R17's six-step plan in `design/optimization_research.md`).
+
+## Memory outside the library becomes an error (D565)
+
+Before the error can be switched on: plain foreign structs (D536's second half; the engine's Vulkan, Windows and
+XInput bindings and `Raw` are the last users), a lock between processes in the library (the engine's store lock),
+and a byte order a `BinaryReader` record can declare (PNG and PSD headers are big-endian). The engine's audit of
+other library duplicates (its own inflate beside `Zlib.decompress`, `clamped` beside `.clamp`, hand hashes beside
+`Sha256`, `index_of_name`, two hand sorts, `.reserve` hints) and two fixes in its last change (`lossy_text_at`
+replaces bad bytes with `?`, a silent wrong value; copies written as `m * Matrix4<Float>()` instead of `m.copy()`)
+are open engine work.
+
+## One internal namespace (D566)
+
+Everything a program must not use directly (the memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock`,
+`Atomic`, `ThreadLocal`) moves into `Spite.Internal` (name to confirm); outside `library/` naming it is a compile error
+that names the plain form. Library code above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off memory
+onto `List<Byte>` and plain values. The compiler then reads a `BinaryReader` record from a `List<Byte>` with one check
+and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace, the error.
+
 ## The order of work after that (by what closes the engine gap)
 
 1. **Stress, one thread** (design/naive_programs.md, "Ninth pass"): of the hand edits on today's C (20.6 ms one
@@ -68,6 +116,16 @@ re-read the end of `design/decisions.md` right before appending).
 6. Then the cases still behind expert C, worst first, from `benchmarks/README.md`.
 
 When the engine is at least as fast everywhere, the naive branch replaces main (D550), after a quiet re-timing.
+
+## Saved branches (cleanup of 2026-10-09)
+
+Every clone and worktree that held unfinished work was pushed to a `saved-*` branch before its folder was removed,
+in both repositories: in the language `saved-fx-backup` (singleton lock backoff), `saved-dictionary-two-generics`, `saved-work-dictionary`,
+`saved-unit-placement-experiment`, `saved-t1-work-in-progress`, `saved-interop`, `saved-testdocs`,
+`saved-concurrencydocs`, `saved-fastbuild`, `saved-mono`, `saved-mono3`, `saved-nomap`, `saved-record`; in the engine
+`saved-cascaded-shadows`, `saved-index-in-cache`, `saved-materials-merge`. Branches merged into master or main were
+deleted. (`saved-checker-d284`, an old "refuse a class that re-creates a library class" by name and attributes, was
+deleted as superseded by D420's stricter name rule; it did not cover reopenings either.) The engine works in `D:\Projects\SlopEngine` (main is the naive engine).
 
 ## How to work here (lessons from this session)
 

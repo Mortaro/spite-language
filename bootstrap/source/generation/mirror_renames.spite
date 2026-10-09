@@ -1,0 +1,16 @@
+var from = List<String>()
+var to = List<MirrorValue>()
+var own_roots = List<String>()
+
+func applied_to(fact: MirrorFact): MirrorFact {
+    var renamed = fact
+    var index = 0
+    while index < from.count() {
+        var replaced = from[index]
+        var replacement = to[index]
+        crash replacement
+        renamed = renamed.renamed_copy(replaced, replacement)
+        index = index + 1
+    }
+    return renamed
+}

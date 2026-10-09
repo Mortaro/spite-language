@@ -28,7 +28,7 @@ the copy reading it as a constant, and a test of the object's list at the call t
 ([optimizations](../docs/optimizations.md#a-table-filled-once-is-read-as-constants),
 [proofs](../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in)): stress about 7% less a tick, its C 20%
 larger (measured while the machine was in other use, [the ninth pass](naive_programs.md#ninth-pass-2026-10-08)). Step 3
-(the runner made direct, with L8b and B2b) is not built.
+(the runner made direct, with L8b) is not built; B2b, its write-back, is built on its own (below).
 
 The sixth pass ([naive_programs.md](naive_programs.md#sixth-pass-2026-10-07)) took the 4.0 ms hand edit apart: of
 the 40.4 ms tick, L8b's fused loop is 1.4 ms, the repeated match 3.3, the write-back (B2b) 11.8, the row kept in
@@ -77,6 +77,7 @@ at once, with its pool per thread. Per creation site (R9) is not built.
 | Objects made for their owner are told apart (D556): an attribute only ever given an object constructed where it is given, the lists inside it, objects followed into the functions they are passed to, and items of two singletons' lists compared when the loop starts (stress update stage 41.6 to 26.1 ms with D555, provisional) | [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart), [proofs](../docs/proofs.md#an-object-made-for-its-owner-is-told-apart) |
 | S4 per group (D555): what only one of the calls run at once counts stays plain, with its pool; a meeting point counts atomically only while they run | [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts), [proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
+| B2b (hand edit W): a call that only writes back what its slots already hold is not made, the values followed through calls, attributes and the index counted up in an attribute; a path before it that may break the proof keeps the call (stress 20.2 to 17.2 ms a tick as one C file, 25.6 to 21.5 split, physics the same) | [optimizations](../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written), [proofs](../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from) |
 
 ## Threads
 
@@ -160,7 +161,7 @@ stays in order.
 | B1 | `var row = list[index]` then `row` passed to calls, compared or kept (reading and writing its attributes, and passing it to calls, is built, above) | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | per generic instance: a write into `Column<$T>.values` is not this list when no instance's item is this list's item |
 | B1t | `list[index].count()`, `f(list[index])`: an item read with `[]` and used at once | the call it is used by cannot write the list | the slot's pointer passed, no count | counted read | | **built** (above) |
 | B3 | `crash list[index]`, `assert list[index]` or `if list[index]` before reading the item | the read is used only for the test, and nothing runs between the read and the test | the slot's pointer tested, no retain and release (with B1 for the read that follows, when it holds) | the counted read | | **built** (above); a `Dictionary` entry and an attribute tested through an item (`crash rows[i].owner`) are not |
-| B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | |
+| B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | **built** (above) |
 | B2c | `var row = list[i].copy()`, changed, `list[i] = row` | no other name holds the stored object (L1's proof) | the slot changed in place, no copy | copy and write back | | |
 
 ## Waiting

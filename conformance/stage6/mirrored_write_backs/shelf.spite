@@ -1,0 +1,54 @@
+singleton
+
+var pages = List<Page>()
+var open = Page(0)
+var at = 0
+
+func stock(count: Integer) {
+    pages.clear()
+    var index = 0
+    while index < count {
+        var made = Page(index * 10)
+        pages.append(made)
+        index = index + 1
+    }
+}
+
+func take(index: Integer) {
+    at = index
+    crash pages[at]
+    open = pages[at]
+}
+
+func put_back() {
+    pages[at] = open
+}
+
+func replace(index: Integer, words: Integer) {
+    var fresh = Page(words)
+    pages[index] = fresh
+}
+
+func open_fresh(words: Integer) {
+    var fresh = Page(words)
+    open = fresh
+}
+
+func point(index: Integer) {
+    at = index
+}
+
+func turn_around() {
+    pages.reverse()
+}
+
+func listing(label: String): String {
+    var text = label
+    var index = 0
+    while index < pages.count() {
+        var page = pages[index]
+        text = "{text} {page.words}"
+        index = index + 1
+    }
+    return text
+}

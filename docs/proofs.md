@@ -121,6 +121,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A singleton attribute that never changes](#a-singleton-attribute-that-never-changes-is-read-in-place) | no count, no lock | the counted, locked read |
 | [List templates read uncounted](#a-lists-templates-read-their-elements-uncounted) | no count per element | the counted read |
 | [An item written back to its own slot](#an-item-written-back-to-its-own-slot-is-the-slot) | no write-back | the write |
+| [A value followed through calls](#a-value-followed-through-calls-is-the-slot-it-was-read-from) | no call for a write-back across functions | the call |
 | [An item a name holds from its list](#an-item-a-name-holds-from-its-list-is-not-counted) | no count on the read, none on the calls it is passed to | the counted read |
 | [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
 | [An item used at once](#an-item-used-at-once-is-not-counted) | no count for one use | the counted read |
@@ -997,6 +998,38 @@ have moved.
 - **See.** [optimizations.md: An item written back to its own slot is not
   written](optimizations.md#an-item-written-back-to-its-own-slot-is-not-written);
   `conformance/stage6/slot_write_backs`.
+
+### A value followed through calls is the slot it was read from
+
+- **Proves.** At a call made as a statement, everything the called function does is already so: each list slot it
+  stores into already holds the value it stores, each `crash` in it already holds, and each attribute it assigns ends
+  at a number known while compiling. The facts come from following the program's values, not its names: after
+  `open = pages[at]` the attribute `open` holds the slot `pages[at]`, with `at` read as the value it holds then
+  (a number, a parameter, another slot), and after `crash pages[at]` the slot exists.
+- **Rule.** The compiler records, for every function of the program's own classes, what each statement reads,
+  assigns, stores, checks and calls, and walks those records from each place the function holding the call is
+  called (its callers, and theirs, up to six levels; where callers are unknown, the walk starts from nothing known),
+  going into the functions called (ten levels deep) so that a fact made in a callee holds for the caller. A fact
+  ends when something may change what it reads: an assignment to an attribute of the same name on an object that may
+  be the same one (objects of different classes never are, and attributes of different types never are), a store
+  into, removal from or reordering of a list that may be the same list (lists of different item types never are),
+  a call the compiler cannot follow (through a function value, into a library function whose effects are unknown,
+  or one that waits), or a `drop()` that may run there and assign it. A fact known on one branch of an `if` or past
+  an `assert` holds after it only under that branch's condition, which a later `assert` or `crash` can establish
+  again. Every function the call reaches must be the program's own and contain no loop, no object made, no call it
+  cannot follow and no arithmetic that is not worked out while compiling. Every caller of the function holding the
+  call must be known: a function passed as a value, named in reflection, run on another thread, called from an
+  attribute's default, or whose name a library template may call (`each_<name>`, `sum_<name>`, and the like) is
+  walked from nothing known. A program that starts work on another thread whose writes are not known, or whose
+  `drop()` stores into lists, gets none of it.
+- **Buys.** No call: no guard, no bounds check, no count up and down for the stored object and no compare of the
+  slot. When a path before the call may break a fact (an `if` without `else` that runs earlier in the same block),
+  that path alone keeps the call: the C records whether the branch ran and calls only then.
+- **Falls back.** The call as written; nothing is an error. Write the change through the item itself
+  (`shelf.pages[at].words = ...`), which needs no write-back at all.
+- **See.** [optimizations.md: A write-back of what the slot already holds is not
+  written](optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written);
+  `conformance/stage6/mirrored_write_backs`.
 
 ### An item a name holds from its list is not counted
 
