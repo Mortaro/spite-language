@@ -142,12 +142,6 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
   so far guards `absolute()` with an overflow check, so it may already halt; confirm that every path to it halts
   and never answers the negative value.
 
-- (found 2026-10-08, intermittent) `conformance/stage6/concurrent_wait_cycle` once crashed at
-  `Scheduler.idle_stepping` (from `Concurrent.drop` while a list let go of a `Concurrent`) instead of its expected
-  `Scheduler.joins` report, under the full `check.sh` load on branch plain-bytes; it passes 5 of 5 alone. A crash
-  path that depends on timing is a D244 bug: the same program must report the same cause every run. Reproduce under
-  load (run it many times with the suite's 32 jobs) and find the race. Alone, built by the compiler at 54924f69, it reported `idle_stepping` in 1 of 30 runs and by the compiler with D542 in 5 of 30, from the same C.
-
 - (found 2026-10-08 while building D542) `list.parallel_each_member()` over a `List` holding one object twice runs
   that object's member on two threads at once, a race on its attributes ([concurrency.md](../docs/concurrency.md#parallel_each_-a-member-on-every-element)
   says so). The bands D542 builds check, before running, that every element is held by the list alone; the same

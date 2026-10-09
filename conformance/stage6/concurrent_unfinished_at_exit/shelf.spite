@@ -1,0 +1,10 @@
+singleton
+
+var console = Console()
+var program = Program()
+var jobs = List<Concurrent<Nothing>>()
+
+func ring() {
+    program.sleep(5)
+    console.print("the job a singleton holds ran to its end after the entry function returned")
+}

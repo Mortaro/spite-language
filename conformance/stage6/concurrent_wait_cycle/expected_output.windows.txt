@@ -6,9 +6,9 @@ spite.frame	-	-	Board_release_first___step
 spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
 spite.frame	library/scheduler.spite:68	Scheduler	run_frame
 spite.frame	library/scheduler.spite:150	Scheduler	step_ready
-spite.frame	library/scheduler.spite:312	Scheduler	idle_stepping
-spite.frame	library/scheduler.spite:307	Scheduler	idle
-spite.frame	library/scheduler.spite:238	Scheduler	sleep
+spite.frame	library/scheduler.spite:322	Scheduler	idle_stepping
+spite.frame	library/scheduler.spite:317	Scheduler	idle
+spite.frame	library/scheduler.spite:248	Scheduler	sleep
 spite.frame	library/windows/program.spite:4	Program	sleep
 spite.frame	conformance/stage6/concurrent_wait_cycle/concurrent_wait_cycle.spite:5	ConcurrentWaitCycle	ConcurrentWaitCycle
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher

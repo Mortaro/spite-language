@@ -47526,9 +47526,22 @@ func emit_main(launcher_mangled_name: String) {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
     }
     builder.add_main("{launcher_class.c_name}___release(spite_launcher);")
+    if scheduler_used and not has_error {
+        finish_concurrents_at_exit()
+    }
     report_singleton_circles()
     emit_singleton_teardown()
     singleton_releases.each(builder.add_main)
+}
+
+func finish_concurrents_at_exit() {
+    var scheduler_class = find_class_by_qualified("Scheduler")
+    crash scheduler_class
+    var finish = find_or_instantiate_function(scheduler_class, "finish_concurrents")
+    crash finish
+    var scheduler = "spite_singleton_{scheduler_class.c_name}"
+    singleton_call(scheduler_class)
+    builder.add_main("if ({scheduler}_cache != 0) {finish.c_name}({scheduler}_cache);")
 }
 
 func release_new_class_objects(): Boolean {

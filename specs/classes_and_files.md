@@ -174,7 +174,8 @@ var heap = Memory.Heap()
   `conformance/stage6/singleton_counts`).
 - **Teardown order.** A singleton counts as made
   when its constructor *finishes*, so a singleton its attributes or constructor made is made before it and
-  outlives it. At exit standard output is flushed, then singletons are destroyed newest first, and every
+  outlives it. At exit every `Concurrent` still running is run to its end first
+  ([concurrency.md](concurrency.md)), then standard output is flushed, then singletons are destroyed newest first, and every
   `DynamicLibrary` is unloaded after all of them. A `drop()` may therefore use any singleton made before its
   own, and any library. A `drop()` that fetches a singleton already destroyed, one first made *after* the
   dropping singleton, halts with `spite: a drop() at exit used the singleton Archive after it was destroyed:

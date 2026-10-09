@@ -144,6 +144,34 @@ limited() {
   "$@"
 }
 
+# What of a crash's output is the same on every run and every system (job_program says what is left out, and why).
+crash_normalized() {
+  sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g; s/\tscheduler_thread=[0-9]+/\tscheduler_thread=.../g' \
+    | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d' \
+    | sed -E 's/^(spite\.fault\theap-corruption\t[^\t]*\t[^\t]*\t[^\t]*)\t(code|signal)=[^\t]*\tat=[^\t]*/\1\tstatus=...\tat=.../'
+}
+
+# A program meant to crash reports the same cause every run (D244), however the machine is loaded: a crash that
+# depends on timing is a bug. Concurrents are where timing could leak in, so a program of them that is meant to crash is
+# built once and run many times, and every run's whole output must be its expected output.
+job_repeated_crash() {
+  local folder=$1 runs=$2 name executable expected_file expected run actual
+  name=$(basename "$folder")
+  executable="$work/repeated_$name.exe"
+  "$work/generation_two.exe" "$folder" --debug-memory --build --executable-path="$executable" > /dev/null 2>&1 || {
+    echo "FAILED: $name does not build to be run $runs times"; exit 1; }
+  expected_file="$folder/expected_output.txt"
+  [ -f "$folder/expected_output.$system.txt" ] && expected_file="$folder/expected_output.$system.txt"
+  expected=$(tr -d '\r' < "$expected_file")
+  for run in $(seq 1 "$runs"); do
+    actual=$(limited "$executable" < /dev/null 2>&1 | tr -d '\r' | crash_normalized)
+    if [ "$actual" != "$expected" ]; then
+      echo "FAILED: $name reported another cause on run $run of $runs:"; echo "$actual" | head -8; exit 1
+    fi
+  done
+  echo "repeated crash: $name reported the same cause in each of $runs runs"
+}
+
 # A corpus program or an example: its output must be exactly expected_output.txt, and it must free everything it takes.
 job_program() {
   local folder=$1 name flags input executable actual expected body balance allocations frees expected_file pinned_file
@@ -179,9 +207,7 @@ job_program() {
     # what still differs is left out: the C library's own message and the shell's 'Aborted' notice, and the
     # heap-corruption line's exception code or signal and the system file it stopped in, both written 'status=...'
     # and 'at=...'.
-    actual=$(echo "$actual" | sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g; s/\tscheduler_thread=[0-9]+/\tscheduler_thread=.../g' \
-      | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d' \
-      | sed -E 's/^(spite\.fault\theap-corruption\t[^\t]*\t[^\t]*\t[^\t]*)\t(code|signal)=[^\t]*\tat=[^\t]*/\1\tstatus=...\tat=.../')
+    actual=$(echo "$actual" | crash_normalized)
     [ "$actual" == "$expected" ] && exit 0
     echo "FAILED: $name"; echo "$actual" | head -8; exit 1
   fi
@@ -395,6 +421,8 @@ mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
   echo generation_three
   echo launcher
   echo compiler_memory
+  echo "repeated_crash conformance/stage6/concurrent_wait_cycle 200"
+  echo "repeated_crash conformance/stage6/concurrent_wait_cycle_in_place 200"
   for program in .spite/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns                  conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object                  conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice                  examples/dungeon conformance/stage6/live_load_order; do
     echo "fast_reload $program"
   done

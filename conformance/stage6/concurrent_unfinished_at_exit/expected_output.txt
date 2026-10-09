@@ -1,0 +1,2 @@
+the entry function returns while the job runs: true
+the job a singleton holds ran to its end after the entry function returned

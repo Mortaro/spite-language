@@ -167,6 +167,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   time, since only the run knows whether the slot holds the object; proving it while compiling (pair B2b) is not
   built. The cost to confirm: an index outside the list is reported as the read `crates[at]` rather than by the
   list's `set_at`.
+- **D545, the program ends after its `Concurrent`s**: when the entry function returns, every `Concurrent` still
+  running runs to its end before singletons are destroyed. Why: a singleton holding a running handle let it go
+  after the scheduler was destroyed, reading freed memory and halting with the wrong cause. The cost to confirm: a
+  `Concurrent` that never ends (a server loop kept by a singleton) keeps the program from ending once the entry
+  function returns, where before its drop at exit waited on a destroyed scheduler.
 
 ## Open
 

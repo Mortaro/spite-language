@@ -164,14 +164,24 @@ func step_ready(): Integer {
 }
 
 func wait_for(frame: Long): Boolean {
+    if frame_done(frame) {
+        return true
+    }
     if runs_below(frame) {
         return false
     }
     begin_wait()
-    while not frame_done(frame) {
+    while not joins(frame) {
         idle_stepping(true)
     }
     return true
+}
+
+func finish_concurrents() {
+    var here = loop()
+    while not here.tasks.is_empty() {
+        idle_stepping(true)
+    }
 }
 
 func runs_below(frame: Memory.Address): Boolean {

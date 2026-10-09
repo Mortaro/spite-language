@@ -216,6 +216,12 @@ ring
 the scope is left only after ring has finished
 ```
 
+The program itself is the last scope. When the entry function returns, every `Concurrent` still running is run to
+its end before anything is torn down, so a handle kept in a singleton is never cut short and its work never sees a
+half-destroyed singleton. Two `Concurrent`s that each wait for the other could never end, so the wait that closes
+the circle halts and says so, however each of them waits
+([the rules](../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting)).
+
 ### `finished` never waits
 
 `finished` answers whether the function has returned, and it never waits, so a frame loop can start work, keep

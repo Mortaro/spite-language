@@ -9,7 +9,7 @@ var second_may_go = false
 func release_second() {
     wait_until_both_held()
     second_may_go = true
-    second_holder = Holder()
+    second_holder.handles.remove_at(0)
 }
 
 func release_first() {

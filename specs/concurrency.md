@@ -23,6 +23,14 @@ things, so they are two classes, `Concurrent` and `Parallel`, and one scheduler.
   that starts the work. A function that returns nothing gives a `Concurrent<Nothing>`,
   which has no value to read and is waited for by dropping it: keep such handles in a list, and clearing the list
   or leaving its function waits for all of them.
+- **The program ends after its `Concurrent`s.** When the entry function returns, every `Concurrent` made on the
+  program's thread that has not finished runs to its end, before standard output is flushed and before any
+  singleton is destroyed ([classes_and_files.md](classes_and_files.md), teardown order). So a handle a singleton
+  holds is finished by the time the singleton lets it go, its work ran while every singleton it uses was still
+  whole, and a handle no one lets go of (one an object cycle keeps) still had its work done. Two of them that each
+  wait for the other halt as they would anywhere (below). Only a program that makes a `Concurrent` has this: one
+  call after the entry function, and nothing at all in any other program
+  (`conformance/stage6/concurrent_unfinished_at_exit`).
 - **Every attribute of both classes is private** (`_work`, `_results`, `_state`, ...), and the one public member is
   `finished: Boolean` (below). Nothing outside the class reaches the pool's job, the state machine or the work.
 
@@ -224,8 +232,11 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   carries on, unless the `Concurrent` it joins waits, through joins of its own, for the one that is joining: two
   `Concurrent`s that each drop the other's last handle would wait for each other for ever, so the join that closes
   the circle halts there (`joins_a_concurrent_that_waits_for_this_one=true`,
-  `conformance/stage6/concurrent_wait_cycle`). The scheduler keeps, for each `Concurrent` waiting at such a join,
-  the one it waits for, only in a program that makes a `Concurrent`. A `Concurrent` whose function has
+  `conformance/stage6/concurrent_wait_cycle`). The scheduler keeps, for each `Concurrent` waiting at such a join
+  and for each one waiting in place, the one it waits for, only in a program that makes a `Concurrent`, so the
+  circle is found at whichever join closes it, however each of the others waits: a `Concurrent` that drops the
+  other's handle in place (with `remove_at`) while the other drops its own at a point to return from halts the
+  same way (`conformance/stage6/concurrent_wait_cycle_in_place`). A `Concurrent` whose function has
   no state machine runs it to the end when it is made. `is_resumable` answers `true` for a function whose only wait
   is one of these, since it does wait. `conformance/stage6/waits_never_hang` starts a `Concurrent` through each form
   and finds it unfinished straight after, and joins, through a function value, work that a wait below it finishes.

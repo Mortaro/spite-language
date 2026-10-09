@@ -7,9 +7,12 @@ spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
 spite.frame	library/scheduler.spite:68	Scheduler	run_frame
 spite.frame	library/scheduler.spite:150	Scheduler	step_ready
 spite.frame	library/scheduler.spite:322	Scheduler	idle_stepping
-spite.frame	library/scheduler.spite:317	Scheduler	idle
-spite.frame	library/scheduler.spite:248	Scheduler	sleep
-spite.frame	library/linux/program.spite:3	Program	sleep
-spite.frame	conformance/stage6/concurrent_wait_cycle/concurrent_wait_cycle.spite:5	ConcurrentWaitCycle	ConcurrentWaitCycle
-spite.frame	launcher/launcher.spite:3	Launcher	Launcher
-spite.frame	-	-	main
+spite.frame	library/scheduler.spite:166	Scheduler	wait_for
+spite.frame	library/concurrent.spite:66	Concurrent	_join
+spite.frame	library/concurrent.spite:74	Concurrent	drop
+spite.frame	-	-	Concurrent__Nothing___free
+spite.frame	-	-	Concurrent__Nothing___release
+spite.frame	bootstrap/source/generation/prelude.spite:3	TypedMemory	release_value
+spite.frame	library/list.spite:54	List	remove_at
+spite.frame	-	-	Board_release_second___step
+spite.frame	more
