@@ -1,0 +1,35 @@
+var console = Console()
+var program = Program()
+var saver = Saver()
+var frames = 0
+var checksum: Long = 0
+
+func Naive() {
+    var benchmark = Benchmark(run_frames)
+    console.print("frames", frames, "parts saved", benchmark.answer, "checksum", checksum)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func run_frames(): Integer {
+    while frames < 60 {
+        frames = frames + 1
+        draw()
+        if frames <= 8 {
+            saver.save_part()
+        }
+        program.sleep(1)
+    }
+    while saver.saved < 8 {
+        program.sleep(1)
+    }
+    return saver.saved
+}
+
+func draw() {
+    var index = 0
+    while index < 20000 {
+        checksum = checksum + index * frames % 1000
+        index = index + 1
+    }
+}

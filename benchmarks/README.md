@@ -50,6 +50,7 @@ again, so it always shows the latest measurement of every case.
 | [a_table_filled_once_is_read_as_constants](a_table_filled_once_is_read_as_constants/) | 37 836 | 23 405 | 21 902 | 1.62 | 1.73 |
 | [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 26 817 | 37 851 | 19 526 | 0.71 | 1.37 |
 | [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 4 029 | 3 902 | 3 895 | 1.03 | 1.03 |
+| [a_wait_in_a_frame_does_not_hold_the_frame](a_wait_in_a_frame_does_not_hold_the_frame/) | 929 323 | 1 185 375 | 930 923 | 0.78 | 1.00 |
 | [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 61 083 | 17 943 | 4 433 | 3.40 | 13.78 |
 | [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 11 316 | 264 806 | 3 234 | 0.04 | 3.50 |
 | [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 16 253 | 62 431 | 3 009 | 0.26 | 5.40 |

@@ -1,0 +1,8 @@
+var program = Program()
+var items = [1, 2, 3, 4, 5, 6]
+
+func drop_last_later() {
+    var last = items.count() - 1
+    program.sleep(20)
+    items.remove_at(last)
+}

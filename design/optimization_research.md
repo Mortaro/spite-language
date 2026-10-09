@@ -223,7 +223,7 @@ Questions to research:
   extend the lent-argument proofs until counts appear only where sharing is real.
 - **Objects merged into their owner**: a field that always holds a fresh object never shared becomes inline.
 - **Allocation sinking**: an object made in a loop and dropped in the same pass reuses one slot.
-- **A copy that copies only what is written** (after M7, D555): where a deep copy's window writes one path (the copy's
+- **A copy that copies only what is written** (after M7, D556): where a deep copy's window writes one path (the copy's
   `lines`, say) and only reads the rest, copy the path to what is written and share everything else, counted once
   more. Needs M7's window walk to say which attributes are written and the copy function per site to stop at the
   shared ones. Not built: M7 shares all or nothing. Also not built: a window that compares two results of calls
@@ -386,6 +386,22 @@ so it lives in a slot the compiler makes, keyed like today's `loads` and `load_s
 The resumable-copy machinery for `Concurrent` and the helper thread for blocking IO already do the waiting. Open:
 the lifetime of a wait never needed, which line a failure a tick later reports, a bound on waits in flight, and
 whether the waiting-system rule is lifted (a decision).
+
+*Built (D554, 2026-10-09), and what it taught.* The cross-frame half is built for calls that answer nothing, which
+is what the naive engine's runner makes (`runners[index].start_waiting()` on a `type`), so "first needed" never
+arises there: the slot is `WaitsInFlight`, keyed by statement, and the collection is the next start from that
+line letting go of the finished ones, with the program's end as the last collection (D546). Three things the
+research note did not foresee. The answer "can it wait" is only right once every function it reaches has been
+compiled, and a `type`'s dispatcher is written late, so the functions holding such a call are compiled after the
+shape bodies, and the shapes' callers for the called name are registered when the function is put off.
+`Concurrent` of a `type`'s function value runs to its end on the spot (a shape's function has no state machine),
+so the started call tests the receiver's class and starts the member's own function, class by class, falling back
+to the plain dispatch for the classes that never wait. And the frame's pace has to be told apart from the work, or
+`wait_for_next_tick()` would be started too and the loop would spin: the pace is whatever the loop reaches through
+its own object's functions, the work is every call on another object. The engine's `io_systems` advanced 17
+frames while its three lookups waited (3 before; main, with eight hand-made workers, 31). The open point the note
+did not list: interleaving a started call with the frame can lose a write the frame made between the call's read
+and its write across a wait, which is in design/status.md's still-open list under D244.
 
 **R12, results built into the caller's slot.** Already fixed (`d083a22b`) by the time the model read it:
 `normalized()` and `Matrix4.multiply` now fill a fresh frame slot and copy its fields into the target. The next

@@ -1,0 +1,41 @@
+var console = Console()
+var program = Program()
+var tally = Tally()
+var pulse = Pulse()
+var queue = Queue()
+var frames = 0
+
+func FrameWaitsKept() {
+    while frames < 3 {
+        frames = frames + 1
+        tally.add_late()
+        queue.drop_last_later()
+        program.sleep(1)
+    }
+    console.print("a call that writes back what it read before its wait waited in place:", tally.count)
+    var left = queue.items.join(", ")
+    console.print("a call that changes a list at a place it read before its wait waited in place:", left)
+    pulse.run()
+    console.print("a frame that writes back what it read before its sleep kept its call in place:", pulse.beat.beats)
+    print_report()
+}
+
+func print_report() {
+    var report = File(".spite/reports/frame_waits_kept.md").read()
+    crash report
+    var lines = report.split("\n")
+    var index = 0
+    var printing = false
+    while index < lines.count() {
+        var line = lines[index]
+        if line.starts_with("## ") {
+            printing = line.starts_with("## Waits that hold the frame")
+            if printing {
+                console.print(line)
+            }
+        } else if printing and line.starts_with("- [") {
+            console.print(line)
+        }
+        index = index + 1
+    }
+}

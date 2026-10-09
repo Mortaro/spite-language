@@ -1,0 +1,5 @@
+var count = 0
+
+func update() {
+    count = count + 1
+}

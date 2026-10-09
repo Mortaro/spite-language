@@ -61,6 +61,7 @@ emit nothing.
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | every, decided per program | nothing |
 | [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | every, in programs that make a `Concurrent` | one heap frame per waiting call; a temporary for what an expression computes before its wait |
 | [Reads in a row overlap](#reads-in-a-row-overlap) | every | the reads happen at once; the program carries the scheduler |
+| [A wait in a frame does not hold the frame](#a-wait-in-a-frame-does-not-hold-the-frame) | every | the work finishes in a later frame; the program carries the scheduler |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | the builds that ask for it | nothing in an ordinary build |
 | [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | every, decided per program | nothing until the first `Parallel` |
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | every but `--hot-reload`, decided per program | an uncontended lock per call, only with `Parallel` |
@@ -900,6 +901,70 @@ the scheduler, a helper thread per read in flight, a `Concurrent` per overlapped
 [atomic reference counts](#atomic-reference-counts-only-with-threads). Two files read in a row allocate 62 times
 under `--debug-memory` and compile to 2 865 lines of C; the same reads with a `console.print` between them
 allocate 19 times in 1 511 lines.
+
+### A wait in a frame does not hold the frame
+
+**The case:** [benchmarks/a_wait_in_a_frame_does_not_hold_the_frame](../benchmarks/a_wait_in_a_frame_does_not_hold_the_frame/).
+
+**What it does.** Inside a frame loop (a `while` whose passes sleep, in the loop or in a function of its own object
+it calls), a statement that calls a function answering nothing on another object of the program, with no
+arguments, is started as a `Concurrent` when that function can wait
+([concurrency.md](concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame)). The handle goes to
+`library/waits_in_flight.spite`, a singleton that keeps the unfinished ones and lets the finished ones go each time
+it is handed another. The loop's next sleep runs the event loop, so the started work carries on between frames.
+
+```gdscript title=a_wait_in_a_frame_doc/backup.spite
+var program = Program()
+var copied = 0
+
+func copy_next() {
+    program.sleep(20)
+    var file = File(".spite/documentation_backup.txt")
+    file.write("part {copied}")
+    copied = copied + 1
+}
+```
+```gdscript title=a_wait_in_a_frame_doc/a_wait_in_a_frame_doc.spite entry
+var console = Console()
+var program = Program()
+var backup = Backup()
+var redraws = 0
+
+func AWaitInAFrameDoc() {
+    while backup.copied < 3 {
+        redraws = redraws + 1
+        if redraws <= 3 {
+            backup.copy_next()
+        }
+        program.sleep(1)
+    }
+    console.print("copied", backup.copied, "parts, redrawing the progress bar meanwhile:", redraws > 3)
+}
+```
+```output
+copied 3 parts, redrawing the progress bar meanwhile: true
+```
+
+The three copies are in flight at once, each started on its own redraw, and the bar is redrawn every millisecond
+while they wait.
+
+**When.** Every build, in the program's own classes (never the standard library's), in the plain copy of a function
+(a function a `Concurrent` runs waits in its state machine as before), and only when the called function can reach
+a wait, which is known once every function it reaches is compiled: so the functions holding such a call are
+compiled after the others, and if a function compiled later changes the answer, the build fails and says where.
+
+**What can stop it.** The started work and the frame take turns at their waits, so the compiler reads the plain C
+of every function either side reaches that can wait, line by line and twice over for loops. A number, `Boolean`,
+enum, text or value-class local computed from an attribute and still held after a wait is carried; writing it
+back into an attribute of the same name (directly, through a function that writes one, or through a returned
+value), or one line that reads an attribute, waits and writes it, keeps the call waiting in place, exactly as it
+would have without this optimisation. It is listed under "Waits that hold the frame" in `--optimization-report`.
+
+**What you notice.** The started work finishes in a later frame, which is the point. A program with no frame loop,
+or whose frame loops call nothing that waits on another object, compiles exactly as before. One that starts a wait
+carries what a `Concurrent` carries ([concurrency machinery](#concurrency-machinery-only-where-it-is-used)), plus
+`WaitsInFlight`: a list of the handles in flight and their sites, scanned each time a wait is started. Under
+`--debug-memory` each started call costs what `Concurrent(function)` costs.
 
 ### REPL, live reload and debug machinery only in those builds
 

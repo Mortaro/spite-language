@@ -16,3 +16,4 @@ visitor with 0 tags 3
 - [conformance/stage6/optimization_report/optimization_report.spite:34](../../conformance/stage6/optimization_report/optimization_report.spite#L34): `var shared = spot.copy()` allocates a copy: line 35 lets it go: `remember(shared)`
 ## Overflow checks kept
 - [conformance/stage6/optimization_report/optimization_report.spite:57](../../conformance/stage6/optimization_report/optimization_report.spite#L57): `product * 3` keeps its overflow check: 'product' runs from -2147483648 to 2147483647, so the answer may not fit in an Integer
+## Waits that hold the frame

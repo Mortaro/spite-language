@@ -1,0 +1,71 @@
+type Ticking {
+    update()
+}
+
+var console = Console()
+var program = Program()
+var report = Report()
+var systems = List<Ticking>()
+var fetcher = Fetcher()
+var counter = Counter()
+var batch = Batch()
+var closer = Closer()
+var frames = 0
+var most_in_flight = 0
+
+func FrameWaits() {
+    var file = File(".spite/frame_waits_report.txt")
+    file.write("sales are up")
+    while report.text.is_empty() {
+        frames = frames + 1
+        if frames == 1 {
+            report.fetch()
+        }
+        program.sleep(1)
+    }
+    console.print("a call on another object did not hold the frame:", frames > 1)
+    systems.append(fetcher)
+    systems.append(counter)
+    while not fetcher.fetched {
+        update_systems()
+        wait_a_frame()
+    }
+    console.print("a waiting system did not hold the others:", counter.count > 1)
+    var launched = 0
+    while launched < 12 {
+        launched = launched + 1
+        batch.slow_job()
+        most_in_flight = maximum(most_in_flight, batch.in_flight)
+        program.sleep(1)
+    }
+    while batch.done < 12 {
+        program.sleep(1)
+    }
+    console.print("never more than eight in flight from one line:", most_in_flight <= 8, "and all", batch.done, "done")
+    var passes = 0
+    while passes < 1 {
+        passes = passes + 1
+        closer.close()
+        program.sleep(1)
+    }
+    console.print("the entry function returns")
+}
+
+func update_systems() {
+    var index = 0
+    while index < systems.count() {
+        systems[index].update()
+        index = index + 1
+    }
+}
+
+func wait_a_frame() {
+    program.sleep(1)
+}
+
+func maximum(left: Integer, right: Integer): Integer {
+    if left > right {
+        return left
+    }
+    return right
+}

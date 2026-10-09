@@ -1,0 +1,50 @@
+singleton
+
+generic $result_type
+
+var _started = List<Concurrent<$result_type>>()
+var _sites = List<Integer>()
+var _bound = 8
+
+func _keep(started: Concurrent<$result_type>, site: Integer) {
+    _let_go_of_finished()
+    assert not started.finished
+    _started.append(started)
+    _sites.append(site)
+    while _in_flight_at(site) > _bound {
+        _wait_for_oldest_at(site)
+    }
+}
+
+func _let_go_of_finished() {
+    var index = _started.count() - 1
+    while index >= 0 {
+        crash _started[index]
+        if _started[index].finished {
+            _started.remove_at(index)
+            _sites.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
+func _in_flight_at(site: Integer): Integer {
+    var count = 0
+    var index = 0
+    while index < _sites.count() {
+        if _sites[index] == site {
+            count = count + 1
+        }
+        index = index + 1
+    }
+    return count
+}
+
+func _wait_for_oldest_at(site: Integer) {
+    var index = 0
+    while _sites[index] != site {
+        index = index + 1
+    }
+    _sites.remove_at(index)
+    _started.remove_at(index)
+}

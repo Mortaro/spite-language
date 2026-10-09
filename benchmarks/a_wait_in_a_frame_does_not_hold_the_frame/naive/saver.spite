@@ -1,0 +1,12 @@
+var program = Program()
+var next_part = 0
+var saved = 0
+
+func save_part() {
+    var part = next_part
+    next_part = next_part + 1
+    program.sleep(20)
+    var file = File(".spite/frame_save_{part}.txt")
+    file.write("part {part}")
+    saved = saved + 1
+}

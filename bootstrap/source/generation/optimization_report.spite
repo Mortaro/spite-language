@@ -13,7 +13,7 @@ var reference_texts = List<String>()
 
 func OptimizationReport() {
     var index = 0
-    while index < 5 {
+    while index < 6 {
         var section = List<String>()
         sections.append(section)
         index = index + 1
@@ -27,6 +27,7 @@ func titles(): List<String> {
         "Objects not in the frame"
         "Copies not elided"
         "Overflow checks kept"
+        "Waits that hold the frame"
     ]
 }
 
@@ -250,6 +251,12 @@ func copy_kept(holder: String, path: String, line: Integer, copied: String, reas
 func overflow_check_kept(holder: String, path: String, line: Integer, operation: String, reason: String) {
     if recording {
         record(4, holder, path, line, "`{operation}` keeps its overflow check: {reason}")
+    }
+}
+
+func wait_kept(holder: String, path: String, line: Integer, call: String, reason: String) {
+    if recording {
+        record(5, holder, path, line, "`{call}()` waits in place: {reason}")
     }
 }
 

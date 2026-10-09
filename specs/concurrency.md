@@ -573,6 +573,74 @@ for a `List`, only when every element is held by the list alone, so that no obje
 loop runs in order, as written. When no pass qualifies the statement is the plain loop. The same builds and places
 are left out as for calls in a row, and a crash halts the same way. `conformance/stage6/band_passes`.
 
+## A wait in a frame does not hold the frame
+
+A call that waits, made by the work a frame loop runs, is started the way `Concurrent` starts a function, so the
+frame goes on while it waits.
+
+- **A frame loop** is a `while` in a function of a class of the program (not `library/`, not a generic class's
+  template) whose body calls `sleep` on a `Program` (an attribute whose type is `Program`, or `Program()` itself),
+  directly or through calls by name to functions its own class declares (not its constructor), followed to any
+  depth. The calls are found in every statement and condition of the body, nested blocks included, but not inside
+  a `{...}` of a text.
+- **The frame's code** is the body of each frame loop, and every function of the loop's own class that a frame's
+  code calls by name, followed to any depth. A function of the frame's code is that code wherever it is called from.
+- **A started call** is a statement of the frame's code that is a call, and nothing else: `receiver.function()`,
+  with no arguments, its answer unused, where `receiver` is an attribute of the frame's class, a path of
+  attributes from it, or an item of a list such an attribute or path holds, read by a name or a whole-number
+  literal (`systems[index]`); where the receiver's
+  type is a class of the program that is not a singleton or a value class, whose `function` (not its constructor)
+  answers nothing, or a `type` that requires `function` answering nothing; and where that function can wait, as
+  `is_resumable` answers ([metaprogramming.md](metaprogramming.md#asking-a-question-while-compiling)): for a `type`,
+  when any of its classes' functions can. It is compiled as `Concurrent(receiver.function)`, which runs the work
+  until its first wait, and the handle is given to the `WaitsInFlight` singleton (`library/waits_in_flight.spite`)
+  instead of being dropped, so the statement does not wait for it. Every other statement, a call whose function
+  never waits included, is compiled as before.
+- **Where it moves on.** A started call is a `Concurrent`, so it moves on wherever one does (above): at every wait
+  on the program's thread, which in a frame loop is the frame's sleep, or only at `Scheduler().run_ready()` and at
+  joins after `resume_only_when_asked()`.
+- **In flight.** `WaitsInFlight` keeps each unfinished handle with the site (one per started statement) that made
+  it. Each time it is handed one, it first lets go of every handle that has finished, then keeps the new one when
+  it has not finished; while more than eight from the same site have not finished, it waits for the oldest of them
+  as dropping a `Concurrent` waits. So no site has more than eight in flight once its statement is done, and
+  nothing is ever dropped unfinished.
+- **Its end.** A started call that is never waited for is finished like any `Concurrent`: when the entry function
+  returns, every `Concurrent` runs to its end before standard output is flushed and before any singleton is
+  destroyed (above), so its work, its writes and its crash, if it crashes, all happen before the program ends.
+  `WaitsInFlight` lets go of the finished handles when it is destroyed.
+- **A failure.** A crash inside a started call halts the program with the report of that crash, naming its own line
+  and the stack of the work that ran it; nothing is kept back for a later frame to report. An `assert` that fails
+  inside it returns from its function, as anywhere.
+- **Where not.** Not in the standard library, not in the copy of a function a `Concurrent` runs (a state machine
+  waits there as before), not for a call whose answer is used (`var text = file.read()` waits where it is written),
+  and not for a call on the loop's own object (`tick()`, `wait_for_next_tick()`), which is the frame's pace.
+- **Answered once every function is compiled.** Whether the function can wait is known once every function it
+  reaches has been compiled, so each function of the frame's code holding a statement of that shape is compiled
+  after the others. If a function compiled later still changes the answer, the build fails at the statement:
+  `whether 'report.fetch' can wait was answered false here, before every function it reaches was compiled, and it
+  is true once they are, so this frame would wait where it should go on: call it from a function the frame loop's
+  own class declares`.
+- **What it costs.** A program in which no statement is started compiles as before. One in which some are uses the
+  scheduler as a program that writes `Concurrent` does, plus `WaitsInFlight`: two lists, scanned each time a call
+  is started. `conformance/stage6/frame_waits`.
+- **No write is lost.** The started work and the frame run in turns, each step from one wait to the next, so a
+  value one of them reads before a wait may be stale after it. A call is started only when neither side can write
+  back such a value. The compiler reads the plain (not resumable) C of every function the started work reaches
+  that can wait, and of every function the frame loop reaches that can wait, in order and twice over (so a value
+  carried around a loop is seen): a local or parameter holding a number, a `Boolean`, an enum, text or a value
+  class, computed from an attribute of such a kind (or, for a parameter, from anything), is *carried* once a call
+  that can wait follows it. The call is not started, and waits where it is written exactly as before, when a
+  carried value is written into an attribute of the same name of an object the function did not make, is passed
+  to a function of the program that writes an attribute of that name, is returned and written so by the caller, or
+  when one statement reads an attribute, waits and writes the same attribute. A carried object reference is not a
+  stale value: what is read through it is read when it is read. Each call kept in place is listed in
+  `--optimization-report` under `Waits that hold the frame`, `` `<call>()` waits in place: <Class>.<function>
+  writes `<attribute>` from a value it read before a wait, and the frame could write it while the call waits ``
+  for the started side, or `` the frame loop writes `<attribute>` from a value it read before a wait, and the call
+  could write it while the frame waits `` for the frame's side, which keeps every call that loop's class starts in
+  place. A program whose every such call is kept in place still carries the scheduler it would have used.
+  `conformance/stage6/frame_waits_kept`.
+
 ---
 
 Next: [Standard library](standard_library.md).

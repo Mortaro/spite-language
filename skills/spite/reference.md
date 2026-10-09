@@ -628,7 +628,12 @@ function a walk visits): `true` when the function can reach a wait, so an engine
 polls `finished`, and calls it directly otherwise. A system never says that it does IO. `Scheduler().resume_only_when_asked()` keeps
 `Concurrent`s out of the stages: they then resume only at `Scheduler().run_ready()`, which the frame loop calls
 between frames, or where one's value is read or its handle dropped. A loop polling `finished` in that mode must call
-`run_ready()`, or it never ends.
+`run_ready()`, or it never ends. A wait in a frame does not hold the frame: in a `while` that sleeps on a
+`Program` (itself or through its own class's functions), and in its own class's functions it calls, a statement
+`report.fetch()` or `systems[index].update()` (no arguments, answering nothing, on another object of the program)
+whose function can wait is started like a `Concurrent` and finishes in a later frame, eight per statement at most,
+all of them before the program ends. Write the IO plainly in the system's own class; never wrap it in `Concurrent`
+to keep a frame loop going.
 `update.arguments[1].is_mutated` (with `var update = $system_type.functions['last_each']` narrowed by `crash update`)
 is decided while compiling the same way: `true` when the function, or anything it calls, changes what its argument
 number 1 (from 0) is given or anything reached through it; an engine writes `crash not update.arguments[1].is_mutated`

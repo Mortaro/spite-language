@@ -1,0 +1,8 @@
+var program = Program()
+var count = 0
+
+func add_late() {
+    var seen = count
+    program.sleep(20)
+    count = seen + 1
+}

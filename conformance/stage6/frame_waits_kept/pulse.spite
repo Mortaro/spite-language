@@ -1,0 +1,13 @@
+var program = Program()
+var beat = Beat()
+var passes = 0
+
+func run() {
+    while passes < 3 {
+        passes = passes + 1
+        beat.count_later()
+        var before = beat.beats
+        program.sleep(1)
+        beat.beats = before + 10
+    }
+}

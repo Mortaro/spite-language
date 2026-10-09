@@ -1,0 +1,10 @@
+var program = Program()
+var in_flight = 0
+var done = 0
+
+func slow_job() {
+    in_flight = in_flight + 1
+    program.sleep(300)
+    in_flight = in_flight - 1
+    done = done + 1
+}
