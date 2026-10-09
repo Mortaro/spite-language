@@ -323,7 +323,6 @@ typedef struct TypedMemory__Spite_Class TypedMemory__Spite_Class;
 typedef struct List_Spite_Namespace List_Spite_Namespace;
 typedef struct TypedMemory__Spite_Namespace TypedMemory__Spite_Namespace;
 static SpiteString spite_lit_5 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_6 = SPITE_STATIC_STRING("", 0);
 typedef struct List_Line List_Line;
 typedef struct TypedMemory__Line TypedMemory__Line;
 typedef void* Spite_Allocator;
@@ -372,9 +371,9 @@ Memory_Heap* heap_;
 DynamicLibrary* library_;
 int64_t input_;
 };
+static SpiteString spite_lit_6 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_7 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_8 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_9 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_8 = SPITE_STATIC_STRING(" ", 1);
 #define spite_site_2() "library/console.spite:56 in Console._write_values"
 
 struct Duration {
@@ -421,7 +420,7 @@ __atomic_store_n(&spite_described_owner, 0, __ATOMIC_RELEASE);
 #define SpiteInteger_to_unsigned_integer(self) ((uint32_t)(self))
 #define SpiteInteger_to_byte(self) ((uint8_t)(self))
 #define SpiteInteger_to_float(self) ((float)(self))
-static SpiteString spite_lit_10 = SPITE_STATIC_STRING("0", 1);
+static SpiteString spite_lit_9 = SPITE_STATIC_STRING("0", 1);
 #define spite_site_6() "library/long.spite:17 in Long.to_string"
 #define spite_site_7() "library/long.spite:18 in Long.to_string"
 #define spite_site_8() "library/long.spite:22 in Long.to_string"
@@ -571,9 +570,9 @@ static SpiteString spite_symbol_3 = { (int64_t)0x646e615f656b616dULL, (int64_t)0
 static Spite_Class* spite_class_object_Long_cache = 0;
 static bool spite_class_object_Long_ready = false;
 typedef struct Benchmark__Long Benchmark__Long;
-static SpiteBox_SpiteString spite_lit_11_box = { { 0, -1 }, SPITE_STATIC_STRING("total", 5) };
-static SpiteString spite_lit_12 = SPITE_STATIC_STRING("microseconds ", 13);
-static SpiteString spite_lit_13 = SPITE_STATIC_STRING("customer ", 9);
+static SpiteBox_SpiteString spite_lit_10_box = { { 0, -1 }, SPITE_STATIC_STRING("total", 5) };
+static SpiteString spite_lit_11 = SPITE_STATIC_STRING("microseconds ", 13);
+static SpiteString spite_lit_12 = SPITE_STATIC_STRING("customer ", 9);
 struct Customer {
 SpiteHeader header;
 SpiteString name_;
@@ -842,12 +841,8 @@ void Naive_make_and_copy___dropping_call(void* owner);
 Spite_Function* spite_function_value_Naive_make_and_copy(Naive* owner);
 int64_t Naive_copy_rounds___held_0(Naive* self, List_Order* orders_);
 void Naive_add_lines___held_0(Naive* self, Order* order_, int32_t index_);
-List_Order* List_Order___deep_copy(List_Order* self);
-Order* Order___deep_copy(Order* self);
-Customer* Customer___deep_copy(Customer* self);
-List_Line* List_Line___deep_copy(List_Line* self);
-Line* Line___deep_copy(Line* self);
 int32_t List_Order_sum_value(List_Order* self);
+static inline List_Order* spite_copy_site_1(List_Order* self);
 void Customer___init(Customer* self);
 Customer* Customer___allocate(void);
 Customer* Customer___make(SpiteString new_name_, int32_t new_level_);
@@ -863,8 +858,6 @@ static inline void Line___release(Line* self);
 void Line___free(Line* self);
 void Line_Line(Line* self, int32_t new_quantity_, int32_t new_price_);
 int32_t Line_get_amount(Line* self);
-void Order___init(Order* self);
-Order* Order___allocate(void);
 Order* Order___make(int32_t new_id_, Customer* new_customer_);
 static inline Order* Order___retain(Order* self);
 static inline void Order___release(Order* self);
@@ -1816,47 +1809,6 @@ described->spite_call = (void (*)(void*))Naive_make_and_copy___dropping_call;
 described->spite_typed_call = (void*)Naive_make_and_copy;
 return described;
 }
-Customer* Customer___deep_copy(Customer* self) {
-if (self == 0) return 0;
-Customer* copied = Customer___allocate();
-SpiteString___release(copied->name_);
-copied->name_ = SpiteString___retain(self->name_);
-
-copied->level_ = self->level_;
-return copied;
-}
-Line* Line___deep_copy(Line* self) {
-if (self == 0) return 0;
-Line* copied = Line___allocate();
-
-copied->quantity_ = self->quantity_;
-
-copied->price_ = self->price_;
-return copied;
-}
-List_Line* List_Line___deep_copy(List_Line* self) {
-if (self == 0) return 0;
-List_Line* copied = List_Line___make();
-for (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) { List_Line_append(copied, Line___deep_copy(((Line**)(intptr_t)(self)->items_)[spite_index])); }
-return copied;
-}
-Order* Order___deep_copy(Order* self) {
-if (self == 0) return 0;
-Order* copied = Order___allocate();
-
-copied->id_ = self->id_;
-Customer___release(copied->customer_);
-copied->customer_ = Customer___deep_copy(self->customer_);
-List_Line___release(copied->lines_);
-copied->lines_ = List_Line___deep_copy(self->lines_);
-return copied;
-}
-List_Order* List_Order___deep_copy(List_Order* self) {
-if (self == 0) return 0;
-List_Order* copied = List_Order___make();
-for (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) { List_Order_append(copied, Order___deep_copy(((Order**)(intptr_t)(self)->items_)[spite_index])); }
-return copied;
-}
 void Customer___init(Customer* self) {
 self->name_ = spite_lit_5;
 self->level_ = 0;
@@ -1931,21 +1883,6 @@ spite_untrack_Line(self);
 spite_weak_object_freed(self);
 #endif
 Line___pool_give(self);
-}
-void Order___init(Order* self) {
-self->id_ = 0;
-self->customer_ = Customer___make(spite_lit_6, 0);
-self->lines_ = List_Line___make();
-}
-Order* Order___allocate(void) {
-Order* self = Order___pool_take();
-self->header.ref_count = 1;
-self->header.class_id = 113;
-Order___init(self);
-#ifdef SPITE_TRACKS_Order
-spite_track_Order(self);
-#endif
-return self;
 }
 static void Order___init_constructed(Order* self) {
 self->id_ = 0;
@@ -2496,6 +2433,9 @@ for (int32_t index = 0; index < spite_singletons_freed_total; index = index + 1)
 free(spite_singletons_freed);
 spite_singletons_ending = false;
 }
+static inline List_Order* spite_copy_site_1(List_Order* self) {
+return List_Order___retain(self);
+}
 void Launcher_Launcher(Launcher* self) {
 (void)0;
 (void)0;
@@ -2521,14 +2461,14 @@ return spite_temp_7;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
 Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
-Console__write_output(self, spite_lit_7);
+Console__write_output(self, spite_lit_6);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
 Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
-Console__write_error(self, spite_lit_8);
+Console__write_error(self, spite_lit_7);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
@@ -2536,7 +2476,7 @@ void Console__write_values(Console* self, List_Console_Printable* values_, Conso
 int32_t index_ = 0;
 while (((index_ < List_Console_Printable_count(values_)))) {
 if (((index_ > 0))) {
-Console__write_to(self, spite_lit_9, stream_);
+Console__write_to(self, spite_lit_8, stream_);
 }
 SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
 Console__write_to(self, SpiteString___retain(text_), stream_);
@@ -2699,7 +2639,7 @@ dlclose((void*)(intptr_t)opened_);
 }
 SpiteString SpiteLong_to_string(int64_t self) {
 if (((self == SpiteInteger_to_long(0)))) {
-SpiteString spite_temp_67 = spite_lit_10;
+SpiteString spite_temp_67 = spite_lit_9;
 return spite_temp_67;
 }
 Memory_Heap* heap_ = spite_singleton_Memory_Heap();
@@ -2788,11 +2728,11 @@ SpiteString___release(starting_name_);
 void Naive_Naive(Naive* self) {
 Benchmark__Long* benchmark_ = Benchmark__Long___make(spite_function_value_Naive_make_and_copy(self));
 List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[2]; int32_t spite_framed_1_count = 0;
-Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_11_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong((benchmark_)->answer_); spite_framed_1_count = 2; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 2); }));
+Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_10_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong((benchmark_)->answer_); spite_framed_1_count = 2; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 2); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
 int64_t microseconds_ = Duration_total((benchmark_)->duration_, Duration_Unit_microseconds);
 List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
-Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_104_digits[24]; SpiteString spite_temp_104 = SPITE_STATIC_STRING(spite_temp_104_digits, spite_long_digits(spite_temp_104_digits, (int64_t)(microseconds_))); SpiteString spite_temp_105[] = {spite_lit_12, spite_temp_104}; SpiteString spite_temp_106 = spite_string_join(2, spite_temp_105); spite_temp_106; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
+Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_104_digits[24]; SpiteString spite_temp_104 = SPITE_STATIC_STRING(spite_temp_104_digits, spite_long_digits(spite_temp_104_digits, (int64_t)(microseconds_))); SpiteString spite_temp_105[] = {spite_lit_11, spite_temp_104}; SpiteString spite_temp_106 = spite_string_join(2, spite_temp_105); spite_temp_106; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
 for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
 Benchmark__Long___release(benchmark_);
 }
@@ -2806,7 +2746,7 @@ List_Order* Naive_make_orders(Naive* self, int32_t count_) {
 List_Order* orders_ = List_Order___make();
 int32_t index_ = 0;
 while (((index_ < count_))) {
-Customer* customer_ = Customer___make(({ char spite_temp_108_digits[24]; SpiteString spite_temp_108 = SPITE_STATIC_STRING(spite_temp_108_digits, spite_long_digits(spite_temp_108_digits, (int64_t)((index_ % 300)))); SpiteString spite_temp_109[] = {spite_lit_13, spite_temp_108}; SpiteString spite_temp_110 = spite_string_join(2, spite_temp_109); spite_temp_110; }), (index_ % 5));
+Customer* customer_ = Customer___make(({ char spite_temp_108_digits[24]; SpiteString spite_temp_108 = SPITE_STATIC_STRING(spite_temp_108_digits, spite_long_digits(spite_temp_108_digits, (int64_t)((index_ % 300)))); SpiteString spite_temp_109[] = {spite_lit_12, spite_temp_108}; SpiteString spite_temp_110 = spite_string_join(2, spite_temp_109); spite_temp_110; }), (index_ % 5));
 Order* order_ = Order___make(index_, Customer___retain(customer_));
 Naive_add_lines___held_0(self, order_, index_);
 List_Order_append(orders_, Order___retain(order_));
@@ -2822,7 +2762,7 @@ int64_t Naive_copy_rounds___held_0(Naive* self, List_Order* orders_) {
 int64_t total_ = SpiteInteger_to_long(0);
 int32_t round_ = 0;
 while (((round_ < 40))) {
-List_Order* copies_ = List_Order___deep_copy(orders_);
+List_Order* copies_ = spite_copy_site_1(orders_);
 int32_t value_ = List_Order_sum_value(copies_);
 total_ = (total_ + SpiteInteger_to_long(value_));
 round_ = (round_ + 1);
@@ -3262,11 +3202,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
 {(const void*)&Naive_make_and_copy___dropping_call, "-\t-", "Naive_make_and_copy___dropping_call", 0},
 {(const void*)&spite_function_value_Naive_make_and_copy, "-\t-", "spite_function_value_Naive_make_and_copy", 0},
-{(const void*)&Customer___deep_copy, "-\t-", "Customer___deep_copy", 0},
-{(const void*)&Line___deep_copy, "-\t-", "Line___deep_copy", 0},
-{(const void*)&List_Line___deep_copy, "-\t-", "List_Line___deep_copy", 0},
-{(const void*)&Order___deep_copy, "-\t-", "Order___deep_copy", 0},
-{(const void*)&List_Order___deep_copy, "-\t-", "List_Order___deep_copy", 0},
 {(const void*)&Customer___init, "-\t-", "Customer___init", 0},
 {(const void*)&Customer___allocate, "-\t-", "Customer___allocate", 0},
 {(const void*)&Customer___make, "-\t-", "Customer___make", 0},
@@ -3279,8 +3214,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Line___retain, "-\t-", "Line___retain", 0},
 {(const void*)&Line___release, "-\t-", "Line___release", 0},
 {(const void*)&Line___free, "-\t-", "Line___free", 0},
-{(const void*)&Order___init, "-\t-", "Order___init", 0},
-{(const void*)&Order___allocate, "-\t-", "Order___allocate", 0},
 {(const void*)&Order___init_constructed, "-\t-", "Order___init_constructed", 0},
 {(const void*)&Order___allocate_constructed, "-\t-", "Order___allocate_constructed", 0},
 {(const void*)&Order___make, "-\t-", "Order___make", 0},
@@ -3343,6 +3276,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_singleton_used_after_exit, "-\t-", "spite_singleton_used_after_exit", 0},
 {(const void*)&spite_singleton_free_later, "-\t-", "spite_singleton_free_later", 0},
 {(const void*)&spite_singletons_destroy, "-\t-", "spite_singletons_destroy", 0},
+{(const void*)&spite_copy_site_1, "-\t-", "spite_copy_site_1", 0},
 {(const void*)&Launcher_Launcher, "launcher/launcher.spite\tLauncher", "Launcher", 3},
 {(const void*)&Clock_Clock, "library/windows/clock.spite\tClock", "Clock", 4},
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},

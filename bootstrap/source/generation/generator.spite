@@ -16,7 +16,20 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var copy_sites = List<String>()
+var copy_site_copies = List<String>()
+var copy_site_types = List<Analysis.SpiteType>()
+var copy_site_graphs = List<String>()
+var identity_classes = Dictionary<String, Boolean>()
+var sharing_copy = false
+var sharing_copy_site = ""
+var copy_site_returns_plain = false
+var read_only_functions = Dictionary<String, Boolean>()
+var writing_functions = Dictionary<String, Boolean>()
+var reading_functions = List<String>()
+var tentative_reads = List<String>()
 var reaching_classes = Dictionary<String, Boolean>()
+var plainly_copied_classes = Dictionary<String, Boolean>()
 var copy_table_written = false
 var weak_copy_pending_written = false
 var terminal_if: Syntax.Statements.IfStatement? = null
@@ -1058,6 +1071,7 @@ func generate(
     if not has_error {
         report_unused_attributes()
     }
+    finish_copy_sites()
     finish_allocated_classes()
     finish_allocator_reads()
     slot_live_supports()
@@ -11429,6 +11443,10 @@ func binary_after_left(
     }
     left = as_text(left)
     left_type = left.type
+    var equality = binary.operator == 'equal' or binary.operator == 'not_equal'
+    if equality and type_shape.as_union(left_type) {
+        note_identity_type(left_type)
+    }
     if type_shape.as_string(left_type) {
         return generate_string_binary(binary.operator, left, binary.left, binary.right, scope, class_information)
     }
@@ -13675,6 +13693,10 @@ func generate_class_binary(
     }
     if operator == 'equal' or operator == 'not_equal' {
         var right_result = generate_expression(right_ast, scope, class_information)
+        var left_asked = left_result.type
+        note_identity_type(left_asked)
+        var right_asked = right_result.type
+        note_identity_type(right_asked)
         var lines = List<String>()
         var left_temporary = next_temporary()
         var right_temporary = next_temporary()
@@ -17860,9 +17882,10 @@ func method_call_on(
     var found = find_or_instantiate_function(target_class, member.name)
     if not found {
         if member.name == "deep_copy" {
-            var ensured_class_deep_copy = ensure_class_deep_copy(target_class)
             var empty_types = no_types()
             var class_type = class_type_of(target_class)
+            var class_deep_copy = ensure_class_deep_copy(target_class)
+            var ensured_class_deep_copy = copy_site(class_deep_copy, class_type)
             var deep_copied = generate_generic_call(
                 ensured_class_deep_copy,
                 object_result,
@@ -18596,9 +18619,10 @@ func generate_list_method(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     if name == "deep_copy" {
-        var ensured_list_deep_copy = ensure_list_deep_copy(element)
         var empty_types = no_types()
         var list_type = list_type_of(element)
+        var list_deep_copy = ensure_list_deep_copy(element)
+        var ensured_list_deep_copy = copy_site(list_deep_copy, list_type)
         var copied_list = generate_generic_call(
             ensured_list_deep_copy,
             object_result,
@@ -23139,6 +23163,679 @@ func copied_union_member(
     return "(({information.c_name})({copied}))"
 }
 
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func shares_copy(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if not studies_item_values() or resumable_mode or declaration.type_reference {
+        return false
+    }
+    if borrow_index >= borrow_statements.count() {
+        return false
+    }
+    var declared_here = shape.as_variable_declaration(borrow_statements[borrow_index])
+    if not declared_here or declared_here.name != declaration.name or declared_here.line != declaration.line {
+        return false
+    }
+    crash declaration.value
+    var call = shape.as_call(declaration.value)
+    if not call or not call.arguments.is_empty() {
+        return false
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if not member or member.name != "deep_copy" {
+        return false
+    }
+    crash member.object
+    if not lasting_copy_source(member.object, declaration.name, scope, class_information) {
+        return false
+    }
+    var source_type = receiver_type_of(member.object, scope, class_information)
+    if not source_type {
+        return false
+    }
+    var graph = List<String>()
+    if not copy_graph(source_type, graph) {
+        return false
+    }
+    var window_scope = Scope(scope)
+    window_scope.declare(declaration.name, source_type)
+    var locals = List<String>()
+    var index = borrow_index + 1
+    while index < borrow_statements.count() {
+        if not copy_window_statement(borrow_statements[index], declaration.name, locals, false, window_scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func lasting_copy_source(
+    source: Syntax.Expressions.Expression,
+    copy_name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(source)
+    if member {
+        crash member.object
+        if is_reflection_member(member.name) or not reads_only_getter(member, scope, class_information) {
+            return false
+        }
+        return lasting_copy_source(member.object, copy_name, scope, class_information)
+    }
+    var named = shape.as_identifier(source)
+    if not named or named.name == copy_name {
+        return false
+    }
+    if not scope.written_type(named.name) {
+        return class_information.find_field(named.name) and not class_information.is_singleton
+    }
+    if not scope.holds_for_call(named.name) {
+        return false
+    }
+    var owned_local = scope.framed_local(named.name)
+    if owned_local {
+        return not owned_local.framed
+    }
+    return true
+}
+
+func copy_graph(copied_type: Analysis.SpiteType, graph: List<String>): Boolean {
+    var nullable = type_shape.as_nullable(copied_type)
+    if nullable {
+        return copy_graph(nullable.inner, graph)
+    }
+    if not type_needs_drop(copied_type) or type_shape.as_string(copied_type) {
+        return true
+    }
+    var listed = type_shape.as_list(copied_type)
+    if listed {
+        var list_name = ensure_list(listed.element)
+        if graph.contains(list_name) {
+            return true
+        }
+        graph.append(list_name)
+        return copy_graph(listed.element, graph)
+    }
+    var dictionary = type_shape.as_dictionary(copied_type)
+    if dictionary {
+        var dictionary_name = ensure_dictionary(dictionary)
+        if graph.contains(dictionary_name) {
+            return true
+        }
+        graph.append(dictionary_name)
+        return copy_graph(dictionary.key, graph) and copy_graph(dictionary.element, graph)
+    }
+    var class_ref = type_shape.as_class_ref(copied_type)
+    if not class_ref {
+        return false
+    }
+    var information = find_class_by_c_name(class_ref.c_name)
+    if not information {
+        return false
+    }
+    if graph.contains(information.c_name) {
+        return true
+    }
+    graph.append(information.c_name)
+    if information.is_singleton or information.is_stateless_singleton {
+        return true
+    }
+    if is_library_class(information) or information.drop_function or information.is_value_class {
+        return false
+    }
+    if is_hot_class(information) or remembers_copies(information) {
+        return false
+    }
+    var index = 0
+    while index < information.fields.count() {
+        var field_type = information.fields[index].type
+        if not copy_graph(field_type, graph) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func copy_window_statement(
+    statement: Syntax.Statements.Statement,
+    copy_name: String,
+    locals: List<String>,
+    inside: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            if statement.name == copy_name {
+                return false
+            }
+            if not copy_window_expression(statement.value, scope, class_information) {
+                return false
+            }
+            locals.append(statement.name)
+            var declared = window_value_type(statement.value, scope, class_information)
+            if declared and not statement.type_reference {
+                scope.declare(statement.name, declared)
+            }
+            return true
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            if not target or target.name == copy_name {
+                return false
+            }
+            if not locals.contains(target.name) {
+                var assigned_type = scope.written_type(target.name)
+                if not assigned_type {
+                    return false
+                }
+                if not inside and type_needs_drop(assigned_type) {
+                    return false
+                }
+            }
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            if not copy_window_expression(statement.condition, scope, class_information) {
+                return false
+            }
+            if not copy_window_block(statement.then_branch, copy_name, locals, inside, scope, class_information) {
+                return false
+            }
+            return copy_window_block(statement.else_branch, copy_name, locals, inside, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            if not copy_window_expression(statement.condition, scope, class_information) {
+                return false
+            }
+            return copy_window_block(statement.body, copy_name, locals, inside, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if not inside and not copy_site_returns_plain {
+                return false
+            }
+            if not statement.value {
+                return true
+            }
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        _: return false
+    }
+}
+
+func window_value_type(
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var known = receiver_type_of(value, scope, class_information)
+    if known {
+        return known
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver_type = receiver_type_of(member.object, scope, class_information)
+    assert receiver_type
+    var listed = type_shape.as_list(receiver_type)
+    assert listed
+    if member.name.starts_with("count_") {
+        return integer_type()
+    }
+    if member.name.starts_with("any_") or member.name.starts_with("all_") {
+        return boolean_type()
+    }
+    assert member.name.starts_with("sum_")
+    var item_class = class_of_type(listed.element)
+    assert item_class
+    var name_length = member.name.length()
+    var member_name = member.name.slice(4, name_length)
+    var field = item_class.find_field(member_name)
+    if field {
+        return field.type
+    }
+    var getter = item_class.find_function("get_{member_name}")
+    assert getter
+    return getter.return_type
+}
+
+func copy_window_block(
+    statements: List<Syntax.Statements.Statement>,
+    copy_name: String,
+    locals: List<String>,
+    inside: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if not copy_window_statement(statements[index], copy_name, locals, inside, scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func copy_window_expressions(
+    expressions: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        if not copy_window_expression(expressions[index], scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func copy_window_expression(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            if not copy_window_expressions(expression.arguments, scope, class_information) {
+                return false
+            }
+            return reads_only_call(expression, scope, class_information)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if not copy_plain_operand(expression.left, scope, class_information) {
+                return false
+            }
+            if not copy_window_expression(expression.left, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.right, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            if not copy_plain_operand(expression.operand, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if is_reflection_member(expression.name) {
+                return false
+            }
+            if not reads_only_getter(expression, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var indexed_type = receiver_type_of(expression.object, scope, class_information)
+            if not indexed_type {
+                return false
+            }
+            if not type_shape.as_list(indexed_type) and not type_shape.as_dictionary(indexed_type) {
+                return false
+            }
+            if not copy_window_expression(expression.object, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.index, scope, class_information)
+        }
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.StringLiteralExpression: return not expression.value.contains("\{")
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        _: return false
+    }
+}
+
+func copy_plain_operand(
+    operand: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if shape.as_integer_literal(operand) or shape.as_float_literal(operand) or shape.as_enum_literal(operand) {
+        return true
+    }
+    if shape.is_true_literal(operand) or shape.is_false_literal(operand) or shape.is_null_literal(operand) {
+        return true
+    }
+    var binary = shape.as_binary(operand)
+    if binary {
+        crash binary.left
+        return copy_plain_operand(binary.left, scope, class_information)
+    }
+    var unary = shape.as_unary(operand)
+    if unary {
+        crash unary.operand
+        return copy_plain_operand(unary.operand, scope, class_information)
+    }
+    if shape.as_string_literal(operand) {
+        return true
+    }
+    var operand_type = receiver_type_of(operand, scope, class_information)
+    if not operand_type {
+        return false
+    }
+    var nullable = type_shape.as_nullable(operand_type)
+    if nullable {
+        operand_type = nullable.inner
+    }
+    return type_shape.as_scalar(operand_type) or type_shape.as_string(operand_type) or is_enum_type(operand_type)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_getter(
+    read: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash read.object
+    var object_type = receiver_type_of(read.object, scope, class_information)
+    if not object_type {
+        return not call_effects.by_function.has("*#get_{read.name}")
+    }
+    var owner = class_of_type(object_type)
+    if not owner {
+        var nullable = type_shape.as_nullable(object_type)
+        if not nullable {
+            return false
+        }
+        owner = class_of_type(nullable.inner)
+    }
+    if not owner {
+        return not call_effects.by_function.has("*#get_{read.name}")
+    }
+    if owner.find_field(read.name) and not owner.find_function("get_{read.name}") {
+        return true
+    }
+    var getter = find_or_instantiate_function(owner, "get_{read.name}")
+    if not getter {
+        return false
+    }
+    return reads_only_function(owner, getter)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_call(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash call.callee
+    var named = shape.as_identifier(call.callee)
+    if named {
+        if scope.written_type(named.name) or class_information.find_field(named.name) {
+            return false
+        }
+        if call_effects.names_a_class(named.name) {
+            return false
+        }
+        var own = find_or_instantiate_function(class_information, named.name)
+        if not own {
+            return false
+        }
+        return reads_only_function(class_information, own)
+    }
+    var member = shape.as_member(call.callee)
+    if not member {
+        return false
+    }
+    crash member.object
+    if is_reflection_member(member.name) or member.name == "call_function" or call_effects.names_a_class(member.name) {
+        return false
+    }
+    if not copy_window_expression(member.object, scope, class_information) {
+        return false
+    }
+    var receiver_type = receiver_type_of(member.object, scope, class_information)
+    if not receiver_type {
+        return false
+    }
+    var owner = class_of_type(receiver_type)
+    if not owner {
+        return false
+    }
+    if owner.is_singleton or owner.is_stateless_singleton {
+        return false
+    }
+    var listed = type_shape.as_list(receiver_type)
+    var list_template = find_class_by_qualified("List")
+    if listed and list_template {
+        if not list_template.find_function(member.name) {
+            return reads_only_template(listed.element, member.name)
+        }
+    }
+    var method = find_or_instantiate_function(owner, member.name)
+    if not method {
+        return false
+    }
+    return reads_only_function(owner, method)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_template(element: Analysis.SpiteType, name: String): Boolean {
+    var reading = ["sum_", "count_", "any_", "all_", "each_", "map_", "find_by_", "find_index_by_", "filter_"]
+    var member_name = ""
+    var index = 0
+    while index < reading.count() {
+        var prefix = reading[index]
+        if name.starts_with(prefix) and member_name.is_empty() {
+            var name_length = name.length()
+            var prefix_length = prefix.length()
+            member_name = name.slice(prefix_length, name_length)
+            if prefix == "map_" {
+                if not member_name.ends_with("s") {
+                    return false
+                }
+                var member_length = member_name.length()
+                member_name = member_name.slice(0, member_length - 1)
+            }
+        }
+        index = index + 1
+    }
+    if member_name.is_empty() {
+        return false
+    }
+    var item_class = class_of_type(element)
+    if not item_class {
+        return false
+    }
+    if item_class.find_field(member_name) and not item_class.find_function("get_{member_name}") {
+        return true
+    }
+    var read = find_or_instantiate_function(item_class, "get_{member_name}")
+    if not read {
+        read = find_or_instantiate_function(item_class, member_name)
+    }
+    if not read {
+        return false
+    }
+    return reads_only_function(item_class, read)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_function(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    var key = function.c_name
+    if read_only_functions.has(key) or reading_functions.contains(key) {
+        return true
+    }
+    if writing_functions.has(key) {
+        return false
+    }
+    if function.is_constructor or function.name == "drop" or not function.has_body {
+        var supplied = not function.has_body and parameter_writes.reads_only(function.name)
+        if not supplied {
+            writing_functions[key] = true
+        }
+        return supplied
+    }
+    if is_hot_class(owner) or not function.specialised_from.is_empty() {
+        writing_functions[key] = true
+        return false
+    }
+    reading_functions.append(key)
+    var function_scope = Scope(null)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.type
+        function_scope.declare(parameter.name, parameter_type)
+        index = index + 1
+    }
+    var locals = function.parameters.map_names()
+    var reads = copy_window_block(function.body, "", locals, true, function_scope, owner)
+    reading_functions.remove_last()
+    if reads {
+        tentative_reads.append(key)
+    } else {
+        writing_functions[key] = true
+    }
+    if reading_functions.is_empty() {
+        settle_tentative_reads(reads)
+    }
+    return reads
+}
+
+func settle_tentative_reads(reads: Boolean) {
+    if reads {
+        var index = 0
+        while index < tentative_reads.count() {
+            var settled = tentative_reads[index]
+            read_only_functions[settled] = true
+            index = index + 1
+        }
+    }
+    tentative_reads.clear()
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func copy_site(copied: String, copied_type: Analysis.SpiteType): String {
+    if not sharing_copy {
+        return copied
+    }
+    if not sharing_copy_site.is_empty() {
+        return sharing_copy_site
+    }
+    var graph = List<String>()
+    if not copy_graph(copied_type, graph) {
+        return copied
+    }
+    var number = copy_sites.count() + 1
+    var site = "spite_copy_site_{number}"
+    var c_type = c_type_name(copied_type)
+    builder.add_prototype("static inline {c_type} {site}({c_type} self);")
+    copy_sites.append(site)
+    copy_site_copies.append(copied)
+    copy_site_types.append(copied_type)
+    var graph_text = graph.join(",")
+    copy_site_graphs.append(graph_text)
+    sharing_copy_site = site
+    return site
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func finish_copy_sites() {
+    var alone = not builder.threads and not parallel_used and not scheduler_used
+    var index = 0
+    while index < copy_sites.count() {
+        var site = copy_sites[index]
+        var copied_type = copy_site_types[index]
+        crash copied_type
+        var c_type = c_type_name(copied_type)
+        crash copy_site_copies[index]
+        var body = "return {copy_site_copies[index]}(self);"
+        var graph_text = copy_site_graphs[index]
+        crash graph_text
+        if alone and not graph_asked_identity(graph_text) {
+            body = "return {retain_call(copied_type, "self")};"
+            note_fact("copy shared {site}")
+        }
+        builder.add_support("static inline {c_type} {site}({c_type} self) \{\n{body}\n}")
+        index = index + 1
+    }
+}
+
+func graph_asked_identity(graph_text: String): Boolean {
+    var names = graph_text.split(",")
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if identity_classes.has(name) or tracked_class_names.contains(name) or weak_classes.contains(name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_identity_type(asked: Analysis.SpiteType) {
+    var nullable = type_shape.as_nullable(asked)
+    if nullable {
+        note_identity_type(nullable.inner)
+        return
+    }
+    var class_ref = type_shape.as_class_ref(asked)
+    if class_ref {
+        identity_classes[class_ref.c_name] = true
+        return
+    }
+    var listed = type_shape.as_list(asked)
+    if listed {
+        var list_name = ensure_list(listed.element)
+        identity_classes[list_name] = true
+        return
+    }
+    var dictionary = type_shape.as_dictionary(asked)
+    if dictionary {
+        var dictionary_name = ensure_dictionary(dictionary)
+        identity_classes[dictionary_name] = true
+        return
+    }
+    var union_type = type_shape.as_union(asked)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        identity_classes[member.c_name] = true
+        member_index = member_index + 1
+    }
+}
+
 func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     var function_c_name = "{information.c_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
@@ -23192,9 +23889,10 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
 # ../../../docs/memory.md#do-call-copydeep_copy-for-an-independent-object
 func remembers_copies(information: Analysis.ClassInfo): Boolean {
     if reaching_classes.has(information.c_name) {
-        var known = reaching_classes[information.c_name]
-        crash known
-        return known
+        return true
+    }
+    if plainly_copied_classes.has(information.c_name) {
+        return false
     }
     var seen = List<String>()
     var pending = List<Analysis.SpiteType>()
@@ -23217,7 +23915,11 @@ func remembers_copies(information: Analysis.ClassInfo): Boolean {
             index = index + 1
         }
     }
-    reaching_classes[information.c_name] = answer
+    if answer {
+        reaching_classes[information.c_name] = true
+    } else {
+        plainly_copied_classes[information.c_name] = true
+    }
     return answer
 }
 
@@ -24425,6 +25127,7 @@ func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
         return dictionary_name
     }
     dictionary_names.append(dictionary_name)
+    note_identity_type(key_type)
     var dictionary_template = find_class_by_qualified("Dictionary")
     if not dictionary_template {
         report(
@@ -24589,9 +25292,10 @@ func generate_dictionary_method(
         )
     }
     if name == "deep_copy" {
-        var ensured_dictionary_deep_copy = ensure_dictionary_deep_copy(dictionary)
         var empty_types = no_types()
         var dictionary_type: Analysis.SpiteType = dictionary
+        var dictionary_deep_copy = ensure_dictionary_deep_copy(dictionary)
+        var ensured_dictionary_deep_copy = copy_site(dictionary_deep_copy, dictionary_type)
         var copied_dictionary = generate_generic_call(
             ensured_dictionary_deep_copy,
             object_result,
@@ -26635,6 +27339,7 @@ func generate_member_read_raw(
     }
     if member.name == "memory" {
         item_reflect_type(object_result_type)
+        note_identity_type(object_result_type)
         var in_frame = not framed_object_name(member.object, scope).is_empty()
         var memory_read = generate_memory_read(object_result, member.object, in_frame)
         if memory_read {
@@ -27815,7 +28520,10 @@ func store_declaration(
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
     frame_variadic_allowed = not resumable_mode
+    sharing_copy = shares_copy(declaration, scope, class_information)
+    sharing_copy_site = ""
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
+    sharing_copy = false
     frame_variadic_allowed = false
     borrow_site = ""
     if not declaration.type_reference or not current_class_is_generic() {
@@ -45724,6 +46432,8 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     into_function_active = function.result_slot
     object_frames_open = true
     current_return_c_name = returned_class_name(function)
+    var answered_type = function.return_type
+    copy_site_returns_plain = not type_needs_drop(answered_type)
     result_slot_local = ""
     var candidate = not function.result_slot and waiting.is_empty()
     if candidate and function.is_constructor {

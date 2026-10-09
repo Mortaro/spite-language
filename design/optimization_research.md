@@ -223,6 +223,12 @@ Questions to research:
   extend the lent-argument proofs until counts appear only where sharing is real.
 - **Objects merged into their owner**: a field that always holds a fresh object never shared becomes inline.
 - **Allocation sinking**: an object made in a loop and dropped in the same pass reuses one slot.
+- **A copy that copies only what is written** (after M7, D555): where a deep copy's window writes one path (the copy's
+  `lines`, say) and only reads the rest, copy the path to what is written and share everything else, counted once
+  more. Needs M7's window walk to say which attributes are written and the copy function per site to stop at the
+  shared ones. Not built: M7 shares all or nothing. Also not built: a window that compares two results of calls
+  (`copies.sum_id() + copies.count()`), since the walk types a call's result only for a list's `sum_`, `count_`,
+  `any_` and `all_`.
 - **Whole-program static memory**: a program whose allocations are all bounded (common in firmware) gets every
   object a fixed address; no allocator linked at all. Valuable for embedded and WebAssembly.
 

@@ -199,6 +199,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   object (a `List`, a `Vector`) only when a list holds it. Why: a chain made and dropped over and over went from 81
   to 17 ms, with no allocation per link after the first round. The cost to confirm: memory a class used stays that
   class's, now for every class, and a program that only makes one object of a class takes a run of 16 for it.
+- **D555, a deep copy nothing changes is the original**: per copy site, when nothing writes the copy or the
+  original while the copy lives and nothing in the program asks a copied class for its identity, the copy is the
+  original counted once more. Why: a program that copies to read (a report over a snapshot) makes nothing; the
+  deep copy case went from 49.5 to 2.1 ms. The cost to confirm: `--debug-memory` counts no allocation for such a
+  copy, and the walk that proves it refuses a lot (any call whose body it cannot follow keeps the copy).
 
 ## Open
 

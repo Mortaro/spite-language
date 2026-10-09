@@ -2675,6 +2675,59 @@ copies as fast as before. A copy of a graph allocates its table once per outermo
 counted allocations `--debug-memory` reports, and frees it before `deep_copy()` returns. A program that never deep
 copies a class that needs the table carries none of it.
 
+### A deep copy nothing changes is the original
+
+**The case:** [benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](../benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/).
+
+**What it does.** A copy is only worth making if something tells it from the original: a write to one that the
+other must not see, or a question about which object it is. When the compiler proves that nothing writes the copy
+or the original for as long as the copy lives, and that nothing in the program asks one of the copied classes for
+its identity, `var copies = orders.deep_copy()` makes nothing: `copies` is `orders`, counted once more, and is let
+go at the end of its block like any copy ([Proofs](proofs.md#a-copy-nothing-changes-is-the-original)).
+
+```gdscript title=shared_copies/order.spite
+var total = 0
+
+func Order(new_total: Integer) {
+    total = new_total
+}
+```
+```gdscript title=shared_copies/shared_copies.spite entry
+var console = Console()
+var orders = List<Order>()
+
+func SharedCopies() {
+    var index = 0
+    while index < 3 {
+        var order = Order(index * 10)
+        orders.append(order)
+        index = index + 1
+    }
+    var sum = 0
+    var round = 0
+    while round < 4 {
+        var copies = orders.deep_copy()
+        sum = sum + copies.sum_total()
+        round = round + 1
+    }
+    console.print("sum", sum)
+}
+```
+```output
+sum 120
+```
+
+Each round only reads its copy, so no round makes one: the four copies of three orders are the list itself. The
+copy is decided per place it is made, so the same class can be copied for real in another function that changes
+its copy.
+
+**When.** Every build but the inspectable ones, in a program that starts no thread and no `Concurrent`, for a copy
+the proof holds for. The decision about identity is made once the whole program is written out, so a comparison
+of the copied class anywhere keeps every copy of it real.
+
+**What you notice.** Fewer allocations under `--debug-memory`: none for the copy. Nothing else: what the program
+prints, and every value it reads through the copy, is the same.
+
 ### A word inflected while compiling
 
 **The case:** [benchmarks/a_word_inflected_while_compiling](../benchmarks/a_word_inflected_while_compiling/).

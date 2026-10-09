@@ -1014,6 +1014,17 @@ nested_output=$("$work/nested_lists_optimized.exe" | tr -d '\r')
 if [ "$nested_output" != "$(tr -d '\r' < conformance/stage6/nested_lists/expected_output.txt)" ]; then
   echo "FAILED: nested_lists built --optimized printed: $nested_output"; exit 1
 fi
+# A copy nothing changes is the original (pair M7): shared_copies's rounds only read their copy of the orders, so
+# its site answers the list itself, counted once more; the copy changed() writes, and the tags compared() asks
+# about, are real copies.
+shared_copies="$work/shared_copies.c"
+"$work/generation_two.exe" conformance/stage6/shared_copies --check --c-source --optimized --c-path="$shared_copies" > /dev/null 2>&1 || {
+  echo "FAILED: shared_copies does not write its C"; exit 1; }
+if [ "$(grep -A1 '^static inline List_Order\* spite_copy_site_[0-9]*(List_Order\* self) {$' "$shared_copies" | grep -c '^return List_Order___retain(self);$')" != 1 ] \
+   || [ "$(grep -c 'List_Order___deep_copy(self->orders_)' "$shared_copies")" != 1 ] \
+   || [ "$(grep -c 'List_Tag___deep_copy(self->tags_)' "$shared_copies")" != 1 ]; then
+  echo "FAILED: shared_copies should share the copy its rounds only read and copy the ones changed() and compared() use"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1

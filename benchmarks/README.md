@@ -20,7 +20,7 @@ again, so it always shows the latest measurement of every case.
 | [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 67 926 | 294 735 | 2 904 | 0.23 | 23.39 |
 | [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 13 709 | 13 095 | 9 717 | 1.05 | 1.41 |
 | [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 31 791 | 508 341 | 15 935 | 0.06 | 2.00 |
-| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 46 039 | 74 072 | 998 | 0.62 | 46.13 |
+| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 2 041 | 76 166 | 1 043 | 0.03 | 1.96 |
 | [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 47 365 | 80 722 | 25 515 | 0.59 | 1.86 |
 | [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 26 296 | 14 670 | 12 727 | 1.79 | 2.07 |
 | [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 13 240 | 311 926 | 5 577 | 0.04 | 2.37 |

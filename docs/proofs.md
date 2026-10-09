@@ -132,6 +132,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [Passes that write only their own item](#passes-that-write-only-their-own-item) | a loop over one class runs in bands | in order, as written |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [Objects of a class made on one thread](#objects-of-a-class-made-on-one-thread) | a pool per class | the C library's allocator |
+| [A copy nothing changes is the original](#a-copy-nothing-changes-is-the-original) | no copy | the copy |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [No other thread touches a singleton](#no-other-thread-touches-a-singleton) | no lock, plain attributes | the form it had |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
@@ -1204,6 +1205,28 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   `live_bytes()`, and an inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). Nothing
   for the program to write: the fallback is the allocator every object had before.
 - **See.** [optimizations.md](optimizations.md#objects-of-one-class-sit-together); `conformance/stage6/class_pools`.
+
+### A copy nothing changes is the original
+
+- **Proves.** While a `deep_copy()` lives, nothing changes it or the object it copies, and nothing asks either one
+  which object it is, so the copy and the original answer every question the same and one object can be both.
+- **Rule.** The copy is the whole value of a `var` with no declared class, `var copies = orders.deep_copy()`, and
+  `orders` is a parameter, an attribute, an attribute's attribute, or a local the function holds on the heap. From
+  the copy to the end of its block, every statement writes only plain names (numbers, `Boolean`s, enums) declared
+  before the copy, or names declared after it; every call it makes, its operators and its getters are proven by
+  their call effects to write no attribute, grow, shrink or store into no list, and let nothing go; nothing reaches
+  `Parallel`, `Concurrent`, a lock, a file or a socket; nothing reads `.memory`, `.class`, `.attributes` or
+  `.functions`; and a `return` answers a plain value. The copied classes (every class, list and dictionary its
+  attributes reach) have no `drop()`, are not reached by a `Weak`, have no cycle (so the copy keeps no table), are
+  the program's own, and nothing in the whole program compares one of them by identity (`==`, `!=`), reads its
+  `.memory`, keys a `Dictionary` by it or walks its `instances`. The program starts no thread and no
+  `Concurrent`. Not in the inspectable builds.
+- **Buys.** The copy is the original, counted once more: no object is made and none let go.
+- **Falls back.** The copy, as written: a call whose effects are not known, a write anywhere while the copy lives,
+  an identity question anywhere in the program about a copied class. Nothing is an error, and nothing changes in
+  what the program prints.
+- **See.** [optimizations.md: A deep copy nothing changes is the original](optimizations.md#a-deep-copy-nothing-changes-is-the-original);
+  `conformance/stage6/shared_copies`.
 
 ### Which singletons a `Parallel` reaches
 
