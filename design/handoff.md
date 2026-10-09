@@ -78,6 +78,16 @@ recipes, network, assets) can move to `List<Byte>` and plain lists now; the Vulk
 the language's plain foreign structs first (D536's second half, `design/proposals/plain_bytes_and_foreign_structs.md`,
 and finding R17's six-step plan in `design/optimization_research.md`).
 
+## Memory outside the library becomes an error (D565)
+
+Before the error can be switched on: plain foreign structs (D536's second half; the engine's Vulkan, Windows and
+XInput bindings and `Raw` are the last users), a lock between processes in the library (the engine's store lock),
+and a byte order a `BinaryReader` record can declare (PNG and PSD headers are big-endian). The engine's audit of
+other library duplicates (its own inflate beside `Zlib.decompress`, `clamped` beside `.clamp`, hand hashes beside
+`Sha256`, `index_of_name`, two hand sorts, `.reserve` hints) and two fixes in its last change (`lossy_text_at`
+replaces bad bytes with `?`, a silent wrong value; copies written as `m * Matrix4<Float>()` instead of `m.copy()`)
+are open engine work.
+
 ## The order of work after that (by what closes the engine gap)
 
 1. **Stress, one thread** (design/naive_programs.md, "Ninth pass"): of the hand edits on today's C (20.6 ms one
