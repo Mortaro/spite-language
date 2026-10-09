@@ -163,6 +163,8 @@ Questions to research:
   data-oriented study's rules, and the naive engine's own columns and matcher, which do this by hand today.
 
 
+## Threads and parallelism
+
 - **Independent loops in bands.** Idea: a loop whose passes write only their own item runs on the pool. Proof:
   per-pass write set disjoint by index; reads not written by any pass. Status: planned (T1).
 - **Reductions recognised.** Sum, min, max, count, any, all, histogram (per band, merged). Floating point: only
@@ -629,7 +631,25 @@ must learn. Themes, with the cases they reach:
 - **Smaller:** a scratch list of three items scalar-replaced into locals; a made singleton's address hoisted out of
   a loop; a list's count read once when no call in the loop can append; parameter ranges from every call site.
 
+**R29 and R31, batch eight (2026-10-09).** Layout (L1, L2, L3, S2 with M8) again wins most: it is the whole gap
+of `reading_through_a_type_without_counting` and the largest part of `reflection_on_constants_folds_and_unrolls`
+and `maths_on_constants_is_worked_out_while_compiling`. New findings:
 
+- **Whole computations worked out while compiling (D549).** `reflection_on_constants_folds_and_unrolls` and
+  `a_binary_schema_is_a_constant` read no input: every value comes from literals and `%` over fixed counts, all in
+  exact integers. The whole printed answer can be computed while compiling and the program reduced to printing it.
+  This is a class of win the compiler does not attempt yet: evaluating a closed part of a program (no input, no
+  clock, no IO) in advance. `maths_on_constants_...` is decimal, so it folds only if the compiler's evaluation gives
+  the target's bits (rounding, contraction, `round`), which needs a proof or must stay a loop.
+- **The dictionary's representation:** a table sized once from a proven count, keys and values in two arrays with an
+  empty marker, a probe that reads one key; today it rehashes about nineteen times for 500,000 inserts, reads about
+  four values per hit through a checked nullable read, and computes a hash fragment it never uses (D533 allows any
+  representation).
+- **A predicate call per item inside a count** (`count(is_current)`): inlined and fused into one counted loop.
+
+
+
+## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
 

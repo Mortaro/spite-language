@@ -134,6 +134,7 @@ stays in order.
 | X1 | `var line = "{a} {b}"` used only for `.length()` or dropped | the text never escapes the iteration | built in a frame buffer with direct copies and literal lengths, no `String` | a joined `String` | hand stack buffers | |
 | X2 | `list.sort_by_<member>()` on whole-number keys | the keys' range is proven, the sort is the library's | a stable radix sort of (key, position) pairs | the library's merge sort | hand radix sorts | |
 | X3 | `crash list[i]` then `list[i].field` | same index expression, nothing between writes the list or the slot | one read, bounds-checked once, uncounted | two reads | | |
+| E1 | a part of the program that reads no input, clock or IO | every value it computes comes from literals and exact operations | its answer worked out while compiling and written as a constant | the computation as written | | the backend can evaluate it in its own IR |
 | M4 | an object made and dropped in one call to the OS | no escape past the foreign call | in the frame, aligned for the target | heap | per-call OS structures | |
 
 ## Counting references
