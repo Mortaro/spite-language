@@ -607,7 +607,29 @@ must learn. Themes, with the cases they reach:
   matcher divides by `headers[index]`, nine million `idiv`s; expert's headers are the constants 1, 2, 3, so clang
   folds the divisions and vectorises. S1 step 2 folds them; the inlining agent is building it.
 
-## Outside the constraints (recorded, not pursued)
+**R25 to R28, the next cases behind expert C (2026-10-09).** Again every expert is fair under D549. What wins most:
+
+- **Per-field layout is the largest single win across the most cases** (L1, L2, L3, S2, with an object merged into
+  its only owner): a list's templates (11.4x), template chains (11.4x), a name's held item (8.6x), the spreadsheet
+  (6.9x; the split alone is 3.3x by the data-oriented study's own measurement) and the defaults case (84x). Expert
+  keeps columns, so the loops vectorise; Spite walks a pointer array into objects. Fusion only pays after it.
+- **Ranges of attributes, list items and call answers** (A1 extended): checked arithmetic sits at the hottest point
+  of every items-and-rows case and is what keeps clang from vectorising them.
+- **A test and a read of the same item share one read**: `crash cells[cell.first]` then `cells[cell.first].value`
+  reads, bounds-checks and counts twice (spreadsheet, sorting, borrowed rows, a played track).
+- **Text whose result does not escape needs no `String`**: a joined line used only for its length or added to a
+  total and dropped can be built in a frame buffer with direct copies and literal lengths, no allocation per line
+  (`text_joined_in_one_piece` 10.4x, `a_number_joined_into_text_is_written_in_place` 5.0x).
+- **The library's sort is the compiler's to choose**: `sort_by_placed_at` merge-sorts through checked reads; a
+  stable radix sort of (key, position) gives the same permutation for whole-number keys with a proven range
+  (`records_sorted_by_one_field`, its largest phase). A program's own hand-written sort is another matter: replacing
+  it needs a proof of what it computes, beyond the compiler today.
+- **Facts fixed after setup** (S1 step 2): a played track's per-track value recomputed every pass (9x) folds to a
+  table of sixteen constants.
+- **Smaller:** a scratch list of three items scalar-replaced into locals; a made singleton's address hoisted out of
+  a loop; a list's count read once when no call in the loop can append; parameter ranges from every call site.
+
+
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
 

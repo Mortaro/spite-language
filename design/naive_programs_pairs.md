@@ -130,6 +130,10 @@ stays in order.
 | M3 | many objects let go together | their `drop`s are independent | freed in slices between passes | freed at once | budgeted deferred freeing | |
 | M5 | `return Shape(...)` | the caller keeps the result in its own frame or a slot it already owns | built straight into the caller's slot | heap copy | | |
 | M7 | `var copy = original.deep_copy()` | neither the copy nor the original, nor anything reachable from either, is written, resized or let go differently while both live, and no identity question is asked of the copy | the copy shares the original; where only part of the graph is written, only the path to it is copied | a real deep copy | hand copy-on-write | |
+| M8 | an object assigned once from a fresh construction to an attribute, read only through its owner | nothing else names it, it is never compared, copied or handed out | its fields live in the owner's storage (or the owner's columns) | a separate object | hand inlined structs | |
+| X1 | `var line = "{a} {b}"` used only for `.length()` or dropped | the text never escapes the iteration | built in a frame buffer with direct copies and literal lengths, no `String` | a joined `String` | hand stack buffers | |
+| X2 | `list.sort_by_<member>()` on whole-number keys | the keys' range is proven, the sort is the library's | a stable radix sort of (key, position) pairs | the library's merge sort | hand radix sorts | |
+| X3 | `crash list[i]` then `list[i].field` | same index expression, nothing between writes the list or the slot | one read, bounds-checked once, uncounted | two reads | | |
 | M4 | an object made and dropped in one call to the OS | no escape past the foreign call | in the frame, aligned for the target | heap | per-call OS structures | |
 
 ## Counting references
