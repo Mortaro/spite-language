@@ -16,6 +16,9 @@ var table_values = List<List<List<String>>>()
 var traced_positions = List<List<String>>()
 var trace_failed = false
 var trace_steps = 0
+var reached_as_value = false
+var through_values = Dictionary<String, Boolean>()
+var through_values_known = false
 var members_by_owner = Dictionary<String, List<String>>()
 var field_writers = Dictionary<String, List<String>>()
 
@@ -27,6 +30,7 @@ func copied(
     classes: Dictionary<String, String>,
     spite_names: Dictionary<String, String>,
     threads: Boolean,
+    unshared: List<String>,
 ): String {
     split(bodies)
     note_values(main_function)
@@ -34,7 +38,7 @@ func copied(
     var instance_index = 0
     while instance_index < values.instance_order.count() {
         var instance = values.instance_order[instance_index]
-        if not threads or values.singleton_instances.has(instance) {
+        if not threads or values.singleton_instances.has(instance) or unshared.contains(instance) {
             configure(instance, values, classes, spite_names)
         }
         instance_index = instance_index + 1
@@ -230,7 +234,9 @@ func configure(
     assert not reaching.is_empty()
     var reading = readers(members, reaching)
     assert not reading.is_empty()
+    assert not reached_as_value or not reading.any(calls_through_values)
     var configurations = configurations_of(reading)
+    assert any_values()
     var guards = List<String>()
     var configuration_index = 0
     while configuration_index < configurations.count() {
@@ -671,6 +677,7 @@ func reachers(writing: List<String>): List<String> {
     if not indexed {
         index_calls()
     }
+    reached_as_value = false
     var reaching = Dictionary<String, Boolean>()
     var order = List<String>()
     writing.each(order.append)
@@ -679,7 +686,10 @@ func reachers(writing: List<String>): List<String> {
         var name = order[index]
         if not reaching.has(name) {
             reaching[name] = true
-            assert not valued.has(name) and not twice.has(name) and reached_by_calls(name, order)
+            if valued.has(name) {
+                reached_as_value = true
+            }
+            assert not twice.has(name) and reached_by_calls(name, order)
         }
         index = index + 1
     }
@@ -1232,4 +1242,61 @@ func replaced_whole(text: String, part: String, replacement: String): String {
     var rest = text.slice(kept_from, text_length)
     parts.append(rest)
     return parts.join("")
+}
+
+func calls_through_values(name: String): Boolean {
+    if not through_values_known {
+        note_calls_through_values()
+    }
+    return through_values.has(name)
+}
+
+func note_calls_through_values() {
+    through_values_known = true
+    var order = List<String>()
+    var index = 0
+    while index < pieces.count() {
+        crash piece_names[index]
+        var name = piece_names[index]
+        var piece = pieces[index]
+        if not name.is_empty() and (piece.contains("->spite_typed_call") or piece.contains("->spite_call")) {
+            order.append(name)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < order.count() {
+        var name = order[index]
+        if not through_values.has(name) {
+            through_values[name] = true
+            note_value_callers(name, order)
+        }
+        index = index + 1
+    }
+}
+
+func note_value_callers(name: String, order: List<String>) {
+    var calling = callers[name]
+    assert calling
+    var index = 0
+    while index < calling.count() {
+        var caller = calling[index]
+        crash piece_names[caller]
+        var caller_name = piece_names[caller]
+        if not caller_name.is_empty() {
+            order.append(caller_name)
+        }
+        index = index + 1
+    }
+}
+
+func any_values(): Boolean {
+    var index = 0
+    while index < table_values.count() {
+        if not table_values[index].is_empty() {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }

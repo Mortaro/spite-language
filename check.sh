@@ -968,16 +968,16 @@ if [ "$(listed_body Pipeline_run | grep -c '), 0)))')" != 1 ] || [ "$(listed_bod
   echo "FAILED: listed_values should decide Pipeline's tests of 3 and 4 and Codes's of 7, and keep every test of Leaky's lists"; exit 1
 fi
 # A table filled once is read as constants (pair S1, step 2): configured_tables's Tariff gets a copy of price with
-# its steps a constant list and a guard that sends a call to it, Stepped one with its count of two, and Grown, filled
-# in a loop, none.
+# its steps a constant list and a guard that sends a call to it; Stepped, whose first step is a parameter, and Grown,
+# filled in a loop, get none.
 configured="$work/configured_tables.c"
 "$work/generation_two.exe" conformance/stage6/configured_tables --check --c-source --c-path="$configured" > /dev/null 2>&1 || {
   echo "FAILED: configured_tables does not write its C"; exit 1; }
 if ! grep -q '^static const int32_t spite_configured_Tariff_steps_0_items\[3\] = { 1, 2, 1 };$' "$configured" \
    || ! grep -q 'self->steps_->item_count_ == 3 && .*return Tariff_price___configured_0(self, amount_);$' "$configured" \
-   || ! grep -q '^if (self->steps_->item_count_ == 2) return Stepped_price___configured_0(self, amount_);$' "$configured" \
+   || grep -q 'Stepped_[a-z_]*___configured_' "$configured" \
    || grep -q 'Grown_[a-z_]*___configured_' "$configured"; then
-  echo "FAILED: configured_tables should copy Tariff's and Stepped's price for their tables and leave Grown's as written"; exit 1
+  echo "FAILED: configured_tables should copy Tariff's price for its table and leave Stepped's and Grown's as written"; exit 1
 fi
 # Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
 # gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's

@@ -349,16 +349,28 @@ func render(): String {
         main_function = guarded(main_function, unused_shaker, true)
         typedef_text = guarded_types(typedef_text, unused_shaker, true)
     }
-    if shakes and configured_values {
-        var copies = ConfiguredCopies()
-        bodies = copies.copied(bodies, main_function, configured_values, function_classes, function_names, threads)
-        configured_functions = copies.copied_functions
-    }
     if threads and shakes and counts_by_class {
         var sharing = CountSharing()
         bodies = sharing.plain_counts(typedef_text, bodies, main_function)
         typedef_text = sharing.unguarded_types(typedef_text)
         count_sharing = sharing
+    }
+    if shakes and configured_values {
+        var copies = ConfiguredCopies()
+        var unshared = List<String>()
+        if count_sharing {
+            unshared = count_sharing.plain_classes
+        }
+        bodies = copies.copied(
+            bodies,
+            main_function,
+            configured_values,
+            function_classes,
+            function_names,
+            threads,
+            unshared,
+        )
+        configured_functions = copies.copied_functions
     }
     if shakes and counts_by_class and allocates_plainly(typedef_text) {
         bodies = with_class_pools(typedef_text, bodies)

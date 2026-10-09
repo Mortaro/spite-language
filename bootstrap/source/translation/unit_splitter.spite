@@ -246,7 +246,7 @@ func take_declaration(text: String) {
     var code = code_only(text).trim()
     var head = before_equals(code)
     var kind = declaration_kind(code, head)
-    if kind == "type" {
+    if kind == "type" or code.starts_with("static const ") and head.contains(" spite_configured_") {
         header.append(text)
         return
     }

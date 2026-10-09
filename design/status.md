@@ -990,12 +990,12 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Built (step 2 of pair S1 of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to
   confirm). Not built: a setup whose appends sit in a loop or a branch, or whose filling function a function outside
   the class calls more than once (its count is not guessed, so no copy is written); the values a parameter of the
-  setup is given at each call, so `prepare(1)` and `prepare(2)` share one copy that keeps only the count; tables of
-  objects read as constants (their count is folded, their items are not); a table in a non-singleton class of a
+  setup is given at each call, so `prepare(1)` and `prepare(2)` get no copy; tables of
+  objects read as constants (their count is folded beside a table of known values, their items are not); a table in a non-singleton class of a
   program that runs threads; the step 3 of S1, the runner made direct (L8b, B2b and the row kept in locals), which
   needs the runner's calls inlined into one body at the Spite level (pair C4). The optimisation report does not yet
   say which tables were copied or why one was not. Its case, `benchmarks/a_table_filled_once_is_read_as_constants`,
-  runs in 1.29 of naive C's time and 1.32 of expert C's (measured while the machine was in other use).
+  runs in 1.62 of naive C's time and 1.73 of expert C's (measured while the machine was in other use).
 
 ### Objects of one class sit together
 

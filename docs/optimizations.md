@@ -2301,15 +2301,21 @@ lets nobody else reach, that nothing ever shrinks (`clear()`, `truncate`, the `r
 `append`, each at the top level of its function, from one function that runs once for each object: its constructor,
 or a function that starts with `assert not prepared` and then `prepared = true`, directly or through functions of
 its own that it calls at their top level. The items' values are known for a list of whole numbers or of an enum
-(the copy reads them as constants); for a list of anything else only the count is. In a program that runs threads,
-only for a singleton. Not for a function that a function writing the list could reach, nor for a lock's wrapper of a
-singleton's function (the copy is taken inside the lock).
+(the copy reads them as constants); for a list of anything else only the count is, and only beside a table whose
+items are known (a copy that knew only counts would grow the program for little). In a program that runs threads,
+only for a singleton or a class no other thread counts. Not for a function that a function writing the list could
+reach, nor, when a function on the way to a writer is passed as a value, for one that calls a function value; nor
+for a lock's wrapper of a singleton's function (the copy is taken inside the lock).
 
 **What you notice.** Speed, and a bigger executable: each function copied is in the C once more for each
-combination. The case's ten million prices take 36 ms instead of 40 (measured while the machine was in other use).
-The naive engine's stress test, whose matchers' kinds and keys are filled once by `prepare()`, ticks in about 4%
-less time (also measured while the machine was in other use); its C grows by 18% and its executable by 12%, for 360
-copies of the functions of its six matchers, four combinations each, of which this program runs one.
+combination. The case's ten million prices take about as long either way (28 ms, measured while the machine was
+in other use): there the C compiler already keeps the three steps' reads out of the loop, and the copy only saves the
+loop over them.
+The naive engine's stress test, whose matchers' kinds and keys are filled once by `prepare()`, ticks in about 7%
+less time (also measured while the machine was in other use); its C grows by 20% and its executable by 13%, for 440
+copies of the functions of its six matchers and their runners, four combinations each, of which this program runs
+one. In a build of several [translation units](#the-c-is-compiled-in-parallel-units-and-cached) each unit has its
+own copy of the constant lists, so the C compiler folds them in every unit.
 
 ### A number joined into text is written in place
 

@@ -1073,20 +1073,21 @@ have moved.
   call began: its count and every item.
 - **Rule.** The list is one that [a list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) covers
   (of any item class), and nothing in the program shrinks it. The functions of its class that write it are found in
-  the C, and every function that can call one of them, through any chain of calls; a function whose name is taken
-  as a value, or is called from code outside every function, makes the class's tables unknown. A copied function
-  is one of the class's own that reads the table (or calls such a function on the same object) and can reach none of
-  the writers, so nothing it runs can change the table. The copy is chosen by a test of the table's count and items
-  at the call, so what the copy assumes holds for the whole call. In a program that runs threads the class is a
-  singleton, whose other threads are kept out by its lock (the test is made inside it) or that no other thread
-  reaches.
+  the C, and every function that can call one of them, through any chain of calls; a function on that chain called
+  from code outside every function makes the class's tables unknown, and one passed as a value rules out every copy
+  that calls a function value. A copied function is one of the class's own that reads the table (or calls such a
+  function on the same object) and can reach none of the writers, so nothing it runs can change the table. The copy
+  is chosen by a test of the table's count and items at the call, so what the copy assumes holds for the whole call.
+  In a program that runs threads the class is a singleton, whose other threads are kept out by its lock (the test is
+  made inside it) or that no other thread reaches, or a class no other thread counts.
 - **Guesses, never relied on.** Which tables to write a copy for is worked out from the setup: the one function of
   the class that fills the list and that no other filling function calls (its constructor, or one that starts with
   `assert not prepared` and `prepared = true`), walked through the functions it calls at its top level, each
   `append` at a function's top level counted in order, its value the set of values the compiler lists for it. A guess that is wrong
   costs only the copy's size: the test fails and the function runs as written.
 - **Buys.** The copy reads the table as a constant: a whole-number or enum table as a constant list of its values,
-  any other as its count; loops over it unroll and tests of its items fold.
+  any other as its count (copies are written only when at least one table's values are known); loops over it unroll
+  and tests of its items fold.
 - **Falls back.** The function as written, for every object whose table holds something else.
 - **See.** [optimizations.md: A table filled once is read as
   constants](optimizations.md#a-table-filled-once-is-read-as-constants); `conformance/stage6/configured_tables`.

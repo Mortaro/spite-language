@@ -628,16 +628,22 @@ six matchers' `kinds` (each item 0 or 3, so four combinations for two attributes
 
 | | before | after |
 |---|---|---|
-| stress tick, one C file | 20.8 ms | 20.1 ms |
-| stress tick, split build | 25.6 ms | 24.9 ms |
-| physics step | 9.2 ms | 9.2 ms |
-| the case, ten million prices | 40 ms | 36 ms |
-| stress C, one file | 3 280 363 bytes | 3 866 745 bytes (+18%) |
-| stress executable, one file | 1 325 568 bytes | 1 478 656 bytes (+12%) |
+| stress tick, one C file | 27.7 ms | 25.7 ms |
+| stress tick, split build | 32.0 ms | 30.0 ms |
+| physics step | 12.1 ms | 12.3 ms (within the noise) |
+| the case, ten million prices | 28 ms | 28 ms (an earlier, noisier pair said 40 to 36) |
+| stress C, one file | 3 280 363 bytes | 3 926 005 bytes (+20%) |
+| stress executable, one file | 1 325 568 bytes | 1 498 112 bytes (+13%) |
 
-360 functions are copied in the stress program (27 to 30 of each matcher, four times; three of the four
-combinations never run in this program, which is the price of not knowing `is_marker` while compiling). The other
-cases of `benchmarks/` compile to the same C.
+(Medians of seven on a machine running games and other sessions' checks; an earlier pair of runs on a quieter
+machine gave 20.8 to 20.1 ms one file and 25.6 to 24.9 split.) 440 functions are copied in the stress program: the
+matchers' (four combinations of `kinds` each, three of which this program never makes, the price of not knowing
+`is_marker` while compiling) and the runners' that call them. A copy is written only beside a table whose values are
+known: copies that knew only counts (the runners' `writing`, a parameter's step) grew the C for nothing measurable.
+Each unit of a split build keeps its own copy of the constant lists, so they fold there too. Compiling the compiler
+itself takes as long as before (no class of it qualifies; the walks over its call graph are bounded); a first
+version that walked each table's writers by scanning every function of the class took the compiler's own build from
+5 to 15 minutes, which the bound and the call index fixed. The other cases of `benchmarks/` compile to the same C.
 
 ### Stage 1b: plain bytes and plain foreign structs (medium, library and the foreign call)
 
