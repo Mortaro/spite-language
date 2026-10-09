@@ -553,6 +553,38 @@ cannot be a frame object, nothing proves the object filled in one call, used in 
 one object, and no per-field write set records which fields a callee assigns. Inlining the runner at the Spite level
 removes most of them; handed to the agent building it.
 
+**R19 to R23, the ten cases furthest behind expert C (2026-10-09).** Read-only comparisons of `expert.c` with
+`generated.c`; under D549 every expert was judged fair (it prints the same answer), so each gap is work the compiler
+must learn. Themes, with the cases they reach:
+
+- **Pools or a per-block arena for classes no list holds.** `class_pools.spite` pools only a list's item class, so
+  a linked `Node`, an `Owner` an item points to, a copied order's `Customer` keep `malloc` and `free` per object.
+  Pool every class whose makes and frees all run on the program's own thread, or allocate every object proven not
+  to outlive its block from one block freed at once (`allocation_is_the_c_librarys_counted_only_where_read`, about
+  60 of its 86 ms; `a_deep_copy_...`; `an_allocator_set_after_construction_...`, where an allocator whose `free` is
+  empty also needs no give-back call, no count and no hidden pointers). Sent to a cloud agent (branch `memory-wins`).
+- **Columns, and an object merged into its only owner.** `defaults_the_constructor_replaces_are_never_made` (84x)
+  is a list of items each pointing at a fresh `Owner`; expert keeps two columns. L1 plus the one-owner merge, in one
+  fused pass. Its name misleads: the defaults optimisation is built and correct; the 84x is layout.
+- **One pass over an unchanged list, reductions combined.** `report_over_records` makes 64 filtered passes over 2
+  million sales (82% of naive C's time); expert does one fused pass with the cell's number as a weight, legal since
+  the per-cell sums are never printed. Also two sibling sums in `defaults_...`, and `text_building`'s join (measure,
+  copy, write and the word loop into one write). Queued after the Spite-level inlining work.
+- **Plain attributes under a held or skipped lock; per-thread reductions.** Inside the counted loop's single lock and
+  while no task runs, singleton attributes still use SEQ_CST atomics; expert keeps them in registers, and shards a
+  sum, count and max per thread with one merge (`a_counted_loop_...`, `while_no_task_runs_...`). A file used in a loop
+  could keep its handle open and read into a frame buffer (`concurrency_machinery_only_where_it_is_used`). Sent to
+  a cloud agent (branch `singleton-wins`).
+- **Copies and lists sized once.** A generated deep copy runs the defaults it then throws away (400,000 wasted
+  allocations); a list copy appends one item at a time; a list filled by a loop with a proven trip count grows by
+  doubling. Part of `memory-wins`.
+- **Text.** The join writes byte by byte through a checked position and a checked narrowing; expert uses `memcpy`
+  per piece and keeps its buffer as the result. With the range of `code_at` and the join inlined, both checks fall
+  and the copy becomes `memcpy`; a fresh buffer nothing else names can become the `String`'s block.
+- **Specialising over a fixed list (S1).** `an_argument_its_caller_holds_is_passed_without_counting` (19x): the
+  matcher divides by `headers[index]`, nine million `idiv`s; expert's headers are the constants 1, 2, 3, so clang
+  folds the divisions and vectorises. S1 step 2 folds them; the inlining agent is building it.
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
