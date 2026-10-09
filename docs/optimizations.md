@@ -953,6 +953,13 @@ while they wait.
 a wait, which is known once every function it reaches is compiled: so the functions holding such a call are
 compiled after the others, and if a function compiled later changes the answer, the build fails and says where.
 
+**What can stop it.** The started work and the frame take turns at their waits, so the compiler reads the plain C
+of every function either side reaches that can wait, line by line and twice over for loops. A number, `Boolean`,
+enum, text or value-class local computed from an attribute and still held after a wait is carried; writing it
+back into an attribute of the same name (directly, through a function that writes one, or through a returned
+value), or one line that reads an attribute, waits and writes it, keeps the call waiting in place, exactly as it
+would have without this optimisation. It is listed under "Waits that hold the frame" in `--optimization-report`.
+
 **What you notice.** The started work finishes in a later frame, which is the point. A program with no frame loop,
 or whose frame loops call nothing that waits on another object, compiles exactly as before. One that starts a wait
 carries what a `Concurrent` carries ([concurrency machinery](#concurrency-machinery-only-where-it-is-used)), plus

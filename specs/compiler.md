@@ -113,7 +113,7 @@ it. Tree shaking and every other whole-program step run before any output is wri
   too. It is written only when asked: without the flag the compiler records nothing and the program built is the
   same. It starts with `# Optimisation report` and a sentence naming the program, then has one `## <section>
   (<count>)` per optimisation, in this order: `Lists that hold references`, `Lists not in the frame`, `Objects not
-  in the frame`, `Copies not elided`, `Overflow checks kept`; a section with nothing in it says `None.`. An overflow
+  in the frame`, `Copies not elided`, `Overflow checks kept`, `Waits that hold the frame`; a section with nothing in it says `None.`. An overflow
   check kept is `` `<operation>` keeps its overflow check: <why> ``, the why naming the operand that `can be any value
   <a type> holds, and nothing proves a smaller range for it`, or each operand's range (`'<operand>' runs from <lowest>
   to <highest>`, or `'<operand>' is <value>` where the text is not the number itself) joined by `and`, then `so the

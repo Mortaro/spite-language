@@ -1384,15 +1384,21 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
   wait (the fact [Whether a function waits](#whether-a-function-waits) proves) is started as a `Concurrent`, kept
   by `WaitsInFlight` until it finishes, eight at most per statement. The answer is taken once every function it
   reaches is compiled; one that would change later is an error at the statement.
+  It is started only when no write can be lost: neither the work nor the frame loop writes an attribute back from a
+  plain value it read before one of its waits (read from the plain C of each function that can wait, twice over
+  for loops; an object reference read before a wait is not stale).
 - **Buys.** A frame loop keeps drawing while a system reads a file or talks to a server, with no `Concurrent` in
   the program and nothing dropped: a ninth call waits for the oldest, and the program ends only once every one has
   finished.
 - **Falls back.** A call that never waits, a call on the loop's own object, a call whose answer is used, a call
   with arguments and a call inside a `Concurrent` wait where they are written. To start such work, call it with no
-  arguments on an object of its own.
+  arguments on an object of its own. A call where either side writes back a value read before a wait waits where
+  it is written too, listed in `--optimization-report` under "Waits that hold the frame": read the value again
+  after the wait.
 - **See.** [concurrency.md: A wait in a frame does not hold the
   frame](concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame),
-  [optimizations.md](optimizations.md#a-wait-in-a-frame-does-not-hold-the-frame); `conformance/stage6/frame_waits`.
+  [optimizations.md](optimizations.md#a-wait-in-a-frame-does-not-hold-the-frame); `conformance/stage6/frame_waits`,
+  `conformance/stage6/frame_waits_kept`.
 
 ## Other refusals built on an analysis
 

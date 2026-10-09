@@ -390,6 +390,11 @@ seen the text on its first test. Here it returns at its sleep, and the loop draw
 - **The frame's own waits stay.** Only a call on another object is started. The loop's sleep, and anything that
   waits in a function of the loop's own object, is the frame's pace and waits where it is written, and so does a
   call whose answer is used, or one made inside a `Concurrent`.
+- **No write is lost.** The call and the frame now take turns at their waits, so a value one of them read before
+  a wait may be out of date after it. When either side would write such a value back (`var seen = count`, a wait,
+  then `count = seen + 1`), the call is not started: it waits where it is written, as it always did, and
+  `--optimization-report` lists it under "Waits that hold the frame". Read the value again after the wait and the
+  call is started.
 
 The exact conditions are in [the rules](../specs/concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame).
 
