@@ -139,7 +139,29 @@ GPU. Not the only mode and not the default; research that could unlock large spe
   to test kernels in `check.sh` without a GPU (a CPU executor of the same kernel); whether the engine's renderer
   and this mode share one device; what the moron sees in `--optimization-report`.
 
-## Threads and parallelism
+## Archetypes, chosen by the compiler (Mortaro, 2026-10-09)
+
+Some entity systems ask the programmer to mark a component as "sparse" or "table" so the engine can group entities
+by which components they have (archetypes: one table per set of components, rows contiguous). Mortaro: no moron
+should ever think of that, and the optimisation must not be limited to games; it should come out of the box.
+
+The general shape is not entities at all: any collection of objects whose items differ in which optional parts they
+have (an attribute that is `null` for some items, a variant held as a union, a part added and removed over time).
+Questions to research:
+
+- **Grouping by shape.** When does it pay to keep the items of one list in several tables, one per set of present
+  parts, so a loop that needs parts A and B walks only the tables that have both, contiguously? What must be proven
+  (no order of the whole list is observed, or the order is kept by an index; identity and `==` still answer the
+  same), and what does moving an item between tables cost when a part is added or removed?
+- **Table or sparse, per part, decided by the compiler.** A part added and removed often is cheaper kept apart
+  (sparse, a map from item to part); a part that stays is cheaper in the table. The compiler sees every place a
+  part is added, removed and read, and how often in loops; where only the run knows the rate, a profile (D534)
+  decides. The moron writes neither word.
+- **Queries as loops.** A loop with a test of which parts an item has (`if item.velocity and item.position`) is a
+  query; with archetypes it becomes a walk over the matching tables with no test.
+- **Relation to what exists.** Per-use representation (D520), columns (L1), class splitting (S2), the
+  data-oriented study's rules, and the naive engine's own columns and matcher, which do this by hand today.
+
 
 - **Independent loops in bands.** Idea: a loop whose passes write only their own item runs on the pool. Proof:
   per-pass write set disjoint by index; reads not written by any pass. Status: planned (T1).

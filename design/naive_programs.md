@@ -59,6 +59,14 @@ arrays per field, deferred budgeted freeing, scratch pools, tombstones, per-thre
 Repositories: the language's `master` and the engine package's `main` are up to date with their remotes. The game has no
 upstream to pull; per D507 it is only a benchmark now and is not changed for features.
 
+## Priority (2026-10-09, D550)
+
+**The naive engine replaces the engine package's main branch as soon as it is at least as fast on every benchmark.**
+Until then, compiler work is chosen by what closes the engine's remaining gaps, measured on its stress and physics
+benchmarks (the others already match or win): first the runner made direct (S1 step 2 and Spite-level inlining),
+then the two stress systems on two cores (per-object facts and per-site counts), then physics (profile first).
+Benchmark cases that do not move the engine wait unless they are cheap.
+
 ## How every step is judged
 
 1. **The naive form is the reference.** A step starts by writing the naive version of a piece of the engine (on the engine
