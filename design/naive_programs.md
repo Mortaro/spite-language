@@ -88,6 +88,13 @@ rounds alternating original and naive, medians in microseconds (the spread acros
 The original's stress tick runs its two systems on two threads (5.6 ms each, at once); the naive one runs them one
 after the other (12.2 ms each). One thread each, the gap is about 2.2x per system.
 
+**Chunked loops for the engine (D559).** The last two facts the cache-chunked loops need: a summary of what a
+function surely wrote when it answered true (so the row scratch is proven written before read), and, for
+"different passes write different slots", a check once per loop at run time of the index invariant
+(`rows[entities[r]] == r + 1`): when it holds, the loop runs in chunks on every core; when it does not, it runs as
+written. Same answer either way, never a crash (a branch between two compiled forms, D508). By hand, the chunked
+stress tick was 5.5 ms against the original's 6.6 under the same load.
+
 **Also required before the switch (found 2026-10-09):** on the naive branch, `io_systems` finds its database lookups
 but the game advances only 3 frames while they wait, against 31 on main: the naive runner drains a waiting system's
 queue with a plain call, so frames stop while IO runs. The check stays as it is; the fix is the compiler arranging

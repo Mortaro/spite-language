@@ -44,9 +44,13 @@ Spite source -> parser -> checks and proofs (as today) -> backend IR -> per-targ
                                                       \-> C (fallback, as today) -> clang object ---------/
 ```
 
-- **Backend IR:** a small typed, register-based IR held in flat arrays (functions, blocks, instructions with up to
-  three operands). It is produced from the same information the C generator uses (the compiler's typed tree and
-  the facts the proof passes recorded), not from the generated C.
+- **Two levels of IR, shared by every output (D560).** A high-level IR keeps Spite's own operations: a walk over a
+  list, a template step, a field of an object, a count up and down, a waiting call, a reduction. The naive-to-expert
+  optimisations run there (layout per use, fusion, bands, ownership, waits), because those facts are lost once the
+  program is flat. It is lowered to a low-level IR held in flat arrays (functions, blocks, typed instructions on
+  virtual registers), where instruction selection and register allocation run. **The C generator is fed from the
+  same IR**, so every proof is written once, on the IR, for both C and our backend, and the proofs that read the
+  generated C today move onto it.
 - **Code generation:** direct instruction selection to x86-64, a simple register allocator (linear scan) in the
   development build, a better one in the optimising build.
 - **Object and linking:** our linker reads our objects and COFF or ELF objects from clang, resolves symbols, applies
@@ -74,12 +78,16 @@ Linux.
 push, pop, lea, the SSE moves and arithmetic for `Float` and `Double`). Acceptance: a table-driven test that
 encodes each instruction and compares the bytes with a table checked by hand (taken once from an assembler).
 
-### M3: the backend IR and a first lowering
+### M3: the two-level IR and a first lowering (D560)
 
-`ir.spite` and `lower.spite`: the IR, and lowering for the smallest useful subset: whole-number and decimal locals,
+`high_ir.spite`, `low_ir.spite` and `lower.spite`. The high-level IR is built from the compiler's typed tree and the
+facts the proof passes record; keep Spite's operations as operations (a list walk is one instruction with a body,
+not a hand-made loop). Lower it to the low-level IR for the smallest useful subset: whole-number and decimal locals,
 arithmetic with Spite's overflow checks (a checked operation jumps to a crash path that reports like the C path),
-`if`, `while`, calls to the program's own functions, returns. Acceptance: a conformance program with a recursive
-function and a loop prints the same as through C.
+`if`, `while`, calls to the program's own functions, returns. Then emit **C from the IR** for that subset and keep the
+current generator for everything else, function by function. Acceptance: a conformance program with a recursive
+function and a loop prints the same three ways (today's C, C from the IR, and, once M2 is done, our machine code);
+`bash check.sh` stays green with the C-from-IR path on for the functions it covers.
 
 ### M4: mixed builds
 
