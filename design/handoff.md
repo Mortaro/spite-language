@@ -102,13 +102,12 @@ When the engine is at least as fast everywhere, the naive branch replaces main (
 ## Saved branches (cleanup of 2026-10-09)
 
 Every clone and worktree that held unfinished work was pushed to a `saved-*` branch before its folder was removed,
-in both repositories: in the language `saved-checker-d284` (**"refuse a program class that re-creates a standard
-library class"**, never merged, relevant to the status.md item about reopenings that copy library work),
-`saved-fx-backup` (singleton lock backoff), `saved-dictionary-two-generics`, `saved-work-dictionary`,
+in both repositories: in the language `saved-fx-backup` (singleton lock backoff), `saved-dictionary-two-generics`, `saved-work-dictionary`,
 `saved-unit-placement-experiment`, `saved-t1-work-in-progress`, `saved-interop`, `saved-testdocs`,
 `saved-concurrencydocs`, `saved-fastbuild`, `saved-mono`, `saved-mono3`, `saved-nomap`, `saved-record`; in the engine
 `saved-cascaded-shadows`, `saved-index-in-cache`, `saved-materials-merge`. Branches merged into master or main were
-deleted. The engine works in `D:\Projects\SlopEngine` (main is the naive engine).
+deleted. (`saved-checker-d284`, an old "refuse a class that re-creates a library class" by name and attributes, was
+deleted as superseded by D420's stricter name rule; it did not cover reopenings either.) The engine works in `D:\Projects\SlopEngine` (main is the naive engine).
 
 ## How to work here (lessons from this session)
 
