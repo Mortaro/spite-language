@@ -124,6 +124,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [An item a name holds from its list](#an-item-a-name-holds-from-its-list-is-not-counted) | no count on the read, none on the calls it is passed to | the counted read |
 | [A list item read only to test it](#a-list-item-read-only-to-test-it-is-not-counted) | no count for the test | the counted read |
 | [An item used at once](#an-item-used-at-once-is-not-counted) | no count for one use | the counted read |
+| [A list held only in a slot of another list](#a-list-held-only-in-a-slot-of-another-list) | the inner lists inside the outer list's block | a list of references |
 | [A list only its class fills](#a-list-only-its-class-fills-holds-only-what-it-fills) | a test against a value it never holds decided while compiling | the test runs |
 | [A table filled once](#a-table-filled-once-holds-what-its-setup-put-in) | the functions reading it run on a constant copy | the function as written |
 | [Calls that share nothing written](#calls-that-share-nothing-written) | a row of calls runs at once | in order, as written |
@@ -1044,6 +1045,27 @@ have moved.
 - **See.** [optimizations.md: An item passed to a call that cannot change its list is not
   counted](optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted);
   `conformance/stage6/items_at_once`.
+
+### A list held only in a slot of another list
+
+- **Proves.** No inner list of a `List<List<T>>` is ever reachable except through its slot, and no use of a slot
+  outlives a line that may move the slots.
+- **Rule.** For one `T`, over every function the program compiles: each value put into a `List<List<T>>`
+  (`append`, `prepend`, `insert`) is `List<T>()` itself or a local made by `List<T>()` in the same block, used before
+  only as the receiver of its own functions and never mentioned after; each item read from one (`[ ]`, `get_at`,
+  `first`, `last`) is tested, discarded, the receiver of one of the inner list's own functions whose arguments and
+  passed functions cannot grow or shrink the list of lists, or the value of one `var` whose every later use is one of
+  those, with no line that may resize the list of lists before its last use ([no borrowed read past a
+  resize](#no-borrowed-read-past-a-resize), the same check); the list of lists is never given a second name,
+  passed, returned, put in a list or asked any other function; no `Dictionary`, `Items` or variadic parameter holds
+  lists of that `T`; and no code the compiler writes on its own reads its items. A local whose type the compiler
+  cannot name while it studies a function that reads a collection with `[ ]` stops it for the whole program.
+- **Buys.** Each inner list's object in the outer list's block: a read of an item is the slot's address, one load
+  fewer and no count, and the lists sit side by side.
+- **Falls back.** The list of references, for every `List<List<T>>` of that `T`, whenever any part of the rule fails
+  anywhere, and in inspectable builds.
+- **See.** [optimizations.md: A list held only by another list lives in its
+  slot](optimizations.md#a-list-held-only-by-another-list-lives-in-its-slot); `conformance/stage6/nested_lists`.
 
 ### A list only its class fills holds only what it fills
 

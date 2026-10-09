@@ -1,0 +1,69 @@
+var console = Console()
+var orders = List<Order>()
+var buckets = List<List<Order>>()
+var total: Long = 0
+var seed: Long = 12345
+
+func Naive() {
+    make_orders(400000)
+    var benchmark = Benchmark(group_and_ask)
+    console.print("total", total)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func make_orders(count: Integer) {
+    var index = 0
+    while index < count {
+        seed = (seed * 1103515245 + 12345) % 2147483648
+        var customer: Integer = seed % 65536
+        var amount: Integer = seed % 1000
+        var order = Order(customer, amount)
+        orders.append(order)
+        index = index + 1
+    }
+}
+
+func group_and_ask() {
+    var round = 0
+    while round < 10 {
+        group()
+        total = total + ask(round)
+        round = round + 1
+    }
+}
+
+func group() {
+    buckets.clear()
+    var made = 0
+    while made < 65536 {
+        var bucket = List<Order>()
+        buckets.append(bucket)
+        made = made + 1
+    }
+    var index = 0
+    while index < orders.count() {
+        var order = orders[index]
+        crash buckets[order.customer]
+        buckets[order.customer].append(order)
+        index = index + 1
+    }
+}
+
+func ask(round: Integer): Long {
+    var asked: Long = 0
+    var customer = round
+    var query = 0
+    while query < 400000 {
+        customer = (customer * 7919 + 13) % 65536
+        var bucket = buckets[customer]
+        crash bucket
+        var at = 0
+        while at < bucket.count() {
+            asked = asked + bucket[at].amount
+            at = at + 1
+        }
+        query = query + 1
+    }
+    return asked
+}

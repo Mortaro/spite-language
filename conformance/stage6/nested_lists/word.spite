@@ -1,0 +1,5 @@
+var length = 0
+
+func Word(starting_length: Integer) {
+    length = starting_length
+}

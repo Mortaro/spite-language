@@ -995,6 +995,24 @@ pooled_output=$("$work/class_pools_optimized.exe" | tr -d '\r')
 if [ "$pooled_output" != "$(tr -d '\r' < conformance/stage6/class_pools/expected_output.txt)" ]; then
   echo "FAILED: class_pools built --optimized printed: $pooled_output"; exit 1
 fi
+# A list held only by another list lives in its slot (pair M8b): nested_lists keeps each List<Word> and List<Integer>
+# inside its list of lists, moves an appended fresh list into its slot and drops an item there; its List<String>
+# (named again after it is put in) and List<Long> (written with [ ] =) keep references, and an --optimized build
+# prints what the --debug-memory run printed.
+nested="$work/nested_lists.c"
+"$work/generation_two.exe" conformance/stage6/nested_lists --check --c-source --c-path="$nested" > /dev/null 2>&1 || {
+  echo "FAILED: nested_lists does not write its C"; exit 1; }
+if ! grep -q "^memcpy(spite_slot, value_, sizeof(List_Word));$" "$nested" \
+   || ! grep -q "^memcpy(spite_slot, value_, sizeof(List_Integer));$" "$nested" \
+   || grep -qE "sizeof\(List_(String|Long)\)\);$" "$nested"; then
+  echo "FAILED: nested_lists should keep List<Word> and List<Integer> in their slots and List<String> and List<Long> by reference"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/nested_lists --optimized --build --executable-path="$work/nested_lists_optimized.exe" > /dev/null 2>&1 || {
+  echo "FAILED: nested_lists does not build --optimized"; exit 1; }
+nested_output=$("$work/nested_lists_optimized.exe" | tr -d '\r')
+if [ "$nested_output" != "$(tr -d '\r' < conformance/stage6/nested_lists/expected_output.txt)" ]; then
+  echo "FAILED: nested_lists built --optimized printed: $nested_output"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1

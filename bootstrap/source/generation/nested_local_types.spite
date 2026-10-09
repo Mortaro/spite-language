@@ -1,0 +1,14 @@
+singleton
+
+var names = List<String>()
+var types = List<Analysis.SpiteType>()
+
+func note(name: String, spite_type: Analysis.SpiteType) {
+    names.append(name)
+    types.append(spite_type)
+}
+
+func keep_first(kept: Integer) {
+    names.truncate(kept)
+    types.truncate(kept)
+}

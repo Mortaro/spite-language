@@ -1,0 +1,6 @@
+total 585 buckets 5
+shelf 0 size 0 second -1
+shelf 1 size 2 second 0
+shelf 2 size 2 second 20
+kept 2 first 2
+replaced 1

@@ -1,0 +1,109 @@
+var console = Console()
+var buckets = List<List<Word>>()
+var shelves = List<List<Integer>>()
+var kept = List<List<String>>()
+var replaced = List<List<Long>>()
+
+func NestedLists() {
+    var round = 0
+    var total = 0
+    while round < 3 {
+        sort_words(8 + round * 4)
+        total = total + walk()
+        round = round + 1
+    }
+    var bucket_count = buckets.count()
+    console.print("total", total, "buckets", bucket_count)
+    shelve()
+    keep()
+    replace()
+}
+
+func sort_words(count: Integer) {
+    buckets.clear()
+    var made = 0
+    while made < 5 {
+        var bucket = List<Word>()
+        buckets.append(bucket)
+        made = made + 1
+    }
+    var index = 0
+    while index < count {
+        var word = Word(index * 7 % 13)
+        var slot = word.length % 5
+        crash buckets[slot]
+        buckets[slot].append(word)
+        index = index + 1
+    }
+}
+
+func walk(): Integer {
+    var total = 0
+    var slot = 0
+    while slot < buckets.count() {
+        var bucket = buckets[slot]
+        var at = 0
+        while at < bucket.count() {
+            total = total + bucket[at].length * (slot + 1)
+            at = at + 1
+        }
+        slot = slot + 1
+    }
+    return total
+}
+
+func shelve() {
+    var index = 0
+    while index < 4 {
+        var shelf = List<Integer>()
+        shelves.append(shelf)
+        crash shelves[index]
+        shelves[index].append(index)
+        shelves[index].append(index * 10)
+        index = index + 1
+    }
+    shelves.remove_at(1)
+    var front = List<Integer>()
+    shelves.insert(0, front)
+    shelves.swap(1, 2)
+    shelves.remove_swapping(3)
+    var emptied = List<Integer>()
+    shelves.append(emptied)
+    shelves.reverse()
+    shelves.truncate(3)
+    var position = 0
+    while position < shelves.count() {
+        var shelf = shelves[position]
+        var size = shelf.count()
+        var second = -1
+        if size > 1 {
+            crash shelf[1]
+            second = shelf[1]
+        }
+        console.print("shelf", position, "size", size, "second", second)
+        position = position + 1
+    }
+}
+
+func keep() {
+    var first = List<String>()
+    first.append("one")
+    kept.append(first)
+    var held = kept[0]
+    first.append("two")
+    crash held
+    var held_count = held.count()
+    var first_count = first.count()
+    console.print("kept", held_count, "first", first_count)
+}
+
+func replace() {
+    var first = List<Long>()
+    replaced.append(first)
+    var second = List<Long>()
+    second.append(5)
+    replaced[0] = second
+    crash replaced[0]
+    var size = replaced[0].count()
+    console.print("replaced", size)
+}
