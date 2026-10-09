@@ -1,0 +1,482 @@
+var facts: OverlapFacts? = null
+var waiting = Dictionary<String, Boolean>()
+var program_functions = Dictionary<String, Boolean>()
+var shape_types = Dictionary<String, Boolean>()
+var plain_fields = Dictionary<String, Boolean>()
+var returned = Dictionary<String, List<String>>()
+var written_by = Dictionary<String, List<String>>()
+var scanned = Dictionary<String, Boolean>()
+var risk = ""
+var outline = ReportOutline()
+
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func CarriedValues(
+    read_facts: OverlapFacts,
+    waiting_names: Dictionary<String, Boolean>,
+    program_names: Dictionary<String, Boolean>,
+    shape_names: Dictionary<String, Boolean>,
+) {
+    facts = read_facts
+    waiting = waiting_names
+    program_functions = program_names
+    shape_types = shape_names
+    var fields = read_facts.struct_fields.keys()
+    var index = 0
+    while index < fields.count() {
+        var key = fields[index]
+        var field_type = read_facts.struct_fields[key]
+        crash field_type
+        var hash = key.index_of("#")
+        var key_length = key.length()
+        var field = key.slice(hash + 1, key_length)
+        if is_plain_type(field_type) {
+            plain_fields[field] = true
+        }
+        index = index + 1
+    }
+}
+
+func is_plain_type(written: String): Boolean {
+    var trimmed = written.trim()
+    if trimmed.is_empty() or trimmed.contains("*") or trimmed == "void" {
+        return false
+    }
+    return not shape_types.has(trimmed)
+}
+
+func lost_write(roots: List<String>): String {
+    risk = ""
+    var pending = roots.copy()
+    while not pending.is_empty() and risk.is_empty() {
+        var name = pending.remove_last()
+        crash name
+        if not scanned.has(name) {
+            scanned[name] = true
+            scan(name, pending)
+        }
+    }
+    return risk
+}
+
+func scan(name: String, pending: List<String>) {
+    crash facts
+    var lines = facts.bodies[name]
+    assert lines
+    var derived = Dictionary<String, List<String>>()
+    var carried = Dictionary<String, Boolean>()
+    var fresh = Dictionary<String, Boolean>()
+    var signature = lines[0]
+    crash signature
+    take_parameters(signature, derived)
+    var pass = 0
+    while pass < 2 and risk.is_empty() {
+        var index = 1
+        while index < lines.count() and risk.is_empty() {
+            var line = lines[index].trim()
+            study_line(name, line, derived, carried, fresh, pending)
+            index = index + 1
+        }
+        pass = pass + 1
+    }
+}
+
+func take_parameters(signature: String, derived: Dictionary<String, List<String>>) {
+    var open = signature.index_of("(")
+    var close = last_position(signature, ")")
+    assert open > 0 and close > open
+    var parameters = signature.slice(open + 1, close).split(",")
+    var index = 0
+    while index < parameters.count() {
+        var parameter = parameters[index].trim()
+        var parameter_length = parameter.length()
+        var name_start = facts_identifier_start(parameter, parameter_length)
+        var parameter_type = parameter.slice(0, name_start)
+        var parameter_name = parameter.slice(name_start, parameter_length)
+        if parameter_name != "self" and is_plain_type(parameter_type) {
+            derived[parameter_name] = ["*"]
+        }
+        index = index + 1
+    }
+}
+
+func facts_identifier_start(text: String, end: Integer): Integer {
+    var position = end
+    while position > 0 {
+        var code = text.code_at(position - 1)
+        if not outline.is_name_code(code) {
+            return position
+        }
+        position = position - 1
+    }
+    return position
+}
+
+func study_line(
+    name: String,
+    line: String,
+    derived: Dictionary<String, List<String>>,
+    carried: Dictionary<String, Boolean>,
+    fresh: Dictionary<String, Boolean>,
+    pending: List<String>,
+) {
+    var called = called_names(line)
+    var waits_here = false
+    var index = 0
+    while index < called.count() {
+        var callee = called[index]
+        if waiting.has(callee) and callee != name {
+            waits_here = true
+            if program_functions.has(callee) or callee.contains("___call_") {
+                pending.append(callee)
+            }
+        }
+        index = index + 1
+    }
+    var assigned = assignment_of(line)
+    if not assigned.is_empty() {
+        study_assignment(line, assigned, called, waits_here, derived, carried, fresh)
+    }
+    var written = field_write_of(line)
+    if not written.is_empty() {
+        study_field_write(line, written, called, waits_here, derived, carried, fresh)
+    }
+    study_calls(line, called, derived, carried)
+    if line.starts_with("return ") {
+        var returned_fields = carried_fields(line, derived, carried)
+        if not returned_fields.is_empty() {
+            returned[name] = returned_fields
+        }
+    }
+    if waits_here {
+        var names = derived.keys()
+        var name_index = 0
+        while name_index < names.count() {
+            var carried_name = names[name_index]
+            carried[carried_name] = true
+            name_index = name_index + 1
+        }
+    }
+}
+
+func assignment_of(line: String): String {
+    var equals = line.index_of(" = ")
+    if equals <= 0 or not line.ends_with(";") {
+        return ""
+    }
+    var left = line.slice(0, equals).trim()
+    if left.contains("->") or left.contains("(") or left.contains("[") or left.contains(".") {
+        return ""
+    }
+    var left_length = left.length()
+    var name_start = facts_identifier_start(left, left_length)
+    var local = left.slice(name_start, left_length)
+    if local.is_empty() {
+        return ""
+    }
+    var local_type = left.slice(0, name_start).trim()
+    if local_type.is_empty() {
+        return local
+    }
+    return "{local}\t{local_type}"
+}
+
+func study_assignment(
+    line: String,
+    assigned: String,
+    called: List<String>,
+    waits_here: Boolean,
+    derived: Dictionary<String, List<String>>,
+    carried: Dictionary<String, Boolean>,
+    fresh: Dictionary<String, Boolean>,
+) {
+    var pieces = assigned.split("\t")
+    var local = pieces[0]
+    crash local
+    var equals = line.index_of(" = ")
+    var line_length = line.length()
+    var right = line.slice(equals + 3, line_length)
+    if pieces.count() > 1 {
+        var local_type = pieces[1]
+        if local_type.contains("*") and (right.contains("___make(") or right.contains("___make_into(")) {
+            fresh[local] = true
+        }
+        if not is_plain_type(local_type) {
+            derived.remove(local)
+            return
+        }
+    }
+    var fields = read_fields(right, derived)
+    var index = 0
+    var from_wait = false
+    while index < called.count() {
+        var callee = called[index]
+        var stale = returned[callee]
+        if stale {
+            stale.each(fields.append)
+            from_wait = true
+        }
+        index = index + 1
+    }
+    if fields.is_empty() {
+        derived.remove(local)
+        carried.remove(local)
+        return
+    }
+    derived[local] = fields
+    if from_wait and waits_here {
+        carried[local] = true
+    } else {
+        carried.remove(local)
+    }
+}
+
+func read_fields(text: String, derived: Dictionary<String, List<String>>): List<String> {
+    var fields = List<String>()
+    var position = text.index_of("->")
+    while position >= 0 {
+        var start = position + 2
+        var end = outline.name_end(text, start)
+        var field = text.slice(start, end)
+        if plain_fields.has(field) and not fields.contains(field) {
+            fields.append(field)
+        }
+        var text_length = text.length()
+        var rest = text.slice(end, text_length)
+        var next = rest.index_of("->")
+        if next < 0 {
+            position = -1
+        } else {
+            position = end + next
+        }
+    }
+    var locals = derived.keys()
+    var index = 0
+    while index < locals.count() {
+        var local = locals[index]
+        if mentions(text, local) {
+            var from_local = derived[local]
+            crash from_local
+            from_local.each(fields.append)
+        }
+        index = index + 1
+    }
+    crash facts
+    var called = called_names(text)
+    var call_index = 0
+    while call_index < called.count() {
+        var callee = called[call_index]
+        if facts.is_container_function(callee) and not fields.contains("[]") {
+            fields.append("[]")
+        }
+        call_index = call_index + 1
+    }
+    return fields
+}
+
+func mentions(text: String, name: String): Boolean {
+    var position = text.index_of(name)
+    var name_length = name.length()
+    var text_length = text.length()
+    while position >= 0 {
+        var before_ok = position == 0 or not name_code_at(text, position - 1)
+        var after = position + name_length
+        var after_ok = after >= text_length or not name_code_at(text, after)
+        if before_ok and after_ok {
+            return true
+        }
+        var remaining = text.slice(after, text_length)
+        var rest = remaining.index_of(name)
+        if rest < 0 {
+            return false
+        }
+        position = after + rest
+    }
+    return false
+}
+
+func carried_fields(
+    text: String,
+    derived: Dictionary<String, List<String>>,
+    carried: Dictionary<String, Boolean>,
+): List<String> {
+    var fields = List<String>()
+    var locals = carried.keys()
+    var index = 0
+    while index < locals.count() {
+        var local = locals[index]
+        var from_local = derived[local]
+        if from_local and mentions(text, local) {
+            from_local.each(fields.append)
+        }
+        index = index + 1
+    }
+    return fields
+}
+
+func field_write_of(line: String): String {
+    var equals = line.index_of(" = ")
+    if equals <= 0 {
+        return ""
+    }
+    var left = line.slice(0, equals).trim()
+    var arrow = last_position(left, "->")
+    if arrow <= 0 {
+        return ""
+    }
+    var left_length = left.length()
+    var field = left.slice(arrow + 2, left_length)
+    var base = left.slice(0, arrow).replace("(", "").replace(")", "").trim()
+    return "{base}\t{field}"
+}
+
+func study_field_write(
+    line: String,
+    written: String,
+    called: List<String>,
+    waits_here: Boolean,
+    derived: Dictionary<String, List<String>>,
+    carried: Dictionary<String, Boolean>,
+    fresh: Dictionary<String, Boolean>,
+) {
+    var pieces = written.split("\t")
+    var base = pieces[0]
+    var field = pieces[1]
+    crash base
+    crash field
+    assert not fresh.has(base)
+    var equals = line.index_of(" = ")
+    var line_length = line.length()
+    var right = line.slice(equals + 3, line_length)
+    var stale = carried_fields(right, derived, carried)
+    if stale.contains(field) or stale.contains("*") {
+        risk = "writes `{spite_name(field)}` from a value it read before a wait"
+        return
+    }
+    if waits_here and mentions(right, field) {
+        risk = "reads `{spite_name(field)}` before a wait and writes it after"
+        return
+    }
+    var index = 0
+    while index < called.count() {
+        var callee = called[index]
+        var after_wait = returned[callee]
+        if after_wait {
+            if after_wait.contains(field) or after_wait.contains("*") {
+                risk = "writes `{spite_name(field)}` from a value read before a wait"
+                return
+            }
+        }
+        index = index + 1
+    }
+}
+
+func study_calls(
+    line: String,
+    called: List<String>,
+    derived: Dictionary<String, List<String>>,
+    carried: Dictionary<String, Boolean>,
+) {
+    var stale = carried_fields(line, derived, carried)
+    assert not stale.is_empty()
+    crash facts
+    var index = 0
+    while index < called.count() and risk.is_empty() {
+        var callee = called[index]
+        if facts.is_container_function(callee) and facts.mutates(callee) {
+            risk = "passes a value read before a wait to a change of a list or dictionary"
+            return
+        }
+        if program_functions.has(callee) {
+            var writes = fields_written_by(callee)
+            var field_index = 0
+            while field_index < writes.count() {
+                var field = writes[field_index]
+                if stale.contains(field) or stale.contains("*") {
+                    risk = "passes a value read before a wait to a call that writes `{spite_name(field)}`"
+                    return
+                }
+                field_index = field_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func fields_written_by(name: String): List<String> {
+    var known = written_by[name]
+    if known {
+        return known
+    }
+    crash facts
+    var fields = List<String>()
+    var reached = Dictionary<String, Boolean>()
+    var pending = [name]
+    while not pending.is_empty() {
+        var next = pending.remove_last()
+        crash next
+        if not reached.has(next) {
+            reached[next] = true
+            var fact = facts.facts_of(next)
+            var keys = fact.writes.keys()
+            var index = 0
+            while index < keys.count() {
+                var key = keys[index]
+                var hash = key.index_of("#")
+                if hash > 0 {
+                    var key_length = key.length()
+                    var field = key.slice(hash + 1, key_length)
+                    fields.append(field)
+                }
+                index = index + 1
+            }
+            fact.calls.each(pending.append)
+        }
+    }
+    written_by[name] = fields
+    return fields
+}
+
+func called_names(line: String): List<String> {
+    var names = List<String>()
+    var length = line.length()
+    var position = 0
+    while position < length {
+        var code = line.code_at(position)
+        if code == 40 and position > 0 {
+            var start = facts_identifier_start(line, position)
+            if start < position {
+                var called = line.slice(start, position)
+                if not names.contains(called) {
+                    names.append(called)
+                }
+            }
+        }
+        position = position + 1
+    }
+    return names
+}
+
+func last_position(text: String, piece: String): Integer {
+    var found = -1
+    var position = text.index_of(piece)
+    while position >= 0 {
+        found = found + position + 1
+        var text_length = text.length()
+        var rest = text.slice(found + 1, text_length)
+        position = rest.index_of(piece)
+    }
+    return found
+}
+
+func name_code_at(text: String, position: Integer): Boolean {
+    var code = text.code_at(position)
+    return outline.is_name_code(code)
+}
+
+func spite_name(field: String): String {
+    var field_length = field.length()
+    if field.ends_with("_") {
+        return field.slice(0, field_length - 1)
+    }
+    return field
+}

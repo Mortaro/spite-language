@@ -192,6 +192,11 @@ var frame_loops = FrameLoops()
 var frame_loop_depth = 0
 var started_wait_sites = 0
 var started_wait_questions = Dictionary<String, Boolean>()
+var started_site_classes = List<Analysis.ClassInfo>()
+var started_site_holders = List<String>()
+var started_site_paths = List<String>()
+var started_site_lines = List<Integer>()
+var started_site_calls = List<String>()
 var deferred_frame_classes = List<Analysis.ClassInfo>()
 var deferred_frame_functions = List<Analysis.FunctionInfo>()
 var frame_functions_released = false
@@ -1019,6 +1024,9 @@ func generate(
     finish_wait_questions()
     if overlap_groups > 0 {
         finish_overlap_groups()
+    }
+    if started_wait_sites > 0 {
+        finish_started_waits()
     }
     if row_groups > 0 {
         finish_row_groups()
@@ -7304,6 +7312,13 @@ func may_be_started_receiver(receiver_type: Analysis.SpiteType): Boolean {
     return not target.is_singleton and not target.is_value_class and not is_library_class(target)
 }
 
+func may_be_started(statement: Syntax.Statements.Statement, class_information: Analysis.ClassInfo): Boolean {
+    if not generating_frame_function or not frame_loops.started_shape(statement) {
+        return false
+    }
+    return in_frame_code(class_information)
+}
+
 func in_frame_code(information: Analysis.ClassInfo): Boolean {
     if resumable_mode or is_library_class(information) or information.is_generic_template {
         return false
@@ -7328,7 +7343,8 @@ func started_wait(
     rewind_temporaries(saved_counter)
     var receiver_type = receiver.type
     settle_wait_facts()
-    var starts = started_classes(receiver_type, member.name)
+    var call_text = "{operand_text(member.object)}.{member.name}"
+    var starts = started_classes(receiver_type, member.name, call_text)
     if starts.is_empty() {
         return false
     }
@@ -7344,14 +7360,25 @@ func started_wait(
     receiver_declaration.source_path = current_path
     generate_statement(receiver_declaration, inner, class_information, function_information)
     inner.mark_used(receiver_name)
+    var receiver_code = c_value_name(receiver_name)
+    started_site_classes.append(class_information)
+    started_site_holders.append(current_function_c_name)
+    started_site_paths.append(current_path)
+    started_site_lines.append(line)
+    started_site_calls.append("{operand_text(member.object)}.{member.name}")
+    builder.add_user("/*spite_started_{site} started*/")
     var union_type = type_shape.as_union(receiver_type)
     if not union_type {
         start_kept(receiver_name, member.name, site, 0, line, inner, class_information, function_information)
+        var started_class = starts[0]
+        crash started_class
+        var started_function = shape_member_function(started_class, member.name)
+        crash started_function
+        builder.add_user("/*spite_started_{site} plain {started_function.c_name}({receiver_code});*/")
         emit_scope_drops(inner, false)
         builder.add_user("}")
         return true
     }
-    var receiver_code = c_value_name(receiver_name)
     var index = 0
     while index < starts.count() {
         var started_class = starts[index]
@@ -7382,6 +7409,10 @@ func started_wait(
     generate_statement(plain_statement, plain_scope, class_information, function_information)
     emit_scope_drops(plain_scope, false)
     builder.add_user("}")
+    var union_information = find_union_by_c_name(union_type.c_name)
+    crash union_information
+    var dispatcher = ensure_shape_caller(union_information, member.name)
+    builder.add_user("/*spite_started_{site} plain {dispatcher}({receiver_code});*/")
     emit_scope_drops(inner, false)
     builder.add_user("}")
     return true
@@ -7442,7 +7473,7 @@ func waits_in_flight(): Analysis.ClassInfo {
     return instantiated_with(template, types, codes, texts, label)
 }
 
-func started_classes(receiver_type: Analysis.SpiteType, name: String): List<Analysis.ClassInfo> {
+func started_classes(receiver_type: Analysis.SpiteType, name: String, call_text: String): List<Analysis.ClassInfo> {
     var starts = List<Analysis.ClassInfo>()
     var union_type = type_shape.as_union(receiver_type)
     if union_type {
@@ -7460,7 +7491,7 @@ func started_classes(receiver_type: Analysis.SpiteType, name: String): List<Anal
         var index = 0
         while index < information.members.count() {
             var candidate = information.members[index]
-            if started_class_waits(candidate, name) {
+            if started_class_waits(candidate, name, call_text) {
                 starts.append(candidate)
             }
             index = index + 1
@@ -7475,13 +7506,13 @@ func started_classes(receiver_type: Analysis.SpiteType, name: String): List<Anal
     if not target {
         return starts
     }
-    if started_class_waits(target, name) {
+    if started_class_waits(target, name, call_text) {
         starts.append(target)
     }
     return starts
 }
 
-func started_class_waits(target: Analysis.ClassInfo, name: String): Boolean {
+func started_class_waits(target: Analysis.ClassInfo, name: String, call_text: String): Boolean {
     if target.is_singleton or target.is_value_class or is_library_class(target) {
         return false
     }
@@ -7493,13 +7524,142 @@ func started_class_waits(target: Analysis.ClassInfo, name: String): Boolean {
         return false
     }
     started_wait_questions[function.c_name] = true
-    return wait_facts.answer(
+    var waits = wait_facts.answer(
         function.c_name,
         "{target.simple_name}.{name}",
         current_path,
         current_line,
         current_owner,
         current_function,
+    )
+    if not waits {
+        return false
+    }
+    var roots = [function.c_name]
+    var carried = carried_values_now()
+    var lost = carried.lost_write(roots)
+    if lost.is_empty() {
+        return true
+    }
+    optimization_report.wait_kept(
+        current_function_c_name,
+        current_path,
+        current_line,
+        call_text,
+        "{target.simple_name}.{name} {lost}, and the frame could write it while the call waits",
+    )
+    return false
+}
+
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func carried_values_now(): CarriedValues {
+    var facts = OverlapFacts()
+    facts.read_program(
+        builder.typedefs,
+        builder.prototypes,
+        builder.support_bodies,
+        builder.user_bodies,
+        builder.main_lines,
+    )
+    var program_names = Dictionary<String, Boolean>()
+    var class_index = 0
+    while class_index < classes.count() {
+        var information = classes[class_index]
+        if not is_library_class(information) {
+            var function_index = 0
+            while function_index < information.declared_functions.count() {
+                var declared = information.declared_functions[function_index]
+                program_names[declared.c_name] = true
+                program_names["{declared.c_name}___general"] = true
+                function_index = function_index + 1
+            }
+        }
+        class_index = class_index + 1
+    }
+    var shape_names = Dictionary<String, Boolean>()
+    var union_index = 0
+    while union_index < unions.count() {
+        var union_information = unions[union_index]
+        shape_names[union_information.c_name] = true
+        union_index = union_index + 1
+    }
+    return CarriedValues(facts, wait_facts.waits, program_names, shape_names)
+}
+
+func finish_started_waits() {
+    var carried = carried_values_now()
+    var checked = Dictionary<String, String>()
+    var index = 0
+    while index < started_site_classes.count() {
+        var information = started_site_classes[index]
+        var lost = ""
+        var known = checked[information.c_name]
+        if known {
+            lost = known
+        } else {
+            var roots = frame_loop_roots(information)
+            lost = carried.lost_write(roots)
+            checked[information.c_name] = lost
+        }
+        settle_started_site(index + 1, lost)
+        index = index + 1
+    }
+}
+
+func frame_loop_roots(information: Analysis.ClassInfo): List<String> {
+    var roots = List<String>()
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        if frame_loops.holds_frame_loop(information, function.name) {
+            roots.append(function.c_name)
+            roots.append("{function.c_name}___general")
+        }
+        index = index + 1
+    }
+    return roots
+}
+
+func settle_started_site(site: Integer, lost: String) {
+    var started_marker = "/*spite_started_{site} started*/"
+    var plain_prefix = "/*spite_started_{site} plain "
+    var position = 0
+    var start = -1
+    while position < builder.user_bodies.count() {
+        var line = builder.user_at(position)
+        if line == started_marker {
+            start = position
+        } else if start >= 0 and line.starts_with(plain_prefix) {
+            settle_started_lines(site, start, position, lost)
+            return
+        }
+        position = position + 1
+    }
+}
+
+func settle_started_lines(site: Integer, start: Integer, end: Integer, lost: String) {
+    builder.replace_user(start, "")
+    var plain_line = builder.user_at(end)
+    if lost.is_empty() {
+        builder.replace_user(end, "")
+        return
+    }
+    blank_user_range(start, end)
+    var prefix = "/*spite_started_{site} plain "
+    var prefix_length = prefix.length()
+    var line_length = plain_line.length()
+    var plain_call = plain_line.slice(prefix_length, line_length - 2)
+    builder.replace_user(end, plain_call)
+    crash started_site_holders[site - 1]
+    crash started_site_paths[site - 1]
+    crash started_site_lines[site - 1]
+    crash started_site_calls[site - 1]
+    optimization_report.wait_kept(
+        started_site_holders[site - 1],
+        started_site_paths[site - 1],
+        started_site_lines[site - 1],
+        started_site_calls[site - 1],
+        "the frame loop {lost}, and the call could write it while the frame waits",
     )
 }
 
@@ -34812,6 +34972,9 @@ func overlap_run(
     var index = start
     while index < statements.count() {
         if not overlap_candidate(statements[index], scope, class_information) {
+            return count
+        }
+        if may_be_started(statements[index], class_information) {
             return count
         }
         count = count + 1
