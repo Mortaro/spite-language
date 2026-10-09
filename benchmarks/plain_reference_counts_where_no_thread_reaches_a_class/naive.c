@@ -145,9 +145,9 @@ int main(void) {
 #endif
     int64_t sum = summer->result;
     summer_release(summer);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("sum %lld near %lld\n", (long long)sum, (long long)near_count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     point_list_free(points);
     return 0;
 }

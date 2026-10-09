@@ -1,8 +1,15 @@
 var console = Console()
-var clock = Clock()
+var built_length = 0
+var joined_length = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(build_texts)
+    console.print("built", built_length, "joined", joined_length)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func build_texts() {
     var built = ""
     var index = 0
     while index < 3000000 {
@@ -16,9 +23,6 @@ func Naive() {
         index = index + 1
     }
     var joined = words.join(", ")
-    var built_length = built.length()
-    var joined_length = joined.length()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("built", built_length, "joined", joined_length)
-    console.error("microseconds {microseconds}")
+    built_length = built.length()
+    joined_length = joined.length()
 }

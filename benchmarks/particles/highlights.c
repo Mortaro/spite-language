@@ -12,8 +12,7 @@ struct Particle {
     float velocity_z_;
 };
 
-void Naive_Naive(Naive* self) {
-    int64_t start_ = Clock_elapsed_nanoseconds(self->clock_);
+void Naive_simulate(Naive* self) {
     Vector__Particle* particles_ = Vector__Particle___make();
     int32_t index_ = 0;
     while (((index_ < 100000))) {
@@ -46,15 +45,8 @@ void Naive_Naive(Naive* self) {
         spread_ = ((spread_ + (particle_)->position_x_) + (particle_)->position_z_);
         index_ = (index_ + 1);
     }
-    int64_t height_checksum_ = ({ float spite_temp_2 = height_; if (__builtin_expect(!((double)spite_temp_2 >= -9223372036854775808.0 && (double)spite_temp_2 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_2, "a Float", "a Long", spite_site_2()); (int64_t)spite_temp_2; });
-    int64_t spread_checksum_ = ({ float spite_temp_3 = spread_; if (__builtin_expect(!((double)spite_temp_3 >= -9223372036854775808.0 && (double)spite_temp_3 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_3, "a Float", "a Long", spite_site_3()); (int64_t)spite_temp_3; });
-    int64_t microseconds_ = (({ int64_t spite_temp_4 = Clock_elapsed_nanoseconds(self->clock_); int64_t spite_temp_5 = start_; int64_t spite_temp_6; if (__builtin_expect(__builtin_sub_overflow(spite_temp_4, spite_temp_5, &spite_temp_6), 0)) spite_overflowed("clock.elapsed_nanoseconds() - start", "a Long", "-", (int64_t)spite_temp_4, (int64_t)spite_temp_5, spite_site_4()); spite_temp_6; }) / SpiteInteger_to_long(1000));
-    List_Console_Printable spite_framed_1; Console_Printable spite_framed_1_items[4]; int32_t spite_framed_1_count = 0;
-    Console_print(self->console_, ({ spite_framed_1_items[0] = spite_tagged_object(0, ((void*)&spite_lit_1_box)); spite_framed_1_items[1] = spite_tagged_SpiteLong(height_checksum_); spite_framed_1_items[2] = spite_tagged_object(0, ((void*)&spite_lit_2_box)); spite_framed_1_items[3] = spite_tagged_SpiteLong(spread_checksum_); spite_framed_1_count = 4; List_Console_Printable___framed(&spite_framed_1, (int64_t)(intptr_t)spite_framed_1_items, 4); }));
-    for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_1_items[spite_index]); }
-    List_Console_Printable spite_framed_2; Console_Printable spite_framed_2_items[1]; int32_t spite_framed_2_count = 0;
-    Console_error(self->console_, ({ spite_framed_2_items[0] = spite_tagged_object(0, spite_box_SpiteString(({ char spite_temp_7_digits[24]; SpiteString spite_temp_7 = SPITE_STATIC_STRING(spite_temp_7_digits, spite_long_digits(spite_temp_7_digits, (int64_t)(microseconds_))); SpiteString spite_temp_8[] = {spite_lit_3, spite_temp_7}; SpiteString spite_temp_9 = spite_string_join(2, spite_temp_8); spite_temp_9; }))); spite_framed_2_count = 1; List_Console_Printable___framed(&spite_framed_2, (int64_t)(intptr_t)spite_framed_2_items, 1); }));
-    for (int32_t spite_index = 0; spite_index < spite_framed_2_count; spite_index = spite_index + 1) { Console_Printable___release(spite_framed_2_items[spite_index]); }
+    self->height_checksum_ = ({ float spite_temp_2 = height_; if (__builtin_expect(!((double)spite_temp_2 >= -9223372036854775808.0 && (double)spite_temp_2 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_2, "a Float", "a Long", spite_site_2()); (int64_t)spite_temp_2; });
+    self->spread_checksum_ = ({ float spite_temp_3 = spread_; if (__builtin_expect(!((double)spite_temp_3 >= -9223372036854775808.0 && (double)spite_temp_3 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_3, "a Float", "a Long", spite_site_3()); (int64_t)spite_temp_3; });
     Vector__Particle___release(particles_);
 }
 

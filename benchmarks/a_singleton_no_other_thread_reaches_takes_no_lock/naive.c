@@ -98,10 +98,10 @@ int main(void) {
     int32_t large = 0;
     for (int32_t index = 0; index < 4; index = index + 1) large = large + ledger_is_large(amounts[index]);
     int32_t seen = note_many(10000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("counted %d large %d seen %d notes %d milestones %d total %lld\n", counted, large, seen, ledger.notes,
            ledger.milestones->count, (long long)ledger.total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(ledger.milestones->items);
     free(ledger.milestones);
     return 0;

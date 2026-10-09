@@ -5,25 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The same clock the Spite program reads: the time of the work goes to the error output and the answer to the
- * standard output, so run.sh compares the answers and times the work without the process's start. */
-#ifdef _WIN32
-#include <windows.h>
-static int64_t now_nanoseconds(void) {
-    LARGE_INTEGER counter;
-    LARGE_INTEGER frequency;
-    QueryPerformanceCounter(&counter);
-    QueryPerformanceFrequency(&frequency);
-    return (int64_t)((double)counter.QuadPart * 1000000000.0 / (double)frequency.QuadPart);
-}
-#else
-#include <time.h>
-static int64_t now_nanoseconds(void) {
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    return (int64_t)now.tv_sec * 1000000000 + now.tv_nsec;
-}
-#endif
+#include "../clock.h"
 
 typedef struct Buffer {
     char* bytes;
@@ -105,9 +87,9 @@ int main(void) {
         position = position + lengths[index];
     }
     joined[position] = 0;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("built %lld joined %lld\n", (long long)built.length, (long long)position);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < word_count; index = index + 1) {
         free(words[index]);
     }

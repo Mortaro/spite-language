@@ -19,10 +19,10 @@ void Naive_recalculate___held_0(Naive* self, List_Cell* cells_) {
     while (((index_ < spite_folded_List_Cell_count(cells_)))) {
         Cell* cell_ = ({ List_Cell* spite_temp_1 = cells_; int32_t spite_temp_2 = index_; if (__builtin_expect(spite_temp_2 < 0 || spite_temp_2 >= (spite_temp_1)->item_count_, 0)) spite_outside_list("cells[index]", spite_site_1()); ((Cell**)(intptr_t)(spite_temp_1)->items_)[spite_temp_2]; });
         if (!(({ List_Cell* spite_temp_3 = cells_; int32_t spite_temp_4 = (cell_)->first_; (spite_temp_4 >= 0 && spite_temp_4 < (spite_temp_3)->item_count_) && ((((Cell**)(intptr_t)(spite_temp_3)->items_)[spite_temp_4]) != 0); }))) {
-            spite_failed_1(cell_, cells_, index_);
+            spite_failed_1(cell_, cells_, index_, self);
         }
         if (!(({ List_Cell* spite_temp_5 = cells_; int32_t spite_temp_6 = (cell_)->second_; (spite_temp_6 >= 0 && spite_temp_6 < (spite_temp_5)->item_count_) && ((((Cell**)(intptr_t)(spite_temp_5)->items_)[spite_temp_6]) != 0); }))) {
-            spite_failed_2(cell_, cells_, index_);
+            spite_failed_2(cell_, cells_, index_, self);
         }
         int64_t left_ = ({ Cell* spite_temp_7 = List_Cell_get_at(cells_, (cell_)->first_); int64_t spite_temp_8 = (spite_temp_7)->value_; Cell___release(spite_temp_7); spite_temp_8; });
         int64_t right_ = ({ Cell* spite_temp_9 = List_Cell_get_at(cells_, (cell_)->second_); int64_t spite_temp_10 = (spite_temp_9)->value_; Cell___release(spite_temp_9); spite_temp_10; });

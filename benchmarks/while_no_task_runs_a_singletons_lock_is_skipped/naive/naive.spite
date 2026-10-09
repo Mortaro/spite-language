@@ -1,16 +1,22 @@
 var console = Console()
-var clock = Clock()
 var tally = Tally()
+var first = 0
+var reached = 0
+var total: Long = 0
+var calls = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var first = add_on_the_pool()
-    var reached = add_many(10000000)
-    var total = tally.sum()
-    var calls = tally.call_count()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(add_all)
     console.print("first", first, "reached", reached, "calls", calls, "total", total)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func add_all() {
+    first = add_on_the_pool()
+    reached = add_many(10000000)
+    total = tally.sum()
+    calls = tally.call_count()
 }
 
 func add_on_the_pool(): Integer {

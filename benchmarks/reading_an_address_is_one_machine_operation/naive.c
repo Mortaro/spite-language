@@ -88,9 +88,9 @@ int main(void) {
     Bytes bytes = {NULL, 0, 0};
     for (int32_t index = 0; index < 100000; index = index + 1) bytes_append(&bytes, (uint8_t)(index * 7 % 256));
     int64_t total = encode_rounds(&bytes);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(bytes.items);
     return 0;
 }

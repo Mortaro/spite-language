@@ -50,8 +50,8 @@ int main(void) {
     int64_t start = now_nanoseconds();
     int32_t characters = write_and_read(path, 50);
     int removed = remove(path) == 0;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("characters %d removed %s\n", characters, removed ? "true" : "false");
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

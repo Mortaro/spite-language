@@ -32,8 +32,8 @@ int main(void) {
         __asm__ volatile("" : : "r"(line) : "memory");   /* the label is made, as the program asks, not only measured */
         total += length;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("characters %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

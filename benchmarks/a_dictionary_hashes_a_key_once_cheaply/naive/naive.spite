@@ -1,15 +1,18 @@
 var console = Console()
-var clock = Clock()
+var by_name = Dictionary<String, Integer>()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var names = make_names(5000)
-    var by_name = index_names(names)
-    var total = look_up(names, by_name)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(index_and_look_up)
     var entries = by_name.count()
-    console.print("total", total, "entries", entries)
+    console.print("total", result.answer, "entries", entries)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func index_and_look_up(): Long {
+    var names = make_names(5000)
+    by_name = index_names(names)
+    return look_up(names, by_name)
 }
 
 func make_names(count: Integer): List<String> {

@@ -1,9 +1,17 @@
 var console = Console()
-var clock = Clock()
 var environment = Environment()
+var recalculated_total: Long = 0
+var last_value: Long = 0
+var placements: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(recalculate_all)
+    console.print("total", recalculated_total, "last", last_value, "placements", placements)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func recalculate_all() {
     var cells = List<Cell>()
     var seed: Long = 5
     var index = 0
@@ -22,12 +30,11 @@ func Naive() {
         total = total + values
         round = round + 1
     }
-    var placements = cells.sum_placement()
+    placements = cells.sum_placement()
     var last = cells.last()
     crash last
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total, "last", last.value, "placements", placements)
-    console.error("microseconds {microseconds}")
+    recalculated_total = total
+    last_value = last.value
 }
 
 func edit(cells: List<Cell>, round: Integer) {

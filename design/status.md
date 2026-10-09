@@ -248,6 +248,19 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Not built: reopening `call_function` to trace or count calls. `call_function` is supplied by the compiler and is not
   declared in `library/spite/function.spite`, so a program's `spite/function.spite` that declares one compiles and is
   never called.
+- Not built: a function value passed to a library class's constructor that only calls it, `Benchmark(work)` (D545),
+  is not framed in the caller (D528 frames values only for a program function that is not a constructor), so it is
+  made on the heap with its reflection: one value per `Benchmark`, outside the measured time, and about 1 300 lines of
+  generated C in a program that had no function value.
+- Not built: in a program that starts a `Parallel`, a function value is counted as run on another thread whenever a
+  thread calls some value of as many arguments, so `Benchmark(work)`'s `work` (no arguments, like a `Parallel`'s) makes
+  what it counts atomic and keeps the locks of the singletons it calls. Telling the values a thread can reach (those
+  stored into a `ParallelCall` or a `ThreadPool` job) from the rest would let it go. Five cases stay on two clock
+  readings until then: `a_singleton_no_other_thread_reaches_takes_no_lock`,
+  `a_singletons_attribute_that_never_changes_is_read_in_place`,
+  `a_singletons_reading_functions_do_not_exclude_each_other`,
+  `plain_reference_counts_where_no_thread_reaches_a_class` and
+  `thread_safety_for_singletons_the_cheapest_safe_form`.
 
 ### Use the operator, not its function
 

@@ -1,15 +1,21 @@
 var console = Console()
-var clock = Clock()
+var scorer: Scorer? = null
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var scorer = Scorer()
-    var applied = apply_all(scorer, 2000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(make_and_apply)
+    var applied = result.answer
+    crash scorer
     var scoring = scorer.score
     var argument_count = scoring.arguments.count()
     console.print("applied", applied, "arguments", argument_count)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func make_and_apply(): Long {
+    var made = Scorer()
+    scorer = made
+    return apply_all(made, 2000000)
 }
 
 func apply_all(scorer: Scorer, count: Integer): Long {

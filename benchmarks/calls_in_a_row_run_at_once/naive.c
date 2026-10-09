@@ -33,9 +33,9 @@ int main(void) {
     odds->total = 0;
     int64_t start = now_nanoseconds();
     count_both(evens, odds);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("%lld %lld\n", (long long)evens->total, (long long)odds->total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(evens);
     free(odds);
     return 0;

@@ -1,11 +1,14 @@
 var console = Console()
-var clock = Clock()
+var meter: Meter = null
 
 func Naive() {
-    var meter = Meter()
-    var start = clock.elapsed_nanoseconds()
-    var total = meter.measure_all(10000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    meter = Meter()
+    var result = Benchmark(measure_every_reading)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func measure_every_reading(): Integer {
+    return meter.measure_all(10000000)
 }

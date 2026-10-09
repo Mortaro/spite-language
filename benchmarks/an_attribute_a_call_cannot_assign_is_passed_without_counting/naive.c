@@ -64,9 +64,9 @@ int main(void) {
     for (int32_t index = 0; index < 16; index = index + 1) readings_append(meter->readings, index);
     int64_t start = now_nanoseconds();
     int32_t total = measure_all(meter, 10000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %d\n", total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(meter->settings->limits);
     free(meter->settings);
     free(meter->readings->items);

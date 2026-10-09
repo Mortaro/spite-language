@@ -43,9 +43,9 @@ int main(void) {
         joined_length += write_digits(index, joined + joined_length);
     }
     joined[joined_length] = 0;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("built %lld joined %lld\n", (long long)built_length, (long long)joined_length);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(built);
     free(joined);
     return 0;

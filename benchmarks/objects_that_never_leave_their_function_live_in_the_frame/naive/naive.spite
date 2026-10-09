@@ -1,15 +1,23 @@
 var console = Console()
-var clock = Clock()
+var ended_x = 0.0
+var ended_y = 0.0
+var ended_z = 0.0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var ended = simulate(20000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    var across: Long = ended.x * 1000.0
-    var up: Long = ended.y * 1000.0
-    var ahead: Long = ended.z * 1000.0
+    var result = Benchmark(simulate_all)
+    var across: Long = ended_x * 1000.0
+    var up: Long = ended_y * 1000.0
+    var ahead: Long = ended_z * 1000.0
     console.print("ended at", across, up, ahead)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func simulate_all() {
+    var ended = simulate(20000000)
+    ended_x = ended.x
+    ended_y = ended.y
+    ended_z = ended.z
 }
 
 func simulate(steps: Integer): Offset {

@@ -36,9 +36,9 @@ int main(void) {
         int32_t rises = rise_count(values, round % 50);
         total += (int64_t)windows + rises;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(values);
     return 0;
 }

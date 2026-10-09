@@ -35,11 +35,11 @@ int main(void) {
     for (int32_t tick = 0; tick < 10; tick = tick + 1) {
         for (int32_t index = 0; index < count; index = index + 1) orbit_advance(orbits[index]);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int32_t turns = 0;
     for (int32_t index = 0; index < count; index = index + 1) turns = turns + orbits[index]->turns;
     printf("turns %d\n", turns);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < count; index = index + 1) free(orbits[index]);
     free(orbits);
     return 0;

@@ -1,21 +1,27 @@
 var console = Console()
-var clock = Clock()
+var from = List<Float>()
+var into = List<Float>()
 
 func Naive() {
-    var from = List<Float>()
-    var into = List<Float>()
+    fill(100000)
+    var result = Benchmark(all_rounds)
+    console.print("total in quarters", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func fill(count: Integer) {
     var index = 0
-    while index < 100000 {
+    while index < count {
         var value: Float = index % 7
         from.append(value)
         into.append(0.0)
         index = index + 1
     }
-    var start = clock.elapsed_nanoseconds()
-    var total = rounds(from, into)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total in quarters", total)
-    console.error("microseconds {microseconds}")
+}
+
+func all_rounds(): Long {
+    return rounds(from, into)
 }
 
 func rounds(from: List<Float>, into: List<Float>): Long {

@@ -1,17 +1,20 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(all_lines)
+    console.print("characters", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func all_lines(): Long {
     var total: Long = 0
     var round = 0
     while round < 20 {
         total = total + lines(100000, round)
         round = round + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("characters", total)
-    console.error("microseconds {microseconds}")
+    return total
 }
 
 func lines(count: Integer, round: Integer): Integer {

@@ -28,9 +28,9 @@ int main(void) {
         }
         total += (int64_t)price_sum + age_sum;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(prices);
     free(ages);
     free(active);

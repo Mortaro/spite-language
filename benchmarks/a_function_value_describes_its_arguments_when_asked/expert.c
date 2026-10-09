@@ -34,9 +34,9 @@ int main(void) {
         FunctionValue change = {scorer_score, &scorer};
         applied += change.call(change.owner, index % 100);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int32_t argument_count = (int32_t)(sizeof(score_arguments) / sizeof(score_arguments[0]));
     printf("applied %lld arguments %d\n", (long long)applied, argument_count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

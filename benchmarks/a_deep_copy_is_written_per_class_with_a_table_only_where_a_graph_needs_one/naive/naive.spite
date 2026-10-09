@@ -1,13 +1,15 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var orders = make_orders(5000)
-    var total = copy_rounds(orders)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    var result = Benchmark(make_and_copy)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func make_and_copy(): Long {
+    var orders = make_orders(5000)
+    return copy_rounds(orders)
 }
 
 func make_orders(count: Integer): List<Order> {

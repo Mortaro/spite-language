@@ -30,11 +30,11 @@ them and writes them into one text.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 151 868 | 181 248 |
-| naive C: `naive.c`, `clang -O2` | 85 602 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 9 810 | 139 264 |
+| Spite: `naive/`, `--optimized` | 205 168 | 201 728 |
+| naive C: `naive.c`, `clang -O2` | 113 842 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 12 087 | 139 264 |
 
-Spite takes 1.77 times naive C's time and 15.48 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=151868 naive=85602 expert=9810 -->
+Spite takes 1.80 times naive C's time and 16.97 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building at the same time.
+<!-- measured spite=205168 naive=113842 expert=12087 -->
 <!-- /timings -->

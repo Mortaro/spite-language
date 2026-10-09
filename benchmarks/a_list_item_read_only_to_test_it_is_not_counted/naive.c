@@ -79,9 +79,9 @@ int main(void) {
     }
     int32_t found = probe(20000000);
     int32_t keys = sum_key(entries);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("found %d keys %d\n", found, keys);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < entries->count; index = index + 1) {
         free(entries->items[index]);
     }

@@ -108,9 +108,9 @@ int main(void) {
     }
     int32_t amounts = 0;
     for (int32_t index = 0; index < healths.count; index = index + 1) amounts = amounts + ((Health*)healths.items)[index].amount;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("places %lld health %d\n", (long long)places, amounts);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(positions.items);
     free(velocities.items);
     free(healths.items);

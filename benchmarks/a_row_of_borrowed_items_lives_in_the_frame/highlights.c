@@ -12,20 +12,20 @@ void Naive_tick_once(Naive* self) {
     int32_t entity_ = 0;
     while (((entity_ < Vector__Position_count(self->positions_)))) {
         if (!(((Vector__Velocity_get_at(self->velocities_, entity_)) != 0))) {
-            spite_failed_1(entity_);
+            spite_failed_1(entity_, self);
         }
         if (!(((Vector__Health_get_at(self->healths_, entity_)) != 0))) {
-            spite_failed_2(entity_);
+            spite_failed_2(entity_, self);
         }
         if (!(((Vector__Regeneration_get_at(self->regenerations_, entity_)) != 0))) {
-            spite_failed_3(entity_);
+            spite_failed_3(entity_, self);
         }
-        Object_position_Position_velocity_Velocity spite_temp_1 = { { 1, 180 } };
+        Object_position_Position_velocity_Velocity spite_temp_1 = { { 1, 182 } };
         spite_temp_1.position_ = ({ Position* spite_temp_2 = Vector__Position_get_at(self->positions_, entity_); if (__builtin_expect(!(((spite_temp_2) != 0)), 0)) spite_outside_list("positions[entity]", spite_site_1()); spite_temp_2; });
         spite_temp_1.velocity_ = Vector__Velocity_get_at(self->velocities_, entity_);
         Object_position_Position_velocity_Velocity* moving_ = (&spite_temp_1);
         Mover_update_each___lent_0(self->mover_, ((Mover_Moving)(moving_)));
-        Object_health_Health_regeneration_Regeneration spite_temp_3 = { { 1, 181 } };
+        Object_health_Health_regeneration_Regeneration spite_temp_3 = { { 1, 183 } };
         spite_temp_3.health_ = Vector__Health_get_at(self->healths_, entity_);
         spite_temp_3.regeneration_ = Vector__Regeneration_get_at(self->regenerations_, entity_);
         Object_health_Health_regeneration_Regeneration* mending_ = (&spite_temp_3);

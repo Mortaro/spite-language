@@ -145,9 +145,9 @@ int main(void) {
         transforms_insert(transform);
     }
     int64_t total = ticks(20);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t row = 0; row < ROW_TOTAL; row = row + 1) {
         free(transforms.stored[row]);
     }

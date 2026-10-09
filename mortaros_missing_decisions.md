@@ -167,7 +167,17 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   time, since only the run knows whether the slot holds the object; proving it while compiling (pair B2b) is not
   built. The cost to confirm: an index outside the list is reported as the read `crates[at]` rather than by the
   list's `set_at`.
-- **D545, the program ends after its `Concurrent`s**: when the entry function returns, every `Concurrent` still
+- **D545, `Benchmark(work)` instead of `clock.benchmark(work)`**: `var result = Benchmark(do_something)` runs
+  `do_something` once between two clock readings; `result.answer` is what it answered and `result.duration` a
+  `Duration`. Why a class: Spite has no generic functions, so only a class made from the work can carry the
+  answer's type (`Benchmark<Long>`, inferred from the function). The other answers: generic functions (a language
+  change, yours to decide), or a `clock.benchmark(work)` taking only work that answers nothing and returning just
+  the `Duration`, with the work storing its results in attributes. The cost to confirm: the function value is made
+  on the heap with its reflection (a constructor of a library class gets no framed value yet), outside the
+  measured time; the call through it is one pointer. In a program that starts a `Parallel`, the work counts as
+  code another thread may run (values are matched to a thread's calls by argument count), so five cases whose point
+  is a lock or a plain count left out keep their two clock readings (design/status.md).
+- **D546, the program ends after its `Concurrent`s**: when the entry function returns, every `Concurrent` still
   running runs to its end before singletons are destroyed. Why: a singleton holding a running handle let it go
   after the scheduler was destroyed, reading freed memory and halting with the wrong cause. The cost to confirm: a
   `Concurrent` that never ends (a server loop kept by a singleton) keeps the program from ending once the entry

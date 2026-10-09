@@ -73,8 +73,8 @@ int main(void) {
         calls += counters[index].calls;
         largest = counters[index].largest > largest ? counters[index].largest : largest;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("counted %d calls %d total %lld largest %d\n", counted, calls, (long long)total, largest);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

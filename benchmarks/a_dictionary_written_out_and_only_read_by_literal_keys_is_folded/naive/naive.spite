@@ -1,8 +1,13 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(fill_and_total)
+    console.print("points", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func fill_and_total(): Long {
     var results = List<Result>()
     var index = 0
     while index < 200000 {
@@ -10,10 +15,7 @@ func Naive() {
         results.append(result)
         index = index + 1
     }
-    var total = totals(results)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("points", total)
-    console.error("microseconds {microseconds}")
+    return totals(results)
 }
 
 func totals(results: List<Result>): Long {

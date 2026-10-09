@@ -1,16 +1,22 @@
 var console = Console()
-var clock = Clock()
 var tally = Tally()
+var counted = 0
+var total: Long = 0
+var calls = 0
+var largest = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var counted = count_on_four(5000000)
-    var total = tally.sum()
-    var calls = tally.call_count()
-    var largest = tally.largest_amount()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(count_and_read)
     console.print("counted", counted, "calls", calls, "total", total, "largest", largest)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func count_and_read() {
+    counted = count_on_four(5000000)
+    total = tally.sum()
+    calls = tally.call_count()
+    largest = tally.largest_amount()
 }
 
 func count_on_four(rounds: Integer): Integer {

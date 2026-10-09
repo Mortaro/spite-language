@@ -1,8 +1,15 @@
 var console = Console()
-var clock = Clock()
+var sum: Long = 0
+var squares: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(measure_rounds)
+    console.print("sum", sum, "squares", squares)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func measure_rounds() {
     var values = make_values(1000000)
     var plain = Meter<false>()
     var squared = Meter<true>()
@@ -11,9 +18,8 @@ func Naive() {
         measure(values, plain, squared)
         round = round + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("sum", plain.total, "squares", squared.total)
-    console.error("microseconds {microseconds}")
+    sum = plain.total
+    squares = squared.total
 }
 
 func make_values(count: Integer): List<Integer> {

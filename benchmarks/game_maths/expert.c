@@ -46,10 +46,10 @@ int main(void) {
     for (int32_t step = 0; step < 1000000; step++) {
         transformed = transformed + moved_x;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("ended at %lld %lld %lld diagonal %lld total %lld\n", (long long)(int64_t)(position_x * 1000.0f),
            (long long)(int64_t)(position_y * 1000.0f), (long long)(int64_t)(position_z * 1000.0f),
            (long long)(int64_t)(combined * 1000000.0f), (long long)(int64_t)transformed);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

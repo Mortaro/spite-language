@@ -37,11 +37,11 @@ int main(void) {
         }
         accepted += count;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int32_t sensor = sent_and_read_back(7);
     printf("accepted %d sensor %d\n", accepted, sensor);
     printf("schema %lld\n", (long long)READING_SCHEMA);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(headers);
     return 0;
 }

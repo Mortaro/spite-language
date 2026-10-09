@@ -23,7 +23,7 @@ while compiling, as a table, and the loop reads its elements' classes when it st
 
 ## What to look at in highlights.c
 
-`Naive_Naive` reads the class of every voice in the list (`.tag`, three cases) and checks every two against
+`Naive_render_all` reads the class of every voice in the list (`.tag`, three cases) and checks every two against
 `spite_row_table`, written while compiling: `1` where two classes' `render`s are independent, `0` on the diagonal,
 so that a list holding one voice twice stays in order. `spite_row_heavy` says which of them reach a loop. When the
 check passes it calls `List_Naive_Voice_spite_row_render`, which hands the voices to `ThreadPool_run_marked`: every

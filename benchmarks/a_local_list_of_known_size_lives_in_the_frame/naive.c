@@ -63,8 +63,8 @@ static int64_t all_rounds(int32_t rounds) {
 int main(void) {
     int64_t start = now_nanoseconds();
     int64_t total = all_rounds(10000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

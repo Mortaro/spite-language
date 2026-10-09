@@ -85,9 +85,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     List* points = make_points(200000);
     int64_t near_count = count_near(points);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("near %lld\n", (long long)near_count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     point_list_free(points);
     return 0;
 }

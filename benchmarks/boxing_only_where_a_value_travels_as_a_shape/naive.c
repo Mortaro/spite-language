@@ -112,9 +112,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     List* values = make_values(90000);
     int64_t total = measure_rounds(values);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < values->count; index = index + 1) {
         if (values->items[index]->class == PRINTABLE_TEXT) free(values->items[index]->value.text);
         free(values->items[index]);

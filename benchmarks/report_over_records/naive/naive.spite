@@ -1,9 +1,27 @@
 var console = Console()
-var clock = Clock()
 var environment = Environment()
+var units: Long = 0
+var by_cell: Long = 0
+var fingerprints: Long = 0
+var first_customer = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(report)
+    console.print(
+        "units",
+        units,
+        "by region and quarter",
+        by_cell,
+        "fingerprints",
+        fingerprints,
+        "first",
+        first_customer,
+    )
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func report() {
     var sales = List<Sale>()
     var seed: Long = 42
     var index = 0
@@ -13,8 +31,7 @@ func Naive() {
         sales.append(sale)
         index = index + 1
     }
-    var units = sales.sum_quantity()
-    var by_cell: Long = 0
+    units = sales.sum_quantity()
     var cell = 0
     while cell < 64 {
         var region = cell / 4
@@ -23,21 +40,10 @@ func Naive() {
         by_cell = by_cell + profit * (cell + 1)
         cell = cell + 1
     }
-    var fingerprints = sales.sum_fingerprint()
+    fingerprints = sales.sum_fingerprint()
     crash sales[0]
     var first = sales[0]
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print(
-        "units",
-        units,
-        "by region and quarter",
-        by_cell,
-        "fingerprints",
-        fingerprints,
-        "first",
-        first.customer,
-    )
-    console.error("microseconds {microseconds}")
+    first_customer = first.customer
 }
 
 func profit_of(sales: List<Sale>, region: Integer, quarter: Integer): Long {

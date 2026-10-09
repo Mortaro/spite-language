@@ -47,9 +47,9 @@ int main(void) {
             ordered = 0;
         }
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("ordered %s checksum %lld\n", ordered ? "true" : "false", (long long)checksum);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(numbers);
     free(spare);
     return 0;

@@ -27,9 +27,9 @@ int main(void) {
         sum += round_sum;
         squares += round_squares;
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("sum %lld squares %lld\n", (long long)sum, (long long)squares);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(values);
     return 0;
 }

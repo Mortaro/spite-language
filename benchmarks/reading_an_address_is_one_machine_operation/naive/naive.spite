@@ -1,9 +1,14 @@
 var console = Console()
-var clock = Clock()
 var base64 = Base64()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(encode_all)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func encode_all(): Long {
     var bytes = List<Byte>()
     var index = 0
     while index < 100000 {
@@ -11,10 +16,7 @@ func Naive() {
         bytes.append(value)
         index = index + 1
     }
-    var total = encode_rounds(bytes)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
-    console.error("microseconds {microseconds}")
+    return encode_rounds(bytes)
 }
 
 func encode_rounds(bytes: List<Byte>): Long {

@@ -1,13 +1,11 @@
 var console = Console()
-var clock = Clock()
 var evens = Evens()
 var odds = Odds()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    count_both()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(count_both)
     console.print(evens.total, odds.total)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
 }
 

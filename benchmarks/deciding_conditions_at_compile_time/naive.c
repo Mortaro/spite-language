@@ -79,9 +79,9 @@ int main(void) {
     for (int32_t round = 0; round < 20; round = round + 1) {
         measure(values, plain, squared);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("sum %lld squares %lld\n", (long long)plain->total, (long long)squared->total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     integer_list_free(values);
     free(plain);
     free(squared);

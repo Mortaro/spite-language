@@ -30,11 +30,11 @@ array directly.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 151 652 | 184 320 |
-| naive C: `naive.c`, `clang -O2` | 126 447 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 20 169 | 140 288 |
+| Spite: `naive/`, `--optimized` | 171 772 | 206 848 |
+| naive C: `naive.c`, `clang -O2` | 145 960 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 29 981 | 140 288 |
 
-Spite takes 1.20 times naive C's time and 7.52 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building and benchmarking the compiler at the same time.
-<!-- measured spite=151652 naive=126447 expert=20169 -->
+Spite takes 1.18 times naive C's time and 5.73 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with other sessions building at the same time.
+<!-- measured spite=171772 naive=145960 expert=29981 -->
 <!-- /timings -->

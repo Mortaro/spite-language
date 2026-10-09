@@ -1,15 +1,20 @@
 var console = Console()
-var clock = Clock()
 var registry = Registry()
+var counted = 0
+var recorded = 0
+var total: Long = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var counted = record_on_four(250000)
-    var recorded = registry.recorded()
-    var total = registry.sum()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(record_and_count)
     console.print("counted", counted, "recorded", recorded, "total", total)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func record_and_count() {
+    counted = record_on_four(250000)
+    recorded = registry.recorded()
+    total = registry.sum()
 }
 
 func record_on_four(rounds: Integer): Integer {

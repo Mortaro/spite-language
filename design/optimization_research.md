@@ -512,7 +512,7 @@ cause. Which join runs is chosen at run time by a guard on the handle's referenc
 frame is released before or after `start_both` returns, which depends on the clock against the 1 ms and 5 ms
 sleeps. Fix: one bookkeeping path for both joins, and no timing-dependent choice of join. Sent to a cloud agent.
 
-Found (2026-10-08, branch `fix-wait-cycle-race`, D545): the guard was not what produced the wrong cause. Nothing can
+Found (2026-10-08, branch `fix-wait-cycle-race`, D546): the guard was not what produced the wrong cause. Nothing can
 step a frame before `start_both` returns, so the reference counts at the release are the same every run. Replaying
 the generated C with a clock that jumps at a chosen call found the two outcomes that differ: a jump of 45 ms or more
 at the main thread's first timer checks (a wait returning late under load) ends the 50 ms sleep before either

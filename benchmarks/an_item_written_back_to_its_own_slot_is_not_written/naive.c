@@ -69,9 +69,9 @@ int main(void) {
         step();
     }
     int32_t total = sum_left(particles);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %d\n", total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < particles->count; index = index + 1) {
         free(particles->items[index]);
     }

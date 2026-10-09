@@ -9,7 +9,7 @@ int32_t Naive_write_and_read___held_0(Naive* self, File* notes_, int32_t rounds_
         (void)(File_write(notes_, ({ char spite_temp_1_digits[24]; SpiteString spite_temp_1 = SPITE_STATIC_STRING(spite_temp_1_digits, spite_long_digits(spite_temp_1_digits, (int64_t)(round_))); SpiteString spite_temp_2[] = {spite_lit_1, spite_temp_1, spite_lit_2}; SpiteString spite_temp_3 = spite_string_join(3, spite_temp_2); spite_temp_3; })));
         SpiteString read_ = File_read(notes_);
         if (!((!SPITE_STRING_IS_NULL(read_)))) {
-            spite_failed_1(rounds_, characters_, round_);
+            spite_failed_1(rounds_, characters_, round_, self);
         }
         characters_ = ({ int32_t spite_temp_4 = characters_; int32_t spite_temp_5 = SpiteString_length(read_); int32_t spite_temp_6; if (__builtin_expect(__builtin_add_overflow(spite_temp_4, spite_temp_5, &spite_temp_6), 0)) spite_overflowed("characters + read.length()", "an Integer", "+", (int64_t)spite_temp_4, (int64_t)spite_temp_5, spite_site_1()); spite_temp_6; });
         round_ = (round_ + 1);

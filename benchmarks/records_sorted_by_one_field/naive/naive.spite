@@ -1,9 +1,18 @@
 var console = Console()
-var clock = Clock()
 var environment = Environment()
+var running: Long = 0
+var audits: Long = 0
+var first_id = 0
+var last_id = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(sort_and_total)
+    console.print("running", running, "audits", audits, "first", first_id, "last", last_id)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func sort_and_total() {
     var orders = List<Order>()
     var seed: Long = 3
     var index = 0
@@ -14,15 +23,14 @@ func Naive() {
         index = index + 1
     }
     var by_time = orders.sort_by_placed_at()
-    var running = running_total(by_time)
-    var audits = by_time.sum_audit()
+    running = running_total(by_time)
+    audits = by_time.sum_audit()
     var first = by_time.first()
     var last = by_time.last()
     crash first
     crash last
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("running", running, "audits", audits, "first", first.id, "last", last.id)
-    console.error("microseconds {microseconds}")
+    first_id = first.id
+    last_id = last.id
 }
 
 func running_total(orders: List<Order>): Long {

@@ -1,8 +1,13 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(fill_and_pick)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func fill_and_pick(): Long {
     var values = List<Integer>()
     var index = 0
     while index < 1300 {
@@ -15,10 +20,7 @@ func Naive() {
         picks.append(index * 13 % 1000)
         index = index + 1
     }
-    var total = picked_total(values, picks)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
-    console.error("microseconds {microseconds}")
+    return picked_total(values, picks)
 }
 
 func picked_total(values: List<Integer>, picks: List<Integer>): Long {

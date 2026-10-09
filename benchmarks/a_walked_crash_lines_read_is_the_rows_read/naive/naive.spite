@@ -1,5 +1,4 @@
 var console = Console()
-var clock = Clock()
 var mover = Mover()
 var runner = Runner<Mover.Moving>()
 var positions = Column<Position>()
@@ -7,13 +6,16 @@ var velocities = Column<Velocity>()
 var entity_count = 100000
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(spawn_and_move)
+    console.print("places", result.answer, "marked", mover.marked)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func spawn_and_move(): Long {
     spawn_all()
     run_ticks(50)
-    var places = positions.values.sum_place()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("places", places, "marked", mover.marked)
-    console.error("microseconds {microseconds}")
+    return positions.values.sum_place()
 }
 
 func spawn_all() {

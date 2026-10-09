@@ -1,14 +1,16 @@
 var console = Console()
-var clock = Clock()
 var heap = Memory.Heap()
 var longs = TypedMemory<Long>()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var total = sum_rounds(1000000)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    var result = Benchmark(all_rounds)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func all_rounds(): Long {
+    return sum_rounds(1000000)
 }
 
 func sum_rounds(rounds: Integer): Long {

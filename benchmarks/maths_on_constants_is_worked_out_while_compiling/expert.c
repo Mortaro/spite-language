@@ -31,9 +31,9 @@ int main(void) {
         total = total + across[index];
     }
     int32_t whole = (int32_t)roundf(total);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("across %d\n", whole);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(across);
     free(down);
     return 0;

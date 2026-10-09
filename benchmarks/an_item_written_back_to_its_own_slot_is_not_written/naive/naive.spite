@@ -1,9 +1,14 @@
 var console = Console()
-var clock = Clock()
 var particles = List<Particle>()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(make_and_move)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func make_and_move(): Integer {
     var index = 0
     while index < 200000 {
         var made = Particle(index % 7 + 1)
@@ -15,10 +20,7 @@ func Naive() {
         step()
         tick = tick + 1
     }
-    var total = particles.sum_left()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
-    console.error("microseconds {microseconds}")
+    return particles.sum_left()
 }
 
 func step() {

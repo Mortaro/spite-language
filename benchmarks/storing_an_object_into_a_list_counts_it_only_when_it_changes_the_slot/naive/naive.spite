@@ -1,12 +1,16 @@
 var console = Console()
-var clock = Clock()
+var rack = Rack()
+var changed = 0
+var total = 0
 
 func Naive() {
-    var rack = Rack()
-    var start = clock.elapsed_nanoseconds()
-    var changed = rack.restock(10000000)
-    var total = rack.total()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(restock_and_total)
     console.print("changed", changed, "total", total)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func restock_and_total() {
+    changed = rack.restock(10000000)
+    total = rack.total()
 }

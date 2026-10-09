@@ -15,8 +15,8 @@ int main(void) {
         int32_t y = origin_y + trial % 5 - 2;
         total += abs(x) + abs(y);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld origin %d %d\n", (long long)total, origin_x, origin_y);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

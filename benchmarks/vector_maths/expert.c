@@ -34,8 +34,8 @@ int main(void) {
     }
     int64_t checksum = (int64_t)total;
     int64_t ended = (int64_t)(sqrtf(position_x * position_x + position_y * position_y + position_z * position_z) * 1000.0);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("checksum %lld ended at %lld\n", (long long)checksum, (long long)ended);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

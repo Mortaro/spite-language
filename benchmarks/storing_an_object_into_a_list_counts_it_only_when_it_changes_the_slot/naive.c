@@ -46,9 +46,9 @@ int main(void) {
     int32_t changed = restock(rack, 10000000);
     int32_t total = 0;
     for (int32_t index = 0; index < rack->count; index = index + 1) total = total + rack->crates[index]->weight;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("changed %d total %d\n", changed, total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(rack->crates);
     free(rack->light);
     free(rack->heavy);

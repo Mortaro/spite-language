@@ -66,9 +66,9 @@ int main(void) {
 #else
     pthread_join(thread, NULL);
 #endif
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("sum %lld near %lld\n", (long long)summer.result, (long long)near_count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(across);
     free(down);
     free(kept);

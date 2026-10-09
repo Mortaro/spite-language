@@ -31,9 +31,9 @@ int main(void) {
     for (int32_t index = 0; index < BODY_COUNT; index++) {
         number_total += numbers[index];
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld labels %d\n", (long long)total, number_total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(positions);
     free(speeds);
     free(numbers);

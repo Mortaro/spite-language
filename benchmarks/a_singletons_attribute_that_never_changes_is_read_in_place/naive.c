@@ -153,9 +153,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     fill_shelf(1000000);
     int64_t total = read_on_the_pool();
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < shelf.boxes->count; index = index + 1) box_release(shelf.boxes->items[index]);
     free(shelf.boxes->items);
     free(shelf.boxes);

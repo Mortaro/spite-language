@@ -156,8 +156,8 @@ static int32_t stream_on_the_pool(int32_t entity_count) {
 int main(void) {
     int64_t start = now_nanoseconds();
     int32_t total = stream_on_the_pool(3000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %d\n", total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

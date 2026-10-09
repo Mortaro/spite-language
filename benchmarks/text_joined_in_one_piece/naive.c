@@ -56,9 +56,9 @@ int main(void) {
     for (int32_t round = 0; round < 1000; round = round + 1) {
         total = total + meetings(names);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("characters %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < names->count; index = index + 1) free(names->items[index]);
     free(names->items);
     free(names);

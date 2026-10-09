@@ -88,9 +88,9 @@ int main(void) {
     Column trails = {NULL, 0, 0};
     fill(&velocities, &trails, 100000);
     int64_t total = ticks(&velocities, &trails);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < velocities.count; index = index + 1) free(velocities.items[index]);
     for (int32_t index = 0; index < trails.count; index = index + 1) {
         Trail* trail = trails.items[index];

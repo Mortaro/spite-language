@@ -43,7 +43,7 @@ List_Integer* Naive_histogram_of___held_0(Naive* self, List_Pixel* pixels_) {
         Pixel* pixel_ = ({ List_Pixel* spite_temp_5 = pixels_; int32_t spite_temp_6 = index_; if (__builtin_expect(spite_temp_6 < 0 || spite_temp_6 >= (spite_temp_5)->item_count_, 0)) spite_outside_list("pixels[index]", spite_site_2()); ((Pixel**)(intptr_t)(spite_temp_5)->items_)[spite_temp_6]; });
         int32_t luminance_ = Pixel_luminance(pixel_);
         if (!(((List_Integer_get_at(histogram_, luminance_)).has_value))) {
-            spite_failed_1(luminance_, histogram_, level_, index_);
+            spite_failed_1(luminance_, histogram_, level_, index_, self);
         }
         List_Integer_set_at(histogram_, luminance_, ({ int32_t spite_temp_7 = (List_Integer_get_at(histogram_, luminance_)).value; int32_t spite_temp_8 = 1; int32_t spite_temp_9; if (__builtin_expect(__builtin_add_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("histogram[luminance] + 1", "an Integer", "+", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_3()); spite_temp_9; }));
         index_ = (index_ + 1);

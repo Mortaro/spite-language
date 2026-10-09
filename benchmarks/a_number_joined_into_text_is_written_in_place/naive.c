@@ -47,8 +47,8 @@ int main(void) {
     for (int32_t round = 0; round < 20; round = round + 1) {
         total = total + lines(100000, round);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("characters %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

@@ -110,9 +110,9 @@ int main(void) {
     }
     int64_t total = simulate(bodies);
     int32_t numbers = sum_number(labels);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld labels %d\n", (long long)total, numbers);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     list_free(bodies);
     list_free(labels);
     return 0;

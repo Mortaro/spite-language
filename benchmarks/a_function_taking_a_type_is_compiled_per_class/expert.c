@@ -27,9 +27,9 @@ static double measure_all(int32_t steps) {
 int main(void) {
     int64_t start = now_nanoseconds();
     double total = measure_all(20000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int64_t whole = (int64_t)total;
     printf("total %lld\n", (long long)whole);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

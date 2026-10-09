@@ -68,9 +68,9 @@ int main(void) {
         integer_list_append(picks, index * 13 % 1000);
     }
     int64_t total = picked_total(values, picks);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     integer_list_free(values);
     integer_list_free(picks);
     return 0;

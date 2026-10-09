@@ -1,12 +1,14 @@
 var console = Console()
-var clock = Clock()
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var total = rounds(20)
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
+    var result = Benchmark(all_rounds)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func all_rounds(): Long {
+    return rounds(20)
 }
 
 func rounds(count: Integer): Long {

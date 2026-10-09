@@ -76,7 +76,7 @@ int main(int argument_count, char** arguments) {
     }
     int64_t finished = now_nanoseconds();
     printf("spread %lld bright %d weights %lld\n", (long long)spread, bright, (long long)weights);
-    fprintf(stderr, "microseconds %lld\n", (long long)((finished - start) / 1000));
+    print_microseconds((finished - start) / 1000);
     fprintf(stderr, "phases make %lld filter %lld measure %lld\n", (long long)((made - start) / 1000),
         (long long)((filtered_at - made) / 1000), (long long)((finished - filtered_at) / 1000));
     return 0;

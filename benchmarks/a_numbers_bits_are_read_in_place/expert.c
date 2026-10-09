@@ -42,8 +42,8 @@ __attribute__((target("avx2,f16c"))) static int64_t round_trips(int32_t count) {
 int main(void) {
     int64_t start = now_nanoseconds();
     int64_t total = round_trips(30000000);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

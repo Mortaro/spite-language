@@ -1,9 +1,14 @@
 var console = Console()
-var clock = Clock()
 var running = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
+    var result = Benchmark(all_rounds)
+    console.print("total", result.answer)
+    var microseconds = result.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}
+
+func all_rounds(): Long {
     var party = make_party(200000)
     var total: Long = 0
     var round = 0
@@ -11,9 +16,7 @@ func Naive() {
         total = total + party_total(party)
         round = round + 1
     }
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
-    console.print("total", total)
-    console.error("microseconds {microseconds}")
+    return total
 }
 
 func make_party(count: Integer): List<Stats> {

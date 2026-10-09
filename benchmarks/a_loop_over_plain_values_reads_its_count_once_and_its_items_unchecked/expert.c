@@ -34,9 +34,9 @@ int main(void) {
         float sum = scale_and_add(from, into, offset);
         total += (int64_t)(sum * 4.0f);
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total in quarters %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(from);
     free(into);
     return 0;

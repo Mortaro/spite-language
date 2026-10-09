@@ -11,8 +11,8 @@ int main(void) {
     int64_t start = now_nanoseconds();
     int32_t total = 0;
     for (int32_t index = 0; index < 10000000; index = index + 1) total = total + readings[index & 15] + offset;
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %d\n", total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     return 0;
 }

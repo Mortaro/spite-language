@@ -162,9 +162,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     List* orders = make_orders(5000);
     int64_t total = copy_rounds(orders);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld\n", (long long)total);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     orders_free(orders);
     return 0;
 }

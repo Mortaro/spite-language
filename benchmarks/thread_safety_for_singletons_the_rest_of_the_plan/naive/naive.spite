@@ -1,14 +1,18 @@
 var console = Console()
-var clock = Clock()
 var log = EventLog()
+var logged = 0
+var count = 0
 
 func Naive() {
-    var start = clock.elapsed_nanoseconds()
-    var logged = log_on_four(250000)
-    var count = log.count()
-    var microseconds = (clock.elapsed_nanoseconds() - start) / 1000
+    var result = Benchmark(log_and_count)
     console.print("logged", logged, "entries", count)
+    var microseconds = result.duration.total('microseconds')
     console.error("microseconds {microseconds}")
+}
+
+func log_and_count() {
+    logged = log_on_four(250000)
+    count = log.count()
 }
 
 func log_on_four(rounds: Integer): Integer {

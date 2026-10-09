@@ -131,9 +131,9 @@ int main(void) {
         remove_where(&entities, marked);
         checksum = checksum + kept_sum();
     }
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("checksum %lld\n", (long long)checksum);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(velocities.items);
     free(entities.items);
     free(marks.items);

@@ -158,9 +158,9 @@ int main(void) {
     const char* name = settings_name(&settings);
     int32_t total = hit_counter_total(&counter);
     int32_t written = journal_written(&journal);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("%s %d after %d rounds, journal lines: %d\n", name, total, rounds, written);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     for (int32_t index = 0; index < journal.count; index = index + 1) free(journal.lines[index]);
     free(journal.lines);
     mutex_free(&counter.mutex);

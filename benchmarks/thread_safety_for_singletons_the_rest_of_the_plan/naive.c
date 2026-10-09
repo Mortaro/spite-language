@@ -123,9 +123,9 @@ int main(void) {
     int64_t start = now_nanoseconds();
     int32_t logged = log_on_four(250000);
     int32_t count = event_log_count(&event_log);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("logged %d entries %d\n", logged, count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(event_log.entries->items);
     free(event_log.entries);
     mutex_free(&event_log.mutex);

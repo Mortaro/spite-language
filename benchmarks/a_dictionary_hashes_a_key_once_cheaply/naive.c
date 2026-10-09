@@ -157,9 +157,9 @@ int main(void) {
     StringList* names = make_names(5000);
     Dictionary* by_name = index_names(names);
     int64_t total = look_up(names, by_name);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     printf("total %lld entries %d\n", (long long)total, by_name->count);
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     dictionary_free(by_name);
     list_free(names);
     return 0;

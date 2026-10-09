@@ -77,12 +77,12 @@ int main(void) {
     file_write(second_path, second_text);
     int64_t start = now_nanoseconds();
     int64_t characters = read_rounds(first_path, second_path, 40);
-    int64_t microseconds = (now_nanoseconds() - start) / 1000;
+    int64_t microseconds = microseconds_since(start);
     int first_removed = remove(first_path) == 0;
     int second_removed = remove(second_path) == 0;
     printf("characters %lld removed %s %s\n", (long long)characters, first_removed ? "true" : "false",
         second_removed ? "true" : "false");
-    fprintf(stderr, "microseconds %lld\n", (long long)microseconds);
+    print_microseconds(microseconds);
     free(first_text);
     free(second_text);
     return 0;

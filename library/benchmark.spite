@@ -1,0 +1,12 @@
+generic $answer_type
+
+var _clock = Clock()
+var answer: $answer_type = null
+var duration: Duration = null
+
+func Benchmark(work: Spite.Function<$answer_type>) {
+    var started = _clock.elapsed_nanoseconds()
+    answer = work()
+    var finished = _clock.elapsed_nanoseconds()
+    duration = Duration(finished - started, 'nanoseconds')
+}
