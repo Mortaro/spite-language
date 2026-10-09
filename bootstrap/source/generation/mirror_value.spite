@@ -1,0 +1,162 @@
+var kind = ""
+var name = ""
+var number: Long = 0
+var parts = List<MirrorValue>()
+var klass = ""
+var text = ""
+
+# ../../../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from
+func MirrorValue(starting_kind: String, starting_name: String) {
+    kind = starting_kind
+    name = starting_name
+}
+
+func with_text(): MirrorValue {
+    text = rendered_text()
+    return this
+}
+
+func rendered_text(): String {
+    switch kind {
+        "const": return number
+        "field": return "{part_text(0)}.{name}"
+        "item": return "{part_text(0)}[{part_text(1)}]"
+        "count": return "count({part_text(0)})"
+        "op": {
+            var texts = parts.map_texts()
+            return "{name}({texts.join(",")})"
+        }
+        _: return "{kind}:{name}"
+    }
+}
+
+func part_text(position: Integer): String {
+    crash parts[position]
+    return parts[position].text
+}
+
+func part_at(position: Integer): MirrorValue {
+    crash parts[position]
+    return parts[position]
+}
+
+func is_const(): Boolean {
+    return kind == "const"
+}
+
+func reads_a_list(): Boolean {
+    if kind == "item" or kind == "count" {
+        return true
+    }
+    return kind == "op" and name == "present"
+}
+
+func mentions_field(field_name: String, object: MirrorValue, field_klass: String): Boolean {
+    if kind == "field" and name == field_name {
+        var owner = part_at(0)
+        var same_type = klass.is_empty() or field_klass.is_empty() or klass == field_klass
+        if same_type and objects_may_meet(owner, object) {
+            return true
+        }
+    }
+    var index = 0
+    while index < parts.count() {
+        if parts[index].mentions_field(field_name, object, field_klass) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func objects_may_meet(left: MirrorValue, right: MirrorValue): Boolean {
+    if left.kind == "single" and right.kind == "single" {
+        return left.name == right.name
+    }
+    if left.klass.is_empty() or right.klass.is_empty() {
+        return true
+    }
+    return left.klass == right.klass
+}
+
+func mentions_list(list: MirrorValue): Boolean {
+    if reads_a_list() {
+        var read = part_at(0)
+        if lists_may_meet(read, list) {
+            return true
+        }
+    }
+    var index = 0
+    while index < parts.count() {
+        if parts[index].mentions_list(list) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func lists_may_meet(left: MirrorValue, right: MirrorValue): Boolean {
+    if left.text == right.text {
+        return true
+    }
+    if left.klass.is_empty() or right.klass.is_empty() {
+        return true
+    }
+    return left.klass == right.klass
+}
+
+func mentions_text(mentioned: String): Boolean {
+    if text == mentioned {
+        return true
+    }
+    var index = 0
+    while index < parts.count() {
+        if parts[index].mentions_text(mentioned) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mentions_kind(mentioned: String): Boolean {
+    if kind == mentioned {
+        return true
+    }
+    var index = 0
+    while index < parts.count() {
+        if parts[index].mentions_kind(mentioned) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func renamed_copy(from: String, to: MirrorValue): MirrorValue {
+    if text == from {
+        return to
+    }
+    if parts.is_empty() {
+        return this
+    }
+    var copy = MirrorValue(kind, name)
+    copy.number = number
+    copy.klass = klass
+    var index = 0
+    while index < parts.count() {
+        var renamed_part = parts[index].renamed_copy(from, to)
+        copy.parts.append(renamed_part)
+        index = index + 1
+    }
+    return copy.with_text()
+}
+
+func is_plain_read(): Boolean {
+    var plain = ["name", "field", "item", "const", "single", "self", "enum"]
+    if not plain.contains(kind) {
+        return false
+    }
+    return parts.all_is_plain_read()
+}

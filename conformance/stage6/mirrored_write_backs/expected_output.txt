@@ -1,0 +1,6 @@
+kept 0 13 20 30
+replaced 0 13 20 30
+reopened 0 77 20 30
+pointed 0 10 10 30
+turned 30 10 10 0
+looped 1 11 21 31

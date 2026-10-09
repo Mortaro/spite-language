@@ -1,0 +1,10 @@
+var next = 0
+var steps = 0
+
+func fresh_value(klass: String): MirrorValue {
+    next = next + 1
+    var label: String = next
+    var made = MirrorValue("unknown", label)
+    made.klass = klass
+    return made.with_text()
+}

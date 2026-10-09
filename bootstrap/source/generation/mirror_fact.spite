@@ -1,0 +1,107 @@
+var kind = ""
+var subject = MirrorValue("none", "")
+var value = MirrorValue("none", "")
+var guards = List<MirrorValue>()
+
+func MirrorFact(starting_kind: String, starting_subject: MirrorValue, starting_value: MirrorValue) {
+    kind = starting_kind
+    subject = starting_subject
+    value = starting_value
+}
+
+func same_as(other: MirrorFact): Boolean {
+    return kind == other.kind and subject.text == other.subject.text and value.text == other.value.text
+}
+
+func with_guards(extra: List<MirrorValue>): MirrorFact {
+    var copy = MirrorFact(kind, subject, value)
+    var index = 0
+    while index < guards.count() {
+        copy.guards.append(guards[index])
+        index = index + 1
+    }
+    index = 0
+    while index < extra.count() {
+        copy.add_guard(extra[index])
+        index = index + 1
+    }
+    return copy
+}
+
+func add_guard(guard: MirrorValue) {
+    var index = 0
+    while index < guards.count() {
+        assert guards[index].text != guard.text
+        index = index + 1
+    }
+    guards.append(guard)
+}
+
+func mentions_value(test: MirrorValue): Boolean {
+    if subject.mentions_text(test.text) or value.mentions_text(test.text) {
+        return true
+    }
+    var index = 0
+    while index < guards.count() {
+        if guards[index].mentions_text(test.text) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mentions_field(field_name: String, object: MirrorValue, field_klass: String): Boolean {
+    if subject.mentions_field(field_name, object, field_klass) or value.mentions_field(field_name, object, field_klass) {
+        return true
+    }
+    var index = 0
+    while index < guards.count() {
+        if guards[index].mentions_field(field_name, object, field_klass) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mentions_list(list: MirrorValue): Boolean {
+    if subject.mentions_list(list) or value.mentions_list(list) {
+        return true
+    }
+    var index = 0
+    while index < guards.count() {
+        if guards[index].mentions_list(list) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mentions_kind(mentioned: String): Boolean {
+    if subject.mentions_kind(mentioned) or value.mentions_kind(mentioned) {
+        return true
+    }
+    var index = 0
+    while index < guards.count() {
+        if guards[index].mentions_kind(mentioned) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func renamed_copy(from: String, to: MirrorValue): MirrorFact {
+    var renamed_subject = subject.renamed_copy(from, to)
+    var renamed_value = value.renamed_copy(from, to)
+    var copy = MirrorFact(kind, renamed_subject, renamed_value)
+    var index = 0
+    while index < guards.count() {
+        var renamed_guard = guards[index].renamed_copy(from, to)
+        copy.guards.append(renamed_guard)
+        index = index + 1
+    }
+    return copy
+}

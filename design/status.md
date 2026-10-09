@@ -943,9 +943,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### An item written back to its own slot is not written
 
 - Built (pair B2 of [naive_programs_pairs.md](naive_programs_pairs.md), and B1 where the same proof holds; decided
-  by Claude under D509, to confirm). Not built: the write-back and the read in different blocks or different
-  functions (the naive engine's runner fills a row in one function and stores it in another, with the system
-  called between, so its stress test does not change); a copy written back (`var row = list[index].copy()`, changed,
+  by Claude under D509, to confirm). The write-back and the read in different functions is the
+  [next section](#a-write-back-of-what-the-slot-already-holds-is-not-written), for a call that writes back. Not
+  built: a store statement (not a call) whose read is in another block of the same function; a copy written back (`var row = list[index].copy()`, changed,
   then `list[index] = row`), which is the slot only when no other name can hold the stored object (pair L1's proof);
   a `Dictionary` slot; an uncounted read whose name is kept, compared or returned; a call that writes into a list
   of a generic class's own item (`Column<$component_type>.values`) keeps the count even when no instance of that
@@ -953,6 +953,19 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   instance (the naive engine's `store_attribute`); an item read with `[]` and used at once, without a name
   (`candidates[index].count()`, `changes.stamp_written(headers[index], entity)`), is still counted; the
   optimisation report does not yet say why a write-back was kept or a read counted.
+
+### A write-back of what the slot already holds is not written
+
+- Built (pairs B2b and W of [naive_programs_pairs.md](naive_programs_pairs.md); decided by Claude under D509, to
+  confirm). Not built: a store statement (not a call) proven this way; a dropped function with a loop, an object
+  made, a call it cannot follow or arithmetic not worked out while compiling; a call whose value is used or whose
+  arguments compute something; facts about objects whose class is unknown (a `type`'s value is told apart from
+  another object only by the type of the attribute written); a caller more than six levels up, or a walk past its
+  step budget (60 000 steps for one call, 4 000 000 for the program); a program that uses `Concurrent`, starts threads
+  whose writes are not known, or has a `drop()` that stores
+  into lists; the row kept in locals (pair R), which this does not do. The optimisation report does not yet say
+  why a call was kept. The walks add to compiling a program with many candidate calls: the compiler's own build
+  is within the noise, the naive engine's physics example about a tenth slower to compile.
 
 ### An attribute a call cannot assign is passed without counting
 
@@ -966,9 +979,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ### Storing an object into a list counts it only when it changes the slot
 
-- Built (decided by Claude under D509, to confirm; D544). Not built: B2b itself, proving while compiling that a
-  store writes back what an earlier call read (the naive engine's runner still runs the whole per-attribute path
-  to the store, only its counts are gone); a value made or computed in the store; a `Dictionary`; an attribute
+- Built (decided by Claude under D509, to confirm; D544). Proving while compiling that a store writes back what an
+  earlier call read is [built](#a-write-back-of-what-the-slot-already-holds-is-not-written) for a call that writes
+  back. Not built: a value made or computed in the store; a `Dictionary`; an attribute
   assigned the object it already holds (`row.position = position`), which still counts.
 
 ### An item passed to a call that cannot change its list is not counted
@@ -1004,7 +1017,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   the class calls more than once (its count is not guessed, so no copy is written); the values a parameter of the
   setup is given at each call, so `prepare(1)` and `prepare(2)` get no copy; tables of
   objects read as constants (their count is folded beside a table of known values, their items are not); a table in a non-singleton class of a
-  program that runs threads; the step 3 of S1, the runner made direct (L8b, B2b and the row kept in locals), which
+  program that runs threads; the step 3 of S1, the runner made direct (L8b and the row kept in locals; B2b is built), which
   needs the runner's calls inlined into one body at the Spite level (pair C4). The optimisation report does not yet
   say which tables were copied or why one was not. Its case, `benchmarks/a_table_filled_once_is_read_as_constants`,
   runs in 1.62 of naive C's time and 1.73 of expert C's (measured while the machine was in other use).

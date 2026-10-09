@@ -1,0 +1,73 @@
+var console = Console()
+var shelf = Shelf()
+
+func MirroredWriteBacks() {
+    kept()
+    replaced()
+    reopened()
+    pointed()
+    turned()
+    looped()
+}
+
+func kept() {
+    shelf.stock(4)
+    shelf.take(1)
+    shelf.open.words = shelf.open.words + 3
+    shelf.put_back()
+    var text = shelf.listing("kept")
+    console.print(text)
+}
+
+func replaced() {
+    shelf.stock(4)
+    shelf.take(1)
+    shelf.open.words = shelf.open.words + 3
+    shelf.replace(1, 500)
+    shelf.put_back()
+    var text = shelf.listing("replaced")
+    console.print(text)
+}
+
+func reopened() {
+    shelf.stock(4)
+    shelf.take(1)
+    shelf.open_fresh(77)
+    shelf.put_back()
+    var text = shelf.listing("reopened")
+    console.print(text)
+}
+
+func pointed() {
+    shelf.stock(4)
+    shelf.take(1)
+    shelf.point(2)
+    shelf.put_back()
+    var text = shelf.listing("pointed")
+    console.print(text)
+}
+
+func turned() {
+    shelf.stock(4)
+    shelf.take(1)
+    shelf.turn_around()
+    shelf.put_back()
+    var text = shelf.listing("turned")
+    console.print(text)
+}
+
+func looped() {
+    shelf.stock(4)
+    var index = 0
+    while index < 4 {
+        shelf.take(index)
+        shelf.open.words = shelf.open.words + 1
+        if index == 2 {
+            shelf.replace(2, 99)
+        }
+        shelf.put_back()
+        index = index + 1
+    }
+    var text = shelf.listing("looped")
+    console.print(text)
+}
