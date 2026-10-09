@@ -676,7 +676,7 @@ pointer reads of files stubbed, since today's library refuses both; neither runs
 68982022, `--optimized` split builds, medians of interleaved runs. **Every number here was measured while the
 machine was in other use (games and other sessions' builds): provisional, to be timed again on a quiet machine.**
 
-**Built: objects made for their owner are told apart** (D553, [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart),
+**Built: objects made for their owner are told apart** (D555, [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart),
 [proofs](../docs/proofs.md#an-object-made-for-its-owner-is-told-apart)). The overlap facts gain owner tags: an
 attribute only ever given an object constructed where it is given (read from every assignment in the C, struct
 copies and `copy()` included) holds an object no other such attribute holds, so a key reached through it carries
@@ -696,7 +696,7 @@ Everything the seventh pass found the two stress systems sharing is now told apa
 `stamps` of the column indexes each matcher's `headers` holds (checked when the stage starts: Move's headers name
 Position and Velocity, Regenerate's Health and Regeneration).
 
-**Built: counts per group of calls run at once** (D552, pair S4, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
+**Built: counts per group of calls run at once** (D554, pair S4, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
 [proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts)). The walk that decides plain counts (C5) and
 singleton locks (D529) no longer takes a T4b piece as code that runs anywhere: it follows each class's call on its
 own (calls only, a singleton's teardown left out, the piece itself counting only its elements), and a class is a
@@ -724,7 +724,7 @@ On a less loaded hour of the same day the stage went from 28.1 to 15.0 ms split,
 columns the worker last wrote, from the other core's caches, and every later tick starts and joins the pool for
 two systems with nothing to do (about 20 µs each). Measured by hand on the one-file C: with the stage forced in
 order the sixty ticks are as before; with the meeting points counted plainly they barely move. D214 asks for at
-least as fast everywhere, so this is listed for Mortaro under "To confirm" with D552. A cost model that leaves
+least as fast everywhere, so this is listed for Mortaro under "To confirm" with D554. A cost model that leaves
 calls with no rows in order (pair T6 for T4b) would take the empty ticks back.
 
 Not built, and next: `ColumnIndex` counts in the matcher's `store_attribute` (`var header = headers[position]` is

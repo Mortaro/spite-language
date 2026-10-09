@@ -487,14 +487,14 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - D505, calls in a row run at once: built for `receiver.function()` and the class's own `function()` with no
   arguments, including rows that mix light and heavy calls. Not built: calls with arguments, telling apart two
-  objects of one class that are not held by attributes made for their owner (D553), and a cost model finer than
+  objects of one class that are not held by attributes made for their owner (D555), and a cost model finer than
   "reaches a loop".
   The conditions beyond D505 itself are proposed by Claude, unconfirmed.
 - D539, a loop over a list of different classes runs them at once: built for `list.each_function()` and
   `list.each(own_function)` over a `List` of a `type`, with the table of classes decided while compiling and the
   classes read at run time. Not built: a loop written as a `while`, counts per creation site (R9; counts are
-  decided per group, D552), and a cost model that leaves calls with nothing to do in order (the naive engine's
-  ticks after despawning pay a pool start each). D553 tells objects made for their owner apart; a function value's
+  decided per group, D554), and a cost model that leaves calls with nothing to do in order (the naive engine's
+  ticks after despawning pay a pool start each). D555 tells objects made for their owner apart; a function value's
   owner is still taken as let go on another thread, which makes every class it reaches atomic.
 - D542, a loop whose passes write only their own item runs in bands: built for `list.each_function()` and
   `list.each(own_function)` over a `List` or `Vector` of a class. Not built: reductions (T2), a scratch per band
