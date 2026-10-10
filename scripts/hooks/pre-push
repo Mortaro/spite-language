@@ -53,13 +53,15 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     echo "release: could not push the tag v$version, so this push stops; push again" >&2
     exit 1
   }
-  if command -v gh > /dev/null 2>&1; then
-    gh release create "v$version" "$out/$name.zip" --verify-tag --title "Spite $version" \
+  github=$(command -v gh 2>/dev/null)
+  [ -z "$github" ] && [ -x "/c/Program Files/GitHub CLI/gh.exe" ] && github="/c/Program Files/GitHub CLI/gh.exe"
+  if [ -n "$github" ] && "$github" auth status > /dev/null 2>&1; then
+    "$github" release create "v$version" "$out/$name.zip" --verify-tag --title "Spite $version" \
       --notes "The Spite compiler for Windows: unzip, put the folder on PATH, and keep a C compiler (clang) installed. spite_compiler.c is the C this spite.exe was built from; any C compiler rebuilds it." \
       || { echo "release: v$version is tagged, but publishing it failed; publish $out/$name.zip by hand" >&2; exit 1; }
     echo "release: published Spite $version"
   else
-    echo "release: tagged v$version and packaged $out/$name.zip; install the GitHub CLI (gh) to publish releases automatically"
+    echo "release: tagged v$version and packaged $out/$name.zip; install the GitHub CLI (gh) and run 'gh auth login' to publish releases automatically"
   fi
 done
 exit 0
