@@ -18,7 +18,7 @@ shared_spite_folder() {
 
 # The inputs of the working tree as it is now, committed or not.
 working_tree_inputs() {
-  git ls-files -c -o --exclude-standard -- "${release_folders[@]}" | LC_ALL=C sort -u | while IFS= read -r path; do
+  git ls-files -c -o --exclude-standard "${release_folders[@]}" | LC_ALL=C sort -u | while IFS= read -r path; do
     [ -f "$path" ] && echo "$path"
   done > "$1.paths"
   git hash-object --stdin-paths < "$1.paths" > "$1.blobs"
@@ -28,6 +28,6 @@ working_tree_inputs() {
 
 # The inputs of a commit.
 commit_inputs() {
-  git ls-tree -r "$1" -- "${release_folders[@]}" | awk -F '\t' '{ split($1, field, " "); print $2 " " field[3] }' \
+  git ls-tree -r "$1" "${release_folders[@]}" | awk -F '\t' '{ split($1, field, " "); print $2 " " field[3] }' \
     | LC_ALL=C sort | sha1sum | cut -d ' ' -f 1
 }
