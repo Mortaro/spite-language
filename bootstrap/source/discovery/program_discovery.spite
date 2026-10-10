@@ -1023,6 +1023,10 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         if qualified_dotted == "Build" and following_loads {
             kept_names = program_build_fields
         }
+        if not walking_library and library_classes.contains(qualified_dotted) {
+            check_hand_copies(existing, parsed_file)
+            assert not has_error
+        }
         reopen_class(class_file_file, parsed_file, kept_names)
         return
     }
@@ -1172,6 +1176,146 @@ func note_program_build_fields(build: Syntax.SourceFile) {
         }
         index = index + 1
     }
+}
+
+func check_hand_copies(library_class: DiscoveredClass, reopening: Syntax.SourceFile) {
+    var attributes = List<String>()
+    var operators = List<Syntax.Statements.FunctionDeclaration>()
+    var original = library_class.file
+    var index = 0
+    while index < original.statements.count() {
+        var variable = shape.as_variable_declaration(original.statements[index])
+        if variable {
+            attributes.append(variable.name)
+        }
+        var declared = shape.as_function_declaration(original.statements[index])
+        if declared {
+            if operator_symbol(declared.name) != "" {
+                operators.append(declared)
+            }
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < reopening.statements.count() and not has_error {
+        var added = shape.as_function_declaration(reopening.statements[index])
+        if added {
+            check_hand_copy(library_class, added, reopening.path, attributes, operators)
+        }
+        index = index + 1
+    }
+}
+
+func check_hand_copy(
+    library_class: DiscoveredClass,
+    added: Syntax.Statements.FunctionDeclaration,
+    path: String,
+    attributes: List<String>,
+    operators: List<Syntax.Statements.FunctionDeclaration>,
+) {
+    var own_type = library_class.simple_name
+    var added_types = List<String>()
+    var operands = 0
+    var index = 0
+    while index < added.parameters.count() {
+        var type_name = parameter_type_name(added.parameters[index])
+        added_types.append(type_name)
+        if type_name == own_type {
+            operands = operands + 1
+        }
+        index = index + 1
+    }
+    assert operands != 0 and assigns_attribute(added.body, attributes)
+    crash added.parameters.count() > 0
+    index = 0
+    while index < operators.count() {
+        var candidate = operators[index]
+        if library_operator_answers(candidate, added_types) {
+            has_error = true
+            var symbol = operator_symbol(candidate.name)
+            var first = added.parameters[0].name
+            var example = "target = {symbol}{first}"
+            var values = "one {own_type} value"
+            if candidate.parameters.count() > 0 and added.parameters.count() > 1 {
+                var second = added.parameters[1].name
+                example = "target = {first} {symbol} {second}"
+                values = "two {own_type} values"
+            }
+            error_message = "{path}:{added.line}: error: '{library_class.plain_dotted}.{added.name}', added by this reopening, rewrites this {own_type} from {values}, which the library's '{symbol}' already answers: write '{example}' (the answer is built in target's place)"
+            return
+        }
+        index = index + 1
+    }
+}
+
+func library_operator_answers(candidate: Syntax.Statements.FunctionDeclaration, added_types: List<String>): Boolean {
+    if candidate.parameters.count() + 1 != added_types.count() {
+        return false
+    }
+    var index = 0
+    while index < candidate.parameters.count() {
+        var needed = parameter_type_name(candidate.parameters[index])
+        if not added_types.contains(needed) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func operator_symbol(name: String): String {
+    switch name {
+        "sum": return "+"
+        "subtract": return "-"
+        "multiply": return "*"
+        "divide": return "/"
+        "remainder": return "%"
+        "negate": return "-"
+        _: return ""
+    }
+}
+
+func parameter_type_name(parameter: Syntax.Statements.Parameter): String {
+    if parameter.type_reference {
+        var named = shape.as_named_type(parameter.type_reference)
+        if named {
+            var last = named.path[named.path.count() - 1]
+            if last {
+                return last
+            }
+        }
+    }
+    return ""
+}
+
+func assigns_attribute(body: List<Syntax.Statements.Statement>, attributes: List<String>): Boolean {
+    var index = 0
+    while index < body.count() {
+        var statement = body[index]
+        var assignment = shape.as_assignment_statement(statement)
+        if assignment {
+            if assignment.target {
+                var written = shape.as_identifier(assignment.target)
+                if written and attributes.contains(written.name) {
+                    return true
+                }
+            }
+        }
+        var branch = shape.as_if_statement(statement)
+        if branch {
+            if assigns_attribute(branch.then_branch, attributes) or assigns_attribute(branch.else_branch, attributes) {
+                return true
+            }
+        }
+        var loop = shape.as_while_statement(statement)
+        if loop {
+            if assigns_attribute(loop.body, attributes) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kept_names: List<String>) {

@@ -2117,6 +2117,111 @@ still read and counted.
 for every entity and component, ticks in 43.8 ms instead of 48.1 (40.3 instead of 43.3 as one C file). What a
 crash report says, allocations and everything a program prints are the same.
 
+### A write-back of what the slot already holds is not written
+
+**The case:** [benchmarks/a_write_back_of_what_the_slot_already_holds_is_not_written](../benchmarks/a_write_back_of_what_the_slot_already_holds_is_not_written/).
+
+**What it does.** A common shape splits the read and the write-back between functions: one copies an item of a list
+into an attribute, the caller changes the item through that attribute, and another function stores the attribute
+back into the slot:
+
+```gdscript title=written_back_across_calls/page.spite
+var words = 0
+
+func Page(starting_words: Integer) {
+    words = starting_words
+}
+```
+```gdscript title=written_back_across_calls/shelf.spite
+singleton
+
+var pages = List<Page>()
+var open = Page(0)
+var at = 0
+
+func stock(count: Integer) {
+    var index = 0
+    while index < count {
+        var made = Page(index * 10)
+        pages.append(made)
+        index = index + 1
+    }
+}
+
+func take(index: Integer) {
+    at = index
+    crash pages[at]
+    open = pages[at]
+}
+
+func put_back() {
+    pages[at] = open
+}
+
+func total(): Integer {
+    return pages.sum_words()
+}
+```
+```gdscript title=written_back_across_calls/written_back_across_calls.spite entry
+var console = Console()
+var shelf = Shelf()
+
+func WrittenBackAcrossCalls() {
+    shelf.stock(4)
+    var round = 0
+    while round < 3 {
+        shelf.take(1)
+        shelf.open.words = shelf.open.words + 3
+        shelf.put_back()
+        round = round + 1
+    }
+    var total = shelf.total()
+    console.print(total)
+}
+```
+```output
+69
+```
+
+The compiler follows the values themselves through the calls. After `shelf.take(1)`, `at` holds 1 and `open` holds
+the object `pages[1]` holds; changing `shelf.open.words` changes that object and assigns neither `open`, `at` nor the
+list. So in `put_back`, `pages[at] = open` stores into `pages[1]` the object `pages[1]` already holds, and its bounds
+check is the one `take` already passed: the call does nothing a program could see, and the compiler writes no call
+for it. The loop above becomes:
+
+```c
+while (((round_ < 3))) {
+Shelf_take(self->shelf_, 1);
+/* shelf.open.words = shelf.open.words + 3, overflow checked */
+round_ = (round_ + 1);
+}
+```
+
+The same holds when the read, the change and the write-back are each several calls deep, which is how an entity
+system copies components into a row, runs a system on the row and stores the row back: a copy through templates and
+helpers into a row's attributes, with the row's position in each column followed through an attribute that counts
+up as the attributes are filled, is a copy of exactly the slots the write-back stores into. Whatever the dropped call
+would also have left behind is kept: a counter it would have left at 2 is set to 2.
+
+When a path between the copy and the write-back may change what the proof relies on, the write-back is kept on that
+path only. If the function that writes back starts by finding the slot again for an entity other than the one copied
+(`if entity != filled { ... }`), the generated C remembers whether that branch ran and stores only then. And anything
+in the way keeps the write exactly as written: storing another page into the slot, assigning `open` or `at`, removing
+from or reordering the list, a call through a function value, a wait, or a thread the program starts that may write
+the list. What may come between, and why, is [the proof](proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from).
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, in the program's own classes,
+for a call made as a statement whose arguments are names, attributes, items and numbers, and whose function only
+reads, checks what the program already checked, assigns numbers to attributes of the object it runs on, and stores
+into lists what their slots already hold. Every place the function holding the call can be called from must be known
+to the compiler: a function passed as a value, run on another thread, reached through reflection or called by a
+library template is left as it is. Not in a program that uses `Concurrent`, or whose `drop()` stores into lists.
+
+**What you notice.** Speed. The case's hundred passes over 100 000 pages take 26.6 ms instead of 45.6; the naive
+engine's stress tick takes 17.2 ms instead of 20.2 as one C file (21.5 instead of 25.6 split). Allocations, the order
+of everything a program can see and what it prints are the same. Compiling takes longer for a program with many
+candidate calls, since each is followed through its callers.
+
 ### An item a name holds from its list is not counted
 
 **The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).
@@ -3771,10 +3876,10 @@ So only the reading of the classes and the table's look-ups run, a few compariso
 classes may run together, which of them are worth a thread, and the code of both forms are all decided while
 compiling.
 
-**What you notice.** Speed, when the calls are big enough, and the same output. A program whose loop can run at
-once counts atomically the classes the overlapped calls count, as every program with threads does
-([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), also on the times the table sends it in
-order.
+**What you notice.** Speed, when the calls are big enough, and the same output. A class only one of the calls
+that can run together counts keeps plain counts; one that two of them count is counted atomically while they run
+at once ([counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)), and two objects of
+one class that each belong to their owner are told apart ([objects made for their owner](#objects-made-for-their-owner-are-told-apart)).
 
 ### A loop whose passes write only their own item runs in bands
 
@@ -3854,6 +3959,225 @@ which functions qualify, what they weigh and the count they need are decided whi
 **What you notice.** Speed on heavy passes over many elements, and the same output. A pass that counts a
 reference (it reads an object out of a list, or makes one) stays in order: counting from several threads would
 make the class's counts atomic everywhere ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)).
+
+### Objects made for their owner are told apart
+
+**The case:** [benchmarks/objects_made_for_their_owner_are_told_apart](../benchmarks/objects_made_for_their_owner_are_told_apart/).
+
+**What it does.** [Calls in a row](#calls-in-a-row-run-at-once) and [a loop over different classes](#a-loop-over-a-list-of-different-classes-runs-them-at-once)
+run at once only when neither call writes what the other touches, and the compiler used to tell objects apart only
+by their class: two tracks that each keep a `Meter` of their own both "wrote `Meter`", so they ran in order. Now an
+attribute that is only ever given an object made where it is given (`var meter = Meter()`, never assigned anything
+else) holds an object no other such attribute holds, so what a call does to `drum.meter`, and to the lists inside
+it, is told apart from what another does to `bass.meter`. A function the object is passed to is followed with it:
+what `record` does to its own object is counted as done to the meter it was called on.
+
+```gdscript title=owner_meters/meter.spite
+var total: Long = 0
+var loud = List<Integer>()
+
+func record(sample: Integer) {
+    total = total + sample
+    if sample > 995 {
+        loud.append(sample)
+    }
+}
+```
+```gdscript title=owner_meters/drum.spite
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 3000000 {
+        phase = (phase + 7) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}
+```
+```gdscript title=owner_meters/bass.spite
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 3000000 {
+        phase = (phase + 13) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}
+```
+```gdscript title=owner_meters/owner_meters.spite entry
+type Track {
+    render()
+}
+
+var console = Console()
+var drum = Drum()
+var bass = Bass()
+var tracks = List<Track>()
+
+func OwnerMeters() {
+    tracks.append(drum)
+    tracks.append(bass)
+    tracks.each_render()
+    var drum_loud = drum.meter.loud.count()
+    var bass_loud = bass.meter.loud.count()
+    console.print(drum.meter.total, drum_loud, bass.meter.total, bass_loud)
+}
+```
+```output
+1498500000 12000 1498500000 12000
+```
+
+`drum.render()` runs on a worker while `bass.render()` runs on the program's own thread. A `Track` handed a meter
+it did not make (`meter = shared`) holds an object that may be another's, and its calls stay in order with every
+call that touches a `Meter`.
+
+The same reckoning reaches items of lists. An item read out of a list attribute of a singleton (a matcher's
+`headers[index]`) is told apart from an item of another singleton's list when the two lists hold no object in
+common, and which objects a list holds is known only when the program has filled it; so for such a pair the loop
+compares the two lists' items when it starts (a few pointer comparisons, only for the two classes that meet), and
+runs in order when one object is in both.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, wherever the rows of calls and the loops
+of the pages above are decided. The attribute must be given its object only by a construction written where it is
+given (or nothing), in every function the program keeps; a `copy()` of its owner, a struct copy, or an assignment
+of anything else makes it one name among many again. A parameter is followed only into a function that does
+nothing with it but read and write through it, pass it to a list's own functions or to another such function, or
+compare it.
+
+**What you notice.** Speed, and the same output: in a game engine's stress test (200 000 entities, two systems
+that each keep a timing object, candidate lists and column indexes of their own) the two systems now run at once,
+with [counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts); measured while the
+machine was in other use, the update stage went from 41.6 to 26.1 ms (provisional). [Proofs](proofs.md#an-object-made-for-its-owner-is-told-apart)
+states the proof; `conformance/stage6/owned_objects` runs both forms and the item check.
+
+### Counts stay plain for what one of the calls run at once counts
+
+**The case:** [benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](../benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/).
+
+**What it does.** A loop over different classes that runs them at once used to make every class its calls count
+atomic for the whole program ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), since its
+piece is code that runs on another thread. Now the compiler follows each class's call on its own: a class only one
+of the calls that can run together counts stays plain, and so does its pool of objects. A class two of them count is
+the meeting point: it is counted atomically while the loop runs at once and with plain arithmetic the rest of the
+time, and its pool is kept per thread.
+
+```gdscript title=own_shelves/letter.spite
+var words = 0
+
+func Letter(seed: Integer) {
+    words = seed * 7 % 1000
+}
+```
+```gdscript title=own_shelves/painting.spite
+var width = 0
+
+func Painting(seed: Integer) {
+    width = seed * 11 % 1000
+}
+```
+```gdscript title=own_shelves/archive.spite
+var letters = List<Letter>()
+var kept_total = 0
+
+func Archive() {
+    var index = 0
+    while index < 1000 {
+        var letter = Letter(index)
+        letters.append(letter)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 300 {
+        var kept = List<Letter>()
+        var index = 0
+        while index < letters.count() {
+            var letter = letters[index]
+            if letter.words % 3 == round % 3 {
+                kept.append(letter)
+            }
+            index = index + 1
+        }
+        kept_total = kept_total + kept.count()
+        round = round + 1
+    }
+}
+```
+```gdscript title=own_shelves/gallery.spite
+var paintings = List<Painting>()
+var hung_total = 0
+
+func Gallery() {
+    var index = 0
+    while index < 1000 {
+        var painting = Painting(index)
+        paintings.append(painting)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 300 {
+        var hung = List<Painting>()
+        var index = 0
+        while index < paintings.count() {
+            var painting = paintings[index]
+            if painting.width % 5 == round % 5 {
+                hung.append(painting)
+            }
+            index = index + 1
+        }
+        hung_total = hung_total + hung.count()
+        round = round + 1
+    }
+}
+```
+```gdscript title=own_shelves/own_shelves.spite entry
+type Collection {
+    sort()
+}
+
+var console = Console()
+var archive = Archive()
+var gallery = Gallery()
+var collections = List<Collection>()
+
+func OwnShelves() {
+    collections.append(archive)
+    collections.append(gallery)
+    collections.each_sort()
+    console.print(archive.kept_total, gallery.hung_total)
+}
+```
+```output
+100000 60000
+```
+
+The two sorts run at once. Only the archive's call counts a `Letter` and only the gallery's a `Painting`, so every
+`kept.append(letter)` and every list let go counts with a plain addition and subtraction, as in a program with no
+threads.
+
+**When.** Every production build of a program with such a loop. A class counted by code on another thread that is
+not one of these calls (a `Parallel`'s function, a callback) stays atomic everywhere, as before.
+
+**Why at run time.** The same function (a list's `append`, a release) runs inside the calls run at once and
+outside them, and telling the two apart while compiling would mean writing it twice. So for the classes two of the
+calls count, the count reads one flag the loop sets while it runs: a predictable branch the rest of the time.
+
+**What you notice.** Speed. The meeting points cost an atomic instruction only while the calls overlap; objects
+made on a worker go back to that worker's pool. Measured while the machine was in other use, the case above went
+from 21.7 to 14.1 ms; in the game engine's stress test, these counts and the per-owner facts above take the update
+stage from 41.6 to 26.1 ms, while the sixty ticks after despawning everything went from 27.9 to 33.0 ms (the columns
+the worker moved are read back by the program's own thread, and each empty tick starts the pool); all provisional. [Proofs](proofs.md#what-one-of-the-calls-run-at-once-counts)
+states the proof.
 
 ### A crash's report is kept out of the way
 

@@ -223,7 +223,7 @@ Questions to research:
   extend the lent-argument proofs until counts appear only where sharing is real.
 - **Objects merged into their owner**: a field that always holds a fresh object never shared becomes inline.
 - **Allocation sinking**: an object made in a loop and dropped in the same pass reuses one slot.
-- **A copy that copies only what is written** (after M7, D556): where a deep copy's window writes one path (the copy's
+- **A copy that copies only what is written** (after M7, D569): where a deep copy's window writes one path (the copy's
   `lines`, say) and only reads the rest, copy the path to what is written and share everything else, counted once
   more. Needs M7's window walk to say which attributes are written and the copy function per site to stop at the
   shared ones. Not built: M7 shares all or nothing. Also not built: a window that compares two results of calls

@@ -1,0 +1,24 @@
+var kind = ""
+var name = ""
+var values = List<MirrorValue>()
+var then_steps = List<MirrorStep>()
+var else_steps = List<MirrorStep>()
+var line = 0
+var candidate = -1
+var flags = List<Integer>()
+var result = ""
+var scalar = false
+var klass = ""
+var effects = List<String>()
+var effects_known = false
+
+# ../../../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from
+func MirrorStep(starting_kind: String, starting_name: String) {
+    kind = starting_kind
+    name = starting_name
+}
+
+func recorded_value(position: Integer): MirrorValue {
+    crash values[position]
+    return values[position]
+}

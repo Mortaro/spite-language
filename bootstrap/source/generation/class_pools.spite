@@ -4,6 +4,7 @@ var made = Dictionary<String, Boolean>()
 var refused = Dictionary<String, Boolean>()
 var pooled_classes = List<String>()
 var pooled = Dictionary<String, Boolean>()
+var per_thread = Dictionary<String, Boolean>()
 
 # ../../../docs/optimizations.md#objects-of-one-class-sit-together
 func with_pools(
@@ -130,6 +131,9 @@ func choose_classes(types: String, sharing: CountSharing?, buffer_holders: Dicti
         var allowed = true
         if sharing {
             allowed = sharing.leaves_to_one_thread(class_name)
+            if sharing.pools_per_thread(class_name) {
+                per_thread[class_name] = true
+            }
         }
         var listed = types.contains("typedef struct TypedMemory__{class_name} TypedMemory__{class_name};")
         var holds_buffer = buffer_holders.has(class_name) and not listed
@@ -189,11 +193,15 @@ func taken_line(line: String): String {
 }
 
 func pool_text(class_name: String): String {
+    var storage = "static"
+    if per_thread.has(class_name) {
+        storage = "static SPITE_THREAD_LOCAL"
+    }
     var pool_lines = [
-        "static {class_name}* {class_name}___pool_free = 0;"
-        "static char* {class_name}___pool_next = 0;"
-        "static char* {class_name}___pool_end = 0;"
-        "static size_t {class_name}___pool_count = 0;"
+        "{storage} {class_name}* {class_name}___pool_free = 0;"
+        "{storage} char* {class_name}___pool_next = 0;"
+        "{storage} char* {class_name}___pool_end = 0;"
+        "{storage} size_t {class_name}___pool_count = 0;"
         "static void {class_name}___pool_grow(void) \{"
         "if ({class_name}___pool_count == 0) \{ {class_name}___pool_count = 16; } else if ({class_name}___pool_count * sizeof({class_name}) < 262144) \{ {class_name}___pool_count = {class_name}___pool_count * 2; }"
         "char* chunk = (char*)SPITE_MALLOC({class_name}___pool_count * sizeof({class_name}) + 63);"

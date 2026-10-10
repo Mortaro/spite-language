@@ -44,6 +44,8 @@ else disagrees with the specification, the specification wins; a docs page that 
   - [`design/proposals/`](design/proposals/): proposals under review;
   - [`design/naive_programs.md`](design/naive_programs.md): the plan for making naive programs fast, with its
     pairs of optimisation and proof in [`design/naive_programs_pairs.md`](design/naive_programs_pairs.md);
+  - [`design/handoff.md`](design/handoff.md): where the last session stopped and what to pick up next (agent-owned,
+    rewritten at each handoff);
   - [`design/optimization_research.md`](design/optimization_research.md): the open notebook of optimisation
     theories, where every idea is welcome and agents record what they find;
   - [`design/KNOWN_ISSUES.md`](design/KNOWN_ISSUES.md): where the compiler falls short of the docs;
@@ -51,6 +53,7 @@ else disagrees with the specification, the specification wins; a docs page that 
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
+- [`RESEARCH.md`](RESEARCH.md) is for people donating agent time: what research is useful and how to contribute it.
 - [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
   claim in them is true of Spite today or marked as the direction.
 

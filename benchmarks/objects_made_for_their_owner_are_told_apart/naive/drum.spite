@@ -1,0 +1,11 @@
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 20000000 {
+        phase = (phase + 7) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}

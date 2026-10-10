@@ -1,0 +1,15 @@
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 20000000 {
+        phase = (phase + 13) % 1000
+        var folded = phase
+        if folded > 500 {
+            folded = 1000 - folded
+        }
+        meter.record(folded * 2)
+        step = step + 1
+    }
+}

@@ -1,0 +1,23 @@
+var dry = false
+var failed = false
+var owner = ""
+var written = List<String>()
+var depth = 0
+var stack = List<String>()
+var collect = false
+var sites = Dictionary<String, MirrorState>()
+var target = -1
+var skipped_lines = List<Integer>()
+var seen = 0
+var proven = true
+var finals = Dictionary<String, String>()
+var budget = 40000
+
+var reason = ""
+
+func mark_failed(why: String) {
+    if not failed {
+        reason = why
+    }
+    failed = true
+}

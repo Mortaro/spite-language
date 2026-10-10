@@ -15,6 +15,19 @@ var item_mode = false
 var band_counts = false
 var weights = Dictionary<String, Long>()
 var weighing = Dictionary<String, Boolean>()
+var parameter_names = Dictionary<String, List<String>>()
+var unfresh_slots = Dictionary<String, Boolean>()
+var unfresh_holders = Dictionary<String, Boolean>()
+var escaped_slots = Dictionary<String, Boolean>()
+var unknown_fields = Dictionary<String, Boolean>()
+var lend_answers = Dictionary<String, Boolean>()
+var followed = Dictionary<String, OverlapFact>()
+var following = Dictionary<String, Boolean>()
+var follow_prefixes = Dictionary<String, String>()
+var checking = false
+var needed_checks = List<String>()
+var singletons = Dictionary<String, Boolean>()
+var slot_fields = Dictionary<String, Boolean>()
 var container_prefixes = ["List_", "Vector_", "Items_", "Dictionary_", "TypedMemory_", "InlineMemory_"]
 var keywords = [
     "if"
@@ -96,6 +109,7 @@ func read_program(
     mains: List<String>,
 ) {
     typedefs.each(read_structs)
+    typedefs.each(note_singletons)
     prototypes.each(read_prototype)
     read_bodies(support)
     read_bodies(user)
@@ -103,6 +117,7 @@ func read_program(
     mains.each(note_mentions)
     body_names.each(note_body_mentions)
     body_names.each(note_made_classes)
+    body_names.each(note_slot_uses)
     body_names.each(note_holders_of)
 }
 
@@ -134,6 +149,9 @@ func note_struct_field(owner: String, line: String) {
     var field_name = text.slice(name_start, text_length)
     assert not field_type.is_empty()
     struct_fields["{owner}#{field_name}"] = field_type
+    if field_type.ends_with("*") {
+        slot_fields[field_name] = true
+    }
 }
 
 func identifier_start(text: String, end: Integer): Integer {
@@ -168,6 +186,54 @@ func read_prototype(entry: String) {
     var first_length = first_trimmed.length()
     var first_name = identifier_start(first_trimmed, first_length)
     first_parameters[name] = first_trimmed.slice(0, first_name).trim()
+    parameter_names[name] = names_of_parameters(parameters)
+}
+
+func names_of_parameters(parameters: String): List<String> {
+    var names = List<String>()
+    var pieces = top_level_pieces(parameters)
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index].trim()
+        var piece_length = piece.length()
+        var start = identifier_start(piece, piece_length)
+        var name = piece.slice(start, piece_length)
+        names.append(name)
+        index = index + 1
+    }
+    return names
+}
+
+func top_level_pieces(text: String): List<String> {
+    var pieces = List<String>()
+    var depth = 0
+    var start = 0
+    var position = 0
+    var quote = 0
+    var length = text.length()
+    while position < length {
+        var code = text.code_at(position)
+        if quote != 0 {
+            position = position + quoted_width(code) - 1
+            quote = still_quoted(code, quote)
+        } else if code == 34 or code == 39 {
+            quote = code
+        } else if code == 40 or code == 123 or code == 91 {
+            depth = depth + 1
+        } else if code == 41 or code == 125 or code == 93 {
+            depth = depth - 1
+        } else if code == 44 and depth == 0 {
+            var piece = text.slice(start, position)
+            pieces.append(piece)
+            start = position + 1
+        }
+        position = position + 1
+    }
+    var last = text.slice(start, length)
+    if not last.trim().is_empty() {
+        pieces.append(last)
+    }
+    return pieces
 }
 
 func without_decorations(written: String): String {
@@ -354,11 +420,17 @@ func facts_of(name: String): OverlapFact {
         return fact
     }
     fact.container = is_container_function(name)
+    var saved_mode = item_mode
+    var saved_prefixes = follow_prefixes
+    item_mode = false
+    follow_prefixes = Dictionary<String, String>()
     var index = 1
     while index < lines.count() {
         study_line(fact, lines[index], lines, name)
         index = index + 1
     }
+    item_mode = saved_mode
+    follow_prefixes = saved_prefixes
     return fact
 }
 
@@ -442,7 +514,7 @@ func study_line(fact: OverlapFact, line: String, lines: List<String>, function_n
     if trimmed.starts_with("*(") and line.contains(" = ") {
         note_raw_write(fact)
     }
-    if line.contains("] = ") or line.contains("]++") or line.contains("]--") {
+    if line.contains("]++") or line.contains("]--") or line.contains("] = ") and not item_stores(fact, line, lines) {
         note_raw_write(fact)
     }
     if not fact.container and (line.contains(")[") or line.contains("*(")) {
@@ -487,6 +559,53 @@ func quoted_width(code: Integer): Integer {
         return 2
     }
     return 1
+}
+
+# ../../../docs/proofs.md#an-object-made-for-its-owner-is-told-apart
+func item_stores(fact: OverlapFact, line: String, lines: List<String>): Boolean {
+    if fact.container {
+        return false
+    }
+    var stores = 0
+    var marker = "**)(intptr_t)("
+    var rest = line
+    var found = rest.index_of(marker)
+    while found >= 0 {
+        var name_start = found + marker.length()
+        var rest_length = rest.length()
+        var after = rest.slice(name_start, rest_length)
+        var name_end = after.index_of(")->items_)[")
+        if name_end > 0 {
+            var list_name = after.slice(0, name_end)
+            var index_start = name_end + 11
+            var after_length = after.length()
+            var tail = after.slice(index_start, after_length)
+            var close = tail.index_of("]")
+            if close >= 0 and is_identifier(list_name) {
+                var close_length = tail.length()
+                var assigned = tail.slice(close, close_length)
+                if assigned.starts_with("] = ") {
+                    note_item_store(fact, list_name, lines)
+                    stores = stores + 1
+                }
+            }
+        }
+        rest = after
+        found = rest.index_of(marker)
+    }
+    return stores > 0 and stores == line.split("] = ").count() - 1
+}
+
+func note_item_store(fact: OverlapFact, list_name: String, lines: List<String>) {
+    var list_type = type_of(list_name, lines)
+    var list_class = class_of(list_type)
+    if list_class.is_empty() or not is_container_type(list_type) {
+        fact.write("raw")
+        return
+    }
+    var key = content_key_of(list_name, list_class, lines)
+    assert not key.is_empty()
+    fact.write(key)
 }
 
 func note_raw_write(fact: OverlapFact) {
@@ -576,6 +695,7 @@ func study_call(fact: OverlapFact, line: String, name: String, open: Integer, li
             return
         }
     }
+    assert fact.container or is_container_function(name) or not follow_call(fact, line, name, open, lines)
     fact.call(name)
     assert is_container_function(name)
     var argument = first_argument(line, open)
@@ -587,7 +707,7 @@ func study_call(fact: OverlapFact, line: String, name: String, open: Integer, li
     }
     var key = content_key(argument, name, lines)
     assert not key.is_empty()
-    if item_mode and own_content(argument, key) {
+    if item_mode and not key.starts_with("s:") and own_content(argument, key) {
         key = "s:{key}"
     }
     if mutates(name) {
@@ -663,6 +783,19 @@ func content_key(argument: String, function_name: String, lines: List<String>): 
 
 func content_key_of(argument: String, container_class: String, lines: List<String>): String {
     var text = stripped(argument)
+    var identity = identity_of(text, lines)
+    if not identity.is_empty() {
+        var prefix = identity_prefix(identity)
+        var tags = identity_tags(identity)
+        var tags_length = tags.length()
+        if tags.is_empty() {
+            return "{prefix}c:{container_class}|"
+        }
+        return "{prefix}c:{container_class}|{tags.slice(1, tags_length)}"
+    }
+    if text.starts_with("\{") {
+        return "c:{container_class}|*"
+    }
     var arrow = last_arrow(text)
     if arrow >= 0 {
         var prefix = text.slice(0, arrow)
@@ -682,16 +815,25 @@ func content_key_of(argument: String, container_class: String, lines: List<Strin
 }
 
 func made_here(name: String, lines: List<String>): Boolean {
+    var made = false
     var index = 0
     while index < lines.count() {
         var line = lines[index]
-        var made = line.contains(" {name} = ") and (line.contains("___make(") or line.contains("___default()") or line.contains("___allocate()"))
-        if made {
-            return true
+        if assigns_name(line, name) {
+            var fresh = line.contains("___make(") or line.contains("___default()") or line.contains("___allocate()")
+            if not fresh {
+                return false
+            }
+            made = true
         }
         index = index + 1
     }
-    return false
+    return made
+}
+
+func assigns_name(line: String, name: String): Boolean {
+    var trimmed = line.trim()
+    return line.contains(" {name} = ") or trimmed.starts_with("{name} = ")
 }
 
 func is_identifier(text: String): Boolean {
@@ -834,10 +976,8 @@ func study_field(fact: OverlapFact, line: String, arrow: Integer, lines: List<St
         return field_end
     }
     var written = atomic or writes_after(line, field_end) or address_before(line, base_start)
-    var key = "f:{holder}#{field}"
-    if item_mode and base == "self" {
-        key = "s:{key}"
-    }
+    var identity = identity_of(base, lines)
+    var key = "{identity_prefix(identity)}f:{holder}#{field}{identity_tags(identity)}"
     if written {
         fact.write(key)
     } else {
@@ -931,6 +1071,7 @@ func note_holder_use(line: String, base_start: Integer, field_end: Integer, hold
     assert field_type and is_container_type(field_type)
     assert not passed_to_container(line, base_start, field_end) and not made_fresh(line, field_end)
     assert not followed_by_arrow(line, field_end)
+    assert not temporary_alias(line, base_start, field_end) and not lent_argument(line, base_start, field_end)
     shared_holders["{holder}#{field}"] = true
 }
 
@@ -974,6 +1115,757 @@ func made_fresh(line: String, field_end: Integer): Boolean {
         return false
     }
     return rest.contains("___make(") or rest.contains("___default()") or rest.contains("___allocate()")
+}
+
+func note_singletons(entry: String) {
+    var lines = entry.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        var marker = "* spite_singleton_"
+        var at = line.index_of(marker)
+        if line.starts_with("static ") and at > 0 and line.ends_with("_cache = 0;") {
+            var name_start = at + marker.length()
+            var line_length = line.length()
+            var name = line.slice(name_start, line_length - 11)
+            singletons[name] = true
+        }
+        index = index + 1
+    }
+}
+
+# ../../../docs/proofs.md#an-object-made-for-its-owner-is-told-apart
+func note_slot_uses(name: String) {
+    var lines = bodies[name]
+    crash lines
+    assert mentioned.has(name)
+    var index = 1
+    while index < lines.count() {
+        note_slot_line(lines[index], lines, name)
+        index = index + 1
+    }
+}
+
+func note_slot_line(line: String, lines: List<String>, function_name: String) {
+    note_struct_copy(line, lines, function_name)
+    var length = line.length()
+    var position = 0
+    var quote = 0
+    while position < length {
+        var code = line.code_at(position)
+        if quote != 0 {
+            position = position + quoted_width(code)
+            if code == quote {
+                quote = 0
+            }
+        } else if code == 34 or code == 39 {
+            quote = code
+            position = position + 1
+        } else if code == 45 and position + 1 < length and line.code_at(position + 1) == 62 {
+            position = note_slot_use(line, position, lines)
+        } else {
+            position = position + 1
+        }
+    }
+}
+
+func note_struct_copy(line: String, lines: List<String>, function_name: String) {
+    var trimmed = line.trim()
+    var copies = trimmed.starts_with("*") and trimmed.contains(" = *")
+    if copies and not function_name.ends_with("___moved") {
+        var equals = trimmed.index_of(" = ")
+        var target = trimmed.slice(1, equals).trim()
+        var target_type = type_of(target, lines)
+        var holder = class_of(target_type)
+        if holder.is_empty() {
+            holder = "*"
+        }
+        unfresh_holders[holder] = true
+    }
+    if trimmed.contains("memcpy(") and trimmed.contains("sizeof(") {
+        var parts = trimmed.split("sizeof(")
+        var index = 1
+        while index < parts.count() {
+            var part = parts[index]
+            var end = part.index_of(")")
+            if end > 0 {
+                var copied = part.slice(0, end).trim()
+                if struct_fields.has("{copied}#header") {
+                    unfresh_holders[copied] = true
+                }
+            }
+            index = index + 1
+        }
+    }
+}
+
+func note_slot_use(line: String, arrow: Integer, lines: List<String>): Integer {
+    var field_start = arrow + 2
+    while field_start < line.length() and line.code_at(field_start) == 32 {
+        field_start = field_start + 1
+    }
+    var field_end = outline.name_end(line, field_start)
+    var field = line.slice(field_start, field_end)
+    if field.is_empty() or outline.before_call(line, field_end) {
+        return field_end
+    }
+    if not slot_fields.has(field) {
+        return field_end
+    }
+    var base_start = base_begin(line, arrow)
+    var base = line.slice(base_start, arrow).trim()
+    var base_type = type_of(base, lines)
+    var holder = class_of(base_type)
+    if holder.is_empty() {
+        var unknown_use = slot_use(line, base_start, field_end)
+        if unknown_use == "write" or unknown_use == "escape" {
+            unknown_fields[field] = true
+        }
+        return field_end
+    }
+    var field_type = struct_fields["{holder}#{field}"]
+    if not field_type or not is_class_pointer(field_type) {
+        return field_end
+    }
+    var use = slot_use(line, base_start, field_end)
+    var slot = "{holder}#{field}"
+    if use == "write" {
+        unfresh_slots[slot] = true
+    } else if use == "escape" {
+        escaped_slots[slot] = true
+    }
+    return field_end
+}
+
+func is_class_pointer(written: String): Boolean {
+    if not written.trim().ends_with("*") {
+        return false
+    }
+    var class_name = class_of(written)
+    return not class_name.is_empty() and struct_fields.has("{class_name}#header")
+}
+
+func slot_use(line: String, base_start: Integer, field_end: Integer): String {
+    if writes_after(line, field_end) {
+        if fresh_assignment(line, field_end) {
+            return "fresh"
+        }
+        return "write"
+    }
+    if address_before(line, base_start) or singleton_store_target(line, field_end) {
+        return "write"
+    }
+    if followed_by_arrow(line, field_end) or passed_to_container(line, base_start, field_end) {
+        return "fine"
+    }
+    if compared(line, base_start, field_end) or temporary_alias(line, base_start, field_end) {
+        return "fine"
+    }
+    if lent_argument(line, base_start, field_end) {
+        return "fine"
+    }
+    return "escape"
+}
+
+func fresh_assignment(line: String, field_end: Integer): Boolean {
+    var line_length = line.length()
+    var rest = line.slice(field_end, line_length).trim()
+    if not rest.starts_with("= ") or not rest.ends_with(";") {
+        return false
+    }
+    var rest_length = rest.length()
+    var value = rest.slice(2, rest_length - 1).trim()
+    if value == "0" or value == "NULL" {
+        return true
+    }
+    var open = value.index_of("(")
+    if open <= 0 {
+        return false
+    }
+    var called = value.slice(0, open)
+    var made = called.ends_with("___make") or called.ends_with("___default") or called.ends_with("___allocate")
+    return made and is_identifier(called) and matching_close(value, open) == value.length() - 1
+}
+
+func singleton_store_target(line: String, field_end: Integer): Boolean {
+    var stores = line.contains("SPITE_SINGLETON_STORE(") or line.contains("__atomic_store") or line.contains("__atomic_exchange")
+    if not stores {
+        return false
+    }
+    var line_length = line.length()
+    var rest = line.slice(field_end, line_length).trim()
+    return rest.starts_with(",")
+}
+
+func compared(line: String, base_start: Integer, field_end: Integer): Boolean {
+    var length = line.length()
+    var after = field_end
+    while after < length and (line.code_at(after) == 32 or line.code_at(after) == 41) {
+        after = after + 1
+    }
+    if after + 1 < length and line.code_at(after + 1) == 61 {
+        var code = line.code_at(after)
+        if code == 61 or code == 33 {
+            return true
+        }
+    }
+    var before = base_start - 1
+    while before >= 0 and (line.code_at(before) == 32 or line.code_at(before) == 40) {
+        before = before - 1
+    }
+    return before >= 1 and line.code_at(before) == 61 and (line.code_at(before - 1) == 61 or line.code_at(before - 1) == 33)
+}
+
+func temporary_alias(line: String, base_start: Integer, field_end: Integer): Boolean {
+    var line_length = line.length()
+    var rest = line.slice(field_end, line_length).trim()
+    if not rest.starts_with(";") {
+        return false
+    }
+    var before = line.slice(0, base_start).trim()
+    if not before.ends_with(" =") {
+        return false
+    }
+    var before_length = before.length()
+    var left = before.slice(0, before_length - 2).trim()
+    var left_length = left.length()
+    var name_start = identifier_start(left, left_length)
+    var name = left.slice(name_start, left_length)
+    var declared = left.slice(0, name_start).trim()
+    if not name.starts_with("spite_temp_") or not declared.ends_with("*") {
+        return false
+    }
+    return temporary_only_read(line, name)
+}
+
+func temporary_only_read(line: String, name: String): Boolean {
+    var length = line.length()
+    var position = 0
+    while position < length {
+        var code = line.code_at(position)
+        if outline.is_name_code(code) {
+            var end = outline.name_end(line, position)
+            var word = line.slice(position, end)
+            if word == name and not name_use_reads(line, position, end) {
+                return false
+            }
+            position = end
+        } else {
+            position = position + 1
+        }
+    }
+    return true
+}
+
+func name_use_reads(line: String, start: Integer, end: Integer): Boolean {
+    var length = line.length()
+    var after = end
+    if after < length and line.code_at(after) == 41 {
+        after = after + 1
+    }
+    if after + 1 < length and line.code_at(after) == 45 and line.code_at(after + 1) == 62 {
+        return true
+    }
+    var rest = line.slice(end, length).trim()
+    if rest.starts_with("= ") {
+        var before = line.slice(0, start).trim()
+        return before.ends_with("*")
+    }
+    var open = start - 1
+    if open >= 0 and line.code_at(open) == 40 {
+        var called_start = identifier_start(line, open)
+        var called = line.slice(called_start, open)
+        var next = line.code_at(end)
+        if not called.is_empty() and is_container_function(called) and (next == 44 or next == 41) {
+            return true
+        }
+    }
+    return false
+}
+
+func lent_argument(line: String, base_start: Integer, field_end: Integer): Boolean {
+    var open = unmatched_open(line, base_start)
+    if open < 0 {
+        return false
+    }
+    var called_start = identifier_start(line, open)
+    var called = line.slice(called_start, open)
+    if called.is_empty() or not bodies.has(called) {
+        return false
+    }
+    var close = matching_close(line, open)
+    if close < field_end {
+        return false
+    }
+    var expression_text = line.slice(base_start, field_end)
+    var expression = stripped(expression_text)
+    var inside = line.slice(open + 1, close)
+    var arguments = top_level_pieces(inside)
+    var found = false
+    var index = 0
+    while index < arguments.count() {
+        var argument = stripped(arguments[index])
+        if argument == expression {
+            if not lends(called, index) {
+                return false
+            }
+            found = true
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func unmatched_open(line: String, before: Integer): Integer {
+    var position = before - 1
+    var depth = 0
+    while position >= 0 {
+        var code = line.code_at(position)
+        if code == 40 and depth == 0 {
+            return position
+        }
+        if code == 41 {
+            depth = depth + 1
+        } else if code == 40 {
+            depth = depth - 1
+        }
+        position = position - 1
+    }
+    return -1
+}
+
+func lends(name: String, position: Integer): Boolean {
+    var key = "{name}#{position}"
+    var known = lend_answers[key]
+    if known == true or known == false {
+        return known == true
+    }
+    lend_answers[key] = false
+    var answer = parameter_lent(name, position)
+    lend_answers[key] = answer
+    return answer
+}
+
+func parameter_lent(name: String, position: Integer): Boolean {
+    var lines = bodies[name]
+    var names = parameter_names[name]
+    if not lines or not names or position >= names.count() {
+        return false
+    }
+    if is_container_function(name) {
+        return position == 0
+    }
+    var parameter = names[position]
+    if parameter.is_empty() {
+        return false
+    }
+    var index = 1
+    while index < lines.count() {
+        if not parameter_line_lends(lines[index], parameter) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func parameter_line_lends(line: String, parameter: String): Boolean {
+    var length = line.length()
+    var position = 0
+    var quote = 0
+    while position < length {
+        var code = line.code_at(position)
+        if quote != 0 {
+            position = position + quoted_width(code)
+            if code == quote {
+                quote = 0
+            }
+        } else if code == 34 or code == 39 {
+            quote = code
+            position = position + 1
+        } else if outline.is_name_code(code) {
+            var end = outline.name_end(line, position)
+            var word = line.slice(position, end)
+            var field_name = position >= 2 and line.code_at(position - 1) == 62 and line.code_at(position - 2) == 45
+            var member = position >= 1 and line.code_at(position - 1) == 46
+            if word == parameter and not field_name and not member and not parameter_use_lends(line, position, end) {
+                return false
+            }
+            position = end
+        } else {
+            position = position + 1
+        }
+    }
+    return true
+}
+
+func parameter_use_lends(line: String, start: Integer, end: Integer): Boolean {
+    var length = line.length()
+    if end + 1 < length and line.code_at(end) == 45 and line.code_at(end + 1) == 62 {
+        return true
+    }
+    if start >= 1 and line.code_at(start - 1) == 40 and end + 2 < length and line.code_at(end) == 41 {
+        var before_open = 0
+        if start >= 2 {
+            before_open = line.code_at(start - 2)
+        }
+        var grouped = start < 2 or not outline.is_name_code(before_open)
+        var arrow = line.code_at(end + 1) == 45 and line.code_at(end + 2) == 62
+        if grouped and arrow {
+            return true
+        }
+    }
+    if compared(line, start, end) or temporary_alias(line, start, end) {
+        return true
+    }
+    if start >= 1 and line.code_at(start - 1) == 40 {
+        var called_start = identifier_start(line, start - 1)
+        var called = line.slice(called_start, start - 1)
+        var next = 0
+        if end < length {
+            next = line.code_at(end)
+        }
+        if not called.is_empty() and is_container_function(called) and (next == 44 or next == 41) {
+            return true
+        }
+    }
+    return lent_argument(line, start, end)
+}
+
+func fresh_slot(slot: String): Boolean {
+    var field = slot_field(slot)
+    if slot.ends_with("[]") or unfresh_slots.has(slot) or unknown_fields.has(field) {
+        return false
+    }
+    var holder = slot_holder(slot)
+    if unfresh_holders.has(holder) or unfresh_holders.has("*") {
+        return false
+    }
+    var field_type = struct_fields[slot]
+    if not field_type {
+        return false
+    }
+    return is_class_pointer(field_type)
+}
+
+func slot_sealed(slot: String): Boolean {
+    return fresh_slot(slot) and not escaped_slots.has(slot) and not shared_holders.has(slot)
+}
+
+func identity_prefix(identity: String): String {
+    var at = identity.index_of("@")
+    if at < 0 {
+        return identity
+    }
+    return identity.slice(0, at)
+}
+
+func identity_tags(identity: String): String {
+    var at = identity.index_of("@")
+    if at < 0 {
+        return ""
+    }
+    var identity_length = identity.length()
+    return identity.slice(at, identity_length)
+}
+
+func identity_of(expression: String, lines: List<String>): String {
+    var text = stripped(expression)
+    if text.is_empty() {
+        return ""
+    }
+    var prefix = follow_prefixes[text]
+    if prefix {
+        return prefix
+    }
+    if item_mode and text == "self" {
+        return "s:"
+    }
+    if text.starts_with("\{") {
+        return item_identity(text, lines)
+    }
+    if text.ends_with(")") and not text.starts_with("(") {
+        return call_identity(text, lines)
+    }
+    if is_identifier(text) {
+        if not text.starts_with("spite_temp_") and not assigned_once(text, lines) {
+            return ""
+        }
+        var source = declared_value(text, lines)
+        if source.is_empty() or source == text {
+            return ""
+        }
+        return identity_of(source, lines)
+    }
+    var arrow = last_arrow(text)
+    if arrow < 0 {
+        return ""
+    }
+    var base = text.slice(0, arrow)
+    var text_length = text.length()
+    var field = text.slice(arrow + 2, text_length).trim()
+    if not is_identifier(field) {
+        return ""
+    }
+    var base_type = type_of(base, lines)
+    var holder = class_of(base_type)
+    var slot = "{holder}#{field}"
+    if holder.is_empty() or not fresh_slot(slot) {
+        return ""
+    }
+    var inner = identity_of(base, lines)
+    return "{identity_prefix(inner)}@{slot}{identity_tags(inner)}"
+}
+
+func item_identity(text: String, lines: List<String>): String {
+    if not text.ends_with("}") {
+        return ""
+    }
+    var text_length = text.length()
+    var body = text.slice(1, text_length - 1).trim()
+    var body_length = body.length()
+    var first_end = statement_end(body, 0)
+    if first_end >= body_length {
+        return ""
+    }
+    var declaration = body.slice(0, first_end)
+    var equals = declaration.index_of(" = ")
+    if equals < 0 {
+        return ""
+    }
+    var left = declaration.slice(0, equals).trim()
+    var declaration_length = declaration.length()
+    var source_text = declaration.slice(equals + 3, declaration_length)
+    var source = stripped(source_text)
+    var left_length = left.length()
+    var temporary_start = identifier_start(left, left_length)
+    var temporary = left.slice(temporary_start, left_length)
+    var declared = left.slice(0, temporary_start).trim()
+    if not temporary.starts_with("spite_temp_") or not declared.ends_with("*") {
+        return ""
+    }
+    var rest = body.slice(first_end, body_length)
+    if body.ends_with("; {temporary};") and not rest.contains(" {temporary} = ") {
+        return identity_of(source, lines)
+    }
+    if not body.ends_with("];") or not body.contains("**)(intptr_t)({temporary})->items_)[") {
+        return ""
+    }
+    var last_statement = body.index_of("; ((")
+    var item_read = body.index_of("({temporary})->items_)[")
+    if last_statement < 0 or item_read < last_statement {
+        return ""
+    }
+    return items_identity(source, lines)
+}
+
+func items_identity(source: String, lines: List<String>): String {
+    var arrow = last_arrow(source)
+    if arrow < 0 {
+        return ""
+    }
+    var base = source.slice(0, arrow)
+    var source_length = source.length()
+    var field = source.slice(arrow + 2, source_length).trim()
+    var base_type = type_of(base, lines)
+    var holder = class_of(base_type)
+    if holder.is_empty() or not is_identifier(field) {
+        return ""
+    }
+    var inner = identity_of(base, lines)
+    return "{identity_prefix(inner)}@{holder}#{field}[]{identity_tags(inner)}"
+}
+
+func call_identity(text: String, lines: List<String>): String {
+    var open = text.index_of("(")
+    var text_length = text.length()
+    if open <= 0 or matching_close(text, open) != text_length - 1 {
+        return ""
+    }
+    var called = text.slice(0, open)
+    if called.starts_with("spite_folded_") {
+        var called_length = called.length()
+        called = called.slice(13, called_length)
+    }
+    if not called.ends_with("_get_at") or not is_container_function(called) {
+        return ""
+    }
+    var list = first_argument(text, open)
+    var stripped_list = stripped(list)
+    return items_identity(stripped_list, lines)
+}
+
+func assigned_once(name: String, lines: List<String>): Boolean {
+    var assignments = 0
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if assigns_name(line, name) {
+            assignments = assignments + 1
+        }
+        if line.contains("&{name}") {
+            return false
+        }
+        index = index + 1
+    }
+    return assignments == 1
+}
+
+func declared_value(name: String, lines: List<String>): String {
+    var marker = "* {name} = "
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var at = line.index_of(marker)
+        if at >= 0 {
+            var start = at + marker.length()
+            var end = statement_end(line, start)
+            return line.slice(start, end).trim()
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func statement_end(text: String, start: Integer): Integer {
+    var depth = 0
+    var quote = 0
+    var position = start
+    var length = text.length()
+    while position < length {
+        var code = text.code_at(position)
+        if quote != 0 {
+            position = position + quoted_width(code) - 1
+            quote = still_quoted(code, quote)
+        } else if code == 34 or code == 39 {
+            quote = code
+        } else if code == 40 or code == 123 or code == 91 {
+            depth = depth + 1
+        } else if code == 41 or code == 125 or code == 93 {
+            depth = depth - 1
+        } else if code == 59 and depth == 0 {
+            return position
+        }
+        position = position + 1
+    }
+    return length
+}
+
+func follow_call(fact: OverlapFact, line: String, name: String, open: Integer, lines: List<String>): Boolean {
+    var close = matching_close(line, open)
+    if close < 0 {
+        return false
+    }
+    var inside = line.slice(open + 1, close)
+    var arguments = top_level_pieces(inside)
+    var positions = List<Integer>()
+    var identities = List<String>()
+    var index = 0
+    while index < arguments.count() {
+        var identity = identity_of(arguments[index], lines)
+        identities.append(identity)
+        if not identity.is_empty() and lends(name, index) {
+            positions.append(index)
+        }
+        index = index + 1
+    }
+    if positions.is_empty() {
+        return false
+    }
+    var callee = follow_facts(name, positions)
+    if not callee {
+        return false
+    }
+    var written = callee.writes.keys()
+    index = 0
+    while index < written.count() {
+        var written_key = rebased(written[index], identities)
+        fact.write(written_key)
+        index = index + 1
+    }
+    var read_keys = callee.reads.keys()
+    index = 0
+    while index < read_keys.count() {
+        var read_key = rebased(read_keys[index], identities)
+        fact.read(read_key)
+        index = index + 1
+    }
+    if callee.loops {
+        fact.loops = true
+    }
+    callee.calls.each(fact.call)
+    fact.note_item_call(name)
+    callee.item_calls.each(fact.note_item_call)
+    return true
+}
+
+func follow_facts(name: String, positions: List<Integer>): OverlapFact? {
+    var written_positions = List<String>()
+    var index = 0
+    while index < positions.count() {
+        var position = positions[index]
+        var position_text = position.to_string()
+        written_positions.append(position_text)
+        index = index + 1
+    }
+    var key = "{name}|{written_positions.join(",")}"
+    assert not following.has(key)
+    var known = followed[key]
+    if known {
+        return known
+    }
+    var fact = OverlapFact()
+    followed[key] = fact
+    following[key] = true
+    var lines = bodies[name]
+    var names = parameter_names[name]
+    crash lines
+    crash names
+    var saved_mode = item_mode
+    var saved_prefixes = follow_prefixes
+    item_mode = false
+    follow_prefixes = Dictionary<String, String>()
+    index = 0
+    while index < positions.count() {
+        var position = positions[index]
+        crash names[position]
+        var parameter = names[position]
+        follow_prefixes[parameter] = "p{position}:"
+        index = index + 1
+    }
+    var line_index = 1
+    while line_index < lines.count() {
+        study_line(fact, lines[line_index], lines, name)
+        line_index = line_index + 1
+    }
+    item_mode = saved_mode
+    follow_prefixes = saved_prefixes
+    following.remove(key)
+    return fact
+}
+
+func rebased(key: String, identities: List<String>): String {
+    if not key.starts_with("p") {
+        return key
+    }
+    var colon = key.index_of(":")
+    if colon < 2 {
+        return key
+    }
+    var digits = key.slice(1, colon)
+    var position = digits.to_integer()
+    crash position
+    crash identities[position]
+    var identity = identities[position]
+    var key_length = key.length()
+    var rest = key.slice(colon + 1, key_length)
+    var prefix = identity_prefix(identity)
+    var tags = identity_tags(identity)
+    var tags_length = tags.length()
+    if rest.starts_with("c:") and rest.ends_with("|") and not tags.is_empty() {
+        return "{prefix}{rest}{tags.slice(1, tags_length)}"
+    }
+    return "{prefix}{rest}{tags}"
 }
 
 func statement_fact(statement_lines: List<String>, function_lines: List<String>): OverlapFact {
@@ -1040,16 +1932,249 @@ func touches_any(key: String, keys: Dictionary<String, Boolean>): Boolean {
 }
 
 func keys_touch(first: String, second: String): Boolean {
-    if first == second {
+    var reason = touch_reason(first, second)
+    if reason.starts_with("check:") {
+        if checking {
+            if not needed_checks.contains(reason) {
+                needed_checks.append(reason)
+            }
+            return false
+        }
         return true
     }
+    return reason == "touch"
+}
+
+# ../../../docs/proofs.md#an-object-made-for-its-owner-is-told-apart
+func touch_reason(first: String, second: String): String {
+    if first == second {
+        return "touch"
+    }
     if first.starts_with("f:") and second.starts_with("f:") {
-        return fields_touch(first, second)
+        var first_base = key_base(first)
+        var second_base = key_base(second)
+        if not fields_touch(first_base, second_base) {
+            return ""
+        }
+        var first_chain = key_chain(first)
+        var second_chain = key_chain(second)
+        return chains_reason(first_chain, second_chain, false)
     }
     if first.starts_with("c:") and second.starts_with("c:") {
-        return contents_touch(first, second)
+        return contents_reason(first, second)
+    }
+    return ""
+}
+
+func key_base(key: String): String {
+    var at = key.index_of("@")
+    if at < 0 {
+        return key
+    }
+    return key.slice(0, at)
+}
+
+func key_chain(key: String): List<String> {
+    var chain = List<String>()
+    var at = key.index_of("@")
+    if at < 0 {
+        return chain
+    }
+    var key_length = key.length()
+    var rest = key.slice(at + 1, key_length)
+    var parts = rest.split("@")
+    parts.each(chain.append)
+    return chain
+}
+
+func contents_reason(first: String, second: String): String {
+    var first_bar = first.index_of("|")
+    var second_bar = second.index_of("|")
+    var first_class = first.slice(2, first_bar)
+    var second_class = second.slice(2, second_bar)
+    if first_class != second_class {
+        return ""
+    }
+    var first_length = first.length()
+    var second_length = second.length()
+    var first_holder = first.slice(first_bar + 1, first_length)
+    var second_holder = second.slice(second_bar + 1, second_length)
+    var first_chain = holder_chain(first_holder)
+    var second_chain = holder_chain(second_holder)
+    return chains_reason(first_chain, second_chain, true)
+}
+
+func holder_chain(holder_text: String): List<String> {
+    var chain = List<String>()
+    var parts = holder_text.split("@")
+    crash parts[0]
+    var holder = parts[0]
+    if holder.is_empty() or holder == "*" or holder.starts_with("*#") {
+        return chain
+    }
+    parts.each(chain.append)
+    return chain
+}
+
+func chains_reason(first: List<String>, second: List<String>, contents: Boolean): String {
+    if first.is_empty() and second.is_empty() {
+        return "touch"
+    }
+    if first.is_empty() {
+        return unknown_against(second)
+    }
+    if second.is_empty() {
+        return unknown_against(first)
+    }
+    var level = 0
+    while level < first.count() and level < second.count() {
+        var first_part = first[level]
+        var second_part = second[level]
+        if first_part != second_part {
+            return parts_reason(first, second, level, contents)
+        }
+        level = level + 1
+    }
+    return "touch"
+}
+
+func unknown_against(chain: List<String>): String {
+    crash chain[0]
+    var inner_part = chain[0]
+    if not inner_part.ends_with("[]") and slot_sealed(inner_part) {
+        return ""
+    }
+    return "touch"
+}
+
+func parts_reason(first: List<String>, second: List<String>, level: Integer, contents: Boolean): String {
+    crash first[level]
+    crash second[level]
+    var first_part = first[level]
+    var second_part = second[level]
+    var first_items = first_part.ends_with("[]")
+    var second_items = second_part.ends_with("[]")
+    if not first_items and not second_items {
+        if fresh_slot(first_part) and fresh_slot(second_part) {
+            return ""
+        }
+        if level > 0 or not contents or holder_shared(first_part) or holder_shared(second_part) {
+            return "touch"
+        }
+        return ""
+    }
+    if first_items and second_items {
+        var last = level == first.count() - 1 and level == second.count() - 1
+        if last {
+            return items_check(first_part, second_part)
+        }
+        return "touch"
+    }
+    var slot = first_part
+    if first_items {
+        slot = second_part
+    }
+    if slot_sealed(slot) {
+        return ""
+    }
+    return "touch"
+}
+
+func holder_shared(slot: String): Boolean {
+    var field = slot_field(slot)
+    return shared_holders.has(slot) or unknown_fields.has(field)
+}
+
+func slot_field(slot: String): String {
+    var hash = slot.index_of("#")
+    var slot_length = slot.length()
+    return slot.slice(hash + 1, slot_length)
+}
+
+func slot_holder(slot: String): String {
+    var hash = slot.index_of("#")
+    return slot.slice(0, hash)
+}
+
+func items_check(first_items: String, second_items: String): String {
+    var first_length = first_items.length()
+    var second_length = second_items.length()
+    var first_slot = first_items.slice(0, first_length - 2)
+    var second_slot = second_items.slice(0, second_length - 2)
+    var first_holder = slot_holder(first_slot)
+    var second_holder = slot_holder(second_slot)
+    if not singletons.has(first_holder) or not singletons.has(second_holder) {
+        return "touch"
+    }
+    return "check:{first_slot}|{second_slot}"
+}
+
+func apart_expression(checks: List<String>, first: OverlapFact, second: OverlapFact): String {
+    var parts = List<String>()
+    var index = 0
+    while index < checks.count() {
+        var check = checks[index]
+        var check_length = check.length()
+        var body = check.slice(6, check_length)
+        var bar = body.index_of("|")
+        var body_length = body.length()
+        var first_slot = body.slice(0, bar)
+        var second_slot = body.slice(bar + 1, body_length)
+        var written = list_written(first_slot, first) or list_written(first_slot, second)
+        if written or list_written(second_slot, first) or list_written(second_slot, second) {
+            return ""
+        }
+        var apart = lists_apart(first_slot, second_slot)
+        parts.append(apart)
+        index = index + 1
+    }
+    return parts.join(" && ")
+}
+
+func list_written(slot: String, fact: OverlapFact): Boolean {
+    var list_type = struct_fields[slot]
+    if not list_type {
+        return true
+    }
+    var list_class = class_of(list_type)
+    var holder = slot_holder(slot)
+    var field = slot_field(slot)
+    var field_key = "f:{holder}#{field}"
+    var written = fact.writes.keys()
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        var touches_field = touch_reason(key, field_key) != ""
+        if touches_field or touch_reason(key, "c:{list_class}|{slot}") != "" or not key.contains(":") {
+            return true
+        }
+        index = index + 1
     }
     return false
+}
+
+func lists_apart(first_slot: String, second_slot: String): String {
+    var first_holder = slot_holder(first_slot)
+    var second_holder = slot_holder(second_slot)
+    var first_list = "spite_row_a->{slot_field(first_slot)}"
+    var second_list = "spite_row_b->{slot_field(second_slot)}"
+    var parts = List<String>()
+    parts.append("(\{ {first_holder}* spite_row_a = SPITE_SINGLETON_FOUND(spite_singleton_{first_holder}_cache);")
+    parts.append("{second_holder}* spite_row_b = SPITE_SINGLETON_FOUND(spite_singleton_{second_holder}_cache);")
+    parts.append(
+        "bool spite_row_none = spite_row_a != 0 && spite_row_b != 0 && {first_list} != 0 && {second_list} != 0;",
+    )
+    parts.append(
+        "for (int32_t spite_row_x = 0; spite_row_none && spite_row_x < ({first_list})->item_count_; spite_row_x++)",
+    )
+    parts.append(
+        "for (int32_t spite_row_y = 0; spite_row_none && spite_row_y < ({second_list})->item_count_; spite_row_y++)",
+    )
+    parts.append(
+        "spite_row_none = ((void**)(intptr_t)({first_list})->items_)[spite_row_x] != ((void**)(intptr_t)({second_list})->items_)[spite_row_y];",
+    )
+    parts.append("spite_row_none; })")
+    return parts.join(" ")
 }
 
 func fields_touch(first: String, second: String): Boolean {
@@ -1067,27 +2192,6 @@ func fields_touch(first: String, second: String): Boolean {
     return first_class == second_class or first_class == "*" or second_class == "*"
 }
 
-func contents_touch(first: String, second: String): Boolean {
-    var first_bar = first.index_of("|")
-    var second_bar = second.index_of("|")
-    var first_class = first.slice(2, first_bar)
-    var second_class = second.slice(2, second_bar)
-    if first_class != second_class {
-        return false
-    }
-    var first_length = first.length()
-    var second_length = second.length()
-    var first_holder = first.slice(first_bar + 1, first_length)
-    var second_holder = second.slice(second_bar + 1, second_length)
-    if first_holder == "*" or second_holder == "*" or shared_holders.has(first_holder) or shared_holders.has(second_holder) {
-        return true
-    }
-    if first_holder.starts_with("*#") or second_holder.starts_with("*#") {
-        return true
-    }
-    return first_holder == second_holder
-}
-
 # ../../../docs/proofs.md#passes-that-write-only-their-own-item
 func item_facts_of(name: String): OverlapFact {
     var known = item_direct[name]
@@ -1102,13 +2206,16 @@ func item_facts_of(name: String): OverlapFact {
         return fact
     }
     var saved = item_mode
+    var saved_prefixes = follow_prefixes
     item_mode = true
+    follow_prefixes = Dictionary<String, String>()
     var index = 1
     while index < lines.count() {
         study_line(fact, lines[index], lines, name)
         index = index + 1
     }
     item_mode = saved
+    follow_prefixes = saved_prefixes
     return fact
 }
 

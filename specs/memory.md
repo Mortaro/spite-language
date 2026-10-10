@@ -24,7 +24,12 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   and in a production build only for the classes whose objects code on another thread can retain or release;
   every other program, and every other class, counts with plain arithmetic
   ([optimizations.md](../docs/optimizations.md#atomic-reference-counts-only-with-threads),
-  [plain counts](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)).
+  [plain counts](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)). A loop over a
+  list of different classes that may run them at once ([concurrency](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting))
+  is followed class by class: a class that only one of the calls able to run together retains, releases, makes or
+  frees, and no other code on another thread does, keeps plain counts and its pool; a class two of them count is
+  counted atomically while the loop runs them at once and plainly otherwise, and its pool of objects is kept per
+  thread ([counts per group](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)).
 - **`drop()`.** A class may define `func drop() { ... }` to run cleanup the moment its last reference goes (closing
   a file handle, logging, clearing a back-reference to help break a cycle by hand, see below). It takes no
   parameters and returns nothing; the compiler calls it automatically, never by name.

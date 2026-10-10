@@ -1,0 +1,44 @@
+type Task {
+    run()
+}
+
+var console = Console()
+var drum = Drum()
+var bass = Bass()
+var echo = Echo()
+var shelf = Shelf()
+var rack = Rack()
+var shelf_work = ShelfWork()
+var rack_work = RackWork()
+
+func OwnedObjects() {
+    echo.listen(drum.meter)
+    var apart = List<Task>()
+    apart.append(drum)
+    apart.append(bass)
+    var shared = List<Task>()
+    shared.append(drum)
+    shared.append(echo)
+    var round = 0
+    while round < 3 {
+        apart.each_run()
+        shared.each_run()
+        round = round + 1
+    }
+    var drum_marks = drum.meter.marks.count()
+    var bass_marks = bass.meter.marks.count()
+    console.print("drum", drum.meter.total, drum_marks, "bass", bass.meter.total, bass_marks)
+    var first = Tally()
+    var second = Tally()
+    var both = Tally()
+    shelf.tallies.append(first)
+    rack.tallies.append(second)
+    var works = List<Task>()
+    works.append(shelf_work)
+    works.append(rack_work)
+    works.each_run()
+    shelf.tallies.append(both)
+    rack.tallies.append(both)
+    works.each_run()
+    console.print("first", first.count, "second", second.count, "both", both.count)
+}

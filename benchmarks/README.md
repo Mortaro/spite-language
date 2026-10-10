@@ -20,7 +20,7 @@ again, so it always shows the latest measurement of every case.
 | [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 67 926 | 294 735 | 2 904 | 0.23 | 23.39 |
 | [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 13 709 | 13 095 | 9 717 | 1.05 | 1.41 |
 | [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 31 791 | 508 341 | 15 935 | 0.06 | 2.00 |
-| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 2 041 | 76 166 | 1 043 | 0.03 | 1.96 |
+| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 46 039 | 74 072 | 998 | 0.62 | 46.13 |
 | [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 47 365 | 80 722 | 25 515 | 0.59 | 1.86 |
 | [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 26 296 | 14 670 | 12 727 | 1.79 | 2.07 |
 | [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 13 240 | 311 926 | 5 577 | 0.04 | 2.37 |
@@ -53,7 +53,8 @@ again, so it always shows the latest measurement of every case.
 | [a_wait_in_a_frame_does_not_hold_the_frame](a_wait_in_a_frame_does_not_hold_the_frame/) | 929 323 | 1 185 375 | 930 923 | 0.78 | 1.00 |
 | [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 61 083 | 17 943 | 4 433 | 3.40 | 13.78 |
 | [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 11 316 | 264 806 | 3 234 | 0.04 | 3.50 |
-| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 16 253 | 62 431 | 3 009 | 0.26 | 5.40 |
+| [a_write_back_of_what_the_slot_already_holds_is_not_written](a_write_back_of_what_the_slot_already_holds_is_not_written/) | 25 999 | 5 752 | 782 | 4.52 | 33.25 |
+| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 76 960 | 58 695 | 2 769 | 1.31 | 27.79 |
 | [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 45 811 | 73 094 | 1 972 | 0.63 | 23.23 |
 | [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 11 975 | 34 130 | 665 | 0.35 | 18.01 |
 | [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 4 215 | 4 244 | 2 520 | 0.99 | 1.67 |
@@ -68,16 +69,18 @@ again, so it always shows the latest measurement of every case.
 | [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 34 121 | 41 742 | 22 667 | 0.82 | 1.51 |
 | [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | 35 731 | 35 950 | 1 441 | 0.99 | 24.80 |
 | [copies_that_cost_nothing](copies_that_cost_nothing/) | 33 528 | 22 099 | 16 000 | 1.52 | 2.10 |
+| [counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/) | 8 829 | 11 615 | 5 948 | 0.76 | 1.48 |
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed | not timed | | |
 | [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 11 894 | 8 496 | 7 470 | 1.40 | 1.59 |
-| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 6 084 | 42 460 | 339 | 0.14 | 17.95 |
+| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 23 311 | 40 829 | 340 | 0.57 | 68.56 |
 | [game_maths](game_maths/) | 2 677 | 2 144 | 1 679 | 1.25 | 1.59 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed | not timed | | |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed | not timed | | |
 | [image_filter_over_planes](image_filter_over_planes/) | 115 503 | 232 171 | 20 762 | 0.50 | 5.56 |
 | [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 11 626 | 13 280 | 2 799 | 0.88 | 4.15 |
 | [number_dictionary](number_dictionary/) | 43 518 | 18 694 | 11 406 | 2.33 | 3.82 |
-| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 545 | 22 529 | 2 633 | 0.47 | 4.00 |
+| [objects_made_for_their_owner_are_told_apart](objects_made_for_their_owner_are_told_apart/) | 68 950 | 124 895 | 65 094 | 0.55 | 1.06 |
+| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 698 | 22 327 | 2 482 | 0.48 | 4.31 |
 | [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 13 455 | 999 525 | 14 080 | 0.01 | 0.96 |
 | [other_optimisations](other_optimisations/) | not timed | not timed | not timed | | |
 | [particles](particles/) | 35 830 | 52 108 | 31 389 | 0.69 | 1.14 |

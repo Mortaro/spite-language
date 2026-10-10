@@ -1,0 +1,28 @@
+var paintings = List<Painting>()
+var hung_total = 0
+
+func Gallery() {
+    var index = 0
+    while index < 2000 {
+        var painting = Painting(index)
+        paintings.append(painting)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 2000 {
+        var hung = List<Painting>()
+        var index = 0
+        while index < paintings.count() {
+            var painting = paintings[index]
+            if painting.width % 5 == round % 5 {
+                hung.append(painting)
+            }
+            index = index + 1
+        }
+        hung_total = hung_total + hung.count()
+        round = round + 1
+    }
+}

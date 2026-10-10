@@ -150,6 +150,7 @@ static int64_t copy_rounds(List* orders) {
     int64_t total = 0;
     for (int32_t round = 0; round < 40; round = round + 1) {
         List* copies = orders_deep_copy(orders);
+        ((Order*)copies->items[0])->id += 3;
         int32_t value = 0;
         for (int32_t index = 0; index < copies->count; index = index + 1) value = value + order_value(copies->items[index]);
         total = total + value;

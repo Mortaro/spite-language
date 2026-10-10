@@ -39,6 +39,10 @@ func copy_rounds(orders: List<Order>): Long {
     var round = 0
     while round < 40 {
         var copies = orders.deep_copy()
+        var first = copies[0]
+        if first {
+            first.id = first.id + 3
+        }
         var value = copies.sum_value()
         total = total + value
         round = round + 1

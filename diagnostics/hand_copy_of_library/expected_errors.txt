@@ -1,0 +1,1 @@
+diagnostics/hand_copy_of_library/matrix4.spite:1: error: 'Matrix4.set_product', added by this reopening, rewrites this Matrix4 from two Matrix4 values, which the library's '*' already answers: write 'target = left * right' (the answer is built in target's place)

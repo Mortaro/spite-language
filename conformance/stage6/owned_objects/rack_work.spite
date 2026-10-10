@@ -1,0 +1,5 @@
+var rack = Rack()
+
+func run() {
+    rack.bump_all()
+}

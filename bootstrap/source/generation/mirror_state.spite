@@ -1,0 +1,484 @@
+var facts = List<MirrorFact>()
+var frames = List<MirrorFrame>()
+var dead = false
+var counter = MirrorCounter()
+var maker = MirrorMaker()
+
+# ../../../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from
+func MirrorState(shared: MirrorCounter) {
+    counter = shared
+}
+
+func copied_state(): MirrorState {
+    var copied = MirrorState(counter)
+    copied.facts = facts.copy()
+    var index = 0
+    while index < frames.count() {
+        var frame = frames[index]
+        var frame_copy = frame.copied_frame()
+        copied.frames.append(frame_copy)
+        index = index + 1
+    }
+    copied.dead = dead
+    return copied
+}
+
+func top_frame(): MirrorFrame {
+    var last = frames.last()
+    crash last
+    return last
+}
+
+func set_local(name: String, value: MirrorValue) {
+    var frame = top_frame()
+    frame.bind_name(name, value)
+}
+
+func local_value(name: String): MirrorValue? {
+    var frame = top_frame()
+    var position = frame.position_named(name)
+    assert position >= 0
+    return frame.values[position]
+}
+
+func known_value_of(location: MirrorValue): MirrorValue? {
+    var found: MirrorValue? = null
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if fact.kind == "value" and fact.subject.text == location.text {
+            if guards_hold(fact, 0) {
+                found = fact.value
+            }
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func set_known_value(location: MirrorValue, value: MirrorValue) {
+    var kept = List<MirrorFact>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if fact.kind != "value" or fact.subject.text != location.text {
+            kept.append(fact)
+        }
+        index = index + 1
+    }
+    facts = kept
+    assert facts.count() < 160
+    var added = MirrorFact("value", location, value)
+    facts.append(added)
+}
+
+func guards_hold(fact: MirrorFact, depth: Integer): Boolean {
+    var index = 0
+    while index < fact.guards.count() {
+        var guard = fact.guards[index]
+        if not implied_at(guard, depth + 1) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func implied_condition(condition: MirrorValue): Boolean {
+    return implied_at(condition, 0)
+}
+
+func implied_at(condition: MirrorValue, depth: Integer): Boolean {
+    if depth > 3 {
+        return false
+    }
+    if condition.is_const() {
+        return condition.number != 0
+    }
+    if holds_directly(condition.text, depth) {
+        return true
+    }
+    if condition.kind != "op" or condition.parts.count() != 2 {
+        return false
+    }
+    var first = condition.part_at(0)
+    var second = condition.part_at(1)
+    if condition.name == "and" {
+        return implied_at(first, depth) and implied_at(second, depth)
+    }
+    if condition.name == "ne" {
+        return differs_from_known(first, second, depth)
+    }
+    if condition.name == "lt" and second.kind == "count" {
+        var counted_list = second.part_at(0)
+        var within = maker.present_value(counted_list, first)
+        return holds_directly(within.text, depth)
+    }
+    return false
+}
+
+func holds_directly(text: String, depth: Integer): Boolean {
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if fact.kind == "holds" and fact.subject.text == text {
+            if guards_hold(fact, depth) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func differs_from_known(left: MirrorValue, right: MirrorValue, depth: Integer): Boolean {
+    if not right.is_const() {
+        return false
+    }
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if known_other_value(fact, left, right) and guards_hold(fact, depth) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func known_other_value(fact: MirrorFact, left: MirrorValue, right: MirrorValue): Boolean {
+    var subject = fact.subject
+    if fact.kind != "holds" or subject.kind != "op" or subject.name != "eq" or subject.parts.count() != 2 {
+        return false
+    }
+    var known_left = subject.part_at(0)
+    var known_right = subject.part_at(1)
+    return known_left.text == left.text and known_right.is_const() and known_right.number != right.number
+}
+
+func add_holds(condition: MirrorValue) {
+    if condition.is_const() {
+        if condition.number == 0 {
+            dead = true
+        }
+        return
+    }
+    if condition.kind == "op" and condition.name == "and" and condition.parts.count() == 2 {
+        var first = condition.part_at(0)
+        var second = condition.part_at(1)
+        add_holds(first)
+        add_holds(second)
+        return
+    }
+    assert not holds_directly(condition.text, 0) and facts.count() < 160
+    var nothing = maker.known_constant(1)
+    var added = MirrorFact("holds", condition, nothing)
+    facts.append(added)
+}
+
+func kill_where_field(field_name: String, object: MirrorValue, field_klass: String) {
+    var kept = List<MirrorFact>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if not fact.mentions_field(field_name, object, field_klass) {
+            kept.append(fact)
+        }
+        index = index + 1
+    }
+    facts = kept
+    var frame_index = 0
+    while frame_index < frames.count() {
+        var frame = frames[frame_index]
+        var value_index = 0
+        while value_index < frame.values.count() {
+            var held = frame.values[value_index]
+            if held.mentions_field(field_name, object, field_klass) {
+                frame.values[value_index] = counter.fresh_value(held.klass)
+            }
+            value_index = value_index + 1
+        }
+        frame_index = frame_index + 1
+    }
+}
+
+func kill_where_list(list: MirrorValue, presence: Boolean) {
+    var kept = List<MirrorFact>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if keeps_after_list_write(fact, list, presence) {
+            kept.append(fact)
+        }
+        index = index + 1
+    }
+    facts = kept
+    var frame_index = 0
+    while frame_index < frames.count() {
+        var frame = frames[frame_index]
+        var value_index = 0
+        while value_index < frame.values.count() {
+            var held = frame.values[value_index]
+            if held.mentions_list(list) {
+                frame.values[value_index] = counter.fresh_value(held.klass)
+            }
+            value_index = value_index + 1
+        }
+        frame_index = frame_index + 1
+    }
+}
+
+func keeps_after_list_write(fact: MirrorFact, list: MirrorValue, presence: Boolean): Boolean {
+    if not fact.mentions_list(list) {
+        return true
+    }
+    var subject = fact.subject
+    if presence or fact.kind != "holds" or subject.kind != "op" or subject.name != "present" {
+        return false
+    }
+    if not fact.guards.is_empty() or subject.parts.count() != 2 {
+        return false
+    }
+    var position = subject.part_at(1)
+    return not position.mentions_list(list)
+}
+
+func kill_where_count(list: MirrorValue) {
+    var counted = maker.counted_list(list)
+    var kept = List<MirrorFact>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if not fact.mentions_value(counted) {
+            kept.append(fact)
+        }
+        index = index + 1
+    }
+    facts = kept
+}
+
+func kill_where_list_named(list_name: String) {
+    var kept = List<MirrorFact>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if not fact_reads_list_named(fact, list_name) {
+            kept.append(fact)
+        }
+        index = index + 1
+    }
+    facts = kept
+    var frame_index = 0
+    while frame_index < frames.count() {
+        var frame = frames[frame_index]
+        var value_index = 0
+        while value_index < frame.values.count() {
+            var held = frame.values[value_index]
+            if reads_list_named(held, list_name) {
+                frame.values[value_index] = counter.fresh_value(held.klass)
+            }
+            value_index = value_index + 1
+        }
+        frame_index = frame_index + 1
+    }
+}
+
+func fact_reads_list_named(fact: MirrorFact, list_name: String): Boolean {
+    if reads_list_named(fact.subject, list_name) or reads_list_named(fact.value, list_name) {
+        return true
+    }
+    var index = 0
+    while index < fact.guards.count() {
+        var guard = fact.guards[index]
+        if reads_list_named(guard, list_name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func reads_list_named(value: MirrorValue, list_name: String): Boolean {
+    if value.reads_a_list() {
+        var list = value.part_at(0)
+        if list.kind != "field" or list.name == list_name {
+            return true
+        }
+    }
+    var index = 0
+    while index < value.parts.count() {
+        var part = value.parts[index]
+        if reads_list_named(part, list_name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func kill_mentioning_kind(mentioned: String) {
+    var kept = List<MirrorFact>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if not fact.mentions_kind(mentioned) {
+            kept.append(fact)
+        }
+        index = index + 1
+    }
+    facts = kept
+}
+
+func kill_all() {
+    facts = List<MirrorFact>()
+    var frame_index = 0
+    while frame_index < frames.count() {
+        var frame = frames[frame_index]
+        var value_index = 0
+        while value_index < frame.values.count() {
+            var held = frame.values[value_index]
+            if held.mentions_kind("field") or held.mentions_kind("item") or held.mentions_kind("count") {
+                frame.values[value_index] = counter.fresh_value(held.klass)
+            }
+            value_index = value_index + 1
+        }
+        frame_index = frame_index + 1
+    }
+}
+
+func merged_state(other: MirrorState): MirrorState {
+    if dead {
+        return other
+    }
+    if other.dead {
+        return this
+    }
+    var result = MirrorState(counter)
+    var frame_index = 0
+    while frame_index < frames.count() {
+        var mine = frames[frame_index]
+        var joined = joined_frame(mine, other, frame_index)
+        result.frames.append(joined)
+        frame_index = frame_index + 1
+    }
+    var split = split_between(other)
+    var matched = List<Integer>()
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        var found = matching_fact(other, fact)
+        if found >= 0 {
+            matched.append(found)
+            var theirs = other.facts[found]
+            crash theirs
+            var both = fact.with_guards(theirs.guards)
+            result.facts.append(both)
+        } else {
+            keep_fact_guarded(fact, split, result)
+        }
+        index = index + 1
+    }
+    keep_unmatched(other, matched, split, result)
+    return result
+}
+
+func keep_unmatched(other: MirrorState, matched: List<Integer>, split: MirrorValue?, result: MirrorState) {
+    assert split
+    var opposite = maker.negated_value(split)
+    var index = 0
+    while index < other.facts.count() {
+        var theirs_fact = other.facts[index]
+        if not matched.contains(index) {
+            keep_fact_guarded(theirs_fact, opposite, result)
+        }
+        index = index + 1
+    }
+}
+
+func keep_fact_guarded(fact: MirrorFact, split: MirrorValue?, result: MirrorState) {
+    assert split
+    assert fact.subject.text != split.text
+    var guards = [split]
+    var guarded = fact.with_guards(guards)
+    result.facts.append(guarded)
+}
+
+func matching_fact(other: MirrorState, fact: MirrorFact): Integer {
+    var index = 0
+    while index < other.facts.count() {
+        var theirs = other.facts[index]
+        if theirs.same_as(fact) {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func joined_frame(mine: MirrorFrame, other: MirrorState, frame_index: Integer): MirrorFrame {
+    var joined = MirrorFrame(mine.key)
+    var theirs = other.frames[frame_index]
+    var name_index = 0
+    while name_index < mine.names.count() {
+        var name = mine.names[name_index]
+        var held = mine.values[name_index]
+        crash held
+        var kept = counter.fresh_value(held.klass)
+        if theirs {
+            var position = name_index
+            if not same_name_at(theirs, position, name) {
+                position = theirs.position_named(name)
+            }
+            if position >= 0 and same_value_at(theirs, position, held) {
+                kept = held
+            }
+        }
+        joined.names.append(name)
+        joined.values.append(kept)
+        name_index = name_index + 1
+    }
+    return joined
+}
+
+func same_name_at(frame: MirrorFrame, position: Integer, name: String): Boolean {
+    if position >= frame.names.count() {
+        return false
+    }
+    var named = frame.names[position]
+    return named == name
+}
+
+func same_value_at(frame: MirrorFrame, position: Integer, held: MirrorValue): Boolean {
+    var theirs = frame.values[position]
+    if not theirs {
+        return false
+    }
+    return theirs.text == held.text
+}
+
+func split_between(other: MirrorState): MirrorValue? {
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if fact.kind == "holds" and fact.guards.is_empty() {
+            var opposite = maker.negated_value(fact.subject)
+            if other.holds_unguarded(opposite.text) {
+                return fact.subject
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func holds_unguarded(text: String): Boolean {
+    var index = 0
+    while index < facts.count() {
+        var fact = facts[index]
+        if fact.kind == "holds" and fact.guards.is_empty() and fact.subject.text == text {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
