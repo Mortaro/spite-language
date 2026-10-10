@@ -149,7 +149,7 @@ built yet. In short:
 | Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (the thread pool), singletons made safe by the compiler | implemented on Windows; checking what a `Parallel` function reaches is not built |
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
 | REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |
-| Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |
+| Self hosting | done: the compiler is Spite, and the only hand-written C is `compiler/source/generation/prelude.spite` |
 | Web target, isomorphic classes | planned ([docs/targets.md](docs/targets.md)) |
 
 Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
@@ -196,11 +196,11 @@ listed in [design/status.md](design/status.md).
 ## Build it yourself
 
 You need this only to work on Spite itself, or on a system without a release. Spite compiles itself:
-`bootstrap/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for Windows, so building the
+`compiler/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for Windows, so building the
 compiler needs nothing but a C compiler.
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality compiler/seed/linux/spite_compiler.c -o spite -lm
 export CC=cc                     # the compiler shells out to this to build the C it emits
 ./spite examples/hello
 ```
@@ -210,7 +210,7 @@ contains spaces, so use the short form:
 
 ```
 CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
-"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/windows/spite_compiler.c -o spite.exe
+"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations compiler/seed/windows/spite_compiler.c -o spite.exe
 export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
 ./spite.exe path/to/thing
 ```
@@ -246,7 +246,7 @@ bash check.sh
   language models.
 - [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
   left.
-- [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
+- [`compiler/COMPILER_PLAN.md`](compiler/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
   implements today, and what it does not.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
 

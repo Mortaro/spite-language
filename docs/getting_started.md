@@ -22,13 +22,13 @@ clang that ships with Visual Studio is found on its own). From the repository ro
 bin/spite examples/hello
 ```
 
-`bin/spite` builds the compiler from the seed for your system, `bootstrap/seed/linux/spite_compiler.c` or
-`bootstrap/seed/windows/spite_compiler.c`, into `.spite/` the first time it runs (and again whenever that file is
+`bin/spite` builds the compiler from the seed for your system, `compiler/seed/linux/spite_compiler.c` or
+`compiler/seed/windows/spite_compiler.c`, into `.spite/` the first time it runs (and again whenever that file is
 newer), then compiles and runs the program. The seed is the C the Spite compiler emits for its own sources, so
 building it by hand is one command too:
 
 ```bash
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality compiler/seed/linux/spite_compiler.c -o spite -lm
 ```
 
 The compiler writes C and builds it with the command in the `CC` environment variable, or the first of `cc`,
@@ -45,10 +45,14 @@ compiler that passed, reading `launcher/` and `library/` from your checkout:
 spite examples/hello
 ```
 
-The first check builds the compiler. A later one builds it again only when `bootstrap/`, `launcher/` or `library/`
+The first check builds the compiler. A later one builds it again only when `compiler/`, `launcher/` or `library/`
 changed, and then starts from the kept compiler instead of the seed. When none of them changed, it runs every check
-with the compiler that passed for exactly those files. A push to `master` that changes them releases the next
-`0.0.x` on its own, and is refused unless a check passed with them.
+with the compiler that passed for exactly those files. The compiler is always built with `-O3`, so the one you run is
+the one a release ships.
+
+`bash check.sh --update-seed` is the full check: it also proves the compiler frees everything it takes while compiling
+itself, compiles it for every other system, and rewrites the committed seeds. A push to `master` that changes those
+folders releases the next `0.0.x` on its own, and is refused unless a full check passed with exactly them.
 
 ## Hello world
 

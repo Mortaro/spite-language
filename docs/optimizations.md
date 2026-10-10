@@ -109,7 +109,7 @@ emit nothing.
 
 **What it does.** After the program is generated, the compiler keeps only the C that `main` can reach: every
 function nothing calls, from your classes, `library/` or the compiler's own prelude, is dropped along with its
-prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
+prototype (`compiler/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
 `struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
 and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
 would free that object at exit, every text literal, static table and prototype only dropped code named, and the
@@ -827,7 +827,7 @@ machines ([below](#hidden-asyncawait-as-compile-time-state-machines)). [concurre
 **What it does.** Waiting on IO is written as an ordinary call and the compiler turns it into a point where other
 work runs. It is done at compile time, with no stacks to switch: every function that can reach a wait from inside
 a `Concurrent` is compiled a second time as a **state machine**
-(`bootstrap/source/generation/state_machine.spite`, and the `emit_state_machines` part of the generator):
+(`compiler/source/generation/state_machine.spite`, and the `emit_state_machines` part of the generator):
 
 - a **frame**, a C struct holding the function's parameters, every local and temporary of its body, and one slot
   per wait for the frame of the function it is waiting on;
@@ -3400,7 +3400,7 @@ reads back to exactly those bits, and infinity and not-a-number as `__builtin_in
 with the same sign and payload.
 
 **How the answer is the C library's.** The compiler works it out by calling the very function it would have written:
-it runs the same member on its own `Float` or `Double` (`bootstrap/source/generation/maths_primitives.spite`), and
+it runs the same member on its own `Float` or `Double` (`compiler/source/generation/maths_primitives.spite`), and
 that member is lowered, in the compiler as in any program, to the C library's `sinf`, `sqrt`, and so on. The operands
 are rounded as the C would round them first (a literal to a `Float` for a `Float` receiver, a `Float` constant widened
 exactly for a `Double` one), so the folded bits are the ones the program would have computed at run time, `nan` sign

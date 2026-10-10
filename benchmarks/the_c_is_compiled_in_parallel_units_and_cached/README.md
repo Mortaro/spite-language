@@ -67,8 +67,8 @@ the script:
 
 | program | C | build | one file | cold | warm | one edit |
 |---|---|---|---|---|---|---|
-| the compiler (`bootstrap`) | 7.2 MB | default (`-O0`) | 18 989 | 22 467 | 12 799 | 13 298 |
-| the compiler (`bootstrap`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
+| the compiler (`compiler`) | 7.2 MB | default (`-O0`) | 18 989 | 22 467 | 12 799 | 13 298 |
+| the compiler (`compiler`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
 | a large game's example | 14.1 MB | default (`-O0`), one file only | 26 071 | 23 546 | 23 971 | 27 202 |
 | a large game's example | 14.1 MB | `--optimized` | 80 127 | 45 670 | 30 696 | 67 173 |
 | synthetic, 209 206 lines | 20.5 MB | default (`-O0`) | 31 577 | 32 067 | 17 417 | 19 939 |

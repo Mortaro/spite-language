@@ -43,7 +43,7 @@ on Windows with clang, before and after:
 
 | program | bytes before | bytes after | functions before | functions after |
 |---|---|---|---|---|
-| the compiler (`bootstrap`) | 9 211 392 | 9 197 056 | 4 894 | 4 614 |
+| the compiler (`compiler`) | 9 211 392 | 9 197 056 | 4 894 | 4 614 |
 | a program of sparse columns over generic classes | 246 784 | 244 224 | 437 | 404 |
 | a program of walked rows over generic classes | 211 968 | 210 944 | 277 | 259 |
 

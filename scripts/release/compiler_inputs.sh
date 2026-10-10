@@ -2,12 +2,12 @@
 # What a release of the compiler is made from, and where every checkout of this repository keeps what it built.
 # Sourced by check.sh and by scripts/hooks/pre-push, so both agree on which build a commit is.
 #
-# The inputs are every file under bootstrap/, launcher/ and library/: the compiler's sources and seeds, and the two
+# The inputs are every file under compiler/, launcher/ and library/: the compiler's sources and seeds, and the two
 # folders a release ships beside spite.exe. A change anywhere else (docs/, specs/, design/, tests) needs no new
 # release. Each input is named by its path and its git blob, so the working tree and a commit give the same answer
 # when their files are the same.
 
-release_folders=(bootstrap launcher library)
+release_folders=(compiler launcher library)
 
 # The folder every checkout and worktree of this repository shares, beside the main checkout's .git.
 shared_spite_folder() {

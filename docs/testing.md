@@ -113,7 +113,7 @@ and the call chain go to the error stream and the program exits with status 1. B
 passed test_trim_removes_the_spaces_around_text
 spite.crash	59bbba06	test_package/text_tests.spite:8	TextTests	test_split_keeps_empty_pieces	pieces.count()=3
 spite.frame	test_package/text_tests.spite:6	TextTests	test_split_keeps_empty_pieces
-spite.frame	bootstrap/source/generation/prelude.spite:1	Spite.Function	call_function
+spite.frame	compiler/source/generation/prelude.spite:1	Spite.Function	call_function
 spite.frame	test_package/test_package.spite:19	TestPackage	run
 spite.frame	test_package/test_package.spite:5	TestPackage	TestPackage
 spite.frame	launcher/launcher.spite:3	Launcher	Launcher

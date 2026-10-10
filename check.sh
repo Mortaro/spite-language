@@ -22,14 +22,14 @@ jobs=${CHECK_JOBS:-$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null 
 writing_check() {
   em_dash=$(printf '\342\200\224')
   stand_in=' -''- '
-  dashes=$(git grep -n -I -F -e "$em_dash" -e "$stand_in" ':!bootstrap/seed' \
+  dashes=$(git grep -n -I -F -e "$em_dash" -e "$stand_in" ':!compiler/seed' \
     | grep -v -E "$stand_in-|(spite|bin/spite|spite\.exe) [^ ]+$stand_in|set$stand_in|\}$stand_in\{")
   if [ -n "$dashes" ]; then
     echo "FAILED: em dashes (end the sentence, or use a colon, a comma or parentheses):"; echo "$dashes"; exit 1
   fi
   # the names are written in pieces so this file does not name them
   names="(^|[^[:alnum:]])sl""op(eng""ine)?([^[:alnum:]]|$)|thes""eus"
-  package_names=$(git grep -n -I -i -E "$names" ':!bootstrap/seed')
+  package_names=$(git grep -n -I -i -E "$names" ':!compiler/seed')
   if [ -n "$package_names" ]; then
     echo "FAILED: a third-party package is named (use a neutral invented one):"; echo "$package_names"; exit 1
   fi
@@ -55,37 +55,38 @@ CC_BIN="$CC"
 case "$CC" in *\ *) command -v cygpath >/dev/null 2>&1 && CC=$(cygpath -d "$CC" 2>/dev/null || echo "$CC") ;; esac
 CC="$CC -Wno-deprecated-declarations"   # CC may carry arguments; MSVC headers warn on fopen
 export CC   # the Spite compiler reads it to compile the C it emits
-# The compiler knows the system it runs on as it was compiled, so each system builds its own seed (bootstrap/seed/).
+# The compiler knows the system it runs on as it was compiled, so each system builds its own seed (compiler/seed/).
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) system=windows ;;
   Linux)                system=linux ;;
   Darwin)               system=mac ;;
   *)                    system="$(uname -s)" ;;
 esac
-seed="bootstrap/seed/$system/spite_compiler.c"
-[ -f "$seed" ] || { echo "no seed for this system ($system) in bootstrap/seed/" >&2; exit 1; }
+seed="compiler/seed/$system/spite_compiler.c"
+[ -f "$seed" ] || { echo "no seed for this system ($system) in compiler/seed/" >&2; exit 1; }
 # The compiler folds maths on constants with the C library's own functions, which Linux and macOS keep in libm.
 maths_library="-lm"
 [ "$system" == "windows" ] && maths_library=""
 
-# Each generation writes its C to the default place, .spite/build/bootstrap/bootstrap.c (D283; a seed from before
-# D283 writes bootstrap/bootstrap.c beside the program), and it is moved into the work folder at once: every Build
+# Each generation writes its C to the default place, .spite/build/compiler/compiler.c (D283; a seed from before
+# D283 writes compiler/compiler.c beside the program), and it is moved into the work folder at once: every Build
 # field is a constant in the built compiler, so a --c-path naming this run's folder would be written into the C and
-# no two generations (or seeds) would ever be equal. Given a third argument, the same compile also builds that
-# executable the way any program is built, from translation units compiled in parallel and cached in .spite/objects
-# (docs/compiler.md): how the executable is made changes nothing in the C, which is what the generations compare.
+# no two generations (or seeds) would ever be equal. Given a third argument, the C it wrote is also built into that
+# executable with -O3: the compiler every later check runs is the one a release ships, built for speed, and how the
+# executable is made changes nothing in the C, which is what the generations compare.
 compile_compiler() {
-  rm -f .spite/build/bootstrap/bootstrap.c bootstrap/bootstrap.c
+  rm -f .spite/build/compiler/compiler.c compiler/compiler.c
   if [ "$1" == "$work/seed.exe" ] && $seed_before_check; then
-    "$1" bootstrap --run=false --c-source --executable --translation-units="$jobs" --executable-path="$3" || return 1
-  elif [ -n "$3" ]; then
-    SPITE_TRANSLATION_UNITS="$jobs" "$1" bootstrap --build --c-source --executable-path="$3" || return 1
+    "$1" compiler --run=false --c-source --executable --translation-units="$jobs" --executable-path="$3" || return 1
   else
-    "$1" bootstrap --check --c-source || return 1
+    "$1" compiler --check --c-source || return 1
   fi
-  produced=.spite/build/bootstrap/bootstrap.c
-  [ -f "$produced" ] || produced=bootstrap/bootstrap.c
+  produced=.spite/build/compiler/compiler.c
+  [ -f "$produced" ] || produced=compiler/compiler.c
   cp "$produced" "$2" || return 1   # a copy: Windows may still hold the file, refusing a rename
+  if [ -n "$3" ]; then
+    "$CC_BIN" -O3 -Wno-parentheses-equality -Wno-deprecated-declarations "$2" -o "$3" $maths_library 2> "$job_errors"       || { head -20 "$job_errors"; return 1; }
+  fi
   for attempt in 1 2 3 4 5 6 7 8 9 10; do   # and a virus scanner may hold it a moment longer, refusing the delete
     rm -f "$produced" 2>/dev/null && return 0
     sleep 1
@@ -119,6 +120,12 @@ known="$shared/passed/$inputs/$system"
 compiler_known=false
 [ -f "$known/spite.exe" ] && [ -f "$known/spite_compiler.c" ] && compiler_known=true
 export compiler_known
+# A full run (--update-seed) also builds the compiler with --debug-memory to prove it frees what it takes, compiles it
+# for every other system and writes their seeds; only a full run records a compiler that a push may release. An
+# ordinary run leaves those out and still makes its compiler the one the next run starts from.
+full=false
+[ "$1" == "--update-seed" ] && full=true
+export full
 starter=seed
 if $compiler_known; then
   echo "1/4 these compiler sources passed before, so their compiler runs the checks and is not built again"
@@ -329,10 +336,10 @@ job_tests() {
 # counts is only in a --debug-memory build, so the compiler builds itself once more with it.
 job_compiler_memory() {
   local self_leaks
-  $compiler_known && return 0
-  SPITE_TRANSLATION_UNITS="$jobs" "$work/generation_two.exe" bootstrap --build --debug-memory --executable-path="$work/generation_two_debug.exe" || {
+  { $compiler_known || ! $full; } && return 0
+  SPITE_TRANSLATION_UNITS="$jobs" "$work/generation_two.exe" compiler --build --debug-memory --executable-path="$work/generation_two_debug.exe" || {
     echo "FAILED: the compiler does not build itself with --debug-memory"; exit 1; }
-  self_leaks=$("$work/generation_two_debug.exe" bootstrap --check 2>&1 > /dev/null | head -5)   # no output: compile only
+  self_leaks=$("$work/generation_two_debug.exe" compiler --check 2>&1 > /dev/null | head -5)   # no output: compile only
   if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
 }
 
@@ -342,7 +349,7 @@ job_compiler_memory() {
 # UDP and secure random numbers), since each system answers its own way.
 job_target() {
   local system=$1 program=$2 name errors
-  [ "$program" == "bootstrap" ] && $compiler_known && return 0
+  [ "$program" == "compiler" ] && { $compiler_known || ! $full; } && return 0
   name=$(basename "$program")
   "$work/generation_two.exe" "$program" --check --c-source --c-path="$work/target_${system}_$name.c" --target-operating-system="$system" || {
     echo "FAILED: $program does not compile with library/$system"; exit 1; }
@@ -467,7 +474,7 @@ mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
     echo "fast_reload $program"
   done
   for system in windows linux mac; do
-    for program in bootstrap conformance/stage6/daylight_saving conformance/stage6/file_watching conformance/stage6/clock_reads \
+    for program in compiler conformance/stage6/daylight_saving conformance/stage6/file_watching conformance/stage6/clock_reads \
                    conformance/stage6/mapped_files conformance/stage6/socket_bytes conformance/stage6/socket_waits \
                    conformance/stage6/datagrams conformance/stage6/hashes conformance/stage6/web_socket_exchange; do
       echo "target $system $program"
@@ -1737,12 +1744,12 @@ echo "breakpoints: a breakpoint compiled into a running loop stopped it with its
 # built from a copy in which docs/ sits there.
 job_formatting() {
 formatting_tool="$work/formatting_tool"
-mkdir -p "$formatting_tool/scripts" "$formatting_tool/bootstrap"
-cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r bootstrap/source "$formatting_tool/bootstrap/" || {
+mkdir -p "$formatting_tool/scripts" "$formatting_tool/compiler"
+cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r compiler/source "$formatting_tool/compiler/" || {
   echo "FAILED: could not copy scripts/formatting"; exit 1; }
 "$work/generation_two.exe" "$formatting_tool/scripts/formatting" --build --executable-path="$work/formatting.exe" > /dev/null || {
   echo "FAILED: scripts/formatting does not build"; exit 1; }
-formatted_folders=(bootstrap launcher library tests conformance examples scripts benchmarks)
+formatted_folders=(compiler launcher library tests conformance examples scripts benchmarks)
 for folder in .spite/docs/*/; do
   [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
 done
@@ -1785,34 +1792,42 @@ failures=$((failures + pooled_failures))
 # generation 2 writes every other one with --target-operating-system, which gives the very C that system's own
 # generation 2 writes, since nothing of the system doing the compiling reaches the C. So one machine keeps them all.
 stale=()
-$compiler_known || for seed_folder in bootstrap/seed/*/; do
+$compiler_known || for seed_folder in compiler/seed/*/; do
   seed_system=$(basename "$seed_folder")
+  [ "$seed_system" == "$system" ] || $full || continue
   written="$work/generation_two.c"
   if [ "$seed_system" != "$system" ]; then
     written="$work/seed_$seed_system.c"
-    rm -f .spite/build/bootstrap/bootstrap.c
-    "$work/generation_two.exe" bootstrap --check --c-source --target-operating-system="$seed_system" &&
-      cp .spite/build/bootstrap/bootstrap.c "$written" || { echo "FAILED: generation 2 could not write the seed for $seed_system"; exit 1; }
+    rm -f .spite/build/compiler/compiler.c
+    "$work/generation_two.exe" compiler --check --c-source --target-operating-system="$seed_system" &&
+      cp .spite/build/compiler/compiler.c "$written" || { echo "FAILED: generation 2 could not write the seed for $seed_system"; exit 1; }
   fi
   if ! cmp -s "$written" "$seed_folder/spite_compiler.c"; then
     if [ "$1" == "--update-seed" ]; then cp "$written" "$seed_folder/spite_compiler.c"; else stale+=("$seed_system"); fi
   fi
 done
 if [ "$1" == "--update-seed" ]; then
-  echo "OK: fixpoint holds; every seed in bootstrap/seed/ is current"
+  echo "OK: fixpoint holds; every seed in compiler/seed/ is current"
 elif [ ${#stale[@]} == 0 ]; then
   echo "OK: fixpoint holds and the committed seeds are current"
 else
   echo "OK: fixpoint holds, but the compiler sources changed since the seeds for ${stale[*]} were written: run  bash check.sh --update-seed"
 fi
-# A run that passes everything with current seeds makes its compiler the one the next run starts from, and keeps it
+# A run that passes makes its compiler the one the next run starts from. A full run with current seeds also keeps it
 # as the release of these sources: pushing a commit with the same sources to master publishes it as the next 0.0.x
 # (scripts/hooks/pre-push). The ten newest are kept.
+mkdir -p "$shared/latest" || exit 1
+cp "$work/generation_two.exe" "$latest.new" && mv -f "$latest.new" "$latest" || { echo "FAILED: could not keep this compiler"; exit 1; }
 if [ ${#stale[@]} == 0 ]; then
-  inputs=$(working_tree_inputs "$work/inputs")   # again: --update-seed may have rewritten a seed
-  record="$shared/passed/$inputs/$system"
-  mkdir -p "$record" "$shared/latest" || exit 1
-  cp "$work/generation_two.exe" "$record/spite.exe" && cp "bootstrap/seed/$system/spite_compiler.c" "$record/spite_compiler.c"     && cp "$work/generation_two.exe" "$latest.new" && mv -f "$latest.new" "$latest" || { echo "FAILED: could not record this compiler"; exit 1; }
-  ls -1t "$shared/passed" | tail -n +11 | while IFS= read -r old; do rm -rf "${shared:?}/passed/$old"; done
-  echo "release: this compiler is recorded for sources $inputs, and the next check starts from it"
+  if $full; then
+    inputs=$(working_tree_inputs "$work/inputs")   # again: --update-seed may have rewritten a seed
+    record="$shared/passed/$inputs/$system"
+    mkdir -p "$record" || exit 1
+    cp "$work/generation_two.exe" "$record/spite.exe" && cp "compiler/seed/$system/spite_compiler.c" "$record/spite_compiler.c" \
+      || { echo "FAILED: could not record this compiler"; exit 1; }
+    ls -1t "$shared/passed" | tail -n +11 | while IFS= read -r old; do rm -rf "${shared:?}/passed/$old"; done
+    echo "release: this compiler is recorded for sources $inputs, and the next check starts from it"
+  else
+    echo "kept: the next check starts from this compiler; a full run (bash check.sh --update-seed) records it for a release"
+  fi
 fi

@@ -43,7 +43,7 @@ and `spite reload` are commands of the compiler, not options. There is no `spite
 ## Naming a program
 
 A program is named only by its folder, and its entry file is the one named after the folder. The
-compiler's own entry is `bootstrap/bootstrap.spite`, class `Bootstrap`, so it compiles itself as `spite bootstrap`.
+compiler's own entry is `compiler/compiler.spite`, class `Compiler`, so it compiles itself as `spite compiler`.
 With no folder named, the compiler prints its usage to the error output and exits 1.
 
 - A `.spite` path: `error: 'game/game.spite' is a file, and a program is named by its folder: spite game`.

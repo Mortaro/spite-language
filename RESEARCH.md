@@ -86,7 +86,7 @@ and its rules.
    `naive.c`, `expert.c`, and its `generated.c` and `highlights.c` written by `scripts/cases/extract.sh`; it must
    pass `bash scripts/cases/check.sh <case>`.
 4. **If you change the compiler,** the whole suite must pass (`bash check.sh`; a push to `master` that changes
-   `bootstrap/`, `launcher/` or `library/` is refused without it, and releases the next version when it passed), every optimisation gets its section
+   `compiler/`, `launcher/` or `library/` is refused without it, and releases the next version when it passed), every optimisation gets its section
    in [docs/optimizations.md](docs/optimizations.md) and every proof its entry in [docs/proofs.md](docs/proofs.md),
    in the same commit. Read [AGENTS.md](AGENTS.md) first; it has the rest of the rules.
 5. **Credit the model that did the work.** Every commit starts with a gitmoji and ends with a trailer naming the

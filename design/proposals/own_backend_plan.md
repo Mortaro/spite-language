@@ -32,7 +32,7 @@ milestone is small, has an exact acceptance test, and leaves the compiler workin
   imperative summary, and end with a trailer naming your actual model, for example
   `Co-authored-by: big-pickle via opencode <noreply@opencode.ai>`. The commit hook refuses a commit without one,
   and refuses em dashes anywhere in the message.
-- Read `AGENTS.md` and `SPITE.md` first. The backend is written in Spite, in `bootstrap/source/backend/`.
+- Read `AGENTS.md` and `SPITE.md` first. The backend is written in Spite, in `compiler/source/backend/`.
 - Each milestone ends with its acceptance test passing and `bash check.sh` still green (the C path must never break).
 - **Nothing in the compiler exists only for a human to read** (D561). Humans skim the final program, not the
   compiler's steps: the IR has no text format, pretty printer or readable names unless a test or a diagnostic needs
@@ -67,7 +67,7 @@ Each is a separate pull of work. Do them in order; stop and report at the end of
 
 ### M0: a hand-built executable (Windows)
 
-Write `bootstrap/source/backend/pe_writer.spite`: given machine code bytes for `main` and a list of imported
+Write `compiler/source/backend/pe_writer.spite`: given machine code bytes for `main` and a list of imported
 functions from `kernel32.dll`, write a valid PE executable. Acceptance: a test program builds an executable whose
 code calls `ExitProcess(42)`; running it exits with status 42. Add it to `check.sh` as a step that runs only on
 Windows.

@@ -6,10 +6,10 @@ progress log before it ends. `specs/` is the language (D511); this file is the c
 
 ## How it builds itself
 
-- `bootstrap/bootstrap.spite` is the entry class, `Bootstrap` (a program is named by its folder, D130: `spite
-  bootstrap`); `load "source"` brings in `bootstrap/source/`.
-- `bootstrap/seed/spite_compiler.c` is the C the compiler emits for itself. Any C compiler turns it into a working
-  Spite compiler (see `bootstrap/seed/README.md`); that compiler then compiles the Spite sources again.
+- `compiler/compiler.spite` is the entry class, `Compiler` (a program is named by its folder, D130: `spite
+  compiler`); `load "source"` brings in `compiler/source/`.
+- `compiler/seed/spite_compiler.c` is the C the compiler emits for itself. Any C compiler turns it into a working
+  Spite compiler (see `compiler/seed/README.md`); that compiler then compiles the Spite sources again.
 - **The fixpoint is the law:** the compiler built from the seed (generation 2) and the compiler built by generation 2
   (generation 3) must emit byte identical C for the compiler's own sources. A change that alters how the compiler
   compiles its own source needs one extra generation to settle, which `check.sh` tries on its own.
@@ -37,14 +37,14 @@ progress log before it ends. `specs/` is the language (D511); this file is the c
 
 ## Where things live
 
-- `bootstrap/source/syntax/`: lexer, token kinds, the AST (one class per node, unions `Expression`, `Statement`,
+- `compiler/source/syntax/`: lexer, token kinds, the AST (one class per node, unions `Expression`, `Statement`,
   `Type`, `GenericArgument`), parser, tree printer. Every statement carries its `line`; a source file its `path`.
-- `bootstrap/source/discovery/`: finds the entry folder, `load "..."` roots and the `library/` root, maps folders to
+- `compiler/source/discovery/`: finds the entry folder, `load "..."` roots and the `library/` root, maps folders to
   namespaces, parses every file, merges reopened classes in load order.
-- `bootstrap/source/analysis/`: `SpiteType` (a union of `Types.*`), `ClassInfo`, `FieldInfo`, `FunctionInfo`,
+- `compiler/source/analysis/`: `SpiteType` (a union of `Types.*`), `ClassInfo`, `FieldInfo`, `FunctionInfo`,
   `ParamInfo`, `EnumInfo`, `UnionInfo` (also used for `type` shapes), `TemplateInfo` (Symbol codegen), and the
   `AstShape`/`TypeShape` narrowing helpers.
-- `bootstrap/source/generation/generator.spite`: the code generator. `CodeBuilder` keeps five output sections
+- `compiler/source/generation/generator.spite`: the code generator. `CodeBuilder` keeps five output sections
   (typedefs, prototypes, support bodies, user bodies, main); `Scope` tracks locals, overrides and owned values.
 - `library/`: the standard library written in Spite, loaded into every program (`Spite.Class`, `Spite.Attribute`).
   New standard library classes are written here first; C in `runtime/` is the fallback for what Spite cannot
@@ -122,7 +122,7 @@ reflection to work; it asks for it to be *visible*: "real generated members, not
 source you can read. Every `Spite.*` answer today is C written by `generate_reflection_read` and friends,
 keyed on a member name at the call site, and there is no way to look at it. Until `--final-classes` exists there
 is no way to tell a finished 10b from the compiler magic it is meant to replace, which makes it the first step
-rather than a later convenience. It needs the tree printer (`bootstrap/source/syntax/printer.spite`), which
+rather than a later convenience. It needs the tree printer (`compiler/source/syntax/printer.spite`), which
 already exists, and the discovery pass's merged class list, which also exists.
 
 **Then the members move into the library.** `library/spite/class.spite` declares `name` and `namespace` and

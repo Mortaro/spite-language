@@ -1,8 +1,8 @@
 #!/bin/bash
 # Releases the compiler on every push to master that changes it, so nobody has to remember to.
 #
-# A push to master whose compiler sources (bootstrap/, launcher/, library/) differ from the last release's must have
-# passed check.sh with exactly those sources on this machine: check.sh recorded that compiler under
+# A push to master whose compiler sources (compiler/, launcher/, library/) differ from the last release's must have
+# passed a full check (bash check.sh --update-seed) with exactly those sources on this machine, which recorded it under
 # .spite/shared/passed/<sources>/ (scripts/release/compiler_inputs.sh). The hook then tags the pushed commit as the
 # next version, 0.0.x with x one more than the last, packages spite.exe with launcher/, library/, the C it was built
 # from and their checksums, pushes the tag, and publishes the package as a GitHub release when the GitHub CLI is
@@ -30,9 +30,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     remote_inputs=""
     [ "$remote_sha" != "$no_commit" ] && git cat-file -e "$remote_sha" 2>/dev/null && remote_inputs=$(commit_inputs "$remote_sha")
     [ "$inputs" == "$remote_inputs" ] && continue
-    echo "push refused: it changes the compiler, the launcher or the library, and no check.sh run passed with exactly these" >&2
-    echo "sources on this machine. Run  bash check.sh  (or  bash check.sh --update-seed  and commit the seeds it rewrites)," >&2
-    echo "then push again: the run that passes is what this push releases." >&2
+    echo "push refused: it changes the compiler, the launcher or the library, and no full check passed with exactly these" >&2
+    echo "sources on this machine. Run  bash check.sh --update-seed , commit the seeds it rewrites, and push again: the" >&2
+    echo "run that passes is what this push releases." >&2
     exit 1
   fi
 

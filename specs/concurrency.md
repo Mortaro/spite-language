@@ -162,7 +162,7 @@ not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread
 **The mechanism: compile-time state machines, and a helper thread per blocking call.** The aim is no runtime, only
 compile time. A C target has no coroutines, so the compiler writes them. Every function that can
 reach a wait from inside a `Concurrent` is compiled twice: the plain function, for code outside a `Concurrent`, and
-a resumable version (`bootstrap/source/generation/state_machine.spite`):
+a resumable version (`compiler/source/generation/state_machine.spite`):
 
 - **Which functions.** A function *waits* when it is one of the waits below or calls a function that waits: by
   name, through a constructor, through a union's or a `type`'s function that waits for one of its classes, or

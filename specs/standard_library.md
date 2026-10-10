@@ -154,7 +154,7 @@ division checks are untouched: none of these divides.
 
 **Each is a primitive of the language, lowered by the backend** (named in Spite, lowered in one
 place, so no Spite changes with the backend). `--final-classes` prints them as bodiless declarations in each number
-class, and `bootstrap/source/generation/maths_primitives.spite` is the one place that says what C each becomes:
+class, and `compiler/source/generation/maths_primitives.spite` is the one place that says what C each becomes:
 a macro written where it is called, so `angle.sine()` is `sinf(angle)` in the C, with no function of Spite's own
 around it, and a whole number's `clamp` is two comparisons in one statement. None has hand-written C in a `.spite`
 file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi.cosine()`, is worked out
@@ -477,7 +477,7 @@ and atomics at an address, are language primitives each backend lowers.
    backend writes where it is called, like `+` ([memory.md](../docs/memory.md#memory-is-the-floor-and-you-can-build-on-it)).
    This is the floor that stays.
 2. **Supplied bodies**: functions declared without a body whose C the compiler writes
-   (`bootstrap/source/generation/prelude.spite`): `Console`'s `_write_output`, `_write_error`, `_write_held` and
+   (`compiler/source/generation/prelude.spite`): `Console`'s `_write_output`, `_write_error`, `_write_held` and
    `_flush`, and `Program`'s and `Process`'s `_flush_output` (`fwrite`, `fflush`); `Memory.Heap`'s `allocate`, `resize`, `free` and `live_allocations` (the C library's
    `malloc`, or the `--debug-memory` table) and `Memory.Address`'s `copy_to` and `compare_bytes` (`memmove`,
    `memcmp`), `text(length)`, `String.sum` and `String.code_at` (which depend on whether text fits inside the

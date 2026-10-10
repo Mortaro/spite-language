@@ -21,7 +21,7 @@ if [ -z "$CC" ]; then
 fi
 export CC
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(bootstrap benchmarks/identical_functions_are_folded_into_one/naive benchmarks/an_items_storage_is_chosen_while_compiling/naive)
+[ ${#names[@]} -eq 0 ] && names=(compiler benchmarks/identical_functions_are_folded_into_one/naive benchmarks/an_items_storage_is_chosen_while_compiling/naive)
 printf "| %-24s | %12s | %10s |\n" "program" "bytes" "functions"
 for name in "${names[@]}"; do
     base=$(echo "${name%/}" | tr "/" "_")   # benchmarks/<case>/naive would all be "naive"

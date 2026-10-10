@@ -44,7 +44,7 @@ the release build:
 | `text_building` | 496 976 | 178 327 | 155 558 | 160 818 |
 | `sorting` | 496 780 | 164 525 | 167 291 | 165 973 |
 
-The compiler compiling itself (`spite bootstrap --check`), best of five, in CPU milliseconds (the process's own
+The compiler compiling itself (`spite compiler --check`), best of five, in CPU milliseconds (the process's own
 time, since starting a process took up to two seconds on the loaded machine):
 
 | the compiler built | CPU ms |

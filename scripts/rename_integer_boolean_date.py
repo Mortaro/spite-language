@@ -10,7 +10,7 @@ says Int can be migrated by running it again after merging. Read the diff afterw
 meaning. C's own `int` and `bool`, and `Interface`, `print`, `IntegerLiteral`, are left alone.
 
 Never touched: design/decisions.md (the log is history, and so is a leftover manual.md), Mortaro's own files, the
-seed, the progress log of bootstrap/COMPILER_PLAN.md, the compiler's table of old spellings with the diagnostic
+seed, the progress log of compiler/COMPILER_PLAN.md, the compiler's table of old spellings with the diagnostic
 that proves it, and a line that names the old spelling on purpose (KEPT_LINE).
 """
 import os
@@ -23,12 +23,12 @@ SKIPPED_PATHS = {
     "manual.md",
     "design/decisions.md",
     "scripts/rename_integer_boolean_date.py",
-    "bootstrap/source/generation/old_spellings.spite",
+    "compiler/source/generation/old_spellings.spite",
     "diagnostics/old_type_spellings",
 }
 TEXT_ENDINGS = (".spite", ".md", ".txt", ".sh", ".py", ".c", ".h", ".json", ".cmd", "")
 # Files whose history below a heading is kept as it was written.
-HISTORY_HEADINGS = {"bootstrap/COMPILER_PLAN.md": "## Progress log"}
+HISTORY_HEADINGS = {"compiler/COMPILER_PLAN.md": "## Progress log"}
 
 WHOLE_NAMES = {
     "LocalDateTime": "DateTime",

@@ -257,7 +257,7 @@ func bodies(): String {
 }
 
 func path(): String {
-    return "bootstrap/source/generation/prelude.spite"
+    return "compiler/source/generation/prelude.spite"
 }
 
 func reopened_classes(): List<String> {

@@ -1,7 +1,7 @@
-"""Regenerates bootstrap/source/analysis/spite_type.spite and type_shape.spite from the member list below."""
+"""Regenerates compiler/source/analysis/spite_type.spite and type_shape.spite from the member list below."""
 members = ["ScalarType", "StringType", "ClassRefType", "NullableType", "VoidType", "EnumType",
            "ListType", "DictionaryType", "UnionType", "ArgumentsType", "SymbolType"]
-root = "bootstrap/source/analysis/"
+root = "compiler/source/analysis/"
 
 
 def narrowed(member):

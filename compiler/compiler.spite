@@ -30,7 +30,7 @@ var breakpoint_sites = List<String>()
 var prompt_code = ""
 var breakpoint_requests = List<String>()
 
-func Bootstrap() {
+func Compiler() {
     load "source"
     var arguments = Arguments()
     var command = first_argument(arguments)

@@ -4,13 +4,13 @@ Spite's compiler is written in Spite and compiles itself. There is no other impl
 
 ## How it builds
 
-`bootstrap/seed/<system>/spite_compiler.c` is the C that the compiler emits for its own sources, for that system
+`compiler/seed/<system>/spite_compiler.c` is the C that the compiler emits for its own sources, for that system
 (`linux`, `windows`). Compiling the file for your system with any C compiler gives you a working Spite compiler,
 which can then compile the sources again and produce the same C: a fixpoint.
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
-./spite bootstrap --check --c-source    # writes .spite/build/bootstrap/bootstrap.c, equal to the seed when it is current
+cc -O2 -Wno-parentheses-equality compiler/seed/linux/spite_compiler.c -o spite -lm
+./spite compiler --check --c-source    # writes .spite/build/compiler/compiler.c, equal to the seed when it is current
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. `-lm` links the C library's maths, which
@@ -27,9 +27,9 @@ starts and cannot run on Linux. Nothing of the compiling machine reaches the C, 
 every seed, and each system's own fixpoint (generation 2 equal to generation 3) is checked on that system.
 `bin/spite` and `check.sh` pick the seed by `uname`; a system with no seed (macOS, for now) is an error naming
 it. The first Linux seed was written by the Windows seed itself, run once on Linux through stand-in libraries for
-the eight Windows functions the compiler calls, and it compiled to a Linux compiler whose own C was the same. The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry
-is `bootstrap/bootstrap.spite` (class `Bootstrap`). Its C goes to the default place,
-`.spite/build/bootstrap/bootstrap.c` (D283), because every `Build` field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
+the eight Windows functions the compiler calls, and it compiled to a Linux compiler whose own C was the same. The compiler is a program like any other, named by its folder: `compiler/`, whose entry
+is `compiler/compiler.spite` (class `Compiler`). Its C goes to the default place,
+`.spite/build/compiler/compiler.c` (D283), because every `Build` field is a constant in what is built: a `--c-path` naming some other file would be written into the C, and the next
 generation would differ ([compiler.md](../specs/compiler.md#outputs)).
 
 ## What proves it
@@ -69,7 +69,7 @@ benchmarks and people working on the compiler use them.
 - **`--c-source`** (and `--c-path`, which needs it) writes the generated C, the compiler's own debugging output
   (D369 item 134). It adds the C to whatever the build does: beside the executable a build makes, or, with
   `--check`, the C and nothing else, which is how `check.sh` writes each generation of the compiler and the C it
-  reads for its checks (`spite bootstrap --check --c-source`). The C goes to `.spite/build/<program>/<program>.c`
+  reads for its checks (`spite compiler --check --c-source`). The C goes to `.spite/build/<program>/<program>.c`
   unless `--c-path` says otherwise; the compiler's own goes to its default path ([above](#how-it-builds)). That
   `--check` with `--c-source` writes the C is proposed by Claude, unconfirmed: `--check` alone writes nothing.
 - **`SPITE_TRANSLATION_UNITS=<n>`**, an environment variable, forces the number of
@@ -83,13 +83,13 @@ A seed is the C of the compiler it was written by, so it reads the flags of that
 before `--check` and `--build` replaced `--run=false` (D348) and translation units and machine tuning stopped
 being settings (D349) read `Build.run`, `Build.executable`, `Build.translation_units` and
 `Build.tune_for_this_machine` in their own code, and `library/build.spite` no longer declares them. So
-`bootstrap/build.spite` declares the four for the compiler's sources alone, and `check.sh` asks the seed for
+`compiler/build.spite` declares the four for the compiler's sources alone, and `check.sh` asks the seed for
 generation 2 the old way (`--run=false --c-source --executable --translation-units=<jobs>`) while the seed's C
 still holds its old usage line (`--executable --run=false`), and the new way (`--build --c-source`) once it does
 not. Every later generation is asked the new way. Such a seed cannot compile any other program against today's
 `library/build.spite`, so `bin/spite`, which builds its compiler from the seed, cannot either: until the seeds are
 written again, `check.sh` puts generation 2 in `.spite/spite.exe` for `bin/spite` to run. A seed regenerated from
-these sources reads none of the four, so `bootstrap/build.spite` and the old branch of `check.sh` are deleted with
+these sources reads none of the four, so `compiler/build.spite` and the old branch of `check.sh` are deleted with
 the first seed written after them.
 
 ## Layout
@@ -100,12 +100,12 @@ launcher/launcher.spite          loads the standard library, the target system's
 library/                         the standard library, in Spite: String, List, the numbers, File, JsonWriter, BinaryWriter, ...
 library/spite/                   reflection: Spite.Class, Spite.Function and the rest
 library/windows|linux|mac/       what each operating system does differently, as reopened classes
-bootstrap/bootstrap.spite        the compiler's entry class, Bootstrap
-bootstrap/source/syntax/         lexer, parser, syntax tree, formatter
-bootstrap/source/discovery/      finding classes, following loads, merging reopened classes
-bootstrap/source/analysis/       types, classes, functions, templates
-bootstrap/source/generation/     C generation, and prelude.spite: the C the compiler supplies, beside its Spite
-bootstrap/seed/<system>/          the committed fixpoint for each system, spite_compiler.c
+compiler/compiler.spite        the compiler's entry class, Compiler
+compiler/source/syntax/         lexer, parser, syntax tree, formatter
+compiler/source/discovery/      finding classes, following loads, merging reopened classes
+compiler/source/analysis/       types, classes, functions, templates
+compiler/source/generation/     C generation, and prelude.spite: the C the compiler supplies, beside its Spite
+compiler/seed/<system>/          the committed fixpoint for each system, spite_compiler.c
 conformance/ examples/ tests/    programs with their exact output, which must balance their allocations
 diagnostics/                     programs that must fail, with their exact errors
 scripts/docs_corpus/             writes every titled program of docs/ and the README out for check.sh
@@ -131,7 +131,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 ### Self hosting  **[partial]**
 
 - The compiler is written in Spite and compiles itself; there is no other implementation.
-  `bootstrap/seed/spite_compiler.c` is the C it emits for its own sources, committed, so a C compiler is all that
+  `compiler/seed/spite_compiler.c` is the C it emits for its own sources, committed, so a C compiler is all that
   is needed to build it.
 - **The fixpoint is the test.** `bash check.sh` requires generation 2 (the seed compiling the sources) and
   generation 3 (generation 2 compiling them again) to be byte identical, or nothing else it checked is believed; when
@@ -145,5 +145,5 @@ fix. A `D` number is a row of the [decision log](decisions.md).
   compiler emits itself and the members `prelude.spite` supplies; D178's primitives on `Memory.Address` are the
   part each backend is meant to keep. Moving the other supplied members into Spite is **not finished**.
 - The language is larger than the part the compiler implements today; each page says what is decided but not
-  built, `bootstrap/COMPILER_PLAN.md` is the compiler's progress log, and `conformance/` is the part that
+  built, `compiler/COMPILER_PLAN.md` is the compiler's progress log, and `conformance/` is the part that
   demonstrably works.

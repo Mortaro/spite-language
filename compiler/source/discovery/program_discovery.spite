@@ -274,7 +274,7 @@ func mark_program_load() {
 }
 
 func part_of_the_compiler(path: String): Boolean {
-    return path == "bootstrap/bootstrap.spite" or path.ends_with("/bootstrap/bootstrap.spite") or path.ends_with("\\bootstrap\\bootstrap.spite")
+    return path == "compiler/compiler.spite" or path.ends_with("/compiler/compiler.spite") or path.ends_with("\\compiler\\compiler.spite")
 }
 
 func internal_name_error(path: String, line: Integer, name: String): String {

@@ -11,7 +11,7 @@ case "$(uname -s)" in
     Darwin)               system=mac ;;
     *)                    system="$(uname -s)" ;;
 esac
-seed="$here/bootstrap/seed/$system/spite_compiler.c"
+seed="$here/compiler/seed/$system/spite_compiler.c"
 binary="$here/.spite/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
 
 find_c_compiler() {
@@ -41,7 +41,7 @@ fi
 export CC
 
 if [ ! -f "$seed" ]; then
-    echo "spite: there is no seed for this system ($system): bootstrap/seed/ has one for $(ls "$here/bootstrap/seed" | grep -v README | tr '\n' ' ')" >&2
+    echo "spite: there is no seed for this system ($system): compiler/seed/ has one for $(ls "$here/compiler/seed" | grep -v README | tr '\n' ' ')" >&2
     exit 1
 fi
 
