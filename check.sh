@@ -147,7 +147,7 @@ limited() {
 # What of a crash's output is the same on every run and every system (job_program says what is left out, and why).
 crash_normalized() {
   sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g; s/\tscheduler_thread=[0-9]+/\tscheduler_thread=.../g' \
-    | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d' \
+    | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d; /: line [0-9]+: [0-9]+ (Segmentation fault|Illegal instruction)/d' \
     | sed -E 's/^(spite\.fault\theap-corruption\t[^\t]*\t[^\t]*\t[^\t]*)\t(code|signal)=[^\t]*\tat=[^\t]*/\1\tstatus=...\tat=.../'
 }
 
@@ -979,15 +979,16 @@ if ! grep -q '^static const int32_t spite_configured_Tariff_steps_0_items\[3\] =
    || grep -q 'Grown_[a-z_]*___configured_' "$configured"; then
   echo "FAILED: configured_tables should copy Tariff's price for its table and leave Stepped's and Grown's as written"; exit 1
 fi
-# Objects of one class a list holds sit together (pair M6): class_pools takes every Point from Point's own pool and
-# gives it back there, keeps Label (no list holds one) and Mark (a worker makes and counts them) on the C library's
-# allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run printed.
+# Objects of one class sit together (pair M6): class_pools takes every Point from Point's own pool and gives it back
+# there, does the same for its own object, which no list holds, keeps Mark (a worker makes and counts them) on the C
+# library's allocator, and an --optimized build, the only kind that has pools, prints what the --debug-memory run
+# printed.
 pools="$work/class_pools.c"
 "$work/generation_two.exe" conformance/stage6/class_pools --check --c-source --c-path="$pools" > /dev/null 2>&1 || {
   echo "FAILED: class_pools does not write its C"; exit 1; }
 if ! grep -q "^Point\* self = Point___pool_take();$" "$pools" || ! grep -q "^Point___pool_give(self);$" "$pools" \
-   || grep -qE "(Label|Mark)___pool_" "$pools"; then
-  echo "FAILED: class_pools should pool Point and leave Label and Mark to the C library's allocator"; exit 1
+   || ! grep -q "^ClassPools___pool_give(self);$" "$pools" || grep -qE "Mark___pool_" "$pools"; then
+  echo "FAILED: class_pools should pool Point and ClassPools and leave Mark to the C library's allocator"; exit 1
 fi
 "$work/generation_two.exe" conformance/stage6/class_pools --optimized --build --executable-path="$work/class_pools_optimized.exe" > /dev/null 2>&1 || {
   echo "FAILED: class_pools does not build --optimized"; exit 1; }
@@ -1013,6 +1014,17 @@ nested_output=$("$work/nested_lists_optimized.exe" | tr -d '\r')
 if [ "$nested_output" != "$(tr -d '\r' < conformance/stage6/nested_lists/expected_output.txt)" ]; then
   echo "FAILED: nested_lists built --optimized printed: $nested_output"; exit 1
 fi
+# A copy nothing changes is the original (pair M7): shared_copies's rounds only read their copy of the orders, so
+# its site answers the list itself, counted once more; the copy changed() writes, and the tags compared() asks
+# about, are real copies.
+shared_copies="$work/shared_copies.c"
+"$work/generation_two.exe" conformance/stage6/shared_copies --check --c-source --optimized --c-path="$shared_copies" > /dev/null 2>&1 || {
+  echo "FAILED: shared_copies does not write its C"; exit 1; }
+if [ "$(grep -A1 '^static inline List_Order\* spite_copy_site_[0-9]*(List_Order\* self) {$' "$shared_copies" | grep -c '^return List_Order___retain(self);$')" != 1 ] \
+   || [ "$(grep -c 'List_Order___deep_copy(self->orders_)' "$shared_copies")" != 1 ] \
+   || [ "$(grep -c 'List_Tag___deep_copy(self->tags_)' "$shared_copies")" != 1 ]; then
+  echo "FAILED: shared_copies should share the copy its rounds only read and copy the ones changed() and compared() use"; exit 1
+fi
 # The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
 if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
@@ -1033,14 +1045,16 @@ if ! grep -q "^#define Ledger___atomic 1$" "$lone" || ! grep -q "SpiteGuard Ledg
    || grep -q "SPITE_SINGLETON_LOAD(Ledger, [^;]*marks_)" "$lone"; then
   echo "FAILED: lone_atomic_counter should read Ledger.stage without the lock and keep the lock for Ledger.marks"; exit 1
 fi
-# Calls in a row that share nothing written run at once: Physics and Audio overlap, two Tallies (one class) and a
-# row that prints stay in order.
+# Calls in a row that share nothing written run at once: Physics and Audio overlap, and so do two Tallies, each
+# made for its own attribute (docs/optimizations.md#objects-made-for-their-owner-are-told-apart); a row that prints
+# stays in order.
 overlap="$work/overlapped_calls.c"
 "$work/generation_two.exe" conformance/stage6/overlapped_calls --check --c-source --c-path="$overlap" > /dev/null 2>&1 || {
   echo "FAILED: overlapped_calls does not write its C"; exit 1; }
-if [ "$(grep -c 'Parallel__Nothing___make(spite_function_value' "$overlap")" != "1" ] \
-   || ! grep -q "Parallel__Nothing___make(spite_function_value_Physics_step(" "$overlap"; then
-  echo "FAILED: overlapped_calls should run physics.step() beside audio.step() and keep the other rows in order"; exit 1
+if [ "$(grep -c 'Parallel__Nothing___make(spite_function_value' "$overlap")" != "2" ] \
+   || ! grep -q "Parallel__Nothing___make(spite_function_value_Physics_step(" "$overlap" \
+   || ! grep -q "Parallel__Nothing___make(spite_function_value_Tally_add(" "$overlap"; then
+  echo "FAILED: overlapped_calls should run physics.step() beside audio.step(), left.add() beside right.add(), and keep the printing row in order"; exit 1
 fi
 locks="$work/singleton_lock_calls.c"
 "$work/generation_two.exe" conformance/stage6/singleton_lock_calls --check --c-source --c-path="$locks" > /dev/null 2>&1 || {

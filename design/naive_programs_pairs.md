@@ -28,7 +28,7 @@ the copy reading it as a constant, and a test of the object's list at the call t
 ([optimizations](../docs/optimizations.md#a-table-filled-once-is-read-as-constants),
 [proofs](../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in)): stress about 7% less a tick, its C 20%
 larger (measured while the machine was in other use, [the ninth pass](naive_programs.md#ninth-pass-2026-10-08)). Step 3
-(the runner made direct, with L8b and B2b) is not built.
+(the runner made direct, with L8b) is not built; B2b, its write-back, is built on its own (below).
 
 The sixth pass ([naive_programs.md](naive_programs.md#sixth-pass-2026-10-07)) took the 4.0 ms hand edit apart: of
 the 40.4 ms tick, L8b's fused loop is 1.4 ms, the repeated match 3.3, the write-back (B2b) 11.8, the row kept in
@@ -44,6 +44,11 @@ loop.
 | S2 | a class whose fields fall into groups read or written by different loops | access sets per field from every loop | one storage per group | one storage |
 | S3 | the same list read field by field in one phase and whole in another | the phases and the conversion cost | each phase reads its own shape; a compiled conversion between them | one shape |
 | S4 | objects of one class made where threads reach them and where they do not | per creation site flow | two classes after compilation, each with its own counts and pool | one class |
+
+S4 is **built per group** for T4b loops (D555, [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts),
+[proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts)): a class only one of the calls that can run
+together counts keeps plain counts and its pool; a class two of them count counts atomically only while they run
+at once, with its pool per thread. Per creation site (R9) is not built.
 | S5 | a procedural loop over uniform records with independent steps | records are uniform; steps share nothing written | a pipeline of passes over columns | the loop as written |
 
 ## Already built (the base everything else stands on)
@@ -60,7 +65,9 @@ loop.
 | C5: plain counts for every class no other thread can count | [optimizations](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class), [proofs](../docs/proofs.md#no-other-thread-counts-a-class) |
 | C6: a release is a `static inline` count-down in every unit, its freeing out of line | [optimizations](../docs/optimizations.md#a-release-is-inlined-in-every-unit) |
 | B2: an item written back to its own slot is not written, and B1's uncounted read where the same proof holds to the end of the block (same block only; the engine's runner reads and stores in different functions) | [optimizations](../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written), [proofs](../docs/proofs.md#an-item-written-back-to-its-own-slot-is-the-slot) |
-| M6: objects of a class a list holds come from that class's own pool, side by side (stress 64.0 to 47.6 ms a tick, despawning 113 to 21 ms, physics 9.5 to 8.5 ms) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-a-list-holds-made-on-one-thread) |
+| M6: objects of a class a list holds come from that class's own pool, side by side (stress 64.0 to 47.6 ms a tick, despawning 113 to 21 ms, physics 9.5 to 8.5 ms) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-of-a-class-made-on-one-thread) |
+| M6b: M6 for every class made and let go on the program's own thread, listed or not, but a container no list holds (a chain of 1 000 links made and dropped 2 000 times 81 to 17 ms, 500 000 items each given an owner 30 to 7 ms; a `Vector`'s own object in a pool cost `particles` a tenth, so containers stay off) | [optimizations](../docs/optimizations.md#objects-of-one-class-sit-together), [proofs](../docs/proofs.md#objects-of-a-class-made-on-one-thread) |
+| M7: a deep copy nothing writes or asks the identity of while it lives is the original, counted once more (a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one 49.5 to 2.1 ms) | [optimizations](../docs/optimizations.md#a-deep-copy-nothing-changes-is-the-original), [proofs](../docs/proofs.md#a-copy-nothing-changes-is-the-original) |
 | B1 for named items: an item a name holds from its list is not counted while nothing can write the list, the name passed to calls as held (stress 43.6 to 41.2 ms a tick, 40.0 to 38.1 as one C file) | [optimizations](../docs/optimizations.md#an-item-a-name-holds-from-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted) |
 | S1 step 1: a test against a value a list only its class fills never holds is decided while compiling (stress 39.0 to 35.4 ms a tick as one C file, 41.9 to 41.3 split, physics 9.2 to 8.9 ms) | [optimizations](../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling), [proofs](../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills) |
 | S1 step 2: a table filled once by its object's setup is read as constants in a copy of each function reading it, chosen by a test at the call (stress about 7% a tick, 20% more C; measured while the machine was in other use) | [optimizations](../docs/optimizations.md#a-table-filled-once-is-read-as-constants), [proofs](../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in) |
@@ -69,9 +76,12 @@ loop.
 | B1t: an item used at once (passed to a call that cannot change its list, read for an attribute, or asked a list's reading function) is read in its slot with no count (stress 27.3 to 25.9 ms a tick as one C file) | [optimizations](../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted), [proofs](../docs/proofs.md#an-item-used-at-once-is-not-counted) |
 | A1: an overflow check a range proves unneeded is left out (the compiler's own C 1 513 to 1 263 checks; the benchmark cases' loops still add `Integer` items or attributes, whose checks stay) | [optimizations](../docs/optimizations.md#arithmetic-a-range-proves-is-not-checked), [proofs](../docs/proofs.md#a-range-proves-arithmetic-fits) |
 | B2b's run-time form: `list[index] = name` from a held name is written in place and counted only when the slot held another object (stress 38.0 to 33.3 ms a tick as one C file on a busy machine) | [optimizations](../docs/optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot) |
-| A locked singleton's attributes are plain where no other class reads them past the lock (D555; the counted loop's case 76.6 to 24.4 ms) | [optimizations](../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number), [proofs](../docs/proofs.md#no-attribute-is-read-past-the-lock) |
-| A loop of calls to one locked singleton that is not counted tests for tasks in flight once and calls the unlocked bodies (D556; ten million calls 41.5 to 9.5 ms) | [optimizations](../docs/optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once), [proofs](../docs/proofs.md#a-loop-that-starts-no-task-tests-for-tasks-once) |
+| A locked singleton's attributes are plain where no other class reads them past the lock (D572; the counted loop's case 76.6 to 24.4 ms) | [optimizations](../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number), [proofs](../docs/proofs.md#no-attribute-is-read-past-the-lock) |
+| A loop of calls to one locked singleton that is not counted tests for tasks in flight once and calls the unlocked bodies (D573; ten million calls 41.5 to 9.5 ms) | [optimizations](../docs/optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once), [proofs](../docs/proofs.md#a-loop-that-starts-no-task-tests-for-tasks-once) |
+| Objects made for their owner are told apart (D556): an attribute only ever given an object constructed where it is given, the lists inside it, objects followed into the functions they are passed to, and items of two singletons' lists compared when the loop starts (stress update stage 41.6 to 26.1 ms with D555, provisional) | [optimizations](../docs/optimizations.md#objects-made-for-their-owner-are-told-apart), [proofs](../docs/proofs.md#an-object-made-for-its-owner-is-told-apart) |
+| S4 per group (D555): what only one of the calls run at once counts stays plain, with its pool; a meeting point counts atomically only while they run | [optimizations](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts), [proofs](../docs/proofs.md#what-one-of-the-calls-run-at-once-counts) |
 | B3: a list item read only to test it is not counted, the slot tested in place (stress 48.1 to 43.8 ms a tick, 43.3 to 40.3 as one C file, physics 8.4 to 8.1 ms) | [optimizations](../docs/optimizations.md#a-list-item-read-only-to-test-it-is-not-counted), [proofs](../docs/proofs.md#a-list-item-read-only-to-test-it-is-not-counted) |
+| B2b (hand edit W): a call that only writes back what its slots already hold is not made, the values followed through calls, attributes and the index counted up in an attribute; a path before it that may break the proof keeps the call (stress 20.2 to 17.2 ms a tick as one C file, 25.6 to 21.5 split, physics the same) | [optimizations](../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written), [proofs](../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from) |
 
 ## Threads
 
@@ -98,9 +108,10 @@ in order: the two stress systems both write a `Profile.Timing` (`timing.record` 
 `ColumnIndex` (found through `Columns.headers` by name) and the items of `List<Integer>`s passed as parameters, which
 the per-class facts count as one. Measured by hand on the stress C (one file, `clang -O3`), overlapping the two on a
 raw thread took the update stage from about 30.5 to 17.5 ms with the counts left as they were, and the tick to
-about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). So the next steps
-for the engine are facts that tell objects of one class apart where each runner owns its own (an attribute made for
-its object and never assigned again), and count disciplines per group of overlapped calls (S4).
+about 20 to 25 ms with every count atomic (the machine was loaded; medians of 9 swung by a third). Both are now built
+(D556 and D555, the [eighth pass](naive_programs.md#eighth-pass-objects-told-apart-counts-per-group-2026-10-09)):
+objects made for their owner are told apart, and counts are decided per group, so the two stress systems run at
+once.
 
 T1 is **built** for the member template (D542, [optimizations](../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands),
 [proofs](../docs/proofs.md#passes-that-write-only-their-own-item)): `list.each_function()` and
@@ -139,7 +150,7 @@ stays in order.
 | M3 | many objects let go together | their `drop`s are independent | freed in slices between passes | freed at once | budgeted deferred freeing | |
 | M5 | `return Shape(...)` | the caller keeps the result in its own frame or a slot it already owns | built straight into the caller's slot | heap copy | | |
 | M8b | a `List<List<T>>` filled with `List<T>()` and read only through its slots (a grid's buckets, an index by key) | no inner list is named but through its slot (each put in is fresh and dead after, each read is tested, used at once or named once with no resize before its last use), the outer list never aliased, no other storage holds such lists, no compiler-written code reads them | each inner list's whole object inside the outer list's block: a read is the slot's address | a list of references | hand index arrays per bucket | **built** (D552, [optimizations](../docs/optimizations.md#a-list-held-only-by-another-list-lives-in-its-slot), [proofs](../docs/proofs.md#a-list-held-only-in-a-slot-of-another-list)); per element type, not per list yet |
-| M7 | `var copy = original.deep_copy()` | neither the copy nor the original, nor anything reachable from either, is written, resized or let go differently while both live, and no identity question is asked of the copy | the copy shares the original; where only part of the graph is written, only the path to it is copied | a real deep copy | hand copy-on-write | |
+| M7 | `var copy = original.deep_copy()` | neither the copy nor the original, nor anything reachable from either, is written, resized or let go differently while both live, and no identity question is asked of the copy | the copy shares the original; where only part of the graph is written, only the path to it is copied | a real deep copy | hand copy-on-write | **built** whole-graph sharing (D571, below); the partial copy is not |
 | M8 | an object assigned once from a fresh construction to an attribute, read only through its owner | nothing else names it, it is never compared, copied or handed out | its fields live in the owner's storage (or the owner's columns) | a separate object | hand inlined structs | |
 | X1 | `var line = "{a} {b}"` used only for `.length()` or dropped | the text never escapes the iteration | built in a frame buffer with direct copies and literal lengths, no `String` | a joined `String` | hand stack buffers | |
 | X2 | `list.sort_by_<member>()` on whole-number keys | the keys' range is proven, the sort is the library's | a stable radix sort of (key, position) pairs | the library's merge sort | hand radix sorts | |
@@ -154,7 +165,7 @@ stays in order.
 | B1 | `var row = list[index]` then `row` passed to calls, compared or kept (reading and writing its attributes, and passing it to calls, is built, above) | nothing writes the list or that slot before the local's last use | no reference counted for the read | counted read | hand borrowed reads | per generic instance: a write into `Column<$T>.values` is not this list when no instance's item is this list's item |
 | B1t | `list[index].count()`, `f(list[index])`: an item read with `[]` and used at once | the call it is used by cannot write the list | the slot's pointer passed, no count | counted read | | **built** (above) |
 | B3 | `crash list[index]`, `assert list[index]` or `if list[index]` before reading the item | the read is used only for the test, and nothing runs between the read and the test | the slot's pointer tested, no retain and release (with B1 for the read that follows, when it holds) | the counted read | | **built** (above); a `Dictionary` entry and an attribute tested through an item (`crash rows[i].owner`) are not |
-| B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | |
+| B2b | a row filled from slots in one function, the system called, the row stored back in another (the engine's runner) | the stored value is the one read, across the calls, and the system never assigns the row's attributes | no write-back, no count | the store | | **built** (above) |
 | B2c | `var row = list[i].copy()`, changed, `list[i] = row` | no other name holds the stored object (L1's proof) | the slot changed in place, no copy | copy and write back | | |
 
 ## Waiting

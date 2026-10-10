@@ -1,0 +1,9 @@
+var total: Long = 0
+var marks = List<Integer>()
+
+func record(sample: Integer) {
+    total = total + sample
+    if sample % 1000 == 0 {
+        marks.append(sample)
+    }
+}

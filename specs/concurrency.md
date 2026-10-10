@@ -535,9 +535,9 @@ class of the program that is not a singleton, run at once when every pair of the
 a loop: every one but the last runs on the thread pool, the last on the calling thread, and all are joined before
 the next statement. Two calls are independent when neither writes what the other reads or writes, taken through
 every function each one reaches, the compiler's own code included: an attribute of a class (two objects of one
-class count as one), the items of a list or dictionary (two attributes holding lists count apart only when each
-holds a list made for it and never handed anywhere else, and two lists of one kind count as one otherwise), or
-memory reached through an address; and when neither prints, reads or writes a `File`, a `Directory` or a
+class count as one, except objects held by attributes made for their owner, below), the items of a list or
+dictionary (two attributes holding lists count apart only when each holds a list made for it and never handed
+anywhere else, and two lists of one kind count as one otherwise), or memory reached through an address; and when neither prints, reads or writes a `File`, a `Directory` or a
 `Socket`, waits, calls anything outside the program but plain arithmetic, the clock and memory, or calls through a
 function value. Classes the program never makes are left out of the comparison. Nothing is overlapped inside a
 singleton's own functions, inside a counted loop that holds a singleton's lock, in the standard library, or in a
@@ -545,6 +545,22 @@ singleton's own functions, inside a counted loop that holds a singleton's lock, 
 call's report; if two crash at once, one of the two reports is printed. A program in which no calls run at once
 compiles exactly as before, and one in which some do uses the thread pool, as a program that writes `Parallel`
 does.
+
+**Objects made for their owner count apart.** An attribute is made for its owner when every assignment to it in
+the program (its declaration and constructor included) gives it an object constructed right there, or nothing, and
+its owner is never copied with it (a `copy()` or a struct copy of the owner). What a call reads and writes of the
+object such an attribute holds, and of the lists and objects that object's own attributes made for it hold, counts
+apart from the object any other such attribute holds: two attributes of different classes or names never hold one
+object. An object passed to a function counts, inside it, as the argument it was passed as, when the function does
+nothing with that parameter but read and write through it, pass it to a list's or dictionary's own functions or to
+another such function, or compare it. An attribute made for its owner that is, besides, only ever read through,
+passed to such functions, compared or let go, is kept nowhere else, and then a call that reaches an object of its
+class through any other name (a local, a parameter of unknown origin) does not touch it. An item read out of a list
+attribute of a singleton counts apart from an item read out of another singleton's list attribute only when the
+two lists hold no object in common: for a loop over different classes, the loop compares the two lists' items when
+it starts, for each two classes that meet and need it, and runs in order when one object is in both; neither call
+may write either list. Anything else read through an object of a class counts as every object of the class, as
+before. `conformance/stage6/owned_objects`.
 
 **A loop over a list of different classes runs them at once.** A statement `list.each_function()`, or
 `list.each(own_function)` where `own_function` takes one parameter and its whole body is `parameter.function()`,

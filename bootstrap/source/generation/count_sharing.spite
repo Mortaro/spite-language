@@ -19,6 +19,18 @@ var free_guards = Dictionary<String, Boolean>()
 var free_guard_count = 0
 var free_atomics = Dictionary<String, Boolean>()
 var free_atomic_count = 0
+var group_pieces = List<Integer>()
+var member_reached = List<Boolean>()
+var member_counted = Dictionary<String, Boolean>()
+var member_made = Dictionary<String, Boolean>()
+var member_arities = Dictionary<String, Boolean>()
+var member_typed_unknown = false
+var member_dropping = false
+var together = Dictionary<String, Boolean>()
+var group_shared = Dictionary<String, Boolean>()
+var group_made = Dictionary<String, Boolean>()
+var skip_teardowns = false
+var member_keeps_holders = false
 
 # ../../../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class
 func plain_counts(types: String, bodies: String, main_function: String): String {
@@ -43,6 +55,7 @@ func plain_counts(types: String, bodies: String, main_function: String): String 
     var taken_in_main = mentions(main_function, true)
     taken_in_main.each(roots.append)
     reach_from_roots()
+    group_pieces.each(share_group_members)
     note_free_guards()
     if counted_unknown and free_guard_count == 0 {
         return bodies
@@ -400,6 +413,7 @@ func is_space_at(text: String, index: Integer): Boolean {
 }
 
 func note_mention(text: String, start: Integer, end: Integer, only_taken: Boolean, found: List<Integer>) {
+    assert not skip_teardowns or not ends_with_at(text, start, "spite_singleton_created(")
     var position = table.find_function(text, start, end)
     if position >= 0 and not only_taken {
         found.append(position)
@@ -413,7 +427,9 @@ func note_taken(text: String, start: Integer, position: Integer, found: List<Int
     while before > 0 and is_space_at(text, before - 1) {
         before = before - 1
     }
-    if ends_with_at(text, before, "->spite_typed_call = (void*)") {
+    if ends_with_at(text, before, "->spite_typed_call = (void*)") and is_group_piece(position) {
+        group_pieces.append(position)
+    } else if ends_with_at(text, before, "->spite_typed_call = (void*)") {
         typed_targets.append(position)
     } else if ends_with_at(text, before, "->spite_call = (void (*)(void*))") {
         dropping_targets.append(position)
@@ -650,6 +666,255 @@ func reach_piece(position: Integer, waiting: List<Integer>) {
     mentioned.each(waiting.append)
 }
 
+# ../../../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts
+func is_group_piece(position: Integer): Boolean {
+    crash piece_names[position]
+    var name = piece_names[position]
+    return name.contains("_spite_row_") and name.ends_with("_piece")
+}
+
+func share_group_members(piece_position: Integer) {
+    var targets = member_targets(piece_position)
+    if targets.is_empty() {
+        var waiting = [piece_position]
+        reach_all(waiting)
+        reach_from_roots()
+        return
+    }
+    var blocked = Dictionary<Integer, Boolean>()
+    var index = 0
+    while index < targets.count() {
+        var blocked_target = targets[index]
+        blocked[blocked_target] = true
+        index = index + 1
+    }
+    member_keeps_holders = true
+    member_walk(piece_position, blocked)
+    member_keeps_holders = false
+    var own = member_counted.keys()
+    own.each(note_shared)
+    var own_made = member_made.keys()
+    own_made.each(note_made_elsewhere_class)
+    var counted_sets = List<Dictionary<String, Boolean>>()
+    var made_sets = List<Dictionary<String, Boolean>>()
+    var no_block = Dictionary<Integer, Boolean>()
+    index = 0
+    while index < targets.count() {
+        member_walk(targets[index], no_block)
+        counted_sets.append(member_counted)
+        made_sets.append(member_made)
+        index = index + 1
+    }
+    var first = 0
+    while first < targets.count() {
+        var second = first + 1
+        while second < targets.count() {
+            if runs_together(targets[first], targets[second]) {
+                crash counted_sets[first]
+                crash counted_sets[second]
+                crash made_sets[first]
+                crash made_sets[second]
+                share_common(counted_sets[first], counted_sets[second], group_shared)
+                share_common(made_sets[first], made_sets[second], group_made)
+            }
+            second = second + 1
+        }
+        first = first + 1
+    }
+}
+
+func runs_together(first: Integer, second: Integer): Boolean {
+    crash piece_names[first]
+    crash piece_names[second]
+    var first_name = piece_names[first]
+    var second_name = piece_names[second]
+    return together.has("{first_name}|{second_name}") or together.has("{second_name}|{first_name}")
+}
+
+func share_common(
+    first: Dictionary<String, Boolean>,
+    second: Dictionary<String, Boolean>,
+    into: Dictionary<String, Boolean>,
+) {
+    var names = first.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if second.has(name) {
+            into[name] = true
+        }
+        index = index + 1
+    }
+}
+
+func note_shared(counted_class: String) {
+    group_shared[counted_class] = true
+}
+
+func note_made_elsewhere_class(made_class: String) {
+    group_made[made_class] = true
+}
+
+func counts_shared(counted_class: String): Boolean {
+    return shared.has(counted_class) or group_shared.has(counted_class)
+}
+
+# ../../../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts
+func pools_per_thread(class_name: String): Boolean {
+    return group_shared.has(class_name) or group_made.has(class_name)
+}
+
+func member_targets(piece_position: Integer): List<Integer> {
+    var targets = List<Integer>()
+    crash pieces[piece_position]
+    var piece = pieces[piece_position]
+    var marker = "___call_"
+    var at = piece.index_of(marker)
+    if at < 0 {
+        return targets
+    }
+    var name = table.name_before(piece, at)
+    var end = name_end_from(piece, at)
+    var dispatcher_name = "{name}{piece.slice(at, end)}"
+    var dispatcher_length = dispatcher_name.length()
+    var dispatcher = table.find_function(dispatcher_name, 0, dispatcher_length)
+    if dispatcher < 0 {
+        return targets
+    }
+    crash pieces[dispatcher]
+    crash next_same[dispatcher]
+    if next_same[dispatcher] >= 0 {
+        return targets
+    }
+    var lines = pieces[dispatcher].split("\n")
+    var index = 1
+    while index < lines.count() {
+        var line = lines[index]
+        var open = line.index_of(") \{ ")
+        var tested = line.contains("->class_id == ") or line.contains(".tag == ")
+        if tested and open > 0 {
+            var line_length = line.length()
+            var rest = line.slice(open + 4, line_length)
+            var call_open = rest.index_of("(")
+            var target = table.find_function(rest, 0, call_open)
+            assert call_open > 0 and target >= 0
+            targets.append(target)
+        }
+        index = index + 1
+    }
+    return targets
+}
+
+func member_walk(start: Integer, blocked: Dictionary<Integer, Boolean>) {
+    member_reached = List<Boolean>()
+    var index = 0
+    while index < pieces.count() {
+        member_reached.append(false)
+        index = index + 1
+    }
+    member_counted = Dictionary<String, Boolean>()
+    member_made = Dictionary<String, Boolean>()
+    member_arities = Dictionary<String, Boolean>()
+    member_typed_unknown = false
+    member_dropping = false
+    var waiting = [start]
+    while not waiting.is_empty() {
+        member_reach_all(waiting, blocked)
+        add_member_values(waiting)
+    }
+}
+
+func member_reach_all(waiting: List<Integer>, blocked: Dictionary<Integer, Boolean>) {
+    while not waiting.is_empty() {
+        var position = waiting.last()
+        crash position
+        waiting.remove_last()
+        if member_reached[position] == false and not blocked.has(position) {
+            member_reached[position] = true
+            member_reach_piece(position, waiting)
+        }
+    }
+}
+
+func add_member_values(waiting: List<Integer>) {
+    var index = 0
+    while index < typed_targets.count() {
+        var target = typed_targets[index]
+        var arity = target_arity(target)
+        var called = member_typed_unknown or arity == "unknown" or member_arities.has(arity)
+        if member_reached[target] == false and called {
+            waiting.append(target)
+        }
+        index = index + 1
+    }
+    index = 0
+    while member_dropping and index < dropping_targets.count() {
+        var target = dropping_targets[index]
+        if member_reached[target] == false {
+            waiting.append(target)
+        }
+        index = index + 1
+    }
+}
+
+func member_reach_piece(position: Integer, waiting: List<Integer>) {
+    crash pieces[position]
+    crash piece_names[position]
+    crash next_same[position]
+    var piece = pieces[position]
+    var name = piece_names[position]
+    if next_same[position] >= 0 {
+        waiting.append(next_same[position])
+    }
+    var counts = piece.contains("SPITE_COUNT_UP(") or piece.contains("SPITE_COUNT_DOWN(")
+    if counts and position >= first_body and not counts_its_own(name) {
+        counted_unknown = true
+    }
+    var counted_class = counted_class_of(name)
+    if not counted_class.is_empty() {
+        member_counted[counted_class] = true
+        var released = "{counted_class}___release"
+        var released_length = released.length()
+        var release = table.find_function(released, 0, released_length)
+        if release >= 0 {
+            waiting.append(release)
+        } else if counts and not piece.contains("(self->header.ref_count)") {
+            counted_unknown = true
+        }
+    }
+    assert not member_keeps_holders or not name.ends_with("___release")
+    note_member_value_calls(piece)
+    note_member_made(piece, name)
+    skip_teardowns = true
+    var mentioned = mentions(piece, false)
+    skip_teardowns = false
+    mentioned.each(waiting.append)
+}
+
+func note_member_value_calls(piece: String) {
+    var saved_arities = called_arities
+    var saved_unknown = typed_calls_unknown
+    var saved_dropping = dropping_called
+    called_arities = member_arities
+    typed_calls_unknown = member_typed_unknown
+    dropping_called = member_dropping
+    note_value_calls(piece)
+    member_arities = called_arities
+    member_typed_unknown = typed_calls_unknown
+    member_dropping = dropping_called
+    called_arities = saved_arities
+    typed_calls_unknown = saved_unknown
+    dropping_called = saved_dropping
+}
+
+func note_member_made(piece: String, name: String) {
+    var saved = made_elsewhere
+    made_elsewhere = member_made
+    note_made_elsewhere(piece, name)
+    member_made = made_elsewhere
+    made_elsewhere = saved
+}
+
 func note_made_elsewhere(piece: String, name: String) {
     if name.ends_with("___free") {
         var name_length = name.length()
@@ -712,6 +977,17 @@ func rewritten_bodies(): String {
         } else if shared.has(counted_class) {
             note_class(shared_classes, counted_class)
             kept.append(piece)
+        } else if group_shared.has(counted_class) {
+            note_class(shared_classes, counted_class)
+            var row_up = piece.replace(
+                "SPITE_COUNT_UP(self->header.ref_count)",
+                "SPITE_ROW_COUNT_UP(self->header.ref_count)",
+            )
+            var row = row_up.replace(
+                "SPITE_COUNT_DOWN(self->header.ref_count)",
+                "SPITE_ROW_COUNT_DOWN(self->header.ref_count)",
+            )
+            kept.append(row)
         } else {
             note_class(plain_classes, counted_class)
             var plain_up = piece.replace(
@@ -730,7 +1006,7 @@ func rewritten_bodies(): String {
 }
 
 func is_plain_union_retain(piece: String, counted_class: String): Boolean {
-    if shared.has(counted_class) or not piece.contains("SPITE_COUNT_UP(((SpiteHeader*)self") {
+    if counts_shared(counted_class) or not piece.contains("SPITE_COUNT_UP(((SpiteHeader*)self") {
         return false
     }
     var released = "{counted_class}___release"
@@ -759,7 +1035,7 @@ func is_plain_member(position: Integer): Boolean {
         return true
     }
     var member = counted_class_of(name)
-    return not member.is_empty() and not shared.has(member)
+    return not member.is_empty() and not counts_shared(member)
 }
 
 func note_class(names: List<String>, counted_class: String) {

@@ -3,6 +3,7 @@ var class_files = List<DiscoveredClass>()
 var has_error = false
 var error_message = ""
 var walking_library = false
+var internal_allowed = false
 var language_folder = "."
 var build = Build()
 var host_operating_system = build.target_operating_system
@@ -272,6 +273,84 @@ func mark_program_load() {
     }
 }
 
+func part_of_the_compiler(path: String): Boolean {
+    return path == "bootstrap/bootstrap.spite" or path.ends_with("/bootstrap/bootstrap.spite") or path.ends_with("\\bootstrap\\bootstrap.spite")
+}
+
+func internal_name_error(path: String, line: Integer, name: String): String {
+    var place = path
+    if line > 0 {
+        place = "{path}:{line}"
+    }
+    return "{place}: error: {name} is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+}
+
+func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {
+    var index = from
+    var skipping = true
+    while skipping and index < tokens.count() {
+        var token = tokens[index]
+        skipping = token.kind == 'newline' or token.kind == 'comment'
+        if skipping {
+            index = index + 1
+        }
+    }
+    return index
+}
+
+func internal_member(tokens: List<Syntax.Token>, internal: Integer): String {
+    var name = "Spite.Internal"
+    var after = next_significant(tokens, internal + 1)
+    var member = next_significant(tokens, after + 1)
+    if member < tokens.count() {
+        crash tokens[after]
+        var after_token = tokens[after]
+        var member_token = tokens[member]
+        if after_token.kind == 'dot' and member_token.kind == 'identifier' {
+            name = "Spite.Internal.{member_token.lexeme}"
+        }
+    }
+    return name
+}
+
+func names_internal(tokens: List<Syntax.Token>, index: Integer): Boolean {
+    var dot = next_significant(tokens, index + 1)
+    var internal = next_significant(tokens, dot + 1)
+    if internal >= tokens.count() {
+        return false
+    }
+    crash tokens[dot]
+    var dot_token = tokens[dot]
+    var internal_token = tokens[internal]
+    return dot_token.kind == 'dot' and internal_token.lexeme == "Internal"
+}
+
+func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_override: Integer) {
+    assert not walking_library and not internal_allowed
+    var index = 0
+    while index < tokens.count() and not has_error {
+        var word = tokens[index]
+        var line = word.line
+        if line_override > 0 {
+            line = line_override
+        }
+        if word.kind == 'interpolation' {
+            var hole_lexer = Syntax.Lexer(word.text)
+            if not hole_lexer.has_error {
+                refuse_internal_names(path, hole_lexer.tokens, line)
+            }
+        }
+        if word.kind == 'identifier' and word.lexeme == "Spite" and names_internal(tokens, index) {
+            var dot = next_significant(tokens, index + 1)
+            var internal = next_significant(tokens, dot + 1)
+            var member_name = internal_member(tokens, internal)
+            has_error = true
+            error_message = internal_name_error(path, line, member_name)
+        }
+        index = index + 1
+    }
+}
+
 func discover_program(entry_path: String, entry_source: String) {
     program_paths.append(entry_path)
     program_texts[entry_path] = entry_source
@@ -282,6 +361,9 @@ func discover_program(entry_path: String, entry_source: String) {
         return
     }
     check_comments(entry_path, lexer.tokens)
+    assert not has_error
+    internal_allowed = part_of_the_compiler(entry_path)
+    refuse_internal_names(entry_path, lexer.tokens, 0)
     assert not has_error
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
@@ -948,6 +1030,8 @@ func read_and_add_file(path: String, segments: List<String>) {
         }
         check_comments(path, lexer.tokens)
         assert not has_error
+        refuse_internal_names(path, lexer.tokens, 0)
+        assert not has_error
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()
         if parser.has_error {
@@ -1009,6 +1093,11 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         library_classes.append(qualified_dotted)
     }
     var existing = class_files.find_by_qualified_dotted(qualified_dotted)
+    if existing and not walking_library and not internal_allowed and qualified_dotted.starts_with("Spite.Internal.") {
+        has_error = true
+        error_message = internal_name_error(parsed_file.path, 0, qualified_dotted)
+        return
+    }
     if existing {
         if qualified_dotted == entry_qualified {
             has_error = true
@@ -1023,10 +1112,19 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         if qualified_dotted == "Build" and following_loads {
             kept_names = program_build_fields
         }
+        if not walking_library and library_classes.contains(qualified_dotted) {
+            check_hand_copies(existing, parsed_file)
+            assert not has_error
+        }
         reopen_class(class_file_file, parsed_file, kept_names)
         return
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
+        if qualified_dotted.starts_with("Spite.Internal.") {
+            error_message = internal_name_error(parsed_file.path, 0, qualified_dotted)
+            has_error = true
+            return
+        }
         has_error = true
         error_message = "{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
         return
@@ -1172,6 +1270,146 @@ func note_program_build_fields(build: Syntax.SourceFile) {
         }
         index = index + 1
     }
+}
+
+func check_hand_copies(library_class: DiscoveredClass, reopening: Syntax.SourceFile) {
+    var attributes = List<String>()
+    var operators = List<Syntax.Statements.FunctionDeclaration>()
+    var original = library_class.file
+    var index = 0
+    while index < original.statements.count() {
+        var variable = shape.as_variable_declaration(original.statements[index])
+        if variable {
+            attributes.append(variable.name)
+        }
+        var declared = shape.as_function_declaration(original.statements[index])
+        if declared {
+            if operator_symbol(declared.name) != "" {
+                operators.append(declared)
+            }
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < reopening.statements.count() and not has_error {
+        var added = shape.as_function_declaration(reopening.statements[index])
+        if added {
+            check_hand_copy(library_class, added, reopening.path, attributes, operators)
+        }
+        index = index + 1
+    }
+}
+
+func check_hand_copy(
+    library_class: DiscoveredClass,
+    added: Syntax.Statements.FunctionDeclaration,
+    path: String,
+    attributes: List<String>,
+    operators: List<Syntax.Statements.FunctionDeclaration>,
+) {
+    var own_type = library_class.simple_name
+    var added_types = List<String>()
+    var operands = 0
+    var index = 0
+    while index < added.parameters.count() {
+        var type_name = parameter_type_name(added.parameters[index])
+        added_types.append(type_name)
+        if type_name == own_type {
+            operands = operands + 1
+        }
+        index = index + 1
+    }
+    assert operands != 0 and assigns_attribute(added.body, attributes)
+    crash added.parameters.count() > 0
+    index = 0
+    while index < operators.count() {
+        var candidate = operators[index]
+        if library_operator_answers(candidate, added_types) {
+            has_error = true
+            var symbol = operator_symbol(candidate.name)
+            var first = added.parameters[0].name
+            var example = "target = {symbol}{first}"
+            var values = "one {own_type} value"
+            if candidate.parameters.count() > 0 and added.parameters.count() > 1 {
+                var second = added.parameters[1].name
+                example = "target = {first} {symbol} {second}"
+                values = "two {own_type} values"
+            }
+            error_message = "{path}:{added.line}: error: '{library_class.plain_dotted}.{added.name}', added by this reopening, rewrites this {own_type} from {values}, which the library's '{symbol}' already answers: write '{example}' (the answer is built in target's place)"
+            return
+        }
+        index = index + 1
+    }
+}
+
+func library_operator_answers(candidate: Syntax.Statements.FunctionDeclaration, added_types: List<String>): Boolean {
+    if candidate.parameters.count() + 1 != added_types.count() {
+        return false
+    }
+    var index = 0
+    while index < candidate.parameters.count() {
+        var needed = parameter_type_name(candidate.parameters[index])
+        if not added_types.contains(needed) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func operator_symbol(name: String): String {
+    switch name {
+        "sum": return "+"
+        "subtract": return "-"
+        "multiply": return "*"
+        "divide": return "/"
+        "remainder": return "%"
+        "negate": return "-"
+        _: return ""
+    }
+}
+
+func parameter_type_name(parameter: Syntax.Statements.Parameter): String {
+    if parameter.type_reference {
+        var named = shape.as_named_type(parameter.type_reference)
+        if named {
+            var last = named.path[named.path.count() - 1]
+            if last {
+                return last
+            }
+        }
+    }
+    return ""
+}
+
+func assigns_attribute(body: List<Syntax.Statements.Statement>, attributes: List<String>): Boolean {
+    var index = 0
+    while index < body.count() {
+        var statement = body[index]
+        var assignment = shape.as_assignment_statement(statement)
+        if assignment {
+            if assignment.target {
+                var written = shape.as_identifier(assignment.target)
+                if written and attributes.contains(written.name) {
+                    return true
+                }
+            }
+        }
+        var branch = shape.as_if_statement(statement)
+        if branch {
+            if assigns_attribute(branch.then_branch, attributes) or assigns_attribute(branch.else_branch, attributes) {
+                return true
+            }
+        }
+        var loop = shape.as_while_statement(statement)
+        if loop {
+            if assigns_attribute(loop.body, attributes) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kept_names: List<String>) {

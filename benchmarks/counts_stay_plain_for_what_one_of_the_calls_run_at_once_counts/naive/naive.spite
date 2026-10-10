@@ -1,0 +1,14 @@
+type Collection {
+    sort()
+}
+
+var console = Console()
+var library = Library()
+var sorter = Sorter()
+
+func Naive() {
+    var benchmark = Benchmark(sorter.sort_all)
+    console.print(library.archive.kept_total, library.gallery.hung_total)
+    var microseconds = benchmark.duration.total('microseconds')
+    console.error("microseconds {microseconds}")
+}

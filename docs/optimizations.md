@@ -2271,6 +2271,111 @@ still read and counted.
 for every entity and component, ticks in 43.8 ms instead of 48.1 (40.3 instead of 43.3 as one C file). What a
 crash report says, allocations and everything a program prints are the same.
 
+### A write-back of what the slot already holds is not written
+
+**The case:** [benchmarks/a_write_back_of_what_the_slot_already_holds_is_not_written](../benchmarks/a_write_back_of_what_the_slot_already_holds_is_not_written/).
+
+**What it does.** A common shape splits the read and the write-back between functions: one copies an item of a list
+into an attribute, the caller changes the item through that attribute, and another function stores the attribute
+back into the slot:
+
+```gdscript title=written_back_across_calls/page.spite
+var words = 0
+
+func Page(starting_words: Integer) {
+    words = starting_words
+}
+```
+```gdscript title=written_back_across_calls/shelf.spite
+singleton
+
+var pages = List<Page>()
+var open = Page(0)
+var at = 0
+
+func stock(count: Integer) {
+    var index = 0
+    while index < count {
+        var made = Page(index * 10)
+        pages.append(made)
+        index = index + 1
+    }
+}
+
+func take(index: Integer) {
+    at = index
+    crash pages[at]
+    open = pages[at]
+}
+
+func put_back() {
+    pages[at] = open
+}
+
+func total(): Integer {
+    return pages.sum_words()
+}
+```
+```gdscript title=written_back_across_calls/written_back_across_calls.spite entry
+var console = Console()
+var shelf = Shelf()
+
+func WrittenBackAcrossCalls() {
+    shelf.stock(4)
+    var round = 0
+    while round < 3 {
+        shelf.take(1)
+        shelf.open.words = shelf.open.words + 3
+        shelf.put_back()
+        round = round + 1
+    }
+    var total = shelf.total()
+    console.print(total)
+}
+```
+```output
+69
+```
+
+The compiler follows the values themselves through the calls. After `shelf.take(1)`, `at` holds 1 and `open` holds
+the object `pages[1]` holds; changing `shelf.open.words` changes that object and assigns neither `open`, `at` nor the
+list. So in `put_back`, `pages[at] = open` stores into `pages[1]` the object `pages[1]` already holds, and its bounds
+check is the one `take` already passed: the call does nothing a program could see, and the compiler writes no call
+for it. The loop above becomes:
+
+```c
+while (((round_ < 3))) {
+Shelf_take(self->shelf_, 1);
+/* shelf.open.words = shelf.open.words + 3, overflow checked */
+round_ = (round_ + 1);
+}
+```
+
+The same holds when the read, the change and the write-back are each several calls deep, which is how an entity
+system copies components into a row, runs a system on the row and stores the row back: a copy through templates and
+helpers into a row's attributes, with the row's position in each column followed through an attribute that counts
+up as the attributes are filled, is a copy of exactly the slots the write-back stores into. Whatever the dropped call
+would also have left behind is kept: a counter it would have left at 2 is set to 2.
+
+When a path between the copy and the write-back may change what the proof relies on, the write-back is kept on that
+path only. If the function that writes back starts by finding the slot again for an entity other than the one copied
+(`if entity != filled { ... }`), the generated C remembers whether that branch ran and stores only then. And anything
+in the way keeps the write exactly as written: storing another page into the slot, assigning `open` or `at`, removing
+from or reordering the list, a call through a function value, a wait, or a thread the program starts that may write
+the list. What may come between, and why, is [the proof](proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from).
+
+**When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, in the program's own classes,
+for a call made as a statement whose arguments are names, attributes, items and numbers, and whose function only
+reads, checks what the program already checked, assigns numbers to attributes of the object it runs on, and stores
+into lists what their slots already hold. Every place the function holding the call can be called from must be known
+to the compiler: a function passed as a value, run on another thread, reached through reflection or called by a
+library template is left as it is. Not in a program that uses `Concurrent`, or whose `drop()` stores into lists.
+
+**What you notice.** Speed. The case's hundred passes over 100 000 pages take 26.6 ms instead of 45.6; the naive
+engine's stress tick takes 17.2 ms instead of 20.2 as one C file (21.5 instead of 25.6 split). Allocations, the order
+of everything a program can see and what it prints are the same. Compiling takes longer for a program with many
+candidate calls, since each is followed through its callers.
+
 ### An item a name holds from its list is not counted
 
 **The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).
@@ -2576,8 +2681,8 @@ is 922 lines with this, the crash trace and the foreign library changes in [Smal
 against 1 356 without them.
 
 **Freed small blocks are not kept by size.** Keeping each freed object of up to 256 bytes on a per-thread
-list for its size, for the next allocation of that size, was tried and is not done (objects a list holds are kept
-by class instead, [below](#objects-of-one-class-sit-together)): it was not a clear,
+list for its size, for the next allocation of that size, was tried and is not done (objects are kept by class
+instead, [below](#objects-of-one-class-sit-together)): it was not a clear,
 repeatable gain on a game engine, the program it was for. Against the plain C allocator, `clang -O2`, best of
 nine interleaved runs on one machine: `examples/stress` ticks 42.9 ms with it and 41.9 without in parallel,
 49.0 and 50.9 single-threaded, 60 ticks after despawning 87.7 and 87.2 ms; only the 200 000 spawns (449 and 504
@@ -2589,12 +2694,14 @@ the cost of up to 2 MB kept per thread.
 
 **The case:** [benchmarks/objects_of_one_class_sit_together](../benchmarks/objects_of_one_class_sit_together/).
 
-**What it does.** Every object of a class that a list holds is made from that class's own pool: blocks the size of
-one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
+**What it does.** Every object of a class made and let go on the program's own thread is made from that class's own
+pool: blocks the size of one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
 object. The C library's allocator puts each object wherever a block of its size is free, so objects of different
 classes made in turn (an entity's position, then its velocity, then its health) end up interleaved, and a loop over
 one class's list touches a new cache line for every object. From their class's pool, the positions sit side by
-side, four 16-byte objects to a 64-byte line, and the loop reads its memory in order.
+side, four 16-byte objects to a 64-byte line, and the loop reads its memory in order. A class made and let go over
+and over, such as the links of a chain made and dropped each round, is made and given back with a few plain
+writes instead of a call into the C library each time.
 
 ```gdscript title=nearby_points/point.spite
 var across = 0
@@ -2645,24 +2752,70 @@ A point and a note are made in turn, a thousand times. Each `Point` comes from `
 `Note`'s, so the loop that sums the points reads one run of points after another and never a note. A point let go
 goes back to `Point`'s pool, and the next `Point` made takes its place.
 
+No list has to hold a class's objects for it to have a pool. Each round below makes a chain of a hundred links and
+lets it go: every `Link` after the first round is one a previous chain gave back, and nothing is asked of the C
+library at all.
+
+```gdscript title=chain_links/link.spite
+var value = 0
+var next: Link? = null
+
+func Link(new_value: Integer, new_next: Link?) {
+    value = new_value
+    next = new_next
+}
+```
+```gdscript title=chain_links/chain_links.spite entry
+var console = Console()
+
+func ChainLinks() {
+    var total = 0
+    var round = 0
+    while round < 100 {
+        var head = Link(0, null)
+        var index = 1
+        while index < 100 {
+            var added = Link(index, head)
+            head = added
+            index = index + 1
+        }
+        var current: Link? = head
+        while current {
+            total = total + current.value
+            current = current.next
+        }
+        round = round + 1
+    }
+    console.print("total", total)
+}
+```
+```output
+total 495000
+```
+
 A pool starts with room for 16 objects and doubles the room it takes each time it runs out, until a run of
 blocks is at least 256 KiB, each run starting on a cache line. Taking an object is a read of the last one given back, or the next free block; giving
-one back is two writes. Nothing else runs: there is no collector and no table, and a class whose objects no list
-holds keeps the C library's allocator.
+one back is two writes. Nothing else runs: there is no collector and no table.
 
 **When.** Production builds, ordinary or `--optimized`, that allocate with the C library's `malloc` and `free`:
 not a `--debug-memory` build, whose table names every object, not a program that reads
 `Memory.Heap().live_allocations()` or `live_bytes()`, which count the C library's blocks, and not an inspectable
-build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). A class qualifies when the program keeps its objects in a list
-(a `List`, or anything built on `TypedMemory<T>` the same way, such as a `Dictionary`'s values), and it is not a
-singleton. In a program with
-threads, a class qualifies only when no code that can run on another thread counts, makes or frees one of its
-objects ([Proofs](proofs.md#objects-a-list-holds-made-on-one-thread)); a pool has no lock.
+build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). A class qualifies when it is not a singleton and
+frees its objects through its own release alone. One that holds memory of its own (an attribute that is a
+`Memory.Address`, as a `List`, a `Vector`, an `Items` and a `Dictionary` do) qualifies only when the program keeps
+its objects in a list (a `List`, or anything built on `TypedMemory<T>` the same way, such as a `Dictionary`'s
+values): a container's own object is read beside its items, and taken from a pool it slowed `particles` by a tenth.
+In a program with threads, a class qualifies only when no code that can run on another thread counts, makes or
+frees one of its objects ([Proofs](proofs.md#objects-of-a-class-made-on-one-thread)); a pool has no lock.
 
 **What you notice.** Speed, and less memory: a pooled object carries no block header of the C library's. In a game
 engine's stress test (200 000 entities moved by two systems) a tick went from 64.0 to 47.6 ms (60.5 to 43.2 built
 as one C file), sixty ticks after despawning every entity from 113 to 21 ms, spawning them from 163 to 98 ms, and
-the program's peak memory from 96 to 67 MB; a physics step of 5 000 characters from 9.5 to 8.5 ms. The cost is
+the program's peak memory from 96 to 67 MB; a physics step of 5 000 characters from 9.5 to 8.5 ms.
+[allocation_is_the_c_librarys_counted_only_where_read](../benchmarks/allocation_is_the_c_librarys_counted_only_where_read/),
+which makes and drops a chain of 1 000 links 2 000 times, went from 81 to 17 ms, and
+[defaults_the_constructor_replaces_are_never_made](../benchmarks/defaults_the_constructor_replaces_are_never_made/)
+from 30 to 7 ms. The cost is
 that memory a class used stays that class's: an object given back is kept for the next object of its class, never
 for another class and never returned to the system while the program runs. A program that makes a million objects
 of one class, lets them all go and then makes a million of another holds room for both.
@@ -2845,6 +2998,59 @@ copy: allocate, copy each attribute, return, with no table and no lookup.
 copies as fast as before. A copy of a graph allocates its table once per outermost `deep_copy()` call, outside the
 counted allocations `--debug-memory` reports, and frees it before `deep_copy()` returns. A program that never deep
 copies a class that needs the table carries none of it.
+
+### A deep copy nothing changes is the original
+
+**The case:** [benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](../benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/).
+
+**What it does.** A copy is only worth making if something tells it from the original: a write to one that the
+other must not see, or a question about which object it is. When the compiler proves that nothing writes the copy
+or the original for as long as the copy lives, and that nothing in the program asks one of the copied classes for
+its identity, `var copies = orders.deep_copy()` makes nothing: `copies` is `orders`, counted once more, and is let
+go at the end of its block like any copy ([Proofs](proofs.md#a-copy-nothing-changes-is-the-original)).
+
+```gdscript title=shared_copies/order.spite
+var total = 0
+
+func Order(new_total: Integer) {
+    total = new_total
+}
+```
+```gdscript title=shared_copies/shared_copies.spite entry
+var console = Console()
+var orders = List<Order>()
+
+func SharedCopies() {
+    var index = 0
+    while index < 3 {
+        var order = Order(index * 10)
+        orders.append(order)
+        index = index + 1
+    }
+    var sum = 0
+    var round = 0
+    while round < 4 {
+        var copies = orders.deep_copy()
+        sum = sum + copies.sum_total()
+        round = round + 1
+    }
+    console.print("sum", sum)
+}
+```
+```output
+sum 120
+```
+
+Each round only reads its copy, so no round makes one: the four copies of three orders are the list itself. The
+copy is decided per place it is made, so the same class can be copied for real in another function that changes
+its copy.
+
+**When.** Every build but the inspectable ones, in a program that starts no thread and no `Concurrent`, for a copy
+the proof holds for. The decision about identity is made once the whole program is written out, so a comparison
+of the copied class anywhere keeps every copy of it real.
+
+**What you notice.** Fewer allocations under `--debug-memory`: none for the copy. Nothing else: what the program
+prints, and every value it reads through the copy, is the same.
 
 ### A word inflected while compiling
 
@@ -3824,10 +4030,10 @@ So only the reading of the classes and the table's look-ups run, a few compariso
 classes may run together, which of them are worth a thread, and the code of both forms are all decided while
 compiling.
 
-**What you notice.** Speed, when the calls are big enough, and the same output. A program whose loop can run at
-once counts atomically the classes the overlapped calls count, as every program with threads does
-([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), also on the times the table sends it in
-order.
+**What you notice.** Speed, when the calls are big enough, and the same output. A class only one of the calls
+that can run together counts keeps plain counts; one that two of them count is counted atomically while they run
+at once ([counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)), and two objects of
+one class that each belong to their owner are told apart ([objects made for their owner](#objects-made-for-their-owner-are-told-apart)).
 
 ### A loop whose passes write only their own item runs in bands
 
@@ -3907,6 +4113,225 @@ which functions qualify, what they weigh and the count they need are decided whi
 **What you notice.** Speed on heavy passes over many elements, and the same output. A pass that counts a
 reference (it reads an object out of a list, or makes one) stays in order: counting from several threads would
 make the class's counts atomic everywhere ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)).
+
+### Objects made for their owner are told apart
+
+**The case:** [benchmarks/objects_made_for_their_owner_are_told_apart](../benchmarks/objects_made_for_their_owner_are_told_apart/).
+
+**What it does.** [Calls in a row](#calls-in-a-row-run-at-once) and [a loop over different classes](#a-loop-over-a-list-of-different-classes-runs-them-at-once)
+run at once only when neither call writes what the other touches, and the compiler used to tell objects apart only
+by their class: two tracks that each keep a `Meter` of their own both "wrote `Meter`", so they ran in order. Now an
+attribute that is only ever given an object made where it is given (`var meter = Meter()`, never assigned anything
+else) holds an object no other such attribute holds, so what a call does to `drum.meter`, and to the lists inside
+it, is told apart from what another does to `bass.meter`. A function the object is passed to is followed with it:
+what `record` does to its own object is counted as done to the meter it was called on.
+
+```gdscript title=owner_meters/meter.spite
+var total: Long = 0
+var loud = List<Integer>()
+
+func record(sample: Integer) {
+    total = total + sample
+    if sample > 995 {
+        loud.append(sample)
+    }
+}
+```
+```gdscript title=owner_meters/drum.spite
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 3000000 {
+        phase = (phase + 7) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}
+```
+```gdscript title=owner_meters/bass.spite
+var meter = Meter()
+var phase = 0
+
+func render() {
+    var step = 0
+    while step < 3000000 {
+        phase = (phase + 13) % 1000
+        meter.record(phase)
+        step = step + 1
+    }
+}
+```
+```gdscript title=owner_meters/owner_meters.spite entry
+type Track {
+    render()
+}
+
+var console = Console()
+var drum = Drum()
+var bass = Bass()
+var tracks = List<Track>()
+
+func OwnerMeters() {
+    tracks.append(drum)
+    tracks.append(bass)
+    tracks.each_render()
+    var drum_loud = drum.meter.loud.count()
+    var bass_loud = bass.meter.loud.count()
+    console.print(drum.meter.total, drum_loud, bass.meter.total, bass_loud)
+}
+```
+```output
+1498500000 12000 1498500000 12000
+```
+
+`drum.render()` runs on a worker while `bass.render()` runs on the program's own thread. A `Track` handed a meter
+it did not make (`meter = shared`) holds an object that may be another's, and its calls stay in order with every
+call that touches a `Meter`.
+
+The same reckoning reaches items of lists. An item read out of a list attribute of a singleton (a matcher's
+`headers[index]`) is told apart from an item of another singleton's list when the two lists hold no object in
+common, and which objects a list holds is known only when the program has filled it; so for such a pair the loop
+compares the two lists' items when it starts (a few pointer comparisons, only for the two classes that meet), and
+runs in order when one object is in both.
+
+**When.** Every build but `--hot-reload`, `--repl` and `--development`, wherever the rows of calls and the loops
+of the pages above are decided. The attribute must be given its object only by a construction written where it is
+given (or nothing), in every function the program keeps; a `copy()` of its owner, a struct copy, or an assignment
+of anything else makes it one name among many again. A parameter is followed only into a function that does
+nothing with it but read and write through it, pass it to a list's own functions or to another such function, or
+compare it.
+
+**What you notice.** Speed, and the same output: in a game engine's stress test (200 000 entities, two systems
+that each keep a timing object, candidate lists and column indexes of their own) the two systems now run at once,
+with [counts per group](#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts); measured while the
+machine was in other use, the update stage went from 41.6 to 26.1 ms (provisional). [Proofs](proofs.md#an-object-made-for-its-owner-is-told-apart)
+states the proof; `conformance/stage6/owned_objects` runs both forms and the item check.
+
+### Counts stay plain for what one of the calls run at once counts
+
+**The case:** [benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](../benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/).
+
+**What it does.** A loop over different classes that runs them at once used to make every class its calls count
+atomic for the whole program ([plain counts](#plain-reference-counts-where-no-thread-reaches-a-class)), since its
+piece is code that runs on another thread. Now the compiler follows each class's call on its own: a class only one
+of the calls that can run together counts stays plain, and so does its pool of objects. A class two of them count is
+the meeting point: it is counted atomically while the loop runs at once and with plain arithmetic the rest of the
+time, and its pool is kept per thread.
+
+```gdscript title=own_shelves/letter.spite
+var words = 0
+
+func Letter(seed: Integer) {
+    words = seed * 7 % 1000
+}
+```
+```gdscript title=own_shelves/painting.spite
+var width = 0
+
+func Painting(seed: Integer) {
+    width = seed * 11 % 1000
+}
+```
+```gdscript title=own_shelves/archive.spite
+var letters = List<Letter>()
+var kept_total = 0
+
+func Archive() {
+    var index = 0
+    while index < 1000 {
+        var letter = Letter(index)
+        letters.append(letter)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 300 {
+        var kept = List<Letter>()
+        var index = 0
+        while index < letters.count() {
+            var letter = letters[index]
+            if letter.words % 3 == round % 3 {
+                kept.append(letter)
+            }
+            index = index + 1
+        }
+        kept_total = kept_total + kept.count()
+        round = round + 1
+    }
+}
+```
+```gdscript title=own_shelves/gallery.spite
+var paintings = List<Painting>()
+var hung_total = 0
+
+func Gallery() {
+    var index = 0
+    while index < 1000 {
+        var painting = Painting(index)
+        paintings.append(painting)
+        index = index + 1
+    }
+}
+
+func sort() {
+    var round = 0
+    while round < 300 {
+        var hung = List<Painting>()
+        var index = 0
+        while index < paintings.count() {
+            var painting = paintings[index]
+            if painting.width % 5 == round % 5 {
+                hung.append(painting)
+            }
+            index = index + 1
+        }
+        hung_total = hung_total + hung.count()
+        round = round + 1
+    }
+}
+```
+```gdscript title=own_shelves/own_shelves.spite entry
+type Collection {
+    sort()
+}
+
+var console = Console()
+var archive = Archive()
+var gallery = Gallery()
+var collections = List<Collection>()
+
+func OwnShelves() {
+    collections.append(archive)
+    collections.append(gallery)
+    collections.each_sort()
+    console.print(archive.kept_total, gallery.hung_total)
+}
+```
+```output
+100000 60000
+```
+
+The two sorts run at once. Only the archive's call counts a `Letter` and only the gallery's a `Painting`, so every
+`kept.append(letter)` and every list let go counts with a plain addition and subtraction, as in a program with no
+threads.
+
+**When.** Every production build of a program with such a loop. A class counted by code on another thread that is
+not one of these calls (a `Parallel`'s function, a callback) stays atomic everywhere, as before.
+
+**Why at run time.** The same function (a list's `append`, a release) runs inside the calls run at once and
+outside them, and telling the two apart while compiling would mean writing it twice. So for the classes two of the
+calls count, the count reads one flag the loop sets while it runs: a predictable branch the rest of the time.
+
+**What you notice.** Speed. The meeting points cost an atomic instruction only while the calls overlap; objects
+made on a worker go back to that worker's pool. Measured while the machine was in other use, the case above went
+from 21.7 to 14.1 ms; in the game engine's stress test, these counts and the per-owner facts above take the update
+stage from 41.6 to 26.1 ms, while the sixty ticks after despawning everything went from 27.9 to 33.0 ms (the columns
+the worker moved are read back by the program's own thread, and each empty tick starts the pool); all provisional. [Proofs](proofs.md#what-one-of-the-calls-run-at-once-counts)
+states the proof.
 
 ### A crash's report is kept out of the way
 

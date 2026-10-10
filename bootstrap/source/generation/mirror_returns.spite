@@ -1,0 +1,7 @@
+var states = List<MirrorState>()
+var values = List<MirrorValue>()
+
+func note_return(state: MirrorState, value: MirrorValue) {
+    states.append(state)
+    values.append(value)
+}

@@ -11,7 +11,8 @@ copied, so a graph keeps its shape; every other class gets a plain copy: allocat
 ## The four forms
 
 - [`naive/`](naive/): 5 000 orders, each with its own customer (a name and a level) and four lines (a quantity and
-  a price), and 40 rounds that each deep copy the whole list, add up the copies' values, and let the copy go.
+  a price), and 40 rounds that each deep copy the whole list, change the first copy's order (so the copy is a real one, not the
+  shared original of [a deep copy nothing changes](../../docs/optimizations.md#a-deep-copy-nothing-changes-is-the-original)), add up the copies' values, and let the copy go.
 - [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: a struct and a `malloc` per
   object, a growable array of pointers per list, each name on the heap, and a deep copy function per struct written
   by hand, with no table, since its author can see that nothing leads back.

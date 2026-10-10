@@ -24,7 +24,12 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
   and in a production build only for the classes whose objects code on another thread can retain or release;
   every other program, and every other class, counts with plain arithmetic
   ([optimizations.md](../docs/optimizations.md#atomic-reference-counts-only-with-threads),
-  [plain counts](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)).
+  [plain counts](../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)). A loop over a
+  list of different classes that may run them at once ([concurrency](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting))
+  is followed class by class: a class that only one of the calls able to run together retains, releases, makes or
+  frees, and no other code on another thread does, keeps plain counts and its pool; a class two of them count is
+  counted atomically while the loop runs them at once and plainly otherwise, and its pool of objects is kept per
+  thread ([counts per group](../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts)).
 - **`drop()`.** A class may define `func drop() { ... }` to run cleanup the moment its last reference goes (closing
   a file handle, logging, clearing a back-reference to help break a cycle by hand, see below). It takes no
   parameters and returns nothing; the compiler calls it automatically, never by name.
@@ -239,9 +244,10 @@ is the same whichever it makes:
   by its constructor lives in the frame on the same terms when its class also holds text, lists, dictionaries or
   other objects (and is not a container): what it holds is let go where the local's scope ends, and returning it
   moves it to the heap, attributes and all.
-- **Heap, in its class's pool:** an object on the heap whose class the program keeps in a list (the item of a
-  `List`, or of anything else built on `TypedMemory<T>`, such as a `Dictionary`'s values), when the class is not a
-  singleton and, in a program with threads, no code that can run on another thread counts, makes, copies or frees
+- **Heap, in its class's pool:** an object on the heap whose class is not a singleton and frees its objects only
+  through its own release, when the class holds no `Memory.Address` attribute or the program keeps its objects in a
+  list (the item of a `List`, or of anything else built on `TypedMemory<T>`, such as a `Dictionary`'s values), and,
+  in a program with threads, no code that can run on another thread counts, makes, copies or frees
   one of its objects. The class's objects come from blocks of their own size side by side, in runs of 16 objects
   doubling until a run is at least 256 KiB, each run starting on a 64-byte boundary; an object let go is kept for
   the class's next object and is never handed to another class or back to the system while the program runs. Its

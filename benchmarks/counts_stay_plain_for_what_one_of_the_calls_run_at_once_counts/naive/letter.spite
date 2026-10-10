@@ -1,0 +1,5 @@
+var words = 0
+
+func Letter(seed: Integer) {
+    words = seed * 7 % 1000
+}

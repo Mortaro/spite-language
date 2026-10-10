@@ -16,7 +16,20 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var copy_sites = List<String>()
+var copy_site_copies = List<String>()
+var copy_site_types = List<Analysis.SpiteType>()
+var copy_site_graphs = List<String>()
+var identity_classes = Dictionary<String, Boolean>()
+var sharing_copy = false
+var sharing_copy_site = ""
+var copy_site_returns_plain = false
+var read_only_functions = Dictionary<String, Boolean>()
+var writing_functions = Dictionary<String, Boolean>()
+var reading_functions = List<String>()
+var tentative_reads = List<String>()
 var reaching_classes = Dictionary<String, Boolean>()
+var plainly_copied_classes = Dictionary<String, Boolean>()
 var copy_table_written = false
 var weak_copy_pending_written = false
 var terminal_if: Syntax.Statements.IfStatement? = null
@@ -164,6 +177,7 @@ var generating_overlap = false
 var listed_ended_in_return = false
 var overlap_groups = 0
 var row_groups = 0
+var rows_running_noted = false
 var row_sites = List<RowSite>()
 var band_threshold: Long = 1000000
 var band_minimum_weight: Long = 256
@@ -494,6 +508,23 @@ var pending_constraint_owners = List<String>()
 var pending_constraint_functions = List<String>()
 var failed_constraints = List<String>()
 var call_effects = CallEffects()
+var mirror_on = false
+var mirror_quiet = false
+var mirror_threads = false
+var mirror_maker = MirrorMaker()
+var mirror_functions = Dictionary<String, MirrorFunction>()
+var mirror_candidates = Dictionary<String, Integer>()
+var mirror_candidate_keys = List<String>()
+var mirror_candidate_flags = Dictionary<String, List<Integer>>()
+var mirror_flag_lines = Dictionary<String, List<Integer>>()
+var mirror_set_lines = Dictionary<String, List<String>>()
+var mirror_unknown_callers = Dictionary<String, Boolean>()
+var mirror_unknown_names = Dictionary<String, Boolean>()
+var mirror_unknown_classes = Dictionary<String, Boolean>()
+var mirror_local_names = List<String>()
+var mirror_temporaries = 0
+var mirror_async_effects = List<String>()
+var mirror_atomic = Dictionary<String, List<String>>()
 var item_values = ItemValues()
 var item_values_on = false
 var item_function: Analysis.FunctionInfo? = null
@@ -530,6 +561,7 @@ func report(message: String) {
         nested_quiet_reported = true
         return
     }
+    assert not mirror_quiet
     has_error = true
     assert not statement_poisoned
     assert not refused_serialiser or not is_serialiser_path(current_path)
@@ -948,6 +980,7 @@ func generate(
         item_values.study(discovery.class_files)
     }
     overlap_allowed = not hot_reload and not read_evaluate_print_loop and not development
+    mirror_on = overlap_allowed and remote_loop_port == 0 and not keeps_internals and not reload_host
     var string_layout_code = string_layout()
     builder.replace_typedef(string_layout_position, string_layout_code)
     check_number_memory()
@@ -1083,6 +1116,7 @@ func generate(
     if not has_error {
         report_unused_attributes()
     }
+    finish_copy_sites()
     finish_allocated_classes()
     finish_allocator_reads()
     slot_live_supports()
@@ -1096,12 +1130,19 @@ func generate(
     builder.hot_reload = hot_reload
     builder.folds = not hot_reload and not read_evaluate_print_loop and not reload_host
     builder.counts_by_class = not hot_reload and not read_evaluate_print_loop and not reload_host
+    builder.buffer_holders = buffer_holder_names()
     builder.debug_memory = debug_memory
     builder.nested_lists = nested_lists
     builder.constant_texts = constant_texts
     if item_values_on {
         item_values.settle()
         builder.apply_item_values(item_values)
+    }
+    if not mirror_threads and not scheduler_used {
+        mirror_finish(discovery.class_files)
+    } else {
+        var nothing_decided = Dictionary<String, MirrorDecision>()
+        builder.rewrite_mirrors(nothing_decided, mirror_atomic)
     }
     var rendered = ""
     if renders_program {
@@ -2991,6 +3032,28 @@ func check_plain_items(instance: Analysis.ClassInfo) {
     report(
         "'{instance.qualified_dotted}<{label}>' holds plain values, and a List keeps numbers, Boolean, enums and Memory.Address flat just as it did, so a list of them has one spelling: write 'List<{label}>'",
     )
+}
+
+# ../../../docs/optimizations.md#objects-of-one-class-sit-together
+func buffer_holder_names(): Dictionary<String, Boolean> {
+    var names = Dictionary<String, Boolean>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var field_index = 0
+        while field_index < information.fields.count() {
+            var field_type = information.fields[field_index].type
+            var scalar = type_shape.as_scalar(field_type)
+            if scalar {
+                if scalar.kind == 'address_kind' {
+                    names[information.c_name] = true
+                }
+            }
+            field_index = field_index + 1
+        }
+        index = index + 1
+    }
+    return names
 }
 
 func is_address_type(spite_type: Analysis.SpiteType): Boolean {
@@ -11906,6 +11969,10 @@ func binary_after_left(
     }
     left = as_text(left)
     left_type = left.type
+    var equality = binary.operator == 'equal' or binary.operator == 'not_equal'
+    if equality and type_shape.as_union(left_type) {
+        note_identity_type(left_type)
+    }
     if type_shape.as_string(left_type) {
         return generate_string_binary(binary.operator, left, binary.left, binary.right, scope, class_information)
     }
@@ -14152,6 +14219,10 @@ func generate_class_binary(
     }
     if operator == 'equal' or operator == 'not_equal' {
         var right_result = generate_expression(right_ast, scope, class_information)
+        var left_asked = left_result.type
+        note_identity_type(left_asked)
+        var right_asked = right_result.type
+        note_identity_type(right_asked)
         var lines = List<String>()
         var left_temporary = next_temporary()
         var right_temporary = next_temporary()
@@ -15948,7 +16019,8 @@ func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
 
 # ../../../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands
 func borrows_its_owner(function: Analysis.FunctionInfo): Boolean {
-    return function.name.starts_with("spite_band_") and function.name.ends_with("_piece")
+    var pieced = function.name.starts_with("spite_band_") or function.name.starts_with("spite_row_")
+    return pieced and function.name.ends_with("_piece")
 }
 
 func function_value(
@@ -18337,9 +18409,10 @@ func method_call_on(
     var found = find_or_instantiate_function(target_class, member.name)
     if not found {
         if member.name == "deep_copy" {
-            var ensured_class_deep_copy = ensure_class_deep_copy(target_class)
             var empty_types = no_types()
             var class_type = class_type_of(target_class)
+            var class_deep_copy = ensure_class_deep_copy(target_class)
+            var ensured_class_deep_copy = copy_site(class_deep_copy, class_type)
             var deep_copied = generate_generic_call(
                 ensured_class_deep_copy,
                 object_result,
@@ -19073,9 +19146,10 @@ func generate_list_method(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     if name == "deep_copy" {
-        var ensured_list_deep_copy = ensure_list_deep_copy(element)
         var empty_types = no_types()
         var list_type = list_type_of(element)
+        var list_deep_copy = ensure_list_deep_copy(element)
+        var ensured_list_deep_copy = copy_site(list_deep_copy, list_type)
         var copied_list = generate_generic_call(
             ensured_list_deep_copy,
             object_result,
@@ -23616,6 +23690,679 @@ func copied_union_member(
     return "(({information.c_name})({copied}))"
 }
 
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func shares_copy(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if not studies_item_values() or resumable_mode or declaration.type_reference {
+        return false
+    }
+    if borrow_index >= borrow_statements.count() {
+        return false
+    }
+    var declared_here = shape.as_variable_declaration(borrow_statements[borrow_index])
+    if not declared_here or declared_here.name != declaration.name or declared_here.line != declaration.line {
+        return false
+    }
+    crash declaration.value
+    var call = shape.as_call(declaration.value)
+    if not call or not call.arguments.is_empty() {
+        return false
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    if not member or member.name != "deep_copy" {
+        return false
+    }
+    crash member.object
+    if not lasting_copy_source(member.object, declaration.name, scope, class_information) {
+        return false
+    }
+    var source_type = receiver_type_of(member.object, scope, class_information)
+    if not source_type {
+        return false
+    }
+    var graph = List<String>()
+    if not copy_graph(source_type, graph) {
+        return false
+    }
+    var window_scope = Scope(scope)
+    window_scope.declare(declaration.name, source_type)
+    var locals = List<String>()
+    var index = borrow_index + 1
+    while index < borrow_statements.count() {
+        if not copy_window_statement(borrow_statements[index], declaration.name, locals, false, window_scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func lasting_copy_source(
+    source: Syntax.Expressions.Expression,
+    copy_name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(source)
+    if member {
+        crash member.object
+        if is_reflection_member(member.name) or not reads_only_getter(member, scope, class_information) {
+            return false
+        }
+        return lasting_copy_source(member.object, copy_name, scope, class_information)
+    }
+    var named = shape.as_identifier(source)
+    if not named or named.name == copy_name {
+        return false
+    }
+    if not scope.written_type(named.name) {
+        return class_information.find_field(named.name) and not class_information.is_singleton
+    }
+    if not scope.holds_for_call(named.name) {
+        return false
+    }
+    var owned_local = scope.framed_local(named.name)
+    if owned_local {
+        return not owned_local.framed
+    }
+    return true
+}
+
+func copy_graph(copied_type: Analysis.SpiteType, graph: List<String>): Boolean {
+    var nullable = type_shape.as_nullable(copied_type)
+    if nullable {
+        return copy_graph(nullable.inner, graph)
+    }
+    if not type_needs_drop(copied_type) or type_shape.as_string(copied_type) {
+        return true
+    }
+    var listed = type_shape.as_list(copied_type)
+    if listed {
+        var list_name = ensure_list(listed.element)
+        if graph.contains(list_name) {
+            return true
+        }
+        graph.append(list_name)
+        return copy_graph(listed.element, graph)
+    }
+    var dictionary = type_shape.as_dictionary(copied_type)
+    if dictionary {
+        var dictionary_name = ensure_dictionary(dictionary)
+        if graph.contains(dictionary_name) {
+            return true
+        }
+        graph.append(dictionary_name)
+        return copy_graph(dictionary.key, graph) and copy_graph(dictionary.element, graph)
+    }
+    var class_ref = type_shape.as_class_ref(copied_type)
+    if not class_ref {
+        return false
+    }
+    var information = find_class_by_c_name(class_ref.c_name)
+    if not information {
+        return false
+    }
+    if graph.contains(information.c_name) {
+        return true
+    }
+    graph.append(information.c_name)
+    if information.is_singleton or information.is_stateless_singleton {
+        return true
+    }
+    if is_library_class(information) or information.drop_function or information.is_value_class {
+        return false
+    }
+    if is_hot_class(information) or remembers_copies(information) {
+        return false
+    }
+    var index = 0
+    while index < information.fields.count() {
+        var field_type = information.fields[index].type
+        if not copy_graph(field_type, graph) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func copy_window_statement(
+    statement: Syntax.Statements.Statement,
+    copy_name: String,
+    locals: List<String>,
+    inside: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            if statement.name == copy_name {
+                return false
+            }
+            if not copy_window_expression(statement.value, scope, class_information) {
+                return false
+            }
+            locals.append(statement.name)
+            var declared = window_value_type(statement.value, scope, class_information)
+            if declared and not statement.type_reference {
+                scope.declare(statement.name, declared)
+            }
+            return true
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            if not target or target.name == copy_name {
+                return false
+            }
+            if not locals.contains(target.name) {
+                var assigned_type = scope.written_type(target.name)
+                if not assigned_type {
+                    return false
+                }
+                if not inside and type_needs_drop(assigned_type) {
+                    return false
+                }
+            }
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            if not copy_window_expression(statement.condition, scope, class_information) {
+                return false
+            }
+            if not copy_window_block(statement.then_branch, copy_name, locals, inside, scope, class_information) {
+                return false
+            }
+            return copy_window_block(statement.else_branch, copy_name, locals, inside, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            if not copy_window_expression(statement.condition, scope, class_information) {
+                return false
+            }
+            return copy_window_block(statement.body, copy_name, locals, inside, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if not inside and not copy_site_returns_plain {
+                return false
+            }
+            if not statement.value {
+                return true
+            }
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return copy_window_expression(statement.value, scope, class_information)
+        }
+        _: return false
+    }
+}
+
+func window_value_type(
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var known = receiver_type_of(value, scope, class_information)
+    if known {
+        return known
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var receiver_type = receiver_type_of(member.object, scope, class_information)
+    assert receiver_type
+    var listed = type_shape.as_list(receiver_type)
+    assert listed
+    if member.name.starts_with("count_") {
+        return integer_type()
+    }
+    if member.name.starts_with("any_") or member.name.starts_with("all_") {
+        return boolean_type()
+    }
+    assert member.name.starts_with("sum_")
+    var item_class = class_of_type(listed.element)
+    assert item_class
+    var name_length = member.name.length()
+    var member_name = member.name.slice(4, name_length)
+    var field = item_class.find_field(member_name)
+    if field {
+        return field.type
+    }
+    var getter = item_class.find_function("get_{member_name}")
+    assert getter
+    return getter.return_type
+}
+
+func copy_window_block(
+    statements: List<Syntax.Statements.Statement>,
+    copy_name: String,
+    locals: List<String>,
+    inside: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if not copy_window_statement(statements[index], copy_name, locals, inside, scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func copy_window_expressions(
+    expressions: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        if not copy_window_expression(expressions[index], scope, class_information) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func copy_window_expression(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            if not copy_window_expressions(expression.arguments, scope, class_information) {
+                return false
+            }
+            return reads_only_call(expression, scope, class_information)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if not copy_plain_operand(expression.left, scope, class_information) {
+                return false
+            }
+            if not copy_window_expression(expression.left, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.right, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            if not copy_plain_operand(expression.operand, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if is_reflection_member(expression.name) {
+                return false
+            }
+            if not reads_only_getter(expression, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var indexed_type = receiver_type_of(expression.object, scope, class_information)
+            if not indexed_type {
+                return false
+            }
+            if not type_shape.as_list(indexed_type) and not type_shape.as_dictionary(indexed_type) {
+                return false
+            }
+            if not copy_window_expression(expression.object, scope, class_information) {
+                return false
+            }
+            return copy_window_expression(expression.index, scope, class_information)
+        }
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.StringLiteralExpression: return not expression.value.contains("\{")
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        _: return false
+    }
+}
+
+func copy_plain_operand(
+    operand: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if shape.as_integer_literal(operand) or shape.as_float_literal(operand) or shape.as_enum_literal(operand) {
+        return true
+    }
+    if shape.is_true_literal(operand) or shape.is_false_literal(operand) or shape.is_null_literal(operand) {
+        return true
+    }
+    var binary = shape.as_binary(operand)
+    if binary {
+        crash binary.left
+        return copy_plain_operand(binary.left, scope, class_information)
+    }
+    var unary = shape.as_unary(operand)
+    if unary {
+        crash unary.operand
+        return copy_plain_operand(unary.operand, scope, class_information)
+    }
+    if shape.as_string_literal(operand) {
+        return true
+    }
+    var operand_type = receiver_type_of(operand, scope, class_information)
+    if not operand_type {
+        return false
+    }
+    var nullable = type_shape.as_nullable(operand_type)
+    if nullable {
+        operand_type = nullable.inner
+    }
+    return type_shape.as_scalar(operand_type) or type_shape.as_string(operand_type) or is_enum_type(operand_type)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_getter(
+    read: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash read.object
+    var object_type = receiver_type_of(read.object, scope, class_information)
+    if not object_type {
+        return not call_effects.by_function.has("*#get_{read.name}")
+    }
+    var owner = class_of_type(object_type)
+    if not owner {
+        var nullable = type_shape.as_nullable(object_type)
+        if not nullable {
+            return false
+        }
+        owner = class_of_type(nullable.inner)
+    }
+    if not owner {
+        return not call_effects.by_function.has("*#get_{read.name}")
+    }
+    if owner.find_field(read.name) and not owner.find_function("get_{read.name}") {
+        return true
+    }
+    var getter = find_or_instantiate_function(owner, "get_{read.name}")
+    if not getter {
+        return false
+    }
+    return reads_only_function(owner, getter)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_call(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash call.callee
+    var named = shape.as_identifier(call.callee)
+    if named {
+        if scope.written_type(named.name) or class_information.find_field(named.name) {
+            return false
+        }
+        if call_effects.names_a_class(named.name) {
+            return false
+        }
+        var own = find_or_instantiate_function(class_information, named.name)
+        if not own {
+            return false
+        }
+        return reads_only_function(class_information, own)
+    }
+    var member = shape.as_member(call.callee)
+    if not member {
+        return false
+    }
+    crash member.object
+    if is_reflection_member(member.name) or member.name == "call_function" or call_effects.names_a_class(member.name) {
+        return false
+    }
+    if not copy_window_expression(member.object, scope, class_information) {
+        return false
+    }
+    var receiver_type = receiver_type_of(member.object, scope, class_information)
+    if not receiver_type {
+        return false
+    }
+    var owner = class_of_type(receiver_type)
+    if not owner {
+        return false
+    }
+    if owner.is_singleton or owner.is_stateless_singleton {
+        return false
+    }
+    var listed = type_shape.as_list(receiver_type)
+    var list_template = find_class_by_qualified("List")
+    if listed and list_template {
+        if not list_template.find_function(member.name) {
+            return reads_only_template(listed.element, member.name)
+        }
+    }
+    var method = find_or_instantiate_function(owner, member.name)
+    if not method {
+        return false
+    }
+    return reads_only_function(owner, method)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_template(element: Analysis.SpiteType, name: String): Boolean {
+    var reading = ["sum_", "count_", "any_", "all_", "each_", "map_", "find_by_", "find_index_by_", "filter_"]
+    var member_name = ""
+    var index = 0
+    while index < reading.count() {
+        var prefix = reading[index]
+        if name.starts_with(prefix) and member_name.is_empty() {
+            var name_length = name.length()
+            var prefix_length = prefix.length()
+            member_name = name.slice(prefix_length, name_length)
+            if prefix == "map_" {
+                if not member_name.ends_with("s") {
+                    return false
+                }
+                var member_length = member_name.length()
+                member_name = member_name.slice(0, member_length - 1)
+            }
+        }
+        index = index + 1
+    }
+    if member_name.is_empty() {
+        return false
+    }
+    var item_class = class_of_type(element)
+    if not item_class {
+        return false
+    }
+    if item_class.find_field(member_name) and not item_class.find_function("get_{member_name}") {
+        return true
+    }
+    var read = find_or_instantiate_function(item_class, "get_{member_name}")
+    if not read {
+        read = find_or_instantiate_function(item_class, member_name)
+    }
+    if not read {
+        return false
+    }
+    return reads_only_function(item_class, read)
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func reads_only_function(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
+    var key = function.c_name
+    if read_only_functions.has(key) or reading_functions.contains(key) {
+        return true
+    }
+    if writing_functions.has(key) {
+        return false
+    }
+    if function.is_constructor or function.name == "drop" or not function.has_body {
+        var supplied = not function.has_body and parameter_writes.reads_only(function.name)
+        if not supplied {
+            writing_functions[key] = true
+        }
+        return supplied
+    }
+    if is_hot_class(owner) or not function.specialised_from.is_empty() {
+        writing_functions[key] = true
+        return false
+    }
+    reading_functions.append(key)
+    var function_scope = Scope(null)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.type
+        function_scope.declare(parameter.name, parameter_type)
+        index = index + 1
+    }
+    var locals = function.parameters.map_names()
+    var reads = copy_window_block(function.body, "", locals, true, function_scope, owner)
+    reading_functions.remove_last()
+    if reads {
+        tentative_reads.append(key)
+    } else {
+        writing_functions[key] = true
+    }
+    if reading_functions.is_empty() {
+        settle_tentative_reads(reads)
+    }
+    return reads
+}
+
+func settle_tentative_reads(reads: Boolean) {
+    if reads {
+        var index = 0
+        while index < tentative_reads.count() {
+            var settled = tentative_reads[index]
+            read_only_functions[settled] = true
+            index = index + 1
+        }
+    }
+    tentative_reads.clear()
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func copy_site(copied: String, copied_type: Analysis.SpiteType): String {
+    if not sharing_copy {
+        return copied
+    }
+    if not sharing_copy_site.is_empty() {
+        return sharing_copy_site
+    }
+    var graph = List<String>()
+    if not copy_graph(copied_type, graph) {
+        return copied
+    }
+    var number = copy_sites.count() + 1
+    var site = "spite_copy_site_{number}"
+    var c_type = c_type_name(copied_type)
+    builder.add_prototype("static inline {c_type} {site}({c_type} self);")
+    copy_sites.append(site)
+    copy_site_copies.append(copied)
+    copy_site_types.append(copied_type)
+    var graph_text = graph.join(",")
+    copy_site_graphs.append(graph_text)
+    sharing_copy_site = site
+    return site
+}
+
+# ../../../docs/proofs.md#a-copy-nothing-changes-is-the-original
+func finish_copy_sites() {
+    var alone = not builder.threads and not parallel_used and not scheduler_used
+    var index = 0
+    while index < copy_sites.count() {
+        var site = copy_sites[index]
+        var copied_type = copy_site_types[index]
+        crash copied_type
+        var c_type = c_type_name(copied_type)
+        crash copy_site_copies[index]
+        var body = "return {copy_site_copies[index]}(self);"
+        var graph_text = copy_site_graphs[index]
+        crash graph_text
+        if alone and not graph_asked_identity(graph_text) {
+            body = "return {retain_call(copied_type, "self")};"
+            note_fact("copy shared {site}")
+        }
+        builder.add_support("static inline {c_type} {site}({c_type} self) \{\n{body}\n}")
+        index = index + 1
+    }
+}
+
+func graph_asked_identity(graph_text: String): Boolean {
+    var names = graph_text.split(",")
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if identity_classes.has(name) or tracked_class_names.contains(name) or weak_classes.contains(name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_identity_type(asked: Analysis.SpiteType) {
+    var nullable = type_shape.as_nullable(asked)
+    if nullable {
+        note_identity_type(nullable.inner)
+        return
+    }
+    var class_ref = type_shape.as_class_ref(asked)
+    if class_ref {
+        identity_classes[class_ref.c_name] = true
+        return
+    }
+    var listed = type_shape.as_list(asked)
+    if listed {
+        var list_name = ensure_list(listed.element)
+        identity_classes[list_name] = true
+        return
+    }
+    var dictionary = type_shape.as_dictionary(asked)
+    if dictionary {
+        var dictionary_name = ensure_dictionary(dictionary)
+        identity_classes[dictionary_name] = true
+        return
+    }
+    var union_type = type_shape.as_union(asked)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        identity_classes[member.c_name] = true
+        member_index = member_index + 1
+    }
+}
+
 func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     var function_c_name = "{information.c_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
@@ -23669,9 +24416,10 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
 # ../../../docs/memory.md#do-call-copydeep_copy-for-an-independent-object
 func remembers_copies(information: Analysis.ClassInfo): Boolean {
     if reaching_classes.has(information.c_name) {
-        var known = reaching_classes[information.c_name]
-        crash known
-        return known
+        return true
+    }
+    if plainly_copied_classes.has(information.c_name) {
+        return false
     }
     var seen = List<String>()
     var pending = List<Analysis.SpiteType>()
@@ -23694,7 +24442,11 @@ func remembers_copies(information: Analysis.ClassInfo): Boolean {
             index = index + 1
         }
     }
-    reaching_classes[information.c_name] = answer
+    if answer {
+        reaching_classes[information.c_name] = true
+    } else {
+        plainly_copied_classes[information.c_name] = true
+    }
     return answer
 }
 
@@ -24902,6 +25654,7 @@ func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
         return dictionary_name
     }
     dictionary_names.append(dictionary_name)
+    note_identity_type(key_type)
     var dictionary_template = find_class_by_qualified("Dictionary")
     if not dictionary_template {
         report(
@@ -25066,9 +25819,10 @@ func generate_dictionary_method(
         )
     }
     if name == "deep_copy" {
-        var ensured_dictionary_deep_copy = ensure_dictionary_deep_copy(dictionary)
         var empty_types = no_types()
         var dictionary_type: Analysis.SpiteType = dictionary
+        var dictionary_deep_copy = ensure_dictionary_deep_copy(dictionary)
+        var ensured_dictionary_deep_copy = copy_site(dictionary_deep_copy, dictionary_type)
         var copied_dictionary = generate_generic_call(
             ensured_dictionary_deep_copy,
             object_result,
@@ -27112,6 +27866,7 @@ func generate_member_read_raw(
     }
     if member.name == "memory" {
         item_reflect_type(object_result_type)
+        note_identity_type(object_result_type)
         var in_frame = not framed_object_name(member.object, scope).is_empty()
         var memory_read = generate_memory_read(object_result, member.object, in_frame)
         if memory_read {
@@ -28292,7 +29047,10 @@ func store_declaration(
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
     frame_variadic_allowed = not resumable_mode
+    sharing_copy = shares_copy(declaration, scope, class_information)
+    sharing_copy_site = ""
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
+    sharing_copy = false
     frame_variadic_allowed = false
     borrow_site = ""
     if not declaration.type_reference or not current_class_is_generic() {
@@ -35772,6 +36530,8 @@ func generate_statement_list(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Boolean {
+    mirror_set_markers(statements, class_information)
+    mirror_scan(statements, scope, class_information)
     var candidates = placement.frame_candidates(statements)
     var candidate_index = 0
     while candidate_index < candidates.count() {
@@ -35857,10 +36617,12 @@ func generate_listed_statement(
     choose_allocator_after(statements, index)
     borrow_statements = statements
     borrow_index = index
+    var mirror_id = mirror_open_markers(statement, class_information)
     var ended_in_return = false
     if not started_wait(statement, scope, class_information, function_information) {
         ended_in_return = generate_statement(statement, scope, class_information, function_information)
     }
+    mirror_close_marker(mirror_id)
     listed_ended_in_return = ended_in_return
     pending_allocator = null
     if walked_row_filled {
@@ -36197,7 +36959,11 @@ func emit_row_each(
         inner,
         class_information,
     )
-    builder.add_user("{run_code.code};")
+    if banded {
+        builder.add_user("{run_code.code};")
+    } else {
+        builder.add_user("SPITE_ROWS_ENTER(); {run_code.code}; SPITE_ROWS_LEAVE();")
+    }
     emit_scope_drops(inner, false)
     generating_overlap = false
     builder.threads = threads_before
@@ -36583,6 +37349,22 @@ func settle_row_at(group: Integer, start: Integer, condition: String) {
     note_fact("flag parallel_used")
 }
 
+# ../../../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts
+func note_rows_running() {
+    assert not rows_running_noted
+    rows_running_noted = true
+    var lines = [
+        "/* A class two calls run at once both count is counted atomically only while they run */"
+        "static int32_t spite_rows_running = 0;"
+        "#define SPITE_ROWS_ENTER() __atomic_add_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)"
+        "#define SPITE_ROWS_LEAVE() __atomic_sub_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)"
+        "#define SPITE_ROW_COUNT_UP(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_UP(count) : SPITE_PLAIN_COUNT_UP(count))"
+        "#define SPITE_ROW_COUNT_DOWN(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_DOWN(count) : SPITE_PLAIN_COUNT_DOWN(count))"
+    ]
+    var joined = lines.join("\n")
+    builder.add_typedef(joined)
+}
+
 func row_marker_after(start: Integer, marker: String): Integer {
     var position = start
     while position < builder.user_bodies.count() and builder.user_at(position) != marker {
@@ -36648,6 +37430,8 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         index = index + 1
     }
     var table = List<String>()
+    var checks = List<String>()
+    var pairs_together = List<String>()
     var useful = false
     var first = 0
     while first < count {
@@ -36655,16 +37439,40 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         var second = 0
         while second < count {
             var together = first != second and usable[first] == true and usable[second] == true
+            var cell = "1"
             if together {
                 crash member_facts[first]
                 crash member_facts[second]
+                facts.checking = true
+                facts.needed_checks = List<String>()
                 together = facts.independent(member_facts[first], member_facts[second])
+                facts.checking = false
+                if together and not facts.needed_checks.is_empty() {
+                    var apart = facts.apart_expression(facts.needed_checks, member_facts[first], member_facts[second])
+                    together = not apart.is_empty()
+                    if together and not checks.contains(apart) {
+                        checks.append(apart)
+                    }
+                    var check_index = 0
+                    while check_index < checks.count() and checks[check_index] != apart {
+                        check_index = check_index + 1
+                    }
+                    var cell_number = check_index + 2
+                    cell = cell_number.to_string()
+                }
             }
             if together and heavy[first] == true and heavy[second] == true {
                 useful = true
             }
             if together {
-                row.append("1")
+                crash targets[first]
+                crash targets[second]
+                var first_target = targets[first]
+                var second_target = targets[second]
+                pairs_together.append("{first_target}|{second_target}")
+            }
+            if together {
+                row.append(cell)
             } else {
                 row.append("0")
             }
@@ -36675,6 +37483,15 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
     }
     if not useful {
         return ""
+    }
+    if not rows_running_noted {
+        note_rows_running()
+    }
+    var pair_index = 0
+    while pair_index < pairs_together.count() {
+        var pair = pairs_together[pair_index]
+        builder.row_together[pair] = true
+        pair_index = pair_index + 1
     }
     var weights = List<String>()
     var cases = List<String>()
@@ -36702,13 +37519,27 @@ func row_condition(facts: OverlapFacts, site: RowSite, group: Integer): String {
         "int32_t spite_row_n = spite_row_list->item_count_; int32_t spite_row_seen[64]; int32_t spite_row_heavies = 0;",
     )
     parts.append("bool spite_row_ok = spite_row_n >= 2 && spite_row_n <= {count};")
+    var check_cases = List<String>()
+    var check_index = 0
+    while check_index < checks.count() {
+        var check_number = check_index + 2
+        var check = checks[check_index]
+        check_cases.append("case {check_number}: spite_row_r = {check}; break;")
+        check_index = check_index + 1
+    }
     parts.append("for (int32_t spite_row_i = 0; spite_row_ok && spite_row_i < spite_row_n; spite_row_i++) \{")
     parts.append("int32_t spite_row_k = -1;")
     parts.append("switch ({read_class}) \{ {cases.join(" ")} default: break; }")
     parts.append("spite_row_ok = spite_row_k >= 0;")
-    parts.append(
-        "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0;",
-    )
+    if checks.is_empty() {
+        parts.append(
+            "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0;",
+        )
+    } else {
+        parts.append(
+            "for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) \{ unsigned char spite_row_c = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k]; spite_row_ok = spite_row_c == 1 || (spite_row_c >= 2 && (\{ bool spite_row_r = false; switch (spite_row_c) \{ {check_cases.join(" ")} default: break; } spite_row_r; })); }",
+        )
+    }
     parts.append(
         "if (spite_row_ok) \{ spite_row_seen[spite_row_i] = spite_row_k; spite_row_{group}_marks[spite_row_i] = spite_row_heavy[spite_row_k]; spite_row_heavies += spite_row_heavy[spite_row_k]; }",
     )
@@ -46367,6 +47198,8 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     into_function_active = function.result_slot
     object_frames_open = true
     current_return_c_name = returned_class_name(function)
+    var answered_type = function.return_type
+    copy_site_returns_plain = not type_needs_drop(answered_type)
     result_slot_local = ""
     var candidate = not function.result_slot and waiting.is_empty()
     if candidate and function.is_constructor {
@@ -46422,6 +47255,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     leaving_statements = List<Syntax.Statements.Statement>()
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
     study_nested_lists(information, function, scope, declared_from)
+    mirror_record(information, function)
     item_function = outer_item_function
     item_function_scope = outer_item_scope
     terminal_if = null
@@ -56720,4 +57554,1564 @@ func skips_generic(information: Analysis.ClassInfo, function: Analysis.FunctionI
         index = index + 1
     }
     return false
+}
+
+# ../../../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written
+func mirror_marking(class_information: Analysis.ClassInfo): Boolean {
+    return mirror_on and not resumable_mode and not is_library_class(class_information)
+}
+
+func mirror_key(): String {
+    if not current_class {
+        return ""
+    }
+    return "{current_class.c_name}#{current_function}"
+}
+
+func mirror_scan(statements: List<Syntax.Statements.Statement>, scope: Scope, class_information: Analysis.ClassInfo) {
+    assert mirror_marking(class_information)
+    var key = mirror_key()
+    assert not key.is_empty()
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var line = statement_line(statement)
+        if line > 0 and mirror_potential(statement, scope, class_information) {
+            var id = mirror_candidate_id("{key}@{line}")
+            mirror_flag_ifs(statements, index, key, id)
+        }
+        index = index + 1
+    }
+}
+
+func mirror_candidate_id(place: String): Integer {
+    var known = mirror_candidates[place]
+    if known {
+        return known
+    }
+    mirror_candidate_keys.append(place)
+    var id = mirror_candidate_keys.count()
+    mirror_candidates[place] = id
+    return id
+}
+
+func mirror_flag_ifs(statements: List<Syntax.Statements.Statement>, before: Integer, key: String, id: Integer) {
+    var index = 0
+    while index < before {
+        var flagged = shape.as_if_statement(statements[index])
+        if flagged {
+            if not flagged.has_else_branch and flagged.line > 0 and not flagged.then_branch.is_empty() {
+                var first = flagged.then_branch[0]
+                var first_line = statement_line(first)
+                if first_line > 0 {
+                    mirror_note_flag(key, id, flagged.line, first_line)
+                }
+            }
+        }
+        index = index + 1
+    }
+}
+
+func mirror_note_flag(key: String, id: Integer, if_line: Integer, first_line: Integer) {
+    var flags_key: String = id
+    if not mirror_candidate_flags.has(flags_key) {
+        var made = List<Integer>()
+        mirror_candidate_flags[flags_key] = made
+    }
+    var flags = mirror_candidate_flags[flags_key]
+    crash flags
+    assert not flags.contains(if_line)
+    flags.append(if_line)
+    var declared_key = "{key}@{if_line}"
+    if not mirror_flag_lines.has(declared_key) {
+        var made_declared = List<Integer>()
+        mirror_flag_lines[declared_key] = made_declared
+    }
+    var declared = mirror_flag_lines[declared_key]
+    crash declared
+    declared.append(id)
+    var setting_key = "{key}@{first_line}"
+    if not mirror_set_lines.has(setting_key) {
+        var made_setting = List<String>()
+        mirror_set_lines[setting_key] = made_setting
+    }
+    var setting = mirror_set_lines[setting_key]
+    crash setting
+    setting.append("{id} {if_line}")
+}
+
+func mirror_potential(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var expressed = shape.as_expression_statement(statement)
+    if not expressed {
+        return false
+    }
+    crash expressed.value
+    var call = shape.as_call(expressed.value)
+    if not call {
+        return false
+    }
+    crash call.callee
+    var identifier = shape.as_identifier(call.callee)
+    var member = shape.as_member(call.callee)
+    if identifier {
+        if scope.written_type(identifier.name) or class_information.find_field(identifier.name) {
+            return false
+        }
+    } else if not member {
+        return false
+    }
+    if member {
+        if member.name == "call_function" {
+            return false
+        }
+    }
+    var key = called_effects_key(call.callee, scope, class_information)
+    if key.is_empty() {
+        return true
+    }
+    var effects = call_effects.effects_of_key(key)
+    var index = 0
+    while index < effects.count() {
+        var effect = effects[index]
+        if effect.starts_with("store:") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mirror_open_markers(statement: Syntax.Statements.Statement, class_information: Analysis.ClassInfo): Integer {
+    if not mirror_marking(class_information) {
+        return -1
+    }
+    var key = mirror_key()
+    var line = statement_line(statement)
+    var declared = mirror_flag_lines["{key}@{line}"]
+    if declared {
+        var index = 0
+        while index < declared.count() {
+            builder.add_user("/*spite-mirror-flag {declared[index]} {line}*/")
+            index = index + 1
+        }
+    }
+    var id = mirror_candidates["{key}@{line}"]
+    if not id {
+        return -1
+    }
+    builder.add_user("/*spite-mirror-open {id}*/")
+    mirror_note_atomic(id, class_information)
+    return id
+}
+
+func mirror_note_atomic(id: Integer, class_information: Analysis.ClassInfo) {
+    assert atomic_owner == class_information.c_name
+    var atomic_key: String = id
+    if not mirror_atomic.has(atomic_key) {
+        var made = List<String>()
+        mirror_atomic[atomic_key] = made
+    }
+    var noted = mirror_atomic[atomic_key]
+    crash noted
+    var index = 0
+    while index < atomic_fields.count() {
+        var field_name = atomic_fields[index]
+        if not noted.contains(field_name) {
+            noted.append(field_name)
+        }
+        index = index + 1
+    }
+}
+
+func mirror_close_marker(id: Integer) {
+    if id >= 0 {
+        builder.add_user("/*spite-mirror-close {id}*/")
+    }
+}
+
+func mirror_set_markers(statements: List<Syntax.Statements.Statement>, class_information: Analysis.ClassInfo) {
+    assert mirror_marking(class_information) and not statements.is_empty()
+    var first = statements[0]
+    var line = statement_line(first)
+    var setting = mirror_set_lines["{mirror_key()}@{line}"]
+    assert setting
+    var index = 0
+    while index < setting.count() {
+        builder.add_user("/*spite-mirror-set {setting[index]}*/")
+        index = index + 1
+    }
+}
+
+func mirror_record(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert mirror_on and not resumable_mode and not has_error and not is_library_class(information)
+    var key = "{information.c_name}#{function.name}"
+    assert not mirror_functions.has(key)
+    var recorded = MirrorFunction(key, information.c_name, function.name)
+    recorded.singleton = information.is_singleton
+    var scope = Scope(null)
+    mirror_local_names = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        recorded.parameters.append(parameter.name)
+        mirror_local_names.append(parameter.name)
+        var parameter_type = parameter.type
+        scope.declare(parameter.name, parameter_type)
+        index = index + 1
+    }
+    mirror_temporaries = 0
+    var literals_before = literal_counter
+    var temporaries_before = temporary_counter
+    var typedefs_before = builder.typedef_count()
+    mirror_quiet = true
+    mirror_statements(function.body, scope, information, recorded.steps)
+    mirror_quiet = false
+    literal_counter = literals_before
+    temporary_counter = temporaries_before
+    builder.drop_typedefs_after(typedefs_before)
+    mirror_functions[key] = recorded
+    if function.is_constructor or mirror_special_name(function.name) {
+        mirror_unknown_callers[key] = true
+    }
+}
+
+func mirror_special_name(name: String): Boolean {
+    var special = [
+        "drop"
+        "copy"
+        "to_string"
+        "to_debug"
+        "equals"
+        "hash"
+        "compare"
+        "missing_function"
+        "sum"
+        "subtract"
+        "multiply"
+        "divide"
+        "remainder"
+        "less_than"
+        "greater_than"
+    ]
+    return special.contains(name) or name.starts_with("get_") or name.starts_with("set_")
+}
+
+func mirror_statements(
+    statements: List<Syntax.Statements.Statement>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    var inner = Scope(scope)
+    var index = 0
+    while index < statements.count() and not mirror_ended(steps) {
+        mirror_statement(statements[index], inner, class_information, steps)
+        index = index + 1
+    }
+}
+
+func mirror_ended(steps: List<MirrorStep>): Boolean {
+    var last = steps.last()
+    if not last {
+        return false
+    }
+    if last.kind == "return" {
+        return true
+    }
+    if last.kind != "crash" and last.kind != "assert" {
+        return false
+    }
+    var checked = last.recorded_value(0)
+    return checked.is_const() and checked.number == 0
+}
+
+func mirror_statement(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: mirror_declaration(statement, scope, class_information, steps)
+        Syntax.Statements.AssignmentStatement: mirror_assignment(statement, scope, class_information, steps)
+        Syntax.Statements.IfStatement: mirror_if(statement, scope, class_information, steps)
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            var looped = MirrorStep("loop", "")
+            var condition = mirror_value(statement.condition, scope, class_information, looped.then_steps)
+            looped.values.append(condition)
+            mirror_statements(statement.body, scope, class_information, looped.then_steps)
+            steps.append(looped)
+        }
+        Syntax.Statements.AssertStatement: mirror_assert(statement, scope, class_information, steps)
+        Syntax.Statements.ReturnStatement: {
+            var returned = MirrorStep("return", "")
+            if statement.value {
+                var value = mirror_value(statement.value, scope, class_information, steps)
+                returned.values.append(value)
+            }
+            steps.append(returned)
+        }
+        Syntax.Statements.ExpressionStatement: mirror_expression_statement(statement, scope, class_information, steps)
+        Syntax.Statements.SwitchStatement: mirror_switch(statement, scope, class_information, steps)
+        _: mirror_opaque(steps)
+    }
+}
+
+func mirror_opaque(steps: List<MirrorStep>) {
+    var opaque = MirrorStep("opaque", "")
+    steps.append(opaque)
+}
+
+func mirror_unknown(klass: String): MirrorValue {
+    return mirror_maker.named_value("unknown", "", klass)
+}
+
+func mirror_declaration(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    crash declaration.value
+    var value = mirror_value(declaration.value, scope, class_information, steps)
+    var local = MirrorStep("local", declaration.name)
+    local.values.append(value)
+    steps.append(local)
+    mirror_local_names.append(declaration.name)
+    if declaration.type_reference {
+        var declared = resolve_type(declaration.type_reference, class_information.qualified_dotted)
+        if declared {
+            scope.declare(declaration.name, declared)
+        }
+        return
+    }
+    var inferred = mirror_type_of(declaration.value, scope, class_information)
+    assert inferred
+    scope.declare(declaration.name, inferred)
+}
+
+func mirror_assignment(
+    assignment: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    crash assignment.target
+    crash assignment.value
+    var target = assignment.target
+    var indexed = shape.as_index(target)
+    if indexed {
+        if is_bound_member_index(indexed) and not bound_member_is_function() {
+            target = bound_member_expression(indexed)
+        }
+    }
+    var identifier = shape.as_identifier(target)
+    if identifier {
+        var value = mirror_value(assignment.value, scope, class_information, steps)
+        if mirror_local_names.contains(identifier.name) {
+            var local = MirrorStep("local", identifier.name)
+            local.values.append(value)
+            steps.append(local)
+            return
+        }
+        var field = class_information.find_field(identifier.name)
+        if not field or class_information.find_function("set_{identifier.name}") {
+            mirror_opaque(steps)
+            return
+        }
+        var field_type = field.type
+        var own = mirror_self(class_information)
+        mirror_field_step(own, identifier.name, value, field_type, steps)
+        return
+    }
+    var member = shape.as_member(target)
+    if member {
+        crash member.object
+        var object = mirror_value(member.object, scope, class_information, steps)
+        var assigned = mirror_value(assignment.value, scope, class_information, steps)
+        var holder_type = mirror_type_of(member.object, scope, class_information)
+        var written_type: Analysis.SpiteType? = null
+        if holder_type {
+            var holder = mirror_class_of(holder_type)
+            if holder {
+                if holder.find_function("set_{member.name}") {
+                    mirror_opaque(steps)
+                    return
+                }
+                var holder_field = holder.find_field(member.name)
+                if holder_field {
+                    written_type = holder_field.type
+                }
+            }
+        }
+        mirror_field_step(object, member.name, assigned, written_type, steps)
+        return
+    }
+    var slot = shape.as_index(target)
+    if not slot {
+        mirror_opaque(steps)
+        return
+    }
+    crash slot.object
+    crash slot.index
+    var list_type = mirror_type_of(slot.object, scope, class_information)
+    var stored = mirror_value(assignment.value, scope, class_information, steps)
+    var listed = mirror_list_type(list_type)
+    if not listed {
+        var released = MirrorStep("effects", "")
+        released.effects.append("release")
+        if list_type {
+            var plain_type = mirror_plain(list_type)
+            if type_shape.as_dictionary(plain_type) {
+                released.effects_known = true
+            }
+        }
+        steps.append(released)
+        return
+    }
+    var list = mirror_value(slot.object, scope, class_information, steps)
+    var position = mirror_value(slot.index, scope, class_information, steps)
+    var written = MirrorStep("slot", "")
+    written.values.append(list)
+    written.values.append(position)
+    written.values.append(stored)
+    steps.append(written)
+}
+
+func mirror_field_step(
+    object: MirrorValue,
+    name: String,
+    value: MirrorValue,
+    field_type: Analysis.SpiteType?,
+    steps: List<MirrorStep>,
+) {
+    var written = MirrorStep("field", name)
+    written.values.append(object)
+    written.values.append(value)
+    written.klass = mirror_klass(field_type)
+    if field_type {
+        if type_shape.as_scalar(field_type) {
+            written.scalar = true
+        }
+    }
+    steps.append(written)
+}
+
+func mirror_plain(spite_type: Analysis.SpiteType): Analysis.SpiteType {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        return nullable.inner
+    }
+    return spite_type
+}
+
+func mirror_list_type(spite_type: Analysis.SpiteType?): Analysis.Types.ListType? {
+    assert spite_type
+    var plain = mirror_plain(spite_type)
+    return type_shape.as_list(plain)
+}
+
+func mirror_class_of(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var plain = mirror_plain(spite_type)
+    var class_reference = type_shape.as_class_ref(plain)
+    assert class_reference and not class_reference.has_signature
+    return find_class_by_c_name(class_reference.c_name)
+}
+
+func mirror_klass(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        return ""
+    }
+    var plain = mirror_plain(spite_type)
+    var class_reference = type_shape.as_class_ref(plain)
+    if class_reference {
+        if class_reference.has_signature {
+            return ""
+        }
+        return class_reference.c_name
+    }
+    if type_shape.as_list(plain) or type_shape.as_dictionary(plain) {
+        return c_type_name(plain)
+    }
+    if type_shape.as_scalar(plain) or type_shape.as_string(plain) {
+        var label = type_label(plain)
+        return "value {label}"
+    }
+    return ""
+}
+
+func mirror_self(class_information: Analysis.ClassInfo): MirrorValue {
+    if class_information.is_singleton {
+        return mirror_maker.named_value("single", class_information.c_name, class_information.c_name)
+    }
+    return mirror_maker.named_value("self", "", class_information.c_name)
+}
+
+func mirror_field_read(object: MirrorValue, name: String, field_type: Analysis.SpiteType?): MirrorValue {
+    var klass = mirror_klass(field_type)
+    if not klass.is_empty() {
+        var read_class = find_class_by_c_name(klass)
+        if read_class {
+            if read_class.is_singleton {
+                return mirror_maker.named_value("single", klass, klass)
+            }
+        }
+    }
+    return mirror_maker.field_value(object, name, klass)
+}
+
+func mirror_if(
+    statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    crash statement.condition
+    var constant = constant_condition(statement.condition, scope, class_information)
+    if constant == true {
+        mirror_statements(statement.then_branch, scope, class_information, steps)
+        return
+    }
+    if constant == false {
+        mirror_statements(statement.else_branch, scope, class_information, steps)
+        return
+    }
+    var condition_value = mirror_value(statement.condition, scope, class_information, steps)
+    var condition = mirror_truth(statement.condition, condition_value, scope, class_information)
+    var branched = MirrorStep("if", "")
+    branched.line = statement.line
+    branched.values.append(condition)
+    mirror_statements(statement.then_branch, scope, class_information, branched.then_steps)
+    mirror_statements(statement.else_branch, scope, class_information, branched.else_steps)
+    steps.append(branched)
+}
+
+func mirror_switch(
+    statement: Syntax.Statements.SwitchStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    crash statement.subject
+    mirror_value(statement.subject, scope, class_information, steps)
+    var outer = steps
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        var branched = MirrorStep("if", "")
+        var unknown = mirror_unknown("")
+        branched.values.append(unknown)
+        mirror_statements(switch_case.body, scope, class_information, branched.then_steps)
+        outer.append(branched)
+        outer = branched.else_steps
+        index = index + 1
+    }
+}
+
+func mirror_assert(
+    statement: Syntax.Statements.AssertStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    crash statement.value
+    var kind = "assert"
+    if statement.is_crash {
+        kind = "crash"
+    }
+    var checked = MirrorStep(kind, "")
+    var constant = constant_condition(statement.value, scope, class_information)
+    assert constant != true
+    if constant == false {
+        var never = mirror_maker.known_constant(0)
+        checked.values.append(never)
+        steps.append(checked)
+        return
+    }
+    var condition = mirror_checked_value(statement.value, scope, class_information, steps)
+    checked.values.append(condition)
+    steps.append(checked)
+}
+
+func mirror_checked_value(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var indexed = shape.as_index(expression)
+    if indexed {
+        if not is_bound_member_index(indexed) {
+            crash indexed.object
+            crash indexed.index
+            var list_type = mirror_type_of(indexed.object, scope, class_information)
+            var listed = mirror_list_type(list_type)
+            if listed {
+                var list = mirror_value(indexed.object, scope, class_information, steps)
+                var position = mirror_value(indexed.index, scope, class_information, steps)
+                return mirror_maker.present_value(list, position)
+            }
+        }
+    }
+    var value = mirror_value(expression, scope, class_information, steps)
+    return mirror_truth(expression, value, scope, class_information)
+}
+
+func mirror_truth(
+    expression: Syntax.Expressions.Expression,
+    value: MirrorValue,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): MirrorValue {
+    if value.kind == "op" or value.is_const() {
+        return value
+    }
+    var value_type = mirror_type_of(expression, scope, class_information)
+    if value_type {
+        if is_boolean_type(value_type) {
+            return value
+        }
+    }
+    return mirror_maker.unary_value("some", value)
+}
+
+func mirror_expression_statement(
+    statement: Syntax.Statements.ExpressionStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+) {
+    crash statement.value
+    var before = steps.count()
+    mirror_value(statement.value, scope, class_information, steps)
+    var place = "{class_information.c_name}#{current_function}@{statement.line}"
+    var id = mirror_candidates[place]
+    assert id and steps.count() == before + 1 and statement.line > 0
+    var last = steps.last()
+    crash last
+    assert last.kind == "call" and mirror_plain_values(last.values)
+    last.candidate = id
+    last.result = ""
+    var flags_key: String = id
+    var flags = mirror_candidate_flags[flags_key]
+    assert flags
+    last.flags = flags
+}
+
+func mirror_plain_values(values: List<MirrorValue>): Boolean {
+    return values.all_is_plain_read()
+}
+
+func mirror_value(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    switch expression {
+        Syntax.Expressions.IntegerLiteral: return mirror_maker.known_constant(expression.value)
+        Syntax.Expressions.TrueLiteral: return mirror_maker.known_constant(1)
+        Syntax.Expressions.FalseLiteral: return mirror_maker.known_constant(0)
+        Syntax.Expressions.NullLiteral: return mirror_maker.known_constant(0)
+        Syntax.Expressions.FloatLiteral: return mirror_unknown("")
+        Syntax.Expressions.StringLiteralExpression: {
+            if expression.value.contains("\{") {
+                mirror_opaque(steps)
+            }
+            return mirror_unknown("")
+        }
+        Syntax.Expressions.EnumLiteralExpression: return mirror_maker.named_value("enum", expression.value, "")
+        Syntax.Expressions.IdentifierExpression: return mirror_identifier(expression, scope, class_information, steps)
+        Syntax.Expressions.MemberExpression: return mirror_member(expression, scope, class_information, steps)
+        Syntax.Expressions.IndexExpression: return mirror_index(expression, scope, class_information, steps)
+        Syntax.Expressions.BinaryExpression: return mirror_binary(expression, scope, class_information, steps)
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            var operand = mirror_value(expression.operand, scope, class_information, steps)
+            if expression.operator == 'logical_not' {
+                var truth = mirror_truth(expression.operand, operand, scope, class_information)
+                return mirror_maker.unary_value("not", truth)
+            }
+            return mirror_maker.unary_value("negate", operand)
+        }
+        Syntax.Expressions.CallExpression: return mirror_call(expression, scope, class_information, steps)
+        Syntax.Expressions.GenericCallExpression: {
+            var made_type = mirror_type_of(expression, scope, class_information)
+            if made_type {
+                var klass = mirror_klass(made_type)
+                var made_class = find_class_by_c_name(klass)
+                if made_class {
+                    if made_class.is_singleton {
+                        return mirror_maker.named_value("single", klass, klass)
+                    }
+                }
+            }
+            mirror_opaque(steps)
+            return mirror_unknown("")
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var element_index = 0
+            while element_index < expression.elements.count() {
+                var element = expression.elements[element_index]
+                crash element.value
+                mirror_value(element.value, scope, class_information, steps)
+                element_index = element_index + 1
+            }
+            return mirror_maker.named_value("made", "", "")
+        }
+        _: {
+            mirror_opaque(steps)
+            return mirror_unknown("")
+        }
+    }
+}
+
+func mirror_identifier(
+    identifier: Syntax.Expressions.IdentifierExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var name = identifier.name
+    if mirror_local_names.contains(name) {
+        var local_type = scope.written_type(name)
+        var klass = mirror_klass(local_type)
+        return mirror_maker.named_value("name", name, klass)
+    }
+    var field = class_information.find_field(name)
+    if field {
+        if class_information.find_function("get_{name}") {
+            mirror_opaque(steps)
+            return mirror_unknown("")
+        }
+        var own = mirror_self(class_information)
+        var field_type = field.type
+        return mirror_field_read(own, name, field_type)
+    }
+    if class_information.find_function(name) {
+        var taken = MirrorStep("taken", "{class_information.c_name}#{name}")
+        steps.append(taken)
+        mirror_unknown_names[name] = true
+    }
+    return mirror_unknown("")
+}
+
+func mirror_member(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    crash member.object
+    if mirror_reflective(member.object) {
+        return mirror_unknown("")
+    }
+    var holder_type = mirror_type_of(member.object, scope, class_information)
+    if not holder_type {
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    var holder = mirror_class_of(holder_type)
+    if holder {
+        if holder.find_function("get_{member.name}") {
+            mirror_opaque(steps)
+            return mirror_unknown("")
+        }
+        if not holder.find_field(member.name) and holder.find_function(member.name) {
+            var taken = MirrorStep("taken", "{holder.c_name}#{member.name}")
+            steps.append(taken)
+            mirror_unknown_names[member.name] = true
+            return mirror_unknown("")
+        }
+    }
+    var object = mirror_value(member.object, scope, class_information, steps)
+    var member_type = mirror_type_of(member, scope, class_information)
+    return mirror_field_read(object, member.name, member_type)
+}
+
+func mirror_reflective(expression: Syntax.Expressions.Expression): Boolean {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        return not bound_symbol_name.is_empty() and identifier.name == bound_symbol_name
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        return mirror_reflective(member.object)
+    }
+    if shape.as_generic_identifier(expression) {
+        return true
+    }
+    return false
+}
+
+func mirror_index(
+    indexed: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    if is_bound_member_index(indexed) {
+        var bound_read = bound_member_expression(indexed)
+        return mirror_value(bound_read, scope, class_information, steps)
+    }
+    crash indexed.object
+    crash indexed.index
+    var list_type = mirror_type_of(indexed.object, scope, class_information)
+    var list = mirror_value(indexed.object, scope, class_information, steps)
+    var position = mirror_value(indexed.index, scope, class_information, steps)
+    var listed = mirror_list_type(list_type)
+    if listed {
+        var element = listed.element
+        var element_klass = mirror_klass(element)
+        return mirror_maker.item_value(list, position, element_klass)
+    }
+    return mirror_unknown("")
+}
+
+func mirror_binary(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    crash binary.left
+    crash binary.right
+    var left = mirror_value(binary.left, scope, class_information, steps)
+    var logical = binary.operator == 'logical_and' or binary.operator == 'logical_or'
+    var right_steps = steps
+    if logical {
+        right_steps = List<MirrorStep>()
+        left = mirror_truth(binary.left, left, scope, class_information)
+    }
+    var right = mirror_value(binary.right, scope, class_information, right_steps)
+    if logical {
+        right = mirror_truth(binary.right, right, scope, class_information)
+    }
+    if logical and not right_steps.is_empty() {
+        var guarded = MirrorStep("if", "")
+        var taken = left
+        if binary.operator == 'logical_or' {
+            taken = mirror_maker.negated_value(left)
+        }
+        guarded.values.append(taken)
+        guarded.then_steps = right_steps
+        steps.append(guarded)
+    }
+    if binary.is_text_join {
+        return mirror_unknown("")
+    }
+    var left_type = mirror_type_of(binary.left, scope, class_information)
+    if left_type {
+        var plain = mirror_plain(left_type)
+        var class_reference = type_shape.as_class_ref(plain)
+        if class_reference {
+            var operated = find_class_by_c_name(class_reference.c_name)
+            var operator_name = operator_function_name(binary.operator)
+            if operated and not operator_name.is_empty() {
+                if operated.find_function(operator_name) {
+                    mirror_opaque(steps)
+                    return mirror_unknown("")
+                }
+            }
+        }
+    }
+    var operated_name = mirror_operator(binary.operator)
+    return mirror_maker.binary_value(operated_name, left, right)
+}
+
+func mirror_operator(operator: Syntax.Expressions.BinaryOperator): String {
+    switch operator {
+        'add': return "add"
+        'subtract': return "subtract"
+        'multiply': return "multiply"
+        'divide': return "divide"
+        'modulo': return "modulo"
+        'equal': return "eq"
+        'not_equal': return "ne"
+        'less': return "lt"
+        'less_equal': return "le"
+        'greater': return "gt"
+        'greater_equal': return "ge"
+        'logical_and': return "and"
+        _: return "or"
+    }
+}
+
+func mirror_call(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    crash call.callee
+    var identifier = shape.as_identifier(call.callee)
+    if identifier {
+        if identifier.name == "load" {
+            return mirror_unknown("")
+        }
+    }
+    var constructed = try_resolve_static_path(call.callee, class_information.qualified_dotted)
+    if constructed {
+        return mirror_construction(constructed, call, scope, class_information, steps)
+    }
+    if identifier {
+        return mirror_own_call(identifier.name, call, scope, class_information, steps)
+    }
+    var member = shape.as_member(call.callee)
+    if member {
+        return mirror_method_call(member, call, scope, class_information, steps)
+    }
+    mirror_arguments(call.arguments, null, scope, class_information, steps)
+    mirror_opaque(steps)
+    return mirror_unknown("")
+}
+
+func mirror_construction(
+    constructed: Analysis.ClassInfo,
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var arguments = mirror_arguments(call.arguments, constructed.constructor, scope, class_information, steps)
+    if constructed.is_singleton {
+        return mirror_maker.named_value("single", constructed.c_name, constructed.c_name)
+    }
+    if mirror_threads_class(constructed.qualified_dotted) {
+        mirror_note_async(call.arguments, scope, class_information)
+        mirror_opaque(steps)
+        return mirror_unknown(constructed.c_name)
+    }
+    if is_library_class(constructed) {
+        return mirror_maker.named_value("made", "", constructed.c_name)
+    }
+    var made = MirrorStep("make", "{constructed.c_name}#{constructed.simple_name}")
+    var receiver = mirror_maker.named_value("made", "", constructed.c_name)
+    made.values.append(receiver)
+    var index = 0
+    while index < arguments.count() {
+        made.values.append(arguments[index])
+        index = index + 1
+    }
+    mirror_temporaries = mirror_temporaries + 1
+    made.result = "%{mirror_temporaries}"
+    steps.append(made)
+    mirror_local_names.append(made.result)
+    return mirror_maker.named_value("name", made.result, constructed.c_name)
+}
+
+func mirror_note_async(
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var argument_type = mirror_type_of(argument, scope, class_information)
+        var passes_function = true
+        if argument_type {
+            var plain = mirror_plain(argument_type)
+            var class_reference = type_shape.as_class_ref(plain)
+            if class_reference {
+                passes_function = class_reference.has_signature
+            }
+        }
+        if passes_function {
+            mirror_note_async_function(argument, scope, class_information)
+        }
+        index = index + 1
+    }
+}
+
+func mirror_note_async_function(
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var key = mirror_function_reference(argument, scope, class_information)
+    if key.is_empty() {
+        mirror_threads = true
+        return
+    }
+    var effects = call_effects.effects_of_key(key)
+    var index = 0
+    while index < effects.count() {
+        var effect = effects[index]
+        mirror_async_effects.append(effect)
+        index = index + 1
+    }
+}
+
+func mirror_function_reference(
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var identifier = shape.as_identifier(argument)
+    if identifier {
+        if mirror_local_names.contains(identifier.name) or not class_information.find_function(identifier.name) {
+            return ""
+        }
+        return call_effects.effects_key(class_information.qualified_dotted, identifier.name)
+    }
+    var member = shape.as_member(argument)
+    if not member {
+        return ""
+    }
+    crash member.object
+    var holder_type = mirror_type_of(member.object, scope, class_information)
+    if not holder_type {
+        return ""
+    }
+    var holder = mirror_class_of(holder_type)
+    if not holder {
+        return ""
+    }
+    if not holder.find_function(member.name) {
+        return ""
+    }
+    return call_effects.effects_key(holder.qualified_dotted, member.name)
+}
+
+func mirror_threads_class(qualified: String): Boolean {
+    var threaded = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "ThreadLocal", "Atomic"]
+    return threaded.contains(qualified)
+}
+
+func mirror_own_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
+    var existing = information.find_function(name)
+    if existing {
+        return existing
+    }
+    assert not bound_pattern.is_empty()
+    return information.find_function("{name}_in_{bound_function_name}")
+}
+
+func mirror_own_call(
+    name: String,
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var held_function = mirror_local_names.contains(name) or class_information.find_field(name)
+    var function = mirror_own_function(class_information, name)
+    if held_function or not function or passed_template(class_information, name) {
+        mirror_arguments(call.arguments, null, scope, class_information, steps)
+        mirror_unknown_names[name] = true
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    var own = mirror_self(class_information)
+    return mirror_call_step(class_information, function, own, call.arguments, scope, class_information, steps)
+}
+
+func mirror_call_step(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    receiver: MirrorValue,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var arguments = mirror_arguments(arguments_ast, function, scope, class_information, steps)
+    var called = MirrorStep("call", "{owner.c_name}#{function.name}")
+    called.values.append(receiver)
+    var index = 0
+    while index < arguments.count() {
+        called.values.append(arguments[index])
+        index = index + 1
+    }
+    var effects_key = call_effects.effects_key(owner.qualified_dotted, function.name)
+    if not effects_key.is_empty() {
+        called.effects_known = true
+        called.effects = call_effects.effects_of_key(effects_key)
+    }
+    mirror_temporaries = mirror_temporaries + 1
+    called.result = "%{mirror_temporaries}"
+    steps.append(called)
+    mirror_local_names.append(called.result)
+    var returned = function.return_type
+    var returned_klass = mirror_klass(returned)
+    return mirror_maker.named_value("name", called.result, returned_klass)
+}
+
+func mirror_arguments(
+    arguments: List<Syntax.Expressions.Expression>,
+    function: Analysis.FunctionInfo?,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): List<MirrorValue> {
+    var values = List<MirrorValue>()
+    var spread: Analysis.TemplateInfo? = null
+    if function and arguments.count() == 1 {
+        spread = spread_template(arguments, class_information)
+    }
+    if spread and function {
+        var spread_call = shape.as_call(arguments[0])
+        crash spread_call
+        var parameter_index = 0
+        while parameter_index < function.parameters.count() {
+            var parameter = function.parameters[parameter_index]
+            var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+                "{spread.prefix}{parameter.name}{spread.suffix}",
+            )
+            var one: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, spread_call.arguments)
+            var spread_value = mirror_value(one, scope, class_information, steps)
+            values.append(spread_value)
+            parameter_index = parameter_index + 1
+        }
+        return values
+    }
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var value = mirror_value(argument, scope, class_information, steps)
+        values.append(value)
+        index = index + 1
+    }
+    return values
+}
+
+func mirror_method_call(
+    member: Syntax.Expressions.MemberExpression,
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    crash member.object
+    var name = member.name
+    if name == bound_pattern and not bound_pattern.is_empty() {
+        name = bound_function_name
+    }
+    if mirror_reflective(member.object) {
+        mirror_arguments(call.arguments, null, scope, class_information, steps)
+        return mirror_unknown("")
+    }
+    var receiver_type = mirror_type_of(member.object, scope, class_information)
+    if not receiver_type or name == "call_function" or try_resolve_static_path(member.object, class_information.qualified_dotted) {
+        mirror_arguments(call.arguments, null, scope, class_information, steps)
+        mirror_unknown_names[name] = true
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    var plain = mirror_plain(receiver_type)
+    var receiver = mirror_value(member.object, scope, class_information, steps)
+    var listed = type_shape.as_list(plain)
+    if listed {
+        return mirror_list_call(listed, receiver, name, call, scope, class_information, steps)
+    }
+    var class_reference = type_shape.as_class_ref(plain)
+    if not class_reference {
+        var passes_function = mirror_passes_function(call.arguments, scope, class_information)
+        mirror_arguments(call.arguments, null, scope, class_information, steps)
+        var dictionary = type_shape.as_dictionary(plain)
+        if dictionary {
+            mirror_dictionary_call(dictionary, name, steps)
+        }
+        if passes_function or type_shape.as_union(plain) {
+            mirror_unknown_names[name] = true
+            mirror_opaque(steps)
+        }
+        return mirror_unknown("")
+    }
+    var owner = find_class_by_c_name(class_reference.c_name)
+    if not owner or class_reference.has_signature {
+        mirror_arguments(call.arguments, null, scope, class_information, steps)
+        mirror_unknown_names[name] = true
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    if is_library_class(owner) {
+        return mirror_library_call(owner, name, call, scope, class_information, steps)
+    }
+    var saved_pattern = bound_pattern
+    if owner.c_name != class_information.c_name {
+        bound_pattern = ""
+    }
+    var function = mirror_own_function(owner, name)
+    bound_pattern = saved_pattern
+    if not function {
+        mirror_arguments(call.arguments, null, scope, class_information, steps)
+        mirror_unknown_names[name] = true
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    return mirror_call_step(owner, function, receiver, call.arguments, scope, class_information, steps)
+}
+
+func mirror_passes_function(
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var argument_type = mirror_type_of(argument, scope, class_information)
+        if not argument_type {
+            return true
+        }
+        var plain = mirror_plain(argument_type)
+        var class_reference = type_shape.as_class_ref(plain)
+        if class_reference {
+            if class_reference.has_signature {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mirror_list_call(
+    listed: Analysis.Types.ListType,
+    receiver: MirrorValue,
+    name: String,
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var plain_methods = [
+        "count"
+        "is_empty"
+        "get_at"
+        "contains"
+        "index_of"
+        "first"
+        "last"
+        "append"
+        "set_at"
+        "clear"
+        "remove_last"
+        "remove_first"
+        "remove_at"
+        "remove_swapping"
+        "insert"
+        "prepend"
+        "truncate"
+        "reverse"
+        "swap"
+    ]
+    var passes_function = mirror_passes_function(call.arguments, scope, class_information)
+    var arguments = mirror_arguments(call.arguments, null, scope, class_information, steps)
+    if passes_function or not plain_methods.contains(name) {
+        mirror_template_names(name)
+        var element_klass = mirror_klass(listed.element)
+        if not element_klass.is_empty() {
+            var element_class = MirrorStep("class", element_klass)
+            steps.append(element_class)
+        }
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    var listed_step = MirrorStep("list", name)
+    listed_step.values.append(receiver)
+    var index = 0
+    while index < arguments.count() {
+        listed_step.values.append(arguments[index])
+        index = index + 1
+    }
+    mirror_temporaries = mirror_temporaries + 1
+    listed_step.result = "%{mirror_temporaries}"
+    steps.append(listed_step)
+    mirror_local_names.append(listed_step.result)
+    var element = listed.element
+    var element_klass_name = mirror_klass(element)
+    return mirror_maker.named_value("name", listed_step.result, element_klass_name)
+}
+
+func mirror_library_call(
+    owner: Analysis.ClassInfo,
+    name: String,
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    steps: List<MirrorStep>,
+): MirrorValue {
+    var passes_function = mirror_passes_function(call.arguments, scope, class_information)
+    mirror_arguments(call.arguments, null, scope, class_information, steps)
+    if mirror_threads_class(owner.qualified_dotted) or passes_function {
+        if mirror_threads_class(owner.qualified_dotted) {
+            mirror_note_async(call.arguments, scope, class_information)
+        }
+        mirror_opaque(steps)
+        return mirror_unknown("")
+    }
+    var effects_key = call_effects.effects_key(owner.qualified_dotted, name)
+    var effected = MirrorStep("effects", effects_key)
+    if not effects_key.is_empty() {
+        effected.effects_known = true
+        effected.effects = call_effects.effects_of_key(effects_key)
+    }
+    if not owner.find_function(name) {
+        mirror_template_names(name)
+    }
+    steps.append(effected)
+    return mirror_unknown("")
+}
+
+func mirror_template_names(name: String) {
+    mirror_unknown_names[name] = true
+    var length = name.length()
+    var index = 0
+    while index < length {
+        if name.code_at(index) == 95 {
+            var suffix = name.slice(index + 1, length)
+            mirror_unknown_names[suffix] = true
+        }
+        index = index + 1
+    }
+}
+
+func mirror_dictionary_call(dictionary: Analysis.Types.DictionaryType, name: String, steps: List<MirrorStep>) {
+    var plain_methods = ["set_at", "get_at", "has", "remove", "count", "keys", "values", "copy", "is_empty", "clear"]
+    assert not plain_methods.contains(name)
+    mirror_template_names(name)
+    var element = dictionary.element
+    var element_klass = mirror_klass(element)
+    if not element_klass.is_empty() {
+        var element_class = MirrorStep("class", element_klass)
+        steps.append(element_class)
+    }
+    mirror_opaque(steps)
+}
+
+# ../../../docs/proofs.md#a-value-followed-through-calls-is-the-slot-it-was-read-from
+func mirror_finish(class_files: List<Discovery.DiscoveredClass>) {
+    var decisions = Dictionary<String, MirrorDecision>()
+    if not mirror_threads and mirror_drops_known() {
+        var solver = mirror_solver(class_files)
+        mirror_volatile(solver)
+        var index = 0
+        while index < mirror_candidate_keys.count() {
+            var place = mirror_candidate_keys[index]
+            var parts = place.split("@")
+            var key = parts[0]
+            crash key
+            if solver.walked_functions.has(key) {
+                var decided = solver.decide(index + 1, key)
+                if decided {
+                    var owner_parts = key.split("#")
+                    var owner = owner_parts[0]
+                    crash owner
+                    decided.owner = owner
+                    var decided_key: String = index + 1
+                    decisions[decided_key] = decided
+                }
+            }
+            index = index + 1
+        }
+    }
+    builder.rewrite_mirrors(decisions, mirror_atomic)
+}
+
+func mirror_drops_known(): Boolean {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if information.drop_function and not information.is_singleton and not is_library_class(information) {
+            var key = call_effects.effects_key(information.qualified_dotted, "drop")
+            if key.is_empty() {
+                return false
+            }
+            var effects = call_effects.effects_of_key(key)
+            var effect_index = 0
+            while effect_index < effects.count() {
+                var effect = effects[effect_index]
+                var plain_field = effect.starts_with("field:") and not effect.ends_with("#*") and effect != "field:*"
+                if not plain_field and effect != "release" and effect != "release:value" {
+                    return false
+                }
+                effect_index = effect_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func mirror_solver(class_files: List<Discovery.DiscoveredClass>): MirrorSolver {
+    var solver = MirrorSolver()
+    solver.walked_functions = mirror_functions
+    solver.unknown_callers = mirror_unknown_callers
+    solver.unknown_names = mirror_unknown_names
+    solver.unknown_classes = mirror_unknown_classes
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if information.is_singleton {
+            solver.singletons[information.c_name] = true
+        }
+        if information.drop_function and not information.is_singleton and not is_library_class(information) {
+            mirror_drop_fields(information, solver)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < functions_function_classes.count() {
+        var listed_class = functions_function_classes[index]
+        solver.unknown_classes[listed_class.c_name] = true
+        index = index + 1
+    }
+    index = 0
+    while index < class_files.count() {
+        var discovered = class_files[index]
+        mirror_default_calls(discovered.file.statements, solver)
+        index = index + 1
+    }
+    solver.index_callers()
+    return solver
+}
+
+func mirror_volatile(solver: MirrorSolver) {
+    assert not mirror_async_effects.is_empty()
+    var index = 0
+    while index < solver.drop_fields.count() {
+        var dropped = solver.drop_fields[index]
+        solver.volatile_fields.append(dropped)
+        index = index + 1
+    }
+    index = 0
+    while index < mirror_async_effects.count() {
+        var effect = mirror_async_effects[index]
+        mirror_volatile_effect(effect, solver)
+        index = index + 1
+    }
+}
+
+func mirror_volatile_effect(effect: String, solver: MirrorSolver) {
+    assert effect != "release" and effect != "release:value"
+    var parts = effect.split("#")
+    var named = parts.last()
+    crash named
+    var plain_named = parts.count() == 2 and named != "*" and not effect.contains("parameter:")
+    if not plain_named {
+        solver.disabled = true
+        return
+    }
+    var head = parts[0]
+    crash head
+    var owner_parts = head.split(":")
+    var owner = owner_parts.last()
+    crash owner
+    var modelled = ["List", "Vector", "Items", "Dictionary", "TypedMemory", "InlineMemory"]
+    assert not modelled.contains(owner)
+    if effect.starts_with("field:") {
+        solver.volatile_fields.append(named)
+        return
+    }
+    if effect.starts_with("store:") or effect.starts_with("shrink:") or effect.starts_with("grow:") {
+        solver.volatile_lists.append(named)
+        return
+    }
+    solver.disabled = true
+}
+
+func mirror_drop_fields(information: Analysis.ClassInfo, solver: MirrorSolver) {
+    var key = call_effects.effects_key(information.qualified_dotted, "drop")
+    var effects = call_effects.effects_of_key(key)
+    var index = 0
+    while index < effects.count() {
+        var effect = effects[index]
+        if effect.starts_with("field:") {
+            var parts = effect.split("#")
+            var written = parts.last()
+            crash written
+            if not solver.drop_fields.contains(written) {
+                solver.drop_fields.append(written)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func mirror_default_calls(statements: List<Syntax.Statements.Statement>, solver: MirrorSolver) {
+    var index = 0
+    while index < statements.count() {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            if declared.value {
+                mirror_called_names(declared.value, solver)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func mirror_called_names(expression: Syntax.Expressions.Expression, solver: MirrorSolver) {
+    var call = shape.as_call(expression)
+    if call {
+        crash call.callee
+        var identifier = shape.as_identifier(call.callee)
+        if identifier {
+            solver.unknown_names[identifier.name] = true
+        }
+        var member = shape.as_member(call.callee)
+        if member {
+            solver.unknown_names[member.name] = true
+            crash member.object
+            mirror_called_names(member.object, solver)
+        }
+        var index = 0
+        while index < call.arguments.count() {
+            var argument = call.arguments[index]
+            mirror_called_names(argument, solver)
+            index = index + 1
+        }
+        return
+    }
+    var binary = shape.as_binary(expression)
+    assert binary
+    crash binary.left
+    crash binary.right
+    mirror_called_names(binary.left, solver)
+    mirror_called_names(binary.right, solver)
+}
+
+func mirror_type_of(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        var holder = mirror_type_of(member.object, scope, class_information)
+        assert holder
+        return mirror_member_type(holder, member.name)
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        if is_bound_member_index(indexed) and not bound_member_is_function() {
+            var bound_read = bound_member_expression(indexed)
+            return mirror_type_of(bound_read, scope, class_information)
+        }
+    }
+    return receiver_type_of(expression, scope, class_information)
+}
+
+func mirror_member_type(holder: Analysis.SpiteType, name: String): Analysis.SpiteType? {
+    var plain = mirror_plain(holder)
+    var union_type = type_shape.as_union(plain)
+    if union_type {
+        var union_information = find_union_by_c_name(union_type.c_name)
+        assert union_information
+        assert union_information.is_shape
+        return shape_member_type(union_information, name)
+    }
+    var class_reference = type_shape.as_class_ref(plain)
+    assert class_reference and not class_reference.has_signature
+    return member_type_through(plain, name)
 }

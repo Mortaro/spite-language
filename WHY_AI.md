@@ -20,16 +20,22 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   that never leaves its function lives in the frame; identical generated functions fold into one; unused code is
   not in the executable. The full list, with every remaining cost, is
   [docs/optimizations.md](docs/optimizations.md).
+- Memory and threads are the compiler's too. You never pick an allocator, a lock or a thread: values that do not
+  need the heap stay in the frame, counts are left out where proven, objects of one class sit together, calls and
+  loop passes that share nothing written run at once on the cores, and a wait inside a frame loop does not hold the
+  frame. A plain program needs no `Parallel`, `Concurrent` or `Memory`. Any method counts, as long as the answer is
+  the same, so a part of a program the compiler can work out while compiling may be reduced to its answer.
 - When the source changes, the optimisations are redone. Nothing goes stale.
-- Measured, Spite `--optimized` against the same program written plainly in C and tuned by hand in C, both at
-  `clang -O2` ([benchmarks/README.md](benchmarks/README.md)); Spite's time over naive C's, then over expert C's
-  (1.00 is equal, lower is better), on a machine other work was loading: particles stepped in place 0.74 and 1.25;
-  quicksort 1.20 and 7.52; text building 1.77 and 15.48; `Vector3` maths 2.40 and 3.23; integer-keyed dictionary
-  3.79 and 6.94. The `Vector3` program once went from 4.33 times as long as C to 1.25 with no change to its source,
-  when the compiler learned to keep non-escaping objects in the frame; `normalized()`'s answer now falls back to the
-  heap, a bug the case found.
-- Not yet: a `List` of a class is still a list of references. The goal is that every list gets its packed layout
-  and that the compiler reports any it could not optimise.
+- Measured on a quiet machine, Spite `--optimized` against the same program written plainly in C and tuned by hand
+  in C, both at `clang -O2` ([benchmarks/README.md](benchmarks/README.md)), Spite's time over naive C's, then over
+  expert C's (1.00 is equal, lower is better): a report over two million records 0.52 and 13.44; particles stepped
+  in place 0.69 and 1.14; `Vector3` maths 1.26 and 1.70; matrices and quaternions 1.25 and 1.59; quicksort 1.19
+  and 7.56; text building 1.83 and 15.90; an integer-keyed dictionary 2.33 and 3.82. Across all 83 timed cases,
+  the plain Spite program is as fast as plain C or faster in 55. Expert C is still ahead in most cases; closing
+  that gap with no change to the source is the work in progress.
+- Not yet: a `List` of a class keeps its objects side by side in a pool but is still a list of references. The goal
+  is that each list gets the layout its loops want (columns where the loops read a few fields), and the compiler
+  reports where it could not.
 
 ## Fewer ways to be wrong
 
@@ -112,21 +118,21 @@ designed so a moron's code still comes out correct and fast. That is the case fo
 
 | Question | Answer |
 |---|---|
-| Speed | Spite takes 1.06 to 1.96 times as long as hand-written C on five programs (1.00 is equal, lower is better); no measured comparison with Rust, Go or Zig |
+| Speed | on 83 timed cases, as fast as plain C or faster in 55; seven whole programs take 0.52 to 2.33 times as long as plain C and 1.14 to 15.90 times as long as C tuned by hand (1.00 is equal, lower is better); no measured comparison with Rust, Go or Zig |
 | Compile speed | the compiler compiles itself to C in 1.7 s CPU; a default build of a 209 206-line program, C included, about 15 s |
 | Builds | default `-O0` for iteration (3 to 7 times slower at run time); `--optimized` is `-O3` with link-time optimisation |
-| Maturity | experimental; first decision 2026-09-19, over 340 decisions since; syntax still changes |
+| Maturity | experimental; first decision 2026-09-19, over 560 decisions since; syntax still changes |
 | Platforms | Windows runs; Linux and macOS compile in the test suite but have never run; web planned |
 | Install | `git clone https://github.com/Mortaro/spite-language.git`, then `bin/spite examples/hello` (needs bash and a C compiler) |
 | Calling C | `DynamicLibrary` calls exported functions as members; `ForeignCallback` lets C call Spite; C++, Rust, Zig and Go libraries through the C ABI they export |
-| Memory | reference counting, no garbage collector, no lifetimes; `Weak<T>` for back references; arenas and allocators per object |
+| Memory | placed by the compiler per use: frame objects, counts left out where proven, per-class pools; no garbage collector, no lifetimes; `Weak<T>` for back references |
 | Errors | compile error, `assert`, `crash`; no exceptions |
-| Concurrency | `Concurrent(f)` and `Parallel(f)` at the call site; no `async`/`await`; built on Windows |
+| Concurrency | found by the compiler: independent calls at once, loops split across cores, waits in frame loops started early; no `async`/`await`; `Concurrent` and `Parallel` exist but a plain program does not need them; built on Windows |
 | Tooling | the compiler formats and lints; REPL, live reload, breakpoints, `--debug-memory`; no language server yet |
 | Dependencies | a git URL pinned to a commit in a `load` line; no package manager, registry or lockfile |
 | Standard library | about a hundred files of Spite: text, collections, files, processes, sockets, HTTP, JSON, binary, time zones, game maths, hashing, compression |
-| Backend | compiles to C with the user's C compiler; the goal is a backend of its own |
-| Maintainer | Mortaro decides the language; most code is written by AI agents; no license file yet |
+| Backend | compiles to C with the user's C compiler; its own code generator and linker are being built on an experimental branch, with C kept as the fallback |
+| Maintainer | Mortaro decides the language; most code is written by AI agents, and every mistake an agent makes becomes a rule the compiler enforces ([WHY.md](WHY.md#written-by-ai-decided-by-a-person)); no license file yet |
 | Verification | the compiler compiles itself to byte-identical output twice; `bash check.sh` runs every titled program in the docs and every conformance program, requiring exact output and balanced allocations |
 
 ## When not to choose Spite

@@ -825,6 +825,12 @@ static SpiteString spite_symbol_6 = SPITE_STATIC_STRING("spite_row_render_piece"
 #define spite_site_50() "library/thread_pool.spite:196 in ThreadPool.run_marked"
 static SpiteString spite_symbol_7 = { (int64_t)0x0072656765746e49ULL, (int64_t)0x0800000000000000ULL };
 static SpiteString spite_symbol_8 = { (int64_t)0x797469746e656469ULL, (int64_t)0x0700000000000000ULL };
+/* A class two calls run at once both count is counted atomically only while they run */
+static int32_t spite_rows_running = 0;
+#define SPITE_ROWS_ENTER() __atomic_add_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)
+#define SPITE_ROWS_LEAVE() __atomic_sub_fetch(&spite_rows_running, 1, __ATOMIC_SEQ_CST)
+#define SPITE_ROW_COUNT_UP(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_UP(count) : SPITE_PLAIN_COUNT_UP(count))
+#define SPITE_ROW_COUNT_DOWN(count) (__builtin_expect(__atomic_load_n(&spite_rows_running, __ATOMIC_RELAXED) != 0, 0) ? SPITE_COUNT_DOWN(count) : SPITE_PLAIN_COUNT_DOWN(count))
 typedef struct SpiteGuard { _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;
 #define SPITE_GUARDS_HELD() 0
 #define SPITE_GUARDS_COUNT(change) ((void)0)
@@ -1108,7 +1114,6 @@ void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* se
 void List_Naive_Voice___init(List_Naive_Voice* self);
 List_Naive_Voice* List_Naive_Voice___allocate(void);
 List_Naive_Voice* List_Naive_Voice___make(void);
-static inline List_Naive_Voice* List_Naive_Voice___retain(List_Naive_Voice* self);
 static inline void List_Naive_Voice___release(List_Naive_Voice* self);
 void List_Naive_Voice___free(List_Naive_Voice* self);
 void List_Naive_Voice_drop(List_Naive_Voice* self);
@@ -1209,6 +1214,98 @@ static __typeof__(&TypedMemory__Symbol___release) spite_folded_TypedMemory__Symb
 static __typeof__(&List_Console_Printable_count) spite_folded_List_Console_Printable_count = ((__typeof__(&List_Console_Printable_count))&List_ThreadPoolJob_count);
 static __typeof__(&List_Symbol_clear) spite_folded_List_Symbol_clear = ((__typeof__(&List_Symbol_clear))&List_String_clear);
 static __typeof__(&TypedMemory__Symbol_release_value) spite_folded_TypedMemory__Symbol_release_value = ((__typeof__(&TypedMemory__Symbol_release_value))&TypedMemory__String_release_value);
+static Launcher* Launcher___pool_free = 0;
+static char* Launcher___pool_next = 0;
+static char* Launcher___pool_end = 0;
+static size_t Launcher___pool_count = 0;
+static void Launcher___pool_grow(void) {
+if (Launcher___pool_count == 0) { Launcher___pool_count = 16; } else if (Launcher___pool_count * sizeof(Launcher) < 262144) { Launcher___pool_count = Launcher___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Launcher___pool_count * sizeof(Launcher) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Launcher___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Launcher___pool_end = Launcher___pool_next + Launcher___pool_count * sizeof(Launcher);
+}
+static inline Launcher* Launcher___pool_take(void) {
+Launcher* self = Launcher___pool_free;
+if (self != 0) { Launcher___pool_free = *(Launcher**)self; return self; }
+if (Launcher___pool_next == Launcher___pool_end) Launcher___pool_grow();
+self = (Launcher*)Launcher___pool_next;
+Launcher___pool_next = Launcher___pool_next + sizeof(Launcher);
+return self;
+}
+static inline void Launcher___pool_give(Launcher* self) {
+*(Launcher**)self = Launcher___pool_free;
+Launcher___pool_free = self;
+}
+static Duration* Duration___pool_free = 0;
+static char* Duration___pool_next = 0;
+static char* Duration___pool_end = 0;
+static size_t Duration___pool_count = 0;
+static void Duration___pool_grow(void) {
+if (Duration___pool_count == 0) { Duration___pool_count = 16; } else if (Duration___pool_count * sizeof(Duration) < 262144) { Duration___pool_count = Duration___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Duration___pool_count * sizeof(Duration) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Duration___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Duration___pool_end = Duration___pool_next + Duration___pool_count * sizeof(Duration);
+}
+static inline Duration* Duration___pool_take(void) {
+Duration* self = Duration___pool_free;
+if (self != 0) { Duration___pool_free = *(Duration**)self; return self; }
+if (Duration___pool_next == Duration___pool_end) Duration___pool_grow();
+self = (Duration*)Duration___pool_next;
+Duration___pool_next = Duration___pool_next + sizeof(Duration);
+return self;
+}
+static inline void Duration___pool_give(Duration* self) {
+*(Duration**)self = Duration___pool_free;
+Duration___pool_free = self;
+}
+static Nothing* Nothing___pool_free = 0;
+static char* Nothing___pool_next = 0;
+static char* Nothing___pool_end = 0;
+static size_t Nothing___pool_count = 0;
+static void Nothing___pool_grow(void) {
+if (Nothing___pool_count == 0) { Nothing___pool_count = 16; } else if (Nothing___pool_count * sizeof(Nothing) < 262144) { Nothing___pool_count = Nothing___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Nothing___pool_count * sizeof(Nothing) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Nothing___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Nothing___pool_end = Nothing___pool_next + Nothing___pool_count * sizeof(Nothing);
+}
+static inline Nothing* Nothing___pool_take(void) {
+Nothing* self = Nothing___pool_free;
+if (self != 0) { Nothing___pool_free = *(Nothing**)self; return self; }
+if (Nothing___pool_next == Nothing___pool_end) Nothing___pool_grow();
+self = (Nothing*)Nothing___pool_next;
+Nothing___pool_next = Nothing___pool_next + sizeof(Nothing);
+return self;
+}
+static inline void Nothing___pool_give(Nothing* self) {
+*(Nothing**)self = Nothing___pool_free;
+Nothing___pool_free = self;
+}
+static Benchmark__Nothing* Benchmark__Nothing___pool_free = 0;
+static char* Benchmark__Nothing___pool_next = 0;
+static char* Benchmark__Nothing___pool_end = 0;
+static size_t Benchmark__Nothing___pool_count = 0;
+static void Benchmark__Nothing___pool_grow(void) {
+if (Benchmark__Nothing___pool_count == 0) { Benchmark__Nothing___pool_count = 16; } else if (Benchmark__Nothing___pool_count * sizeof(Benchmark__Nothing) < 262144) { Benchmark__Nothing___pool_count = Benchmark__Nothing___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Benchmark__Nothing___pool_count * sizeof(Benchmark__Nothing) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Benchmark__Nothing___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Benchmark__Nothing___pool_end = Benchmark__Nothing___pool_next + Benchmark__Nothing___pool_count * sizeof(Benchmark__Nothing);
+}
+static inline Benchmark__Nothing* Benchmark__Nothing___pool_take(void) {
+Benchmark__Nothing* self = Benchmark__Nothing___pool_free;
+if (self != 0) { Benchmark__Nothing___pool_free = *(Benchmark__Nothing**)self; return self; }
+if (Benchmark__Nothing___pool_next == Benchmark__Nothing___pool_end) Benchmark__Nothing___pool_grow();
+self = (Benchmark__Nothing*)Benchmark__Nothing___pool_next;
+Benchmark__Nothing___pool_next = Benchmark__Nothing___pool_next + sizeof(Benchmark__Nothing);
+return self;
+}
+static inline void Benchmark__Nothing___pool_give(Benchmark__Nothing* self) {
+*(Benchmark__Nothing**)self = Benchmark__Nothing___pool_free;
+Benchmark__Nothing___pool_free = self;
+}
 Memory_Heap* spite_singleton_Memory_Heap(void) {
 static Memory_Heap spite_object = { { 1, 96 } };
 return &spite_object;
@@ -1304,7 +1401,7 @@ void Launcher___init(Launcher* self) {
 self->build_ = spite_singleton_Build();
 }
 Launcher* Launcher___allocate(void) {
-Launcher* self = (Launcher*)SPITE_MALLOC(sizeof(Launcher));
+Launcher* self = Launcher___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 1;
 Launcher___init(self);
@@ -1326,7 +1423,7 @@ spite_untrack_Launcher(self);
 #ifdef SPITE_WEAK_Launcher
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Launcher___pool_give(self);
 }
 static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) {
 fflush(stdout);
@@ -1463,7 +1560,7 @@ self->_seconds_ = SpiteInteger_to_long(0);
 self->_nanoseconds_ = 0;
 }
 Duration* Duration___allocate(void) {
-Duration* self = (Duration*)SPITE_MALLOC(sizeof(Duration));
+Duration* self = Duration___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 27;
 Duration___init(self);
@@ -1491,7 +1588,7 @@ spite_untrack_Duration(self);
 #ifdef SPITE_WEAK_Duration
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Duration___pool_give(self);
 }
 void DynamicLibrary___init(DynamicLibrary* self) {
 self->file_name_ = spite_lit_1;
@@ -1532,7 +1629,7 @@ spite_singleton_free_later(self);
 void Nothing___init(Nothing* self) {
 }
 Nothing* Nothing___allocate(void) {
-Nothing* self = (Nothing*)SPITE_MALLOC(sizeof(Nothing));
+Nothing* self = Nothing___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 54;
 Nothing___init(self);
@@ -1554,7 +1651,7 @@ spite_untrack_Nothing(self);
 #ifdef SPITE_WEAK_Nothing
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Nothing___pool_give(self);
 }
 static int64_t spite_long_digits(char* digits, int64_t value) {
 char reversed[24];
@@ -2239,10 +2336,6 @@ List_Naive_Voice* List_Naive_Voice___make(void) {
 List_Naive_Voice* self = List_Naive_Voice___allocate();
 return self;
 }
-static inline List_Naive_Voice* List_Naive_Voice___retain(List_Naive_Voice* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
-return self;
-}
 static inline void List_Naive_Voice___release(List_Naive_Voice* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2311,7 +2404,7 @@ self->answer_ = Nothing___default();
 self->duration_ = Duration___default();
 }
 Benchmark__Nothing* Benchmark__Nothing___allocate(void) {
-Benchmark__Nothing* self = (Benchmark__Nothing*)SPITE_MALLOC(sizeof(Benchmark__Nothing));
+Benchmark__Nothing* self = Benchmark__Nothing___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 172;
 Benchmark__Nothing___init(self);
@@ -2340,7 +2433,7 @@ spite_untrack_Benchmark__Nothing(self);
 #ifdef SPITE_WEAK_Benchmark__Nothing
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Benchmark__Nothing___pool_give(self);
 }
 static void spite_singleton_ThreadPool_teardown(void) {
 ThreadPool* object = spite_singleton_ThreadPool_cache;
@@ -2371,8 +2464,8 @@ List_Spite_Argument_append(described->_arguments_, Spite_Argument___make(spite_s
 Spite_Function* spite_function_value_List_Naive_Voice_spite_row_render_piece(List_Naive_Voice* owner) {
 Spite_Function* described = Spite_Function___make(spite_symbol_6, spite_class_object_Nothing());
 described->spite_add_arguments = spite_function_value_List_Naive_Voice_spite_row_render_piece___arguments;
-described->spite_owner = List_Naive_Voice___retain(owner);
-described->spite_release_owner = (void (*)(void*))List_Naive_Voice___release;
+described->spite_owner = (void*)owner;
+described->spite_release_owner = 0;
 described->spite_typed_call = (void*)List_Naive_Voice_spite_row_render_piece;
 return described;
 }
@@ -3210,7 +3303,7 @@ void Naive_render_all(Naive* self) {
 { int64_t spite_row_1_marks[64];
 
 if (({ List_Naive_Voice* spite_row_list = self->voices_; static const unsigned char spite_row_table[3][3] = {{0, 1, 1}, {1, 0, 1}, {1, 1, 0}}; static const unsigned char spite_row_heavy[3] = {1, 1, 1}; int32_t spite_row_n = spite_row_list->item_count_; int32_t spite_row_seen[64]; int32_t spite_row_heavies = 0; bool spite_row_ok = spite_row_n >= 2 && spite_row_n <= 3; for (int32_t spite_row_i = 0; spite_row_ok && spite_row_i < spite_row_n; spite_row_i++) { int32_t spite_row_k = -1; switch (((SpiteTagged*)(intptr_t)spite_row_list->items_)[spite_row_i].tag) { case 113: spite_row_k = 0; break; case 114: spite_row_k = 1; break; case 112: spite_row_k = 2; break; default: break; } spite_row_ok = spite_row_k >= 0; for (int32_t spite_row_j = 0; spite_row_ok && spite_row_j < spite_row_i; spite_row_j++) spite_row_ok = spite_row_table[spite_row_seen[spite_row_j]][spite_row_k] != 0; if (spite_row_ok) { spite_row_seen[spite_row_i] = spite_row_k; spite_row_1_marks[spite_row_i] = spite_row_heavy[spite_row_k]; spite_row_heavies += spite_row_heavy[spite_row_k]; } } spite_row_ok && spite_row_heavies >= 2; })) {
-List_Naive_Voice_spite_row_render(self->voices_, ((int64_t)(intptr_t)spite_row_1_marks));
+SPITE_ROWS_ENTER(); List_Naive_Voice_spite_row_render(self->voices_, ((int64_t)(intptr_t)spite_row_1_marks)); SPITE_ROWS_LEAVE();
 } else {
 
 List_Naive_Voice_each_render(self->voices_);
@@ -3692,6 +3785,18 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_string_code_at, "-\t-", "spite_string_code_at", 0},
 {(const void*)&spite_described_enter, "-\t-", "spite_described_enter", 0},
 {(const void*)&spite_described_leave, "-\t-", "spite_described_leave", 0},
+{(const void*)&Launcher___pool_grow, "-\t-", "Launcher___pool_grow", 0},
+{(const void*)&Launcher___pool_take, "-\t-", "Launcher___pool_take", 0},
+{(const void*)&Launcher___pool_give, "-\t-", "Launcher___pool_give", 0},
+{(const void*)&Duration___pool_grow, "-\t-", "Duration___pool_grow", 0},
+{(const void*)&Duration___pool_take, "-\t-", "Duration___pool_take", 0},
+{(const void*)&Duration___pool_give, "-\t-", "Duration___pool_give", 0},
+{(const void*)&Nothing___pool_grow, "-\t-", "Nothing___pool_grow", 0},
+{(const void*)&Nothing___pool_take, "-\t-", "Nothing___pool_take", 0},
+{(const void*)&Nothing___pool_give, "-\t-", "Nothing___pool_give", 0},
+{(const void*)&Benchmark__Nothing___pool_grow, "-\t-", "Benchmark__Nothing___pool_grow", 0},
+{(const void*)&Benchmark__Nothing___pool_take, "-\t-", "Benchmark__Nothing___pool_take", 0},
+{(const void*)&Benchmark__Nothing___pool_give, "-\t-", "Benchmark__Nothing___pool_give", 0},
 {(const void*)&spite_singleton_Memory_Heap, "-\t-", "spite_singleton_Memory_Heap", 0},
 {(const void*)&Console_Printable___retain, "-\t-", "Console_Printable___retain", 0},
 {(const void*)&Naive_Voice___retain, "-\t-", "Naive_Voice___retain", 0},
@@ -3830,7 +3935,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Naive_Voice___init, "-\t-", "List_Naive_Voice___init", 0},
 {(const void*)&List_Naive_Voice___allocate, "-\t-", "List_Naive_Voice___allocate", 0},
 {(const void*)&List_Naive_Voice___make, "-\t-", "List_Naive_Voice___make", 0},
-{(const void*)&List_Naive_Voice___retain, "-\t-", "List_Naive_Voice___retain", 0},
 {(const void*)&List_Naive_Voice___release, "-\t-", "List_Naive_Voice___release", 0},
 {(const void*)&List_Naive_Voice___free, "-\t-", "List_Naive_Voice___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},

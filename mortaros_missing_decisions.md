@@ -18,6 +18,15 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
+- **D568, the error text for naming `Spite.Internal` outside the library**: "`<Name>` is internal to Spite and cannot
+  be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain
+  type, and leave threads to the compiler". It is built and refuses any use, reopening or new class there; the
+  namespace holds no class yet. Say "confirmed" or give the wording you want.
+- **D562, a write-back of what the slot already holds is not written, across calls**: a call made as a statement
+  is left out when the compiler proves, by following values through the calls from every known caller, that it only
+  stores into slots what they already hold, checks what was already checked and leaves numbers it can set in its
+  place; a branch that may break the proof keeps the call on its own path. Why: the naive engine's runner copies
+  each component into a row and stores it back after the system, and that store was 3 to 4 ms of a 20 ms tick.
 - **D552, a list held only by another list lives in its slot**: an inner list nothing names but through its slot is
   stored inside the outer list's block, decided per element type for the whole program and refused on any use
   that could keep or alias one. Why: the naive engine's physics grid reads a bucket per query, and the pointer to
@@ -206,16 +215,41 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   when the object's list holds those values. Why: tables a program fills once (a checkout's steps, a matcher's kinds)
   fold into straight code. The cost to confirm: the C and the executable grow (the naive engine's by 20% and 13%,
   for about 7% of its tick, measured while the machine was in other use), since combinations the program never makes are copied too.
-- **D555, an attribute read only under its singleton's lock is a plain number**: a locked singleton's attribute
+- **D572, an attribute read only under its singleton's lock is a plain number**: a locked singleton's attribute
   stays atomic only when some other class reads it directly. Why: nothing else reads it without the lock, so the
   atomic additions bought nothing (76.6 to 24.4 ms on the counted loop's case). The cost to confirm: none at run
   time; one read from another class anywhere in the program makes every lone atomic attribute of that singleton
   atomic again.
-- **D556, a loop of calls to one singleton tests for tasks once**: a loop that would take its singleton's lock once
+- **D573, a loop of calls to one singleton tests for tasks once**: a loop that would take its singleton's lock once
   but is not counted (its index is what a call answers) asks once whether a task is in flight and, when none is,
   calls the unlocked bodies for the whole loop. Why: the test, push and pop per call were most of a call (41.5 to
   9.5 ms for ten million). The cost to confirm: a loop that starts while a task is in flight takes the lock on every
   call even after the task ends, as before; the loop is written once with both calls in it.
+- **D555, counts per group, and the despawn cost**: in a loop over different classes that may run them at once, a
+  class only one of the calls counts keeps plain counts and its pool, and one two of them count is atomic only
+  while they run. The stress update stage went from about 28 to 15 ms, but the sixty ticks after despawning
+  everything got about a tenth slower (caches on the other core, and a pool start per empty tick), which D214
+  would refuse; kept because the tick is the number that matters. Say if it should wait for a cost model.
+- **D556, objects made for their owner are told apart**: an attribute only ever given an object constructed
+  where it is given holds an object no other such attribute holds, so two calls that each keep their own meter,
+  timing record or scratch list may run at once; an item of one singleton's list and an item of another's are told
+  apart by comparing the two lists when the loop starts. Why: it is what keeps the naive engine's two stress
+  systems apart, with no annotation.
+- **D567, no hand copy of a library operator in a reopening**: a program's reopening of a library class (`Matrix4`)
+  may not add a function that rewrites the object's attributes from parameters of the same class when the library
+  class already has the operator (`set_product(left, right)` beside `*`). Why: it competes with the compiler's own
+  form of the answer (D564). Narrow: operators only (`+ - * / %` and negation), same parameter types, and a
+  function that assigns attributes; a copy of a plain library function is not caught. Say if it should reach plain
+  functions too.
+- **D570, every class made on one thread has a pool**: not only the classes a list holds, but a container's own
+  object (a `List`, a `Vector`) only when a list holds it. Why: a chain made and dropped over and over went from 81
+  to 17 ms, with no allocation per link after the first round. The cost to confirm: memory a class used stays that
+  class's, now for every class, and a program that only makes one object of a class takes a run of 16 for it.
+- **D571, a deep copy nothing changes is the original**: per copy site, when nothing writes the copy or the
+  original while the copy lives and nothing in the program asks a copied class for its identity, the copy is the
+  original counted once more. Why: a program that copies to read (a report over a snapshot) makes nothing; the
+  deep copy case went from 49.5 to 2.1 ms. The cost to confirm: `--debug-memory` counts no allocation for such a
+  copy, and the walk that proves it refuses a lot (any call whose body it cannot follow keeps the copy).
 
 ## Open
 

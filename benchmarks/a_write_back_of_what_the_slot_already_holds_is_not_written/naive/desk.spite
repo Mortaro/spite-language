@@ -1,0 +1,28 @@
+singleton
+
+var pages = List<Page>()
+var open = Page(0)
+var at = 0
+
+func stock(count: Integer) {
+    var index = 0
+    while index < count {
+        var made = Page(index % 7)
+        pages.append(made)
+        index = index + 1
+    }
+}
+
+func take(index: Integer) {
+    at = index
+    crash pages[at]
+    open = pages[at]
+}
+
+func put_back() {
+    pages[at] = open
+}
+
+func total(): Integer {
+    return pages.sum_words()
+}
