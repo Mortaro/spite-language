@@ -1078,7 +1078,10 @@ coarse="$work/coarse_locks.c"
 "$work/generation_two.exe" conformance/stage6/coarse_locks --check --c-source --c-path="$coarse" > /dev/null 2>&1 || {
   echo "FAILED: coarse_locks does not write its C"; exit 1; }
 if ! grep -q "^#define spite_coarse_[0-9]*_enter() spite_guard_enter(&Tally___guard)$" "$coarse" \
-   || ! grep -q "^Tally_add___unguarded(self->tally_, 1);$" "$coarse" || grep -q "^got_ = Mailbox_take___unguarded(self->mailbox_" "$coarse" \
+   || ! grep -q "^Tally_add___unguarded(self->tally_, 1);$" "$coarse" \
+   || ! grep -q "^got_ = (spite_coarse_[0-9]*_skipping ? Mailbox_take___unguarded(self->mailbox_) : Mailbox_take(self->mailbox_));$" "$coarse" \
+   || grep "Mailbox_take___unguarded(self->mailbox_" "$coarse" \
+        | grep -v -q "^got_ = (spite_coarse_[0-9]*_skipping ? Mailbox_take___unguarded(self->mailbox_) : Mailbox_take(self->mailbox_));$" \
    || grep -q "Mailbox_put___unguarded(self->mailbox_" "$coarse"; then
   echo "FAILED: coarse_locks should lock Tally once around count_up's loop and Mailbox on every call"; exit 1
 fi
