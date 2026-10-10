@@ -85,6 +85,11 @@ encodes each instruction and compares the bytes with a table checked by hand (ta
 
 ### M3: the two-level IR and a first lowering (D560)
 
+The whole program's high-level IR stays in memory (hot reload needs it held anyway) and is cached on disk, keyed
+by a hash of each function's source and what it depends on, so a later build, a production one included, loads it
+instead of building it again and rebuilds only what changed (D569). A stale or unreadable entry is rebuilt, never
+trusted. The fast check is built on this cache, after the IR.
+
 `high_ir.spite`, `low_ir.spite` and `lower.spite`. The high-level IR is built from the compiler's typed tree and the
 facts the proof passes record; keep Spite's operations as operations (a list walk is one instruction with a body,
 not a hand-made loop). Lower it to the low-level IR for the smallest useful subset: whole-number and decimal locals,

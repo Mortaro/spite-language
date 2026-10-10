@@ -289,7 +289,6 @@ func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {
     var index = from
     var skipping = true
     while skipping and index < tokens.count() {
-        crash tokens[index]
         var token = tokens[index]
         skipping = token.kind == 'newline' or token.kind == 'comment'
         if skipping {
@@ -305,7 +304,6 @@ func internal_member(tokens: List<Syntax.Token>, internal: Integer): String {
     var member = next_significant(tokens, after + 1)
     if member < tokens.count() {
         crash tokens[after]
-        crash tokens[member]
         var after_token = tokens[after]
         var member_token = tokens[member]
         if after_token.kind == 'dot' and member_token.kind == 'identifier' {
@@ -330,7 +328,6 @@ func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_overri
     assert not walking_library and not internal_allowed
     var index = 0
     while index < tokens.count() and not has_error {
-        crash tokens[index]
         var word = tokens[index]
         var line = word.line
         if line_override > 0 {
@@ -343,9 +340,11 @@ func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_overri
             }
         }
         if word.kind == 'identifier' and word.lexeme == "Spite" and names_internal(tokens, index) {
-            var internal = next_significant(tokens, next_significant(tokens, index + 1) + 1)
+            var dot = next_significant(tokens, index + 1)
+            var internal = next_significant(tokens, dot + 1)
+            var member_name = internal_member(tokens, internal)
             has_error = true
-            error_message = internal_name_error(path, line, internal_member(tokens, internal))
+            error_message = internal_name_error(path, line, member_name)
         }
         index = index + 1
     }
