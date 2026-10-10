@@ -9,8 +9,9 @@
 # installed. A push that changes the compiler sources on master without a check that passed with them is refused.
 # Only Windows builds are released for now; a push from another system releases nothing and refuses nothing.
 remote="$1"
-repository=$(git rev-parse --show-toplevel) || exit 1
-. "$repository/scripts/release/compiler_inputs.sh"
+# The helper is read from beside this hook, not from the checkout being pushed: every worktree runs these hooks,
+# and a branch older than the releases has no scripts/release/.
+. "$(dirname "$0")/../release/compiler_inputs.sh" || exit 1
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *) exit 0 ;; esac
 no_commit=0000000000000000000000000000000000000000
 
