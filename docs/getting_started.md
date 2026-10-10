@@ -1,6 +1,18 @@
 # Getting started
 
-## Build the compiler
+## Install the compiler
+
+Download the newest `spite-0.0.<n>-windows.zip` from the repository's
+[releases](https://github.com/Mortaro/spite-language/releases), unzip it anywhere, and put the folder on your `PATH`. The
+folder holds `spite.exe` with the `launcher/` and `library/` it reads, so keep them together. Spite writes C and
+builds it, so you also need a C compiler: the clang that ships with Visual Studio is found on its own, or set `CC`.
+Then `spite hello_world` compiles and runs the program of the [next section](#hello-world).
+
+Each release also carries `spite_compiler.c`, the C that `spite.exe` was built from, and `SHA256SUMS` for both:
+any C compiler turns that file back into the same compiler. Releases are Windows only for now; on another system,
+build from source.
+
+## Build the compiler from source
 
 Spite compiles itself, so the only thing you need is a C compiler (`cc`, `clang` or `gcc`; on Windows, the
 clang that ships with Visual Studio is found on its own). From the repository root:

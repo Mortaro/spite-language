@@ -101,6 +101,14 @@ runs once:
 git config core.hooksPath scripts/hooks
 ```
 
+## Releases are automatic
+
+A `check.sh` run that passes everything records the compiler it built, and the next run starts from it, in every
+checkout and worktree (D574). Pushing to `master` releases it: the `pre-push` hook tags the next `v0.0.x` and
+packages it. A push that changes `bootstrap/`, `launcher/` or `library/` without a check that passed with exactly
+those files is refused: run the check on exactly what you push. `--update-seed` records the sources with the seeds
+it rewrites, so committing those seeds and pushing needs no second run. Nothing may skip the hook.
+
 ## Changing a Spite program: a worktree is a folder that loads it
 
 To propose a change to a Spite program (a package, an example, anything written in Spite), do not edit it in

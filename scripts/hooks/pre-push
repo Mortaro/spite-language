@@ -1,0 +1,64 @@
+#!/bin/bash
+# Releases the compiler on every push to master that changes it, so nobody has to remember to.
+#
+# A push to master whose compiler sources (bootstrap/, launcher/, library/) differ from the last release's must have
+# passed check.sh with exactly those sources on this machine: check.sh recorded that compiler under
+# .spite/shared/passed/<sources>/ (scripts/release/compiler_inputs.sh). The hook then tags the pushed commit as the
+# next version, 0.0.x with x one more than the last, packages spite.exe with launcher/, library/, the C it was built
+# from and their checksums, pushes the tag, and publishes the package as a GitHub release when the GitHub CLI is
+# installed. A push that changes the compiler sources on master without a check that passed with them is refused.
+# Only Windows builds are released for now; a push from another system releases nothing and refuses nothing.
+remote="$1"
+repository=$(git rev-parse --show-toplevel) || exit 1
+. "$repository/scripts/release/compiler_inputs.sh"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *) exit 0 ;; esac
+no_commit=0000000000000000000000000000000000000000
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$remote_ref" == "refs/heads/master" ] && [ "$local_sha" != "$no_commit" ] || continue
+  git fetch -q --tags "$remote" 2>/dev/null
+  inputs=$(commit_inputs "$local_sha")
+  last_tag=$(git tag -l 'v0.0.*' --sort=-v:refname | head -1)
+  last_inputs=""
+  [ -n "$last_tag" ] && last_inputs=$(git tag -l --format='%(contents:subject)' "$last_tag" | sed -n 's/^compiler sources //p')
+  [ "$inputs" == "$last_inputs" ] && continue
+
+  shared=$(shared_spite_folder) || exit 1
+  record="$shared/passed/$inputs/windows"
+  if [ ! -f "$record/spite.exe" ] || [ ! -f "$record/spite_compiler.c" ]; then
+    remote_inputs=""
+    [ "$remote_sha" != "$no_commit" ] && git cat-file -e "$remote_sha" 2>/dev/null && remote_inputs=$(commit_inputs "$remote_sha")
+    [ "$inputs" == "$remote_inputs" ] && continue
+    echo "push refused: it changes the compiler, the launcher or the library, and no check.sh run passed with exactly these" >&2
+    echo "sources on this machine. Run  bash check.sh  (or  bash check.sh --update-seed  and commit the seeds it rewrites)," >&2
+    echo "then push again: the run that passes is what this push releases." >&2
+    exit 1
+  fi
+
+  number=1
+  [ -n "$last_tag" ] && number=$(( ${last_tag##*.} + 1 ))
+  version="0.0.$number"
+  name="spite-$version-windows"
+  out="$shared/releases/$version"
+  rm -rf "$out" && mkdir -p "$out/$name" || exit 1
+  cp "$record/spite.exe" "$record/spite_compiler.c" "$out/$name/" || exit 1
+  git archive "$local_sha" launcher library | tar -x -C "$out/$name" || { echo "release: could not copy launcher/ and library/" >&2; exit 1; }
+  ( cd "$out/$name" && sha256sum spite.exe spite_compiler.c > SHA256SUMS ) || exit 1
+  /c/Windows/System32/tar.exe -a -c -f "$out/$name.zip" -C "$out" "$name" || { echo "release: could not write $name.zip" >&2; exit 1; }
+
+  git tag -a "v$version" -m "compiler sources $inputs" "$local_sha" || exit 1
+  git push -q "$remote" "refs/tags/v$version" || {
+    git tag -d "v$version" > /dev/null
+    echo "release: could not push the tag v$version, so this push stops; push again" >&2
+    exit 1
+  }
+  if command -v gh > /dev/null 2>&1; then
+    gh release create "v$version" "$out/$name.zip" --verify-tag --title "Spite $version" \
+      --notes "The Spite compiler for Windows: unzip, put the folder on PATH, and keep a C compiler (clang) installed. spite_compiler.c is the C this spite.exe was built from; any C compiler rebuilds it." \
+      || { echo "release: v$version is tagged, but publishing it failed; publish $out/$name.zip by hand" >&2; exit 1; }
+    echo "release: published Spite $version"
+  else
+    echo "release: tagged v$version and packaged $out/$name.zip; install the GitHub CLI (gh) to publish releases automatically"
+  fi
+done
+exit 0

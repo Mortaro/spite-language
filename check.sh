@@ -98,16 +98,39 @@ compile_compiler() {
 seed_before_check=false
 grep -q -F -e '--executable --run=false' "$seed" && seed_before_check=true
 
-# The seed only has to write the compiler's C once, so it is compiled without optimisation: that takes a tenth of
-# the time, and the slower seed still finishes far sooner.
-echo "1/4 building the seed compiler"
-"$CC_BIN" -O0 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$work/seed.exe" $maths_library 2> "$job_errors" || { head -20 "$job_errors"; exit 1; }
+# The run starts from the last compiler that passed every check, which every checkout of this repository shares
+# (scripts/release/compiler_inputs.sh), and builds the seed only when there is none or it cannot compile these
+# sources. The seed is compiled with optimisation: it then compiles the compiler sources in minutes, not most of an
+# hour, which is far more than the optimiser costs.
+. scripts/release/compiler_inputs.sh
+shared=$(shared_spite_folder) || exit 1
+latest="$shared/latest/spite.exe"
+seed_flags_before_check=$seed_before_check
+build_seed() {
+  echo "1/4 building the seed compiler"
+  seed_before_check=$seed_flags_before_check
+  "$CC_BIN" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$work/seed.exe" $maths_library 2> "$job_errors" || { head -20 "$job_errors"; return 1; }
+}
+starter=seed
+if [ -x "$latest" ]; then
+  echo "1/4 starting from the last compiler that passed every check"
+  cp "$latest" "$work/seed.exe" || exit 1
+  seed_before_check=false
+  starter=latest
+else
+  build_seed || exit 1
+fi
 wait $writing; written=$?
 cat "$work/writing.txt"
 [ "$written" == "0" ] || exit 1
 
 echo "2/4 the seed compiles the compiler sources (generation 2)"
-compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
+if ! compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe"; then
+  [ "$starter" == "latest" ] || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
+  echo "  the last compiler that passed could not compile these sources, so the seed compiles them"
+  build_seed || exit 1
+  compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
+fi
 cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built compiler, handy for trying things by hand
 # bin/spite builds its compiler from the seed, and a seed from before --check and --build cannot compile a program
 # against today's library/build.spite, so until the seeds are written again it runs generation 2 instead
@@ -1764,4 +1787,15 @@ elif [ ${#stale[@]} == 0 ]; then
   echo "OK: fixpoint holds and the committed seeds are current"
 else
   echo "OK: fixpoint holds, but the compiler sources changed since the seeds for ${stale[*]} were written: run  bash check.sh --update-seed"
+fi
+# A run that passes everything with current seeds makes its compiler the one the next run starts from, and keeps it
+# as the release of these sources: pushing a commit with the same sources to master publishes it as the next 0.0.x
+# (scripts/hooks/pre-push). The ten newest are kept.
+if [ ${#stale[@]} == 0 ]; then
+  inputs=$(working_tree_inputs "$work/inputs")
+  record="$shared/passed/$inputs/$system"
+  mkdir -p "$record" "$shared/latest" || exit 1
+  cp "$work/generation_two.exe" "$record/spite.exe" && cp "bootstrap/seed/$system/spite_compiler.c" "$record/spite_compiler.c"     && cp "$work/generation_two.exe" "$latest.new" && mv -f "$latest.new" "$latest" || { echo "FAILED: could not record this compiler"; exit 1; }
+  ls -1t "$shared/passed" | tail -n +11 | while IFS= read -r old; do rm -rf "${shared:?}/passed/$old"; done
+  echo "release: this compiler is recorded for sources $inputs, and the next check starts from it"
 fi
