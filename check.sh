@@ -147,7 +147,7 @@ limited() {
 # What of a crash's output is the same on every run and every system (job_program says what is left out, and why).
 crash_normalized() {
   sed -E 's/\+0x[0-9a-f]+/+0x.../g; s/address=0x[0-9a-f]{6,}/address=0x.../g; s/\t([a-z_]+)=[0-9]{9,}/\t\1=.../g; s/\tscheduler_thread=[0-9]+/\tscheduler_thread=.../g' \
-    | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d' \
+    | sed -E '/^(free|malloc|realloc|calloc|munmap_chunk|double free|corrupted)[^\t]*$/d; /malloc: \*\*\*/d; /^(Aborted|Abort trap: 6)( \(core dumped\))?$/d; /: line [0-9]+: [0-9]+ (Segmentation fault|Illegal instruction)/d' \
     | sed -E 's/^(spite\.fault\theap-corruption\t[^\t]*\t[^\t]*\t[^\t]*)\t(code|signal)=[^\t]*\tat=[^\t]*/\1\tstatus=...\tat=.../'
 }
 
