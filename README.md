@@ -130,30 +130,6 @@ Writing Spite with an AI? Give it the skill in [skills/spite/](skills/spite/SKIL
 dense page: copy that folder into your project's `.claude/skills/spite/` (or paste `reference.md` into any model's
 context).
 
-## Status
-
-The docs describe the language as decided; [design/status.md](design/status.md) says, page by page, what is not
-built yet. In short:
-
-| Area | Status |
-|---|---|
-| Files as classes, `singleton` and `generic $name` header lines, enforced file order | implemented |
-| Values, numbers as classes (`this`, casts by assignment), `T?` narrowing, `assert` and `crash` | implemented |
-| Functions as values, variadic `...args: List<T>`, operators as functions | implemented |
-| Enums, unions, shapes (`type`), `value == Class` tests | implemented |
-| Metaprogramming: templates whose name carries the member, walks over reflection objects folded while compiling, compile-time type tests, fused member-template chains | implemented |
-| Reflection: every class an instance of `Spite.Class` (with `Spite.Namespace`, `Spite.Function`, `Spite.Attribute`, `Spite.Argument`), get-only members | implemented |
-| Memory: reference counting, the `Memory` namespace (`Memory.Address`, `Memory.Heap`, `Memory.Arena`), an allocator per object, `TypedMemory`, tree-shaken output | implemented; `Vector<T>` and `Memory.Frame` planned |
-| `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
-| Standard library in Spite: `String`, `List`, `Dictionary`, `JsonWriter`/`JsonReader`, `BinaryWriter`/`BinaryReader`, `File`, `Directory`, `FileSystemWatcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
-| Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (the thread pool), singletons made safe by the compiler | implemented on Windows; checking what a `Parallel` function reaches is not built |
-| Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
-| REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |
-| Self hosting | done: the compiler is Spite, and the only hand-written C is `compiler/source/generation/prelude.spite` |
-| Web target, isomorphic classes | planned ([docs/targets.md](docs/targets.md)) |
-
-Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
-
 ## Get Spite
 
 Download the newest `spite-0.0.<n>-windows.zip` from the

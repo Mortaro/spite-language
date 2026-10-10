@@ -283,6 +283,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [control_flow.md](../docs/control_flow.md)
 
+- D576: a `switch` case of two statements or more is a compile error (the rule is in the spec's "One statement per
+  case"). Not built: about 530 cases in the compiler and `library/` open a block and are rewritten when it is.
+
 - D510 (item 281): a loop that can never leave and whose calls can neither end the program nor wait is a compile
   error. Not documented on the page and not built.
 
@@ -827,6 +830,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [compiler.md](../docs/compiler.md)
 
+- D578: a repository rule, checked while compiling, that crashes the compile on a scripting file that is not Spite,
+  which needs `crash` to run while compiling; the shell scripts become Spite first, and the committed seeds go once
+  Linux and macOS have releases. Not built.
+
 ### Choose the outputs
 - Proposed by Claude, unconfirmed (D348 built): `--check` with `--build` is an error; `--executable` went with `--run` (`--build` is the one way to build without running); `--check --final-classes=folder` writes the classes and nothing else; a build removes the old executable before compiling, and when the program cannot be read it removes the one at the command line's path or the default one, so a program whose own `build.spite` moves `executable_path` keeps its old executable after a read error.
 - Not done: the committed seeds predate `--check` and `--build`, so `bin/spite` cannot build a program until they are written again (`check.sh` puts generation 2 in its place meanwhile); `compiler/build.spite` and the old branch of `check.sh`'s `compile_compiler` go with the next seed ([self_hosting.md](self_hosting.md#the-seeds-own-flags)).
@@ -878,6 +885,10 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - `check.sh` stops a ticking loop, reads its locals and lets it go (D242 is the decision).
 
 ## [testing.md](../docs/testing.md)
+
+- D577: a program's tests run as part of compiling it, can be left out of a quick build and never out of a release
+  build, and the launcher class configures the build (output path, the program's own flags such as a version bump).
+  Not built; `check.sh` stands in until it is.
 
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.
