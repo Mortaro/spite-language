@@ -33,11 +33,11 @@ bounds; since that bound is not `index < ...`, the counter's `index + 1` keeps i
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 33 322 | 197 120 |
-| naive C: `naive.c`, `clang -O2` | 93 577 | 142 848 |
-| expert C: `expert.c`, `clang -O2` | 3 328 | 142 336 |
+| Spite: `naive/`, `--optimized` | 32 982 | 200 704 |
+| naive C: `naive.c`, `clang -O2` | 96 080 | 142 848 |
+| expert C: `expert.c`, `clang -O2` | 3 289 | 142 336 |
 
-Spite takes 0.36 times naive C's time and 10.01 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=33322 naive=93577 expert=3328 -->
+Spite takes 0.34 times naive C's time and 10.03 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=32982 naive=96080 expert=3289 -->
 <!-- /timings -->

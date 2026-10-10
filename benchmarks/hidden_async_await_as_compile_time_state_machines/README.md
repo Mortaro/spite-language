@@ -57,10 +57,10 @@ holds a thread per napper instead, each with a stack the system reserves (1 MB b
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | not timed | 237 568 |
+| Spite: `naive/`, `--optimized` | not timed | 238 592 |
 | naive C: `naive.c`, `clang -O2` | not timed | 139 264 |
 | expert C: `expert.c`, `clang -O2` | not timed | 139 264 |
 
-Measured 2026-10-08, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; the machine was busy with other work.
+Measured 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
 <!-- measured untimed -->
 <!-- /timings -->

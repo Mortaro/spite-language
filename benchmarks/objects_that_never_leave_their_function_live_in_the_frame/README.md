@@ -40,11 +40,11 @@ copy that drops it for a call by name is not used for an operator written as `+`
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 13 455 | 195 072 |
-| naive C: `naive.c`, `clang -O2` | 999 525 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 14 080 | 139 264 |
+| Spite: `naive/`, `--optimized` | 13 415 | 198 656 |
+| naive C: `naive.c`, `clang -O2` | 999 113 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 14 136 | 139 264 |
 
-Spite takes 0.01 times naive C's time and 0.96 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=13455 naive=999525 expert=14080 -->
+Spite takes 0.01 times naive C's time and 0.95 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=13415 naive=999113 expert=14136 -->
 <!-- /timings -->

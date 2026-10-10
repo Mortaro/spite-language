@@ -46,13 +46,13 @@ attributes' own products stay checked until attributes have ranges.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 294 423 | 236 544 |
-| naive C: `naive.c`, `clang -O2` | 563 977 | 141 824 |
-| expert C: `expert.c`, `clang -O2` | 21 905 | 141 312 |
+| Spite: `naive/`, `--optimized` | 308 670 | 240 640 |
+| naive C: `naive.c`, `clang -O2` | 565 770 | 141 824 |
+| expert C: `expert.c`, `clang -O2` | 21 972 | 141 312 |
 
-Spite takes 0.52 times naive C's time and 13.44 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=294423 naive=563977 expert=21905 -->
+Spite takes 0.55 times naive C's time and 14.05 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=308670 naive=565770 expert=21972 -->
 <!-- /timings -->
 
 At other sizes, from 512 sales to eight million, and with each phase apart: [cases.md](../../design/proposals/data_oriented_layout/cases.md#report_over_records).

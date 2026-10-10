@@ -41,11 +41,11 @@ reader's thread counts boxes). `naive.c` takes a mutex and makes the same two co
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 18 655 | 236 032 |
-| naive C: `naive.c`, `clang -O2` | 123 966 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 3 133 | 139 776 |
+| Spite: `naive/`, `--optimized` | 18 662 | 237 056 |
+| naive C: `naive.c`, `clang -O2` | 125 609 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 3 052 | 139 776 |
 
-Spite takes 0.15 times naive C's time and 5.95 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=18655 naive=123966 expert=3133 -->
+Spite takes 0.15 times naive C's time and 6.11 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=18662 naive=125609 expert=3052 -->
 <!-- /timings -->

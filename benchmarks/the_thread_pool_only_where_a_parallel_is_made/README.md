@@ -47,11 +47,11 @@ The one line left in the second is a `SPITE_ALLOCATOR_List_ThreadPoolJob` macro 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 8 572 | 230 912 |
-| naive C: `naive.c`, `clang -O2` | 7 003 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 7 037 | 139 776 |
+| Spite: `naive/`, `--optimized` | 8 878 | 232 960 |
+| naive C: `naive.c`, `clang -O2` | 7 064 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 7 055 | 139 776 |
 
-Spite takes 1.22 times naive C's time and 1.22 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=8572 naive=7003 expert=7037 -->
+Spite takes 1.26 times naive C's time and 1.26 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=8878 naive=7064 expert=7055 -->
 <!-- /timings -->

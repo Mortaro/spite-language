@@ -36,11 +36,11 @@ uncountable and 11 irregular words before it finds `cactus`; `expert.c` copies t
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 11 316 | 194 048 |
-| naive C: `naive.c`, `clang -O2` | 264 806 | 144 384 |
-| expert C: `expert.c`, `clang -O2` | 3 234 | 139 264 |
+| Spite: `naive/`, `--optimized` | 11 153 | 196 608 |
+| naive C: `naive.c`, `clang -O2` | 265 268 | 144 384 |
+| expert C: `expert.c`, `clang -O2` | 3 235 | 139 264 |
 
-Spite takes 0.04 times naive C's time and 3.50 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=11316 naive=264806 expert=3234 -->
+Spite takes 0.04 times naive C's time and 3.45 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=11153 naive=265268 expert=3235 -->
 <!-- /timings -->

@@ -41,11 +41,11 @@ The four workers' atomic additions on one line are what is left between the Spit
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 34 841 | 235 520 |
-| naive C: `naive.c`, `clang -O2` | 159 258 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 377 | 139 264 |
+| Spite: `naive/`, `--optimized` | 34 907 | 236 544 |
+| naive C: `naive.c`, `clang -O2` | 157 826 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 389 | 139 264 |
 
-Spite takes 0.22 times naive C's time and 92.42 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=34841 naive=159258 expert=377 -->
+Spite takes 0.22 times naive C's time and 89.74 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=34907 naive=157826 expert=389 -->
 <!-- /timings -->

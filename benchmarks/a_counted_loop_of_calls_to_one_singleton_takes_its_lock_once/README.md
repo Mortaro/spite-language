@@ -41,11 +41,11 @@ runs them at once, each on a tally of its own.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 67 926 | 239 104 |
-| naive C: `naive.c`, `clang -O2` | 294 735 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 2 904 | 140 288 |
+| Spite: `naive/`, `--optimized` | 15 756 | 240 640 |
+| naive C: `naive.c`, `clang -O2` | 284 999 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 962 | 140 288 |
 
-Spite takes 0.23 times naive C's time and 23.39 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=67926 naive=294735 expert=2904 -->
+Spite takes 0.06 times naive C's time and 5.32 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=15756 naive=284999 expert=2962 -->
 <!-- /timings -->

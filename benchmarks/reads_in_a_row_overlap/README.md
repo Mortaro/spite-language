@@ -44,11 +44,11 @@ socket), where the slowest read is what the program waits for. `naive.c` reads o
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 15 085 | 268 288 |
-| naive C: `naive.c`, `clang -O2` | 12 745 | 158 208 |
-| expert C: `expert.c`, `clang -O2` | 11 188 | 148 992 |
+| Spite: `naive/`, `--optimized` | 15 342 | 270 336 |
+| naive C: `naive.c`, `clang -O2` | 12 627 | 158 208 |
+| expert C: `expert.c`, `clang -O2` | 11 057 | 148 992 |
 
-Spite takes 1.18 times naive C's time and 1.35 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=15085 naive=12745 expert=11188 -->
+Spite takes 1.22 times naive C's time and 1.39 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=15342 naive=12627 expert=11057 -->
 <!-- /timings -->

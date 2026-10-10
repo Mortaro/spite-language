@@ -33,11 +33,11 @@ the swap the removal does for each item it keeps where `naive.c` copies it down.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 79 991 | 208 384 |
-| naive C: `naive.c`, `clang -O2` | 23 966 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 20 299 | 140 288 |
+| Spite: `naive/`, `--optimized` | 79 648 | 211 968 |
+| naive C: `naive.c`, `clang -O2` | 23 664 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 20 304 | 140 288 |
 
-Spite takes 3.34 times naive C's time and 3.94 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=79991 naive=23966 expert=20299 -->
+Spite takes 3.37 times naive C's time and 3.92 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=79648 naive=23664 expert=20304 -->
 <!-- /timings -->

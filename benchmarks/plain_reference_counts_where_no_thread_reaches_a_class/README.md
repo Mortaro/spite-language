@@ -39,11 +39,11 @@ the read `points[index]` itself is not counted. `naive.c` makes the same two cou
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 16 787 | 230 912 |
-| naive C: `naive.c`, `clang -O2` | 25 283 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 10 598 | 140 288 |
+| Spite: `naive/`, `--optimized` | 15 407 | 232 448 |
+| naive C: `naive.c`, `clang -O2` | 24 553 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 10 697 | 140 288 |
 
-Spite takes 0.66 times naive C's time and 1.58 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=16787 naive=25283 expert=10598 -->
+Spite takes 0.63 times naive C's time and 1.44 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=15407 naive=24553 expert=10697 -->
 <!-- /timings -->

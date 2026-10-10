@@ -38,11 +38,11 @@ when something opens it. Each shows in the C of any program that uses it.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 24 822 | 198 144 |
-| naive C: `naive.c`, `clang -O2` | 9 687 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 8 601 | 139 264 |
+| Spite: `naive/`, `--optimized` | 25 791 | 202 240 |
+| naive C: `naive.c`, `clang -O2` | 9 692 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 8 745 | 139 264 |
 
-Spite takes 2.56 times naive C's time and 2.89 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=24822 naive=9687 expert=8601 -->
+Spite takes 2.66 times naive C's time and 2.95 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=25791 naive=9692 expert=8745 -->
 <!-- /timings -->

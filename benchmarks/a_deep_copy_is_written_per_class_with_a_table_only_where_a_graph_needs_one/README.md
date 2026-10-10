@@ -46,11 +46,11 @@ a deep copy does not yet. Each copied list also grows from empty by `append` rat
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 46 039 | 209 920 |
-| naive C: `naive.c`, `clang -O2` | 74 072 | 143 872 |
-| expert C: `expert.c`, `clang -O2` | 998 | 142 336 |
+| Spite: `naive/`, `--optimized` | 29 895 | 214 016 |
+| naive C: `naive.c`, `clang -O2` | 73 017 | 143 872 |
+| expert C: `expert.c`, `clang -O2` | 981 | 142 336 |
 
-Spite takes 0.62 times naive C's time and 46.13 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=46039 naive=74072 expert=998 -->
+Spite takes 0.41 times naive C's time and 30.47 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=29895 naive=73017 expert=981 -->
 <!-- /timings -->

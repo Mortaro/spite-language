@@ -16,108 +16,108 @@ again, so it always shows the latest measurement of every case.
 <!-- summary -->
 | case | Spite µs | naive C µs | expert C µs | Spite / naive C | Spite / expert C |
 |---|---|---|---|---|---|
-| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | 1 212 | 346 842 | 564 | 0.00 | 2.15 |
-| [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 67 926 | 294 735 | 2 904 | 0.23 | 23.39 |
-| [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 13 709 | 13 095 | 9 717 | 1.05 | 1.41 |
-| [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 31 791 | 508 341 | 15 935 | 0.06 | 2.00 |
-| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 46 039 | 74 072 | 998 | 0.62 | 46.13 |
-| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 47 365 | 80 722 | 25 515 | 0.59 | 1.86 |
-| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 26 296 | 14 670 | 12 727 | 1.79 | 2.07 |
-| [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 13 240 | 311 926 | 5 577 | 0.04 | 2.37 |
+| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | 1 162 | 345 955 | 544 | 0.00 | 2.14 |
+| [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 15 756 | 284 999 | 2 962 | 0.06 | 5.32 |
+| [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 13 449 | 13 097 | 9 655 | 1.03 | 1.39 |
+| [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 31 528 | 504 044 | 15 874 | 0.06 | 1.99 |
+| [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 29 895 | 73 017 | 981 | 0.41 | 30.47 |
+| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 46 240 | 80 303 | 25 360 | 0.58 | 1.82 |
+| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 26 768 | 14 878 | 13 176 | 1.80 | 2.03 |
+| [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 13 027 | 316 565 | 5 538 | 0.04 | 2.35 |
 | [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed | not timed | | |
-| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 50 755 | 51 280 | 50 791 | 0.99 | 1.00 |
-| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 1 208 | 1 207 | 1 215 | 1.00 | 0.99 |
-| [a_list_held_only_by_another_list_lives_in_its_slot](a_list_held_only_by_another_list_lives_in_its_slot/) | 142 935 | 289 137 | 37 739 | 0.49 | 3.79 |
-| [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 53 327 | 62 984 | 11 248 | 0.85 | 4.74 |
-| [a_list_of_lists_filled_again_keeps_each_lists_room](a_list_of_lists_filled_again_keeps_each_lists_room/) | 121 142 | 342 006 | 6 829 | 0.35 | 17.74 |
-| [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 22 520 | 29 074 | 2 122 | 0.77 | 10.61 |
-| [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 23 178 | 22 919 | 22 417 | 1.01 | 1.03 |
-| [a_loop_over_a_list_of_different_classes_runs_them_at_once](a_loop_over_a_list_of_different_classes_runs_them_at_once/) | 86 108 | 266 717 | 91 695 | 0.32 | 0.94 |
-| [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | 29 471 | 141 953 | 15 804 | 0.21 | 1.86 |
-| [a_loop_whose_passes_write_only_their_own_item_runs_in_bands](a_loop_whose_passes_write_only_their_own_item_runs_in_bands/) | 32 213 | 762 239 | 30 372 | 0.04 | 1.06 |
-| [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 71 636 | 304 724 | 15 240 | 0.24 | 4.70 |
-| [a_number_read_from_bytes_is_one_load](a_number_read_from_bytes_is_one_load/) | 38 505 | 51 908 | 31 030 | 0.74 | 1.24 |
-| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 64 690 | 87 330 | 22 694 | 0.74 | 2.85 |
-| [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 28 797 | 28 845 | 25 921 | 1.00 | 1.11 |
-| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 32 145 | 6 593 | 6 386 | 4.88 | 5.03 |
-| [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 29 943 | 39 714 | 39 774 | 0.75 | 0.75 |
+| [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 50 759 | 50 545 | 50 456 | 1.00 | 1.01 |
+| [a_function_value_describes_its_arguments_when_asked](a_function_value_describes_its_arguments_when_asked/) | 1 186 | 1 205 | 1 193 | 0.98 | 0.99 |
+| [a_list_held_only_by_another_list_lives_in_its_slot](a_list_held_only_by_another_list_lives_in_its_slot/) | 124 420 | 231 975 | 34 804 | 0.54 | 3.57 |
+| [a_list_item_read_only_to_test_it_is_not_counted](a_list_item_read_only_to_test_it_is_not_counted/) | 53 294 | 61 995 | 11 203 | 0.86 | 4.76 |
+| [a_list_of_lists_filled_again_keeps_each_lists_room](a_list_of_lists_filled_again_keeps_each_lists_room/) | 100 933 | 290 814 | 6 298 | 0.35 | 16.03 |
+| [a_lists_templates_read_its_elements_without_counting_them](a_lists_templates_read_its_elements_without_counting_them/) | 20 222 | 28 636 | 2 264 | 0.71 | 8.93 |
+| [a_local_list_of_known_size_lives_in_the_frame](a_local_list_of_known_size_lives_in_the_frame/) | 23 071 | 22 965 | 22 502 | 1.00 | 1.03 |
+| [a_loop_over_a_list_of_different_classes_runs_them_at_once](a_loop_over_a_list_of_different_classes_runs_them_at_once/) | 85 677 | 265 770 | 91 437 | 0.32 | 0.94 |
+| [a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked](a_loop_over_plain_values_reads_its_count_once_and_its_items_unchecked/) | 29 106 | 142 109 | 15 823 | 0.20 | 1.84 |
+| [a_loop_whose_passes_write_only_their_own_item_runs_in_bands](a_loop_whose_passes_write_only_their_own_item_runs_in_bands/) | 32 515 | 759 531 | 31 364 | 0.04 | 1.04 |
+| [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 70 870 | 306 942 | 15 066 | 0.23 | 4.70 |
+| [a_number_read_from_bytes_is_one_load](a_number_read_from_bytes_is_one_load/) | 38 328 | 51 900 | 30 936 | 0.74 | 1.24 |
+| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 64 928 | 87 171 | 22 625 | 0.74 | 2.87 |
+| [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 28 669 | 28 875 | 25 785 | 0.99 | 1.11 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 32 058 | 6 525 | 6 418 | 4.91 | 5.00 |
+| [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 30 075 | 39 776 | 39 904 | 0.76 | 0.75 |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed | not timed | | |
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed | not timed | | |
-| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 29 767 | 6 711 | 3 049 | 4.44 | 9.76 |
-| [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 16 005 | 4 832 | 3 063 | 3.31 | 5.23 |
-| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 18 655 | 123 966 | 3 133 | 0.15 | 5.95 |
-| [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 14 742 | 84 629 | 4 436 | 0.17 | 3.32 |
-| [a_table_filled_once_is_read_as_constants](a_table_filled_once_is_read_as_constants/) | 37 836 | 23 405 | 21 902 | 1.62 | 1.73 |
-| [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 26 817 | 37 851 | 19 526 | 0.71 | 1.37 |
-| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 4 029 | 3 902 | 3 895 | 1.03 | 1.03 |
-| [a_wait_in_a_frame_does_not_hold_the_frame](a_wait_in_a_frame_does_not_hold_the_frame/) | 929 323 | 1 185 375 | 930 923 | 0.78 | 1.00 |
-| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 61 083 | 17 943 | 4 433 | 3.40 | 13.78 |
-| [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 11 316 | 264 806 | 3 234 | 0.04 | 3.50 |
-| [a_write_back_of_what_the_slot_already_holds_is_not_written](a_write_back_of_what_the_slot_already_holds_is_not_written/) | 25 999 | 5 752 | 782 | 4.52 | 33.25 |
-| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 76 960 | 58 695 | 2 769 | 1.31 | 27.79 |
-| [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 45 811 | 73 094 | 1 972 | 0.63 | 23.23 |
-| [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 11 975 | 34 130 | 665 | 0.35 | 18.01 |
-| [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 4 215 | 4 244 | 2 520 | 0.99 | 1.67 |
-| [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 14 709 | 14 639 | 1 686 | 1.00 | 8.72 |
-| [an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/) | 18 680 | 15 663 | 2 121 | 1.19 | 8.81 |
-| [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 37 064 | 43 091 | 3 588 | 0.86 | 10.33 |
-| [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 27 588 | 29 800 | 2 315 | 0.93 | 11.92 |
-| [appending_to_text_in_place](appending_to_text_in_place/) | 155 | 75 883 | 106 | 0.00 | 1.46 |
-| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 18 807 | 2 922 | 2 611 | 6.44 | 7.20 |
-| [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | 15 838 | 17 561 | 2 149 | 0.90 | 7.37 |
-| [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | 17 926 | 86 632 | 12 008 | 0.21 | 1.49 |
-| [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 34 121 | 41 742 | 22 667 | 0.82 | 1.51 |
-| [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | 35 731 | 35 950 | 1 441 | 0.99 | 24.80 |
-| [copies_that_cost_nothing](copies_that_cost_nothing/) | 33 528 | 22 099 | 16 000 | 1.52 | 2.10 |
-| [counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/) | 8 829 | 11 615 | 5 948 | 0.76 | 1.48 |
+| [a_row_of_borrowed_items_lives_in_the_frame](a_row_of_borrowed_items_lives_in_the_frame/) | 30 627 | 6 646 | 3 025 | 4.61 | 10.12 |
+| [a_singleton_no_other_thread_reaches_takes_no_lock](a_singleton_no_other_thread_reaches_takes_no_lock/) | 17 737 | 4 644 | 3 090 | 3.82 | 5.74 |
+| [a_singletons_attribute_that_never_changes_is_read_in_place](a_singletons_attribute_that_never_changes_is_read_in_place/) | 18 662 | 125 609 | 3 052 | 0.15 | 6.11 |
+| [a_singletons_reading_functions_do_not_exclude_each_other](a_singletons_reading_functions_do_not_exclude_each_other/) | 18 149 | 83 917 | 4 632 | 0.22 | 3.92 |
+| [a_table_filled_once_is_read_as_constants](a_table_filled_once_is_read_as_constants/) | 26 933 | 20 361 | 19 451 | 1.32 | 1.38 |
+| [a_test_against_a_value_a_list_never_holds_is_decided_while_compiling](a_test_against_a_value_a_list_never_holds_is_decided_while_compiling/) | 26 751 | 37 751 | 19 433 | 0.71 | 1.38 |
+| [a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame](a_variadic_list_the_callee_only_reads_lives_in_the_callers_frame/) | 3 986 | 3 828 | 3 869 | 1.04 | 1.03 |
+| [a_wait_in_a_frame_does_not_hold_the_frame](a_wait_in_a_frame_does_not_hold_the_frame/) | 933 233 | 1 186 557 | 928 354 | 0.79 | 1.01 |
+| [a_walked_crash_lines_read_is_the_rows_read](a_walked_crash_lines_read_is_the_rows_read/) | 50 065 | 17 612 | 4 478 | 2.84 | 11.18 |
+| [a_word_inflected_while_compiling](a_word_inflected_while_compiling/) | 11 153 | 265 268 | 3 235 | 0.04 | 3.45 |
+| [a_write_back_of_what_the_slot_already_holds_is_not_written](a_write_back_of_what_the_slot_already_holds_is_not_written/) | 25 059 | 4 869 | 545 | 5.15 | 45.98 |
+| [allocation_is_the_c_librarys_counted_only_where_read](allocation_is_the_c_librarys_counted_only_where_read/) | 15 515 | 58 727 | 2 764 | 0.26 | 5.61 |
+| [an_allocator_set_after_construction_is_where_the_object_is_made](an_allocator_set_after_construction_is_where_the_object_is_made/) | 46 254 | 72 483 | 1 969 | 0.64 | 23.49 |
+| [an_argument_its_caller_holds_is_passed_without_counting](an_argument_its_caller_holds_is_passed_without_counting/) | 11 960 | 34 338 | 662 | 0.35 | 18.07 |
+| [an_attribute_a_call_cannot_assign_is_passed_without_counting](an_attribute_a_call_cannot_assign_is_passed_without_counting/) | 4 233 | 4 230 | 2 521 | 1.00 | 1.68 |
+| [an_item_a_name_holds_from_its_list_is_not_counted](an_item_a_name_holds_from_its_list_is_not_counted/) | 14 977 | 14 582 | 1 651 | 1.03 | 9.07 |
+| [an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted](an_item_passed_to_a_call_that_cannot_change_its_list_is_not_counted/) | 18 185 | 15 723 | 2 108 | 1.16 | 8.63 |
+| [an_item_written_back_to_its_own_slot_is_not_written](an_item_written_back_to_its_own_slot_is_not_written/) | 37 078 | 43 310 | 3 465 | 0.86 | 10.70 |
+| [an_items_storage_is_chosen_while_compiling](an_items_storage_is_chosen_while_compiling/) | 29 912 | 29 564 | 2 265 | 1.01 | 13.21 |
+| [appending_to_text_in_place](appending_to_text_in_place/) | 194 | 87 742 | 106 | 0.00 | 1.83 |
+| [arithmetic_is_checked_in_every_build](arithmetic_is_checked_in_every_build/) | 19 767 | 2 876 | 2 601 | 6.87 | 7.60 |
+| [atomic_reference_counts_only_with_threads](atomic_reference_counts_only_with_threads/) | 15 775 | 16 825 | 2 138 | 0.94 | 7.38 |
+| [boxing_only_where_a_value_travels_as_a_shape](boxing_only_where_a_value_travels_as_a_shape/) | 17 402 | 85 074 | 12 047 | 0.20 | 1.44 |
+| [calls_in_a_row_run_at_once](calls_in_a_row_run_at_once/) | 33 811 | 41 775 | 22 564 | 0.81 | 1.50 |
+| [concurrency_machinery_only_where_it_is_used](concurrency_machinery_only_where_it_is_used/) | 29 955 | 30 487 | 1 510 | 0.98 | 19.84 |
+| [copies_that_cost_nothing](copies_that_cost_nothing/) | 32 994 | 22 011 | 16 029 | 1.50 | 2.06 |
+| [counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts](counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/) | 7 267 | 10 400 | 5 226 | 0.70 | 1.39 |
 | [crash_text_out_of_the_binary](crash_text_out_of_the_binary/) | not timed | not timed | not timed | | |
-| [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 11 894 | 8 496 | 7 470 | 1.40 | 1.59 |
-| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 23 311 | 40 829 | 340 | 0.57 | 68.56 |
-| [game_maths](game_maths/) | 2 677 | 2 144 | 1 679 | 1.25 | 1.59 |
+| [deciding_conditions_at_compile_time](deciding_conditions_at_compile_time/) | 11 933 | 8 362 | 7 399 | 1.43 | 1.61 |
+| [defaults_the_constructor_replaces_are_never_made](defaults_the_constructor_replaces_are_never_made/) | 5 370 | 40 390 | 336 | 0.13 | 15.98 |
+| [game_maths](game_maths/) | 2 655 | 2 157 | 1 686 | 1.23 | 1.57 |
 | [hidden_async_await_as_compile_time_state_machines](hidden_async_await_as_compile_time_state_machines/) | not timed | not timed | not timed | | |
 | [identical_functions_are_folded_into_one](identical_functions_are_folded_into_one/) | not timed | not timed | not timed | | |
-| [image_filter_over_planes](image_filter_over_planes/) | 115 503 | 232 171 | 20 762 | 0.50 | 5.56 |
-| [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 11 626 | 13 280 | 2 799 | 0.88 | 4.15 |
-| [number_dictionary](number_dictionary/) | 43 518 | 18 694 | 11 406 | 2.33 | 3.82 |
-| [objects_made_for_their_owner_are_told_apart](objects_made_for_their_owner_are_told_apart/) | 68 950 | 124 895 | 65 094 | 0.55 | 1.06 |
-| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 698 | 22 327 | 2 482 | 0.48 | 4.31 |
-| [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 13 455 | 999 525 | 14 080 | 0.01 | 0.96 |
+| [image_filter_over_planes](image_filter_over_planes/) | 112 806 | 231 652 | 20 538 | 0.49 | 5.49 |
+| [maths_on_constants_is_worked_out_while_compiling](maths_on_constants_is_worked_out_while_compiling/) | 11 570 | 13 028 | 2 814 | 0.89 | 4.11 |
+| [number_dictionary](number_dictionary/) | 41 200 | 18 571 | 11 607 | 2.22 | 3.55 |
+| [objects_made_for_their_owner_are_told_apart](objects_made_for_their_owner_are_told_apart/) | 58 899 | 113 331 | 57 576 | 0.52 | 1.02 |
+| [objects_of_one_class_sit_together](objects_of_one_class_sit_together/) | 10 201 | 21 470 | 2 352 | 0.48 | 4.34 |
+| [objects_that_never_leave_their_function_live_in_the_frame](objects_that_never_leave_their_function_live_in_the_frame/) | 13 415 | 999 113 | 14 136 | 0.01 | 0.95 |
 | [other_optimisations](other_optimisations/) | not timed | not timed | not timed | | |
-| [particles](particles/) | 35 830 | 52 108 | 31 389 | 0.69 | 1.14 |
-| [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | 16 787 | 25 283 | 10 598 | 0.66 | 1.58 |
+| [particles](particles/) | 35 661 | 51 754 | 31 366 | 0.69 | 1.14 |
+| [plain_reference_counts_where_no_thread_reaches_a_class](plain_reference_counts_where_no_thread_reaches_a_class/) | 15 407 | 24 553 | 10 697 | 0.63 | 1.44 |
 | [proofs_that_survive_a_call](proofs_that_survive_a_call/) | not timed | not timed | not timed | | |
-| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 17 103 | 5 437 | 3 918 | 3.15 | 4.37 |
-| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 26 109 | 9 468 | 5 124 | 2.76 | 5.10 |
-| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 15 085 | 12 745 | 11 188 | 1.18 | 1.35 |
-| [records_sorted_by_one_field](records_sorted_by_one_field/) | 552 279 | 639 736 | 84 685 | 0.86 | 6.52 |
-| [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 12 046 | 11 837 | 2 538 | 1.02 | 4.75 |
+| [reading_an_address_is_one_machine_operation](reading_an_address_is_one_machine_operation/) | 17 020 | 5 455 | 3 916 | 3.12 | 4.35 |
+| [reading_through_a_type_without_counting](reading_through_a_type_without_counting/) | 27 815 | 9 328 | 5 173 | 2.98 | 5.38 |
+| [reads_in_a_row_overlap](reads_in_a_row_overlap/) | 15 342 | 12 627 | 11 057 | 1.22 | 1.39 |
+| [records_sorted_by_one_field](records_sorted_by_one_field/) | 550 709 | 637 983 | 83 559 | 0.86 | 6.59 |
+| [reflection_on_constants_folds_and_unrolls](reflection_on_constants_folds_and_unrolls/) | 12 173 | 11 489 | 2 497 | 1.06 | 4.88 |
 | [reflection_symbols_and_registries_only_where_read](reflection_symbols_and_registries_only_where_read/) | not timed | not timed | not timed | | |
-| [removing_many_at_once](removing_many_at_once/) | 79 991 | 23 966 | 20 299 | 3.34 | 3.94 |
+| [removing_many_at_once](removing_many_at_once/) | 79 648 | 23 664 | 20 304 | 3.37 | 3.92 |
 | [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed | not timed | | |
-| [report_over_records](report_over_records/) | 294 423 | 563 977 | 21 905 | 0.52 | 13.44 |
+| [report_over_records](report_over_records/) | 308 670 | 565 770 | 21 972 | 0.55 | 14.05 |
 | [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed | not timed | | |
-| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 45 145 | 241 869 | 16 794 | 0.19 | 2.69 |
-| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 7 166 | 18 807 | 473 | 0.38 | 15.15 |
-| [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 16 092 | 206 019 | 5 493 | 0.08 | 2.93 |
+| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 44 894 | 244 734 | 16 767 | 0.18 | 2.68 |
+| [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 8 541 | 18 910 | 486 | 0.45 | 17.57 |
+| [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 15 947 | 212 008 | 5 547 | 0.08 | 2.87 |
 | [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed | not timed | | |
-| [smaller_ones](smaller_ones/) | 24 822 | 9 687 | 8 601 | 2.56 | 2.89 |
-| [sorting](sorting/) | 141 153 | 118 702 | 18 661 | 1.19 | 7.56 |
-| [spreadsheet_recalculation](spreadsheet_recalculation/) | 625 685 | 585 704 | 102 526 | 1.07 | 6.10 |
-| [storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot](storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot/) | 8 595 | 6 382 | 4 260 | 1.35 | 2.02 |
-| [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 16 809 | 79 398 | 1 473 | 0.21 | 11.41 |
-| [text_building](text_building/) | 148 063 | 80 913 | 9 314 | 1.83 | 15.90 |
-| [text_joined_in_one_piece](text_joined_in_one_piece/) | 33 322 | 93 577 | 3 328 | 0.36 | 10.01 |
+| [smaller_ones](smaller_ones/) | 25 791 | 9 692 | 8 745 | 2.66 | 2.95 |
+| [sorting](sorting/) | 141 324 | 118 351 | 18 817 | 1.19 | 7.51 |
+| [spreadsheet_recalculation](spreadsheet_recalculation/) | 620 120 | 598 079 | 101 337 | 1.04 | 6.12 |
+| [storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot](storing_an_object_into_a_list_counts_it_only_when_it_changes_the_slot/) | 8 166 | 6 404 | 4 219 | 1.28 | 1.94 |
+| [template_chains_run_as_one_loop](template_chains_run_as_one_loop/) | 11 029 | 73 512 | 1 578 | 0.15 | 6.99 |
+| [text_building](text_building/) | 143 849 | 80 846 | 9 305 | 1.78 | 15.46 |
+| [text_joined_in_one_piece](text_joined_in_one_piece/) | 32 982 | 96 080 | 3 289 | 0.34 | 10.03 |
 | [the_c_is_compiled_in_parallel_units_and_cached](the_c_is_compiled_in_parallel_units_and_cached/) | not timed | not timed | not timed | | |
-| [the_compiler_places_memory](the_compiler_places_memory/) | 14 944 | 32 260 | 8 461 | 0.46 | 1.77 |
+| [the_compiler_places_memory](the_compiler_places_memory/) | 15 029 | 32 399 | 8 523 | 0.46 | 1.76 |
 | [the_fault_handler_is_in_every_program](the_fault_handler_is_in_every_program/) | not timed | not timed | not timed | | |
-| [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | 8 572 | 7 003 | 7 037 | 1.22 | 1.22 |
-| [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 34 841 | 159 258 | 377 | 0.22 | 92.42 |
-| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 10 061 | 18 796 | 1 846 | 0.54 | 5.45 |
-| [tokens_as_columns](tokens_as_columns/) | 100 710 | 126 792 | 72 737 | 0.79 | 1.38 |
+| [the_thread_pool_only_where_a_parallel_is_made](the_thread_pool_only_where_a_parallel_is_made/) | 8 878 | 7 064 | 7 055 | 1.26 | 1.26 |
+| [thread_safety_for_singletons_the_cheapest_safe_form](thread_safety_for_singletons_the_cheapest_safe_form/) | 34 907 | 157 826 | 389 | 0.22 | 89.74 |
+| [thread_safety_for_singletons_the_rest_of_the_plan](thread_safety_for_singletons_the_rest_of_the_plan/) | 10 770 | 18 247 | 1 802 | 0.59 | 5.98 |
+| [tokens_as_columns](tokens_as_columns/) | 99 540 | 127 415 | 71 622 | 0.78 | 1.39 |
 | [tree_shaking_the_generated_c](tree_shaking_the_generated_c/) | not timed | not timed | not timed | | |
-| [vector_maths](vector_maths/) | 80 037 | 63 317 | 47 094 | 1.26 | 1.70 |
+| [vector_maths](vector_maths/) | 80 130 | 63 438 | 47 199 | 1.26 | 1.70 |
 | [what_a_hot_reload_build_carries_so_its_objects_can_move](what_a_hot_reload_build_carries_so_its_objects_can_move/) | not timed | not timed | not timed | | |
-| [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 35 589 | 52 527 | 2 198 | 0.68 | 16.19 |
+| [while_no_task_runs_a_singletons_lock_is_skipped](while_no_task_runs_a_singletons_lock_is_skipped/) | 5 270 | 52 234 | 2 219 | 0.10 | 2.37 |
 <!-- /summary -->
 
 | file | what it is |

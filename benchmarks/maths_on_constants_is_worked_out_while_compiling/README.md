@@ -35,11 +35,11 @@ Spite program's C keeps its constants whatever compiles it. `expert.c` writes th
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 11 626 | 199 680 |
-| naive C: `naive.c`, `clang -O2` | 13 280 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 2 799 | 139 776 |
+| Spite: `naive/`, `--optimized` | 11 570 | 202 752 |
+| naive C: `naive.c`, `clang -O2` | 13 028 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 814 | 139 776 |
 
-Spite takes 0.88 times naive C's time and 4.15 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=11626 naive=13280 expert=2799 -->
+Spite takes 0.89 times naive C's time and 4.11 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=11570 naive=13028 expert=2814 -->
 <!-- /timings -->

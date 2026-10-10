@@ -40,13 +40,13 @@ would narrow the field to a byte would also drop every check and let the loop ve
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 115 503 | 242 176 |
-| naive C: `naive.c`, `clang -O2` | 232 171 | 141 824 |
-| expert C: `expert.c`, `clang -O2` | 20 762 | 143 872 |
+| Spite: `naive/`, `--optimized` | 112 806 | 245 248 |
+| naive C: `naive.c`, `clang -O2` | 231 652 | 141 824 |
+| expert C: `expert.c`, `clang -O2` | 20 538 | 143 872 |
 
-Spite takes 0.50 times naive C's time and 5.56 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=115503 naive=232171 expert=20762 -->
+Spite takes 0.49 times naive C's time and 5.49 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=112806 naive=231652 expert=20538 -->
 <!-- /timings -->
 
 At other sizes, and with each phase apart: [cases.md](../../design/proposals/data_oriented_layout/cases.md#image_filter_over_planes).

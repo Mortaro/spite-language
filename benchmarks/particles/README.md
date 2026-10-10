@@ -31,11 +31,11 @@ per tick than C's bare struct) and the checked additions of the program around t
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 35 830 | 199 680 |
-| naive C: `naive.c`, `clang -O2` | 52 108 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 31 389 | 140 288 |
+| Spite: `naive/`, `--optimized` | 35 661 | 203 776 |
+| naive C: `naive.c`, `clang -O2` | 51 754 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 31 366 | 140 288 |
 
 Spite takes 0.69 times naive C's time and 1.14 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=35830 naive=52108 expert=31389 -->
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=35661 naive=51754 expert=31366 -->
 <!-- /timings -->

@@ -33,11 +33,11 @@ Spite does, without its overflow checks.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 34 121 | 230 400 |
-| naive C: `naive.c`, `clang -O2` | 41 742 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 22 667 | 139 776 |
+| Spite: `naive/`, `--optimized` | 33 811 | 232 448 |
+| naive C: `naive.c`, `clang -O2` | 41 775 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 22 564 | 139 776 |
 
-Spite takes 0.82 times naive C's time and 1.51 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=34121 naive=41742 expert=22667 -->
+Spite takes 0.81 times naive C's time and 1.50 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=33811 naive=41775 expert=22564 -->
 <!-- /timings -->

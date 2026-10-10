@@ -34,11 +34,11 @@ with the notes; `expert.c` reads no pointers at all.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 10 698 | 203 776 |
-| naive C: `naive.c`, `clang -O2` | 22 327 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 2 482 | 139 776 |
+| Spite: `naive/`, `--optimized` | 10 201 | 206 848 |
+| naive C: `naive.c`, `clang -O2` | 21 470 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 2 352 | 139 776 |
 
-Spite takes 0.48 times naive C's time and 4.31 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=10698 naive=22327 expert=2482 -->
+Spite takes 0.48 times naive C's time and 4.34 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=10201 naive=21470 expert=2352 -->
 <!-- /timings -->

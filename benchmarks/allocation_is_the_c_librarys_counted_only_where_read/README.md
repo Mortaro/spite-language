@@ -45,11 +45,11 @@ count that this program does not read would cost it about a quarter of its time.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 76 960 | 194 048 |
-| naive C: `naive.c`, `clang -O2` | 58 695 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 2 769 | 139 264 |
+| Spite: `naive/`, `--optimized` | 15 515 | 198 144 |
+| naive C: `naive.c`, `clang -O2` | 58 727 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 764 | 139 264 |
 
-Spite takes 1.31 times naive C's time and 27.79 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=76960 naive=58695 expert=2769 -->
+Spite takes 0.26 times naive C's time and 5.61 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=15515 naive=58727 expert=2764 -->
 <!-- /timings -->

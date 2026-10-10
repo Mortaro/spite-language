@@ -47,11 +47,11 @@ counted by `--debug-memory`:
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 35 731 | 201 216 |
-| naive C: `naive.c`, `clang -O2` | 35 950 | 157 696 |
-| expert C: `expert.c`, `clang -O2` | 1 441 | 142 848 |
+| Spite: `naive/`, `--optimized` | 29 955 | 205 312 |
+| naive C: `naive.c`, `clang -O2` | 30 487 | 157 696 |
+| expert C: `expert.c`, `clang -O2` | 1 510 | 142 848 |
 
-Spite takes 0.99 times naive C's time and 24.80 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=35731 naive=35950 expert=1441 -->
+Spite takes 0.98 times naive C's time and 19.84 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=29955 naive=30487 expert=1510 -->
 <!-- /timings -->
