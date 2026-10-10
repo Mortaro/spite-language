@@ -1,0 +1,160 @@
+# ../../../design/backend_high_level_ir.md#the-whole-program
+var generator: Generation.Generator? = null
+var objects = List<HighObject>()
+var walked_functions = List<HighFunction>()
+var classes_made = Dictionary<String, Boolean>()
+var classes_by_qualified = Dictionary<String, Analysis.ClassInfo>()
+var classes_by_c_name = Dictionary<String, Analysis.ClassInfo>()
+
+func HighProgram(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+func build() {
+    note_classes()
+    var known = program_classes()
+    var class_index = 0
+    while class_index < known.count() {
+        var information = known[class_index]
+        if not is_library(information) {
+            build_class(information)
+        }
+        class_index = class_index + 1
+    }
+    var index = 0
+    while index < walked_functions.count() {
+        var function = walked_functions[index]
+        function.fold_facts()
+        decide_coverage(function)
+        index = index + 1
+    }
+}
+
+func program_classes(): List<Analysis.ClassInfo> {
+    crash generator
+    return generator.classes
+}
+
+func is_library(information: Analysis.ClassInfo): Boolean {
+    crash generator
+    return generator.is_library_class(information)
+}
+
+func note_classes() {
+    var known = program_classes()
+    var index = 0
+    while index < known.count() {
+        var information = known[index]
+        classes_by_qualified[information.qualified_dotted] = information
+        classes_by_c_name[information.c_name] = information
+        index = index + 1
+    }
+}
+
+func build_class(information: Analysis.ClassInfo) {
+    var index = 0
+    while index < information.declared_functions.count() {
+        var declared = information.declared_functions[index]
+        if walked_from_source(declared) {
+            var walk = HighWalk(this, information, declared)
+            assert walk.recorded
+            walked_functions.append(walk.recorded)
+        }
+        index = index + 1
+    }
+}
+
+func walked_from_source(declared: Analysis.FunctionInfo): Boolean {
+    if not declared.has_body or not declared.supplied_body.is_empty() or not declared.symbol_name.is_empty() {
+        return false
+    }
+    if not declared.specialised_from.is_empty() or declared.c_name.is_empty() {
+        return false
+    }
+    return true
+}
+
+func class_with_c_name(c_name: String): Analysis.ClassInfo? {
+    var found = classes_by_c_name[c_name]
+    assert found
+    return found
+}
+
+func class_found(name: String, namespace: String): Analysis.ClassInfo? {
+    var segments = namespace.split(".")
+    while not segments.is_empty() {
+        var inside_namespace = segments.join(".")
+        var inside = classes_by_qualified["{inside_namespace}.{name}"]
+        if inside {
+            return inside
+        }
+        segments.remove_last()
+    }
+    var found = classes_by_qualified[name]
+    assert found
+    return found
+}
+
+func new_object(class_name: String, kind: String, made_at: String, through_field: Boolean): HighObject {
+    var made = HighObject()
+    made.number = objects.count()
+    made.class_name = class_name
+    made.kind = kind
+    made.place = made_at
+    made.through_field = through_field
+    objects.append(made)
+    if kind == "made" {
+        classes_made[class_name] = true
+    }
+    return made
+}
+
+func object_at(number: Integer): HighObject? {
+    assert number >= 0 and number < objects.count()
+    return objects[number]
+}
+
+func class_c_name(qualified: String): String {
+    var found = classes_by_qualified[qualified]
+    if not found {
+        return qualified
+    }
+    return found.c_name
+}
+
+# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+func decide_coverage(function: HighFunction) {
+    function.covered = true
+    if function.fact.unknown_operations > 0 {
+        function.covered = false
+        function.note_reason("an operation of unknown effect: {function.fact.first_unknown_reason}")
+        return
+    }
+    if function.makes_object {
+        function.covered = false
+        function.note_reason(
+            "it makes an object, and the call the C writes for a construction is the generator's decision",
+        )
+        return
+    }
+    if function.walks_a_list {
+        function.covered = false
+        function.note_reason("a list walk is a call to a template this walk does not name")
+        return
+    }
+    if function.touches_a_container {
+        function.covered = false
+        function.note_reason("the key of a container's items is not built yet")
+        return
+    }
+    if function.touches_a_field_owner {
+        function.covered = false
+        function.note_reason("an object reached through a field may carry an owner tag this walk does not compute yet")
+        return
+    }
+    if function.names_an_unmade_class {
+        function.covered = false
+        function.note_reason("a class the program never makes, whose fields the C reader leaves out")
+        return
+    }
+}

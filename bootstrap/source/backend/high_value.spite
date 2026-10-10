@@ -1,0 +1,16 @@
+# ../../../design/backend_high_level_ir.md#values-and-owners
+var number = 0
+var kind = ""
+var owner = -1
+var points_at = -1
+var name = ""
+var version = 0
+var spite_type: Analysis.SpiteType? = null
+
+func is_reference(): Boolean {
+    return kind == "local" or kind == "field" or kind == "slot"
+}
+
+func is_of_an_object(): Boolean {
+    return owner >= 0
+}

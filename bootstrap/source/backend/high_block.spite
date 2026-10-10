@@ -1,0 +1,30 @@
+# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+var number = 0
+var kind = ""
+var operations = List<HighOperation>()
+var edges = List<HighEdge>()
+var joins = List<HighJoin>()
+var ended = false
+var ended_by = ""
+
+func HighBlock(starting_number: Integer, starting_kind: String) {
+    number = starting_number
+    kind = starting_kind
+}
+
+func add_operation(operation: HighOperation) {
+    operations.append(operation)
+}
+
+func add_edge(edge: HighEdge) {
+    edges.append(edge)
+}
+
+func add_join(join: HighJoin) {
+    joins.append(join)
+}
+
+func end_the_block(by: String) {
+    ended = true
+    ended_by = by
+}

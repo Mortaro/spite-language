@@ -1,0 +1,33 @@
+# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+var reads = Dictionary<String, Boolean>()
+var writes = Dictionary<String, Boolean>()
+var calls = List<String>()
+var loops = false
+var unknown_operations = 0
+var first_unknown_reason = ""
+
+func read(key: String) {
+    if not reads.has(key) {
+        reads[key] = true
+    }
+}
+
+func write(key: String) {
+    if not writes.has(key) {
+        writes[key] = true
+    }
+}
+
+func call(name: String) {
+    assert not name.is_empty()
+    if not calls.contains(name) {
+        calls.append(name)
+    }
+}
+
+func note_unknown(reason: String) {
+    unknown_operations = unknown_operations + 1
+    if first_unknown_reason.is_empty() {
+        first_unknown_reason = reason
+    }
+}

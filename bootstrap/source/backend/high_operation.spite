@@ -1,0 +1,35 @@
+# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+var kind = ""
+var reads = List<Integer>()
+var writes = List<Integer>()
+var call_name = ""
+var passed = List<Integer>()
+var loop_kind = ""
+var loop_condition = -1
+var loop_body = -1
+var can_end = false
+var unknown_reason = ""
+var line = 0
+
+func HighOperation(starting_kind: String, starting_line: Integer) {
+    kind = starting_kind
+    line = starting_line
+}
+
+func reads_value(value_number: Integer) {
+    if not reads.contains(value_number) {
+        reads.append(value_number)
+    }
+}
+
+func writes_value(value_number: Integer) {
+    if not writes.contains(value_number) {
+        writes.append(value_number)
+    }
+}
+
+func passes_object(object_number: Integer) {
+    if not passed.contains(object_number) {
+        passed.append(object_number)
+    }
+}

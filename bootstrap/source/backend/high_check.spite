@@ -1,0 +1,148 @@
+# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+var checked = 0
+var agreed = 0
+var differed = 0
+var differences = List<String>()
+var not_covered = Dictionary<String, Integer>()
+
+func compare(program: HighProgram, facts: Generation.OverlapFacts) {
+    var index = 0
+    while index < program.walked_functions.count() {
+        var function = program.walked_functions[index]
+        if function.covered {
+            compare_function(program, facts, function)
+        } else {
+            note_not_covered(function.not_covered_reason)
+        }
+        index = index + 1
+    }
+}
+
+func compare_function(program: HighProgram, facts: Generation.OverlapFacts, function: HighFunction) {
+    assert facts.bodies.has(function.c_name)
+    var oracle = facts.facts_of(function.c_name)
+    assert not oracle.container
+    checked = checked + 1
+    var before = differences.count()
+    compare_keys(program, function, "reads", function.fact.reads, oracle.reads)
+    compare_keys(program, function, "writes", function.fact.writes, oracle.writes)
+    compare_calls(function, oracle)
+    if function.fact.loops != oracle.loops {
+        note_difference(function, "loops", "a loop in the body", function.fact.loops, oracle.loops)
+    }
+    if differences.count() == before {
+        agreed = agreed + 1
+        return
+    }
+    differed = differed + 1
+}
+
+func compare_keys(
+    program: HighProgram,
+    function: HighFunction,
+    what: String,
+    given: Dictionary<String, Boolean>,
+    expected: Dictionary<String, Boolean>,
+) {
+    var answered = translated_keys(program, given)
+    var asked = expected.keys()
+    var index = 0
+    while index < answered.count() {
+        if not asked.contains(answered[index]) {
+            note_difference(function, what, answered[index], "the high level", "not the C reader")
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < asked.count() {
+        if not answered.contains(asked[index]) {
+            note_difference(function, what, asked[index], "not the high level", "the C reader")
+        }
+        index = index + 1
+    }
+}
+
+func translated_keys(program: HighProgram, given: Dictionary<String, Boolean>): List<String> {
+    var keys = given.keys()
+    var translated = List<String>()
+    var index = 0
+    while index < keys.count() {
+        var written = written_key_of(program, keys[index])
+        if not written.is_empty() and not translated.contains(written) {
+            translated.append(written)
+        }
+        index = index + 1
+    }
+    return translated
+}
+
+func written_key_of(program: HighProgram, key: String): String {
+    var mark = key.index_of("#")
+    if mark < 0 {
+        return ""
+    }
+    var asked = key.slice(0, mark).to_integer()
+    if not asked {
+        return ""
+    }
+    var object = program.object_at(asked)
+    if not object {
+        return ""
+    }
+    var key_length = key.length()
+    var field_name = key.slice(mark + 1, key_length)
+    return "f:{program.class_c_name(object.class_name)}#{field_name}_"
+}
+
+func compare_calls(function: HighFunction, oracle: Generation.OverlapFact) {
+    var answered = function.fact.calls
+    var asked = oracle.calls
+    var index = 0
+    while index < answered.count() {
+        if not asked.contains(answered[index]) {
+            note_difference(function, "calls", answered[index], "the high level", "not the C reader")
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < asked.count() {
+        if not answered.contains(asked[index]) {
+            note_difference(function, "calls", asked[index], "not the high level", "the C reader")
+        }
+        index = index + 1
+    }
+}
+
+func note_difference(function: HighFunction, what: String, key: String, given: String, expected: String) {
+    differences.append("{function.c_name} {what} {key} {given} {expected}")
+}
+
+func note_not_covered(reason: String) {
+    assert not reason.is_empty()
+    var seen = not_covered[reason]
+    var count = 0
+    if seen {
+        count = seen
+    }
+    not_covered[reason] = count + 1
+}
+
+func report_text(): String {
+    var lines = List<String>()
+    lines.append("high level checked {checked} agreed {agreed} differed {differed}")
+    var index = 0
+    while index < differences.count() {
+        lines.append("difference {differences[index]}")
+        index = index + 1
+    }
+    var reasons = not_covered.keys()
+    index = 0
+    while index < reasons.count() {
+        var reason = reasons[index]
+        var seen = not_covered[reason]
+        crash seen
+        lines.append("not covered {seen} {reason}")
+        index = index + 1
+    }
+    return "{lines.join("\n")}\n"
+}

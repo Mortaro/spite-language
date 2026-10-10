@@ -354,6 +354,11 @@ func write_outputs(discovery: Discovery.DiscoveryResult, generator: Generation.G
         program.exit(1)
         return
     }
+    var high_level_path = option("high_ir_report")
+    if not high_level_path.is_empty() and not wrote_high_level_report(generator, high_level_path) {
+        program.exit(1)
+        return
+    }
     assert not is_on("check")
     if not built_executable() {
         program.exit(1)
@@ -438,7 +443,16 @@ func hot_state(
     }
     var state = reload.state_text(next_generation, paths, hashes)
     var settings = List<String>()
-    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes", "optimization_report"]
+    var outputs = [
+        "check"
+        "build"
+        "executable_path"
+        "c_source"
+        "c_path"
+        "final_classes"
+        "optimization_report"
+        "high_ir_report"
+    ]
     var index_of_output = 0
     while index_of_output < outputs.count() {
         var name = outputs[index_of_output]
@@ -502,7 +516,16 @@ func is_output_flag(argument: String): Boolean {
     if not argument.starts_with("--") {
         return false
     }
-    var outputs = ["check", "build", "executable_path", "c_source", "c_path", "final_classes", "optimization_report"]
+    var outputs = [
+        "check"
+        "build"
+        "executable_path"
+        "c_source"
+        "c_path"
+        "final_classes"
+        "optimization_report"
+        "high_ir_report"
+    ]
     var name = setting_name(argument)
     return outputs.contains(name)
 }
@@ -724,6 +747,30 @@ func wrote_final_classes(
     var instantiated_class_names = generator.instantiated_class_names()
     var instantiated_class_sources = generator.instantiated_class_sources()
     return wrote_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
+}
+
+# ../design/backend_high_level_ir.md#what-the-comparison-checks
+func wrote_high_level_report(generator: Generation.Generator, report_path: String): Boolean {
+    var folder = directory_of(report_path)
+    create_folder(folder)
+    var high_level = Backend.HighProgram(generator)
+    high_level.build()
+    var facts = Generation.OverlapFacts()
+    facts.read_program(
+        generator.builder.typedefs,
+        generator.builder.prototypes,
+        generator.builder.support_bodies,
+        generator.builder.user_bodies,
+        generator.builder.main_lines,
+    )
+    var check = Backend.HighCheck()
+    check.compare(high_level, facts)
+    var text = check.report_text()
+    if File(report_path).write(text) {
+        return true
+    }
+    console.error("error: could not write '{report_path}'")
+    return false
 }
 
 func wrote_optimization_report(generator: Generation.Generator, report_path: String): Boolean {

@@ -1,0 +1,29 @@
+# ../../../design/backend_high_level_ir.md#values-and-owners
+var parent: HighScope? = null
+var entries = Dictionary<String, Analysis.SpiteType>()
+
+func HighScope(starting_parent: HighScope?) {
+    parent = starting_parent
+}
+
+func declare(name: String, spite_type: Analysis.SpiteType) {
+    entries[name] = spite_type
+}
+
+func holds(name: String): Boolean {
+    if entries.has(name) {
+        return true
+    }
+    if not parent {
+        return false
+    }
+    return parent.holds(name)
+}
+
+func written_type(name: String): Analysis.SpiteType? {
+    if entries.has(name) {
+        return entries[name]
+    }
+    assert parent
+    return parent.written_type(name)
+}

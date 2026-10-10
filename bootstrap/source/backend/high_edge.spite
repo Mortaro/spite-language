@@ -1,0 +1,8 @@
+# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+var kind = ""
+var target = -1
+
+func HighEdge(starting_kind: String, starting_target: Integer) {
+    kind = starting_kind
+    target = starting_target
+}

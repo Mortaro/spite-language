@@ -1,0 +1,979 @@
+# ../../../design/backend_high_level_ir.md#what-the-walk-covers
+var program: HighProgram? = null
+var recorded: HighFunction? = null
+var class_information: Analysis.ClassInfo? = null
+var values: HighValues? = null
+var block: HighBlock? = null
+var scopes = List<HighScope>()
+var slot_objects = Dictionary<String, Integer>()
+var shapes = Analysis.AstShape()
+var types = Analysis.TypeShape()
+var receiver = -1
+var place = ""
+var current_line = 0
+
+func HighWalk(
+    starting_program: HighProgram,
+    starting_class: Analysis.ClassInfo,
+    starting_function: Analysis.FunctionInfo,
+) {
+    program = starting_program
+    class_information = starting_class
+    values = HighValues()
+    var function = HighFunction(starting_function.name, starting_class.simple_name, starting_function.c_name)
+    recorded = function
+    var scope = HighScope(null)
+    var position = 0
+    while position < starting_function.parameters.count() {
+        var parameter = starting_function.parameters[position]
+        scope.declare(parameter.name, parameter.type)
+        function.parameter_names.append(parameter.name)
+        position = position + 1
+    }
+    scopes.append(scope)
+    place = "{starting_class.simple_name}.{starting_function.name}"
+    receiver = note_object(starting_class.qualified_dotted, "receiver", place, false)
+    block = function.new_block("entry")
+    walk_statements(starting_function.body)
+}
+
+func note_object(class_name: String, kind: String, made_at: String, through_field: Boolean): Integer {
+    crash program
+    var made = program.new_object(class_name, kind, made_at, through_field)
+    return made.number
+}
+
+func new_block(block_kind: String): HighBlock {
+    crash recorded
+    return recorded.new_block(block_kind)
+}
+
+func add_operation(kind: String, at: Integer): HighOperation {
+    crash recorded
+    crash block
+    var operation = HighOperation(kind, at)
+    block.add_operation(operation)
+    return operation
+}
+
+func add_edge(kind: String, to: HighBlock) {
+    crash block
+    var edge = HighEdge(kind, to.number)
+    block.add_edge(edge)
+}
+
+func note_unknown(reason: String, at: Integer) {
+    var operation = add_operation("unknown effect", at)
+    operation.unknown_reason = reason
+}
+
+func block_ended(): Boolean {
+    crash block
+    return block.ended
+}
+
+func end_the_block(by: String) {
+    crash block
+    block.end_the_block(by)
+}
+
+func walk_statements(statements: List<Syntax.Statements.Statement>) {
+    var outer = scopes.last()
+    var inner = HighScope(outer)
+    scopes.append(inner)
+    var position = 0
+    while position < statements.count() and not block_ended() {
+        walk_statement(statements[position])
+        position = position + 1
+    }
+    scopes.remove_last()
+}
+
+func walk_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            current_line = statement.line
+            walk_declaration(statement)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            current_line = statement.line
+            walk_assignment(statement)
+        }
+        Syntax.Statements.IfStatement: {
+            current_line = statement.line
+            walk_if(statement)
+        }
+        Syntax.Statements.WhileStatement: {
+            current_line = statement.line
+            walk_while(statement)
+        }
+        Syntax.Statements.AssertStatement: {
+            current_line = statement.line
+            walk_assert(statement)
+        }
+        Syntax.Statements.ReturnStatement: {
+            current_line = statement.line
+            walk_return(statement)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            current_line = statement.line
+            walk_expression_statement(statement)
+        }
+        Syntax.Statements.SwitchStatement: note_unknown("a switch", statement.line)
+        _: note_unknown("a statement of a kind this walk does not build yet", current_line)
+    }
+}
+
+func walk_declaration(declaration: Syntax.Statements.VariableDeclaration) {
+    crash declaration.value
+    var value = walk_value(declaration.value)
+    var declared = declared_type(declaration, value)
+    var points_at = points_at_of(value)
+    write_value("local", -1, declaration.name, declared, current_line, points_at)
+    var scope = scopes.last()
+    crash scope
+    scope.declare(declaration.name, declared)
+}
+
+func declared_type(declaration: Syntax.Statements.VariableDeclaration, value: Integer): Analysis.SpiteType? {
+    if declaration.type_reference {
+        return resolve_type_reference(declaration.type_reference)
+    }
+    return type_of_value(value)
+}
+
+func walk_assignment(statement: Syntax.Statements.AssignmentStatement) {
+    crash statement.target
+    crash statement.value
+    var target = statement.target
+    var written = walk_value(statement.value)
+    var declared = type_of_value(written)
+    var points_at = points_at_of(written)
+    var identifier = shapes.as_identifier(target)
+    if identifier {
+        walk_written_name(identifier.name, declared, points_at)
+        return
+    }
+    var member = shapes.as_member(target)
+    if member {
+        walk_written_member(member)
+        return
+    }
+    var indexed = shapes.as_index(target)
+    if indexed {
+        walk_written_slot(indexed, declared)
+        return
+    }
+    note_unknown("a target this walk does not build yet", statement.line)
+}
+
+func walk_written_name(name: String, declared: Analysis.SpiteType?, points_at: Integer) {
+    var scope = scopes.last()
+    crash scope
+    if scope.holds(name) {
+        write_value("local", -1, name, declared, current_line, points_at)
+        return
+    }
+    crash class_information
+    if class_information.find_function("set_{name}") {
+        note_unknown("a setter", current_line)
+        return
+    }
+    var field = class_information.find_field(name)
+    if not field {
+        note_unknown("a name this walk does not know", current_line)
+        return
+    }
+    write_field(receiver, name, field.type, current_line)
+}
+
+func walk_written_member(member: Syntax.Expressions.MemberExpression) {
+    crash member.object
+    var holder = walk_value(member.object)
+    var holder_class = class_of_value(holder)
+    if not holder_class {
+        note_unknown("a member written through a value this walk does not know", current_line)
+        return
+    }
+    if holder_class.find_function("set_{member.name}") {
+        note_unknown("a setter", current_line)
+        return
+    }
+    var field = holder_class.find_field(member.name)
+    if not field {
+        note_unknown("a member that is not a field of a class this walk knows", current_line)
+        return
+    }
+    var owner = points_at_of(holder)
+    write_field(owner, member.name, field.type, current_line)
+}
+
+func walk_written_slot(indexed: Syntax.Expressions.IndexExpression, declared: Analysis.SpiteType?) {
+    crash indexed.object
+    crash indexed.index
+    var holder = walk_value(indexed.object)
+    walk_value(indexed.index)
+    crash recorded
+    recorded.touches_a_container = true
+    var owner = points_at_of(holder)
+    write_value("slot", owner, "items", declared, current_line, owner)
+}
+
+func walk_if(statement: Syntax.Statements.IfStatement) {
+    crash statement.condition
+    walk_value(statement.condition)
+    var condition = copied_values()
+    var then_block = new_block("then")
+    var dropped_block = new_block("else")
+    var join_block = new_block("join")
+    add_edge("taken", then_block)
+    add_edge("dropped", dropped_block)
+    block = then_block
+    walk_statements(statement.then_branch)
+    if not block_ended() {
+        add_edge("fallthrough", join_block)
+    }
+    var after_taken = copied_values()
+    block = dropped_block
+    if statement.has_else_branch {
+        walk_statements(statement.else_branch)
+        if not block_ended() {
+            add_edge("fallthrough", join_block)
+        }
+    } else {
+        add_edge("fallthrough", join_block)
+    }
+    var after_dropped = copied_values()
+    block = join_block
+    note_join(join_block, condition, after_taken, after_dropped)
+}
+
+func walk_while(statement: Syntax.Statements.WhileStatement) {
+    crash statement.condition
+    var before = copied_values()
+    var condition_block = new_block("loop condition")
+    var body_block = new_block("loop body")
+    var after_block = new_block("join")
+    var operation = add_operation("loop", statement.line)
+    operation.loop_kind = loop_kind_of(statement.condition)
+    operation.loop_condition = condition_block.number
+    operation.loop_body = body_block.number
+    add_edge("condition", condition_block)
+    block = condition_block
+    walk_value(statement.condition)
+    add_edge("body", body_block)
+    add_edge("exit", after_block)
+    block = body_block
+    walk_statements(statement.body)
+    if not block_ended() {
+        add_edge("step", condition_block)
+    }
+    var after_body = copied_values()
+    block = after_block
+    values = before
+    note_loop_join(after_block, before, after_body)
+}
+
+func loop_kind_of(condition: Syntax.Expressions.Expression?): String {
+    crash condition
+    var binary = shapes.as_binary(condition)
+    if not binary {
+        return "plain"
+    }
+    crash binary.left
+    crash binary.right
+    if counts_of(binary.right) or counts_of(binary.left) {
+        return "counted"
+    }
+    return "plain"
+}
+
+func counts_of(expression: Syntax.Expressions.Expression): Boolean {
+    var call = shapes.as_call(expression)
+    if not call {
+        return false
+    }
+    crash call.callee
+    var identifier = shapes.as_identifier(call.callee)
+    if not identifier {
+        return false
+    }
+    return identifier.name == "count"
+}
+
+func walk_assert(statement: Syntax.Statements.AssertStatement) {
+    crash statement.value
+    walk_value(statement.value)
+    if statement.is_crash {
+        var halting = add_operation("crash", statement.line)
+        halting.can_end = true
+        end_the_block("crash")
+        return
+    }
+    var operation = add_operation("assert", statement.line)
+    operation.can_end = true
+}
+
+func walk_return(statement: Syntax.Statements.ReturnStatement) {
+    if statement.value {
+        walk_value(statement.value)
+    }
+    var operation = add_operation("return", statement.line)
+    operation.can_end = true
+    end_the_block("return")
+}
+
+func walk_expression_statement(statement: Syntax.Statements.ExpressionStatement) {
+    crash statement.value
+    walk_value(statement.value)
+}
+
+func walk_value(expression: Syntax.Expressions.Expression): Integer {
+    if shapes.is_true_literal(expression) or shapes.is_false_literal(expression) {
+        var kind = type_of_boolean()
+        return constant_value(kind, -1)
+    }
+    if shapes.is_null_literal(expression) {
+        return constant_value(null, -1)
+    }
+    if shapes.as_integer_literal(expression) {
+        var kind = type_of_integer()
+        return constant_value(kind, -1)
+    }
+    if shapes.as_float_literal(expression) {
+        var kind = type_of_float()
+        return constant_value(kind, -1)
+    }
+    if shapes.as_string_literal(expression) {
+        var kind = type_of_text()
+        return constant_value(kind, -1)
+    }
+    if shapes.as_enum_literal(expression) {
+        return constant_value(null, -1)
+    }
+    var identifier = shapes.as_identifier(expression)
+    if identifier {
+        return walk_identifier(identifier)
+    }
+    var member = shapes.as_member(expression)
+    if member {
+        return walk_member_read(member)
+    }
+    var indexed = shapes.as_index(expression)
+    if indexed {
+        return walk_slot_read(indexed)
+    }
+    var call = shapes.as_call(expression)
+    if call {
+        return walk_call(call)
+    }
+    var binary = shapes.as_binary(expression)
+    if binary {
+        return walk_computation(binary)
+    }
+    var unary = shapes.as_unary(expression)
+    if unary {
+        return walk_negation(unary)
+    }
+    note_unknown("an expression of a kind this walk does not build yet", current_line)
+    return constant_value(null, -1)
+}
+
+func walk_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integer {
+    var scope = scopes.last()
+    crash scope
+    var declared = scope.written_type(identifier.name)
+    if declared {
+        return read_value("local", -1, identifier.name, declared, current_line, -1)
+    }
+    crash class_information
+    var field = class_information.find_field(identifier.name)
+    if not field {
+        note_unknown("a name this walk does not know", current_line)
+        return constant_value(null, -1)
+    }
+    return read_field(receiver, identifier.name, field.type, current_line)
+}
+
+func walk_member_read(member: Syntax.Expressions.MemberExpression): Integer {
+    crash member.object
+    var holder = walk_value(member.object)
+    var holder_class = class_of_value(holder)
+    if not holder_class {
+        note_unknown("a member read through a value this walk does not know", current_line)
+        return constant_value(null, -1)
+    }
+    if holder_class.find_function("get_{member.name}") {
+        note_unknown("a getter", current_line)
+        return constant_value(null, -1)
+    }
+    var field = holder_class.find_field(member.name)
+    if not field {
+        note_unknown("a member that is not a field of a class this walk knows", current_line)
+        return constant_value(null, -1)
+    }
+    var owner = points_at_of(holder)
+    return read_field(owner, member.name, field.type, current_line)
+}
+
+func walk_slot_read(indexed: Syntax.Expressions.IndexExpression): Integer {
+    crash indexed.object
+    crash indexed.index
+    var holder = walk_value(indexed.object)
+    walk_value(indexed.index)
+    crash recorded
+    recorded.touches_a_container = true
+    var owner = points_at_of(holder)
+    var element = element_type_of(holder)
+    return read_value("slot", owner, "items", element, current_line, -1)
+}
+
+func walk_call(call: Syntax.Expressions.CallExpression): Integer {
+    crash call.callee
+    var arguments = List<Integer>()
+    var position = 0
+    while position < call.arguments.count() {
+        var read = walk_value(call.arguments[position])
+        arguments.append(read)
+        position = position + 1
+    }
+    var identifier = shapes.as_identifier(call.callee)
+    if identifier {
+        return walk_own_call(identifier.name, arguments)
+    }
+    var member = shapes.as_member(call.callee)
+    if member {
+        crash member.object
+        var holder = walk_value(member.object)
+        return walk_method_call(member, holder, arguments)
+    }
+    note_unknown("a call through a name this walk does not build yet", current_line)
+    return constant_value(null, -1)
+}
+
+func walk_own_call(name: String, arguments: List<Integer>): Integer {
+    crash class_information
+    if name == class_information.simple_name {
+        return walk_made_object()
+    }
+    var own = class_information.find_function(name)
+    if own {
+        return note_call(own, arguments)
+    }
+    if class_information.find_field(name) {
+        note_unknown("a call through a function value", current_line)
+        return constant_value(null, -1)
+    }
+    note_unknown("a call to a name this walk does not know", current_line)
+    return constant_value(null, -1)
+}
+
+func walk_method_call(member: Syntax.Expressions.MemberExpression, holder: Integer, arguments: List<Integer>): Integer {
+    if member.name.starts_with("each_") {
+        return walk_list_walk(member, holder)
+    }
+    var holder_class = class_of_value(holder)
+    if not holder_class {
+        note_unknown("a call on a value this walk does not know", current_line)
+        return constant_value(null, -1)
+    }
+    if holder_class.is_container {
+        crash recorded
+        recorded.touches_a_container = true
+    }
+    var own = holder_class.find_function(member.name)
+    if own {
+        return note_call(own, arguments)
+    }
+    note_unknown("a call to a name this walk does not know", current_line)
+    return constant_value(null, -1)
+}
+
+func walk_made_object(): Integer {
+    crash class_information
+    crash recorded
+    recorded.makes_object = true
+    var operation = add_operation("make", current_line)
+    var object_number = note_object(class_information.qualified_dotted, "made", place, false)
+    operation.passes_object(object_number)
+    var made: Analysis.SpiteType = Analysis.Types.ClassRefType(class_information.c_name)
+    return constant_value(made, object_number)
+}
+
+func note_call(own: Analysis.FunctionInfo, arguments: List<Integer>): Integer {
+    var operation = add_operation("call", current_line)
+    operation.call_name = own.c_name
+    var index = 0
+    while index < arguments.count() {
+        note_passed_value(operation, arguments[index])
+        index = index + 1
+    }
+    return constant_value(own.return_type, -1)
+}
+
+func note_passed_value(operation: HighOperation, value_number: Integer) {
+    var object_number = points_at_of(value_number)
+    crash object_number >= 0
+    operation.passes_object(object_number)
+    crash recorded
+    crash program
+    var object = program.object_at(object_number)
+    if object and object.through_field {
+        recorded.touches_a_field_owner = true
+    }
+}
+
+func walk_list_walk(member: Syntax.Expressions.MemberExpression, holder: Integer): Integer {
+    crash recorded
+    recorded.walks_a_list = true
+    recorded.touches_a_container = true
+    var operation = add_operation("list walk", current_line)
+    var body = recorded.new_block("list walk body")
+    var after = recorded.new_block("join")
+    operation.loop_body = body.number
+    add_edge("body", body)
+    add_edge("exit", after)
+    block = body
+    note_list_member(member, holder)
+    add_edge("step", body)
+    block = after
+    return constant_value(null, -1)
+}
+
+func note_list_member(member: Syntax.Expressions.MemberExpression, holder: Integer) {
+    var whole_name = member.name.length()
+    var member_name = member.name.slice(5, whole_name)
+    var element = element_type_of(holder)
+    var element_class = class_of_type(element)
+    if not element_class {
+        note_unknown("a list walk over items this walk does not know", current_line)
+        return
+    }
+    var own = element_class.find_function(member_name)
+    if own {
+        var operation = add_operation("call", current_line)
+        operation.call_name = own.c_name
+        return
+    }
+    var field = element_class.find_field(member_name)
+    if not field {
+        note_unknown("a list walk over items this walk does not know", current_line)
+        return
+    }
+    var owner = points_at_of(holder)
+    var named = read_field(owner, member_name, field.type, current_line)
+    if not named {
+        note_unknown("a field of a list item this walk cannot name", current_line)
+    }
+}
+
+func walk_computation(binary: Syntax.Expressions.BinaryExpression): Integer {
+    crash binary.left
+    crash binary.right
+    var left = walk_value(binary.left)
+    var right = walk_value(binary.right)
+    var operation = add_operation("computation", current_line)
+    operation.reads_value(left)
+    operation.reads_value(right)
+    return constant_value(null, -1)
+}
+
+func walk_negation(unary: Syntax.Expressions.UnaryExpression): Integer {
+    crash unary.operand
+    var operand = walk_value(unary.operand)
+    var operation = add_operation("computation", current_line)
+    operation.reads_value(operand)
+    return constant_value(null, -1)
+}
+
+func constant_value(declared: Analysis.SpiteType?, points_at: Integer): Integer {
+    crash recorded
+    return recorded.new_value("constant", -1, points_at, "", 0, declared)
+}
+
+func read_value(
+    value_kind: String,
+    value_owner: Integer,
+    value_name: String,
+    declared: Analysis.SpiteType?,
+    at: Integer,
+    points_at: Integer,
+): Integer {
+    crash recorded
+    crash values
+    var key = "{value_owner}#{value_name}"
+    var held = values.value_or(key, -1)
+    if held < 0 {
+        held = recorded.new_value(value_kind, value_owner, points_at, value_name, 0, declared)
+        values.put(key, held)
+    }
+    var operation = add_operation("{value_kind} read", at)
+    operation.reads_value(held)
+    return held
+}
+
+func write_value(
+    value_kind: String,
+    value_owner: Integer,
+    value_name: String,
+    declared: Analysis.SpiteType?,
+    at: Integer,
+    points_at: Integer,
+) {
+    crash recorded
+    crash values
+    var key = "{value_owner}#{value_name}"
+    var version = 0
+    var before = values.value_or(key, -1)
+    if before >= 0 {
+        version = recorded.value_at(before).version + 1
+    }
+    var written = recorded.new_value(value_kind, value_owner, points_at, value_name, version, declared)
+    var operation = add_operation("{value_kind} write", at)
+    operation.writes_value(written)
+    values.put(key, written)
+}
+
+func read_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?, at: Integer): Integer {
+    crash program
+    var object = program.object_at(object_number)
+    if not object {
+        note_unknown("a field of an object this walk cannot name", at)
+        return -1
+    }
+    object.reads(field_name)
+    note_field_owner(object)
+    var held = points_at_of_field(object_number, field_name, declared)
+    return read_value("field", object_number, field_name, declared, at, held)
+}
+
+func write_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?, at: Integer) {
+    crash program
+    var object = program.object_at(object_number)
+    if not object {
+        note_unknown("a field of an object this walk cannot name", at)
+        return
+    }
+    object.writes(field_name)
+    note_field_owner(object)
+    var held = points_at_of_field(object_number, field_name, declared)
+    write_value("field", object_number, field_name, declared, at, held)
+}
+
+func note_field_owner(object: HighObject) {
+    crash recorded
+    crash program
+    if object.through_field {
+        recorded.touches_a_field_owner = true
+    }
+    if not program.classes_made.has(object.class_name) {
+        recorded.names_an_unmade_class = true
+    }
+}
+
+# ../../../design/backend_high_level_ir.md#abstract-objects
+func points_at_of_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?): Integer {
+    var held_class = class_of_type(declared)
+    if not held_class {
+        return -1
+    }
+    var key = "{object_number}#{field_name}"
+    var known = slot_objects[key]
+    if known {
+        return known
+    }
+    var made = note_object(held_class.qualified_dotted, "slot", place, true)
+    slot_objects[key] = made
+    return made
+}
+
+func copied_values(): HighValues {
+    crash values
+    return values.copied()
+}
+
+func points_at_of(value_number: Integer): Integer {
+    crash recorded
+    var held = recorded.value_at(value_number)
+    return held.points_at
+}
+
+func type_of_value(value_number: Integer): Analysis.SpiteType? {
+    crash recorded
+    var held = recorded.value_at(value_number)
+    return held.spite_type
+}
+
+func class_of_value(value_number: Integer): Analysis.ClassInfo? {
+    var held = type_of_value(value_number)
+    return class_of_type(held)
+}
+
+func class_of_type(spite_type: Analysis.SpiteType?): Analysis.ClassInfo? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = types.as_nullable(plain)
+    if nullable {
+        plain = nullable.inner
+    }
+    var class_reference = types.as_class_ref(plain)
+    assert class_reference
+    crash program
+    return program.class_with_c_name(class_reference.c_name)
+}
+
+func element_type_of(value_number: Integer): Analysis.SpiteType? {
+    var held = type_of_value(value_number)
+    assert held
+    var plain = held
+    var nullable = types.as_nullable(plain)
+    if nullable {
+        plain = nullable.inner
+    }
+    var listed = types.as_list(plain)
+    assert listed
+    return listed.element
+}
+
+func type_of_integer(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('integer_kind')
+}
+
+func type_of_long(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('long_kind')
+}
+
+func type_of_float(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('float_kind')
+}
+
+func type_of_double(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('double_kind')
+}
+
+func type_of_boolean(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('boolean_kind')
+}
+
+func type_of_text(): Analysis.SpiteType {
+    return Analysis.Types.StringType()
+}
+
+func type_of_nothing(): Analysis.SpiteType {
+    return Analysis.Types.VoidType()
+}
+
+# ../../../design/backend_high_level_ir.md#values-and-owners
+func note_join(join_block: HighBlock, before: HighValues, after_taken: HighValues, after_dropped: HighValues) {
+    crash values
+    var names = names_of(before, after_taken, after_dropped)
+    var index = 0
+    while index < names.count() {
+        var key = names[index]
+        var entry = before.value_or(key, -1)
+        var taken = after_taken.value_or(key, entry)
+        var dropped = after_dropped.value_or(key, entry)
+        if taken != entry or dropped != entry {
+            var retained = retained_of(entry, taken, dropped)
+            var join = HighJoin(key, entry, taken, dropped, retained, entry)
+            join_block.add_join(join)
+            var left = value_left_at_join(taken, entry, dropped)
+            values.put(key, left)
+        }
+        index = index + 1
+    }
+}
+
+func retained_of(entry: Integer, taken: Integer, dropped: Integer): Integer {
+    if taken != entry and dropped != entry {
+        return -1
+    }
+    if taken != entry {
+        return taken
+    }
+    if dropped != entry {
+        return dropped
+    }
+    return entry
+}
+
+func value_left_at_join(taken: Integer, entry: Integer, dropped: Integer): Integer {
+    if taken != entry {
+        return taken
+    }
+    return dropped
+}
+
+func note_loop_join(join_block: HighBlock, before: HighValues, after_body: HighValues) {
+    var names = after_body.names()
+    var index = 0
+    while index < names.count() {
+        var key = names[index]
+        var entry = before.value_or(key, -1)
+        var written = after_body.value_or(key, entry)
+        if written != entry {
+            var join = HighJoin(key, entry, -1, written, -1, -1)
+            join_block.add_join(join)
+        }
+        index = index + 1
+    }
+}
+
+func names_of(first: HighValues, second: HighValues, third: HighValues): List<String> {
+    var names = first.names()
+    var later = second.names()
+    var index = 0
+    while index < later.count() {
+        if not names.contains(later[index]) {
+            names.append(later[index])
+        }
+        index = index + 1
+    }
+    later = third.names()
+    index = 0
+    while index < later.count() {
+        if not names.contains(later[index]) {
+            names.append(later[index])
+        }
+        index = index + 1
+    }
+    return names
+}
+
+# ../../../design/backend_high_level_ir.md#what-the-walk-covers
+func resolve_type_reference(type_reference: Syntax.Types.Type): Analysis.SpiteType? {
+    if shapes.as_generic_type(type_reference) {
+        note_unknown("a codegen value used as a type", current_line)
+        return null
+    }
+    var named = shapes.as_named_type(type_reference)
+    if not named {
+        note_unknown("a type reference of a kind this walk does not build yet", current_line)
+        return null
+    }
+    return resolve_named_type(named)
+}
+
+func resolve_named_type(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    var path = named.path
+    if not path {
+        note_unknown("a type written with no name", current_line)
+        return null
+    }
+    if path.count() == 1 {
+        return resolve_simple_type(path[0], named)
+    }
+    crash class_information
+    crash program
+    var joined = path.join(".")
+    var found = program.class_found(joined, class_information.qualified_dotted)
+    if not found {
+        note_unknown("a type this walk does not know", current_line)
+        return null
+    }
+    var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(found.c_name)
+    return resolved
+}
+
+func resolve_simple_type(name: String, named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    switch name {
+        "Integer": return type_of_integer()
+        "Long": return type_of_long()
+        "Float": return type_of_float()
+        "Double": return type_of_double()
+        "Boolean": return type_of_boolean()
+        "String": return type_of_text()
+        "Nothing": return type_of_nothing()
+        "Symbol": return Analysis.Types.SymbolType()
+        "Arguments": return Analysis.Types.ArgumentsType()
+        "Nullable": return nullable_type_of(named)
+        "List": return list_type_of_argument(named)
+        "Dictionary": return resolve_dictionary_type(named)
+        _: return class_type_of(name)
+    }
+}
+
+func nullable_type_of(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    var inner = resolve_one_type_argument(named)
+    assert inner
+    return Analysis.Types.NullableType(inner)
+}
+
+func list_type_of_argument(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    var element = resolve_one_type_argument(named)
+    assert element
+    return Analysis.Types.ListType(element)
+}
+
+func class_type_of(name: String): Analysis.SpiteType? {
+    var scalar = scalar_type_named(name)
+    if scalar {
+        return scalar
+    }
+    crash class_information
+    crash program
+    var found = program.class_found(name, class_information.qualified_dotted)
+    if not found {
+        note_unknown("a type this walk does not know", current_line)
+        return null
+    }
+    return Analysis.Types.ClassRefType(found.c_name)
+}
+
+func scalar_type_named(name: String): Analysis.SpiteType? {
+    if name == "Tiny" {
+        var tiny: Analysis.SpiteType = Analysis.Types.ScalarType('tiny_kind')
+        return tiny
+    }
+    if name == "Short" {
+        var small: Analysis.SpiteType = Analysis.Types.ScalarType('short_kind')
+        return small
+    }
+    if name == "Byte" {
+        var small_byte: Analysis.SpiteType = Analysis.Types.ScalarType('byte_kind')
+        return small_byte
+    }
+    if name == "UnsignedShort" {
+        var short_number: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_short_kind')
+        return short_number
+    }
+    if name == "UnsignedInteger" {
+        var whole_number: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_integer_kind')
+        return whole_number
+    }
+    if name == "UnsignedLong" {
+        var long_number: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_long_kind')
+        return long_number
+    }
+    return null
+}
+
+func resolve_one_type_argument(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    if named.arguments.count() != 1 {
+        note_unknown("a collection written with the wrong count of type arguments", current_line)
+        return null
+    }
+    return resolve_type_argument(named.arguments[0])
+}
+
+func resolve_dictionary_type(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    if named.arguments.count() != 2 {
+        note_unknown("a dictionary written with the wrong count of type arguments", current_line)
+        return null
+    }
+    var key = resolve_type_argument(named.arguments[0])
+    var value = resolve_type_argument(named.arguments[1])
+    assert key and value
+    var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(value, key)
+    return resolved
+}
+
+func resolve_type_argument(argument: Syntax.Types.GenericArgument): Analysis.SpiteType? {
+    var type_argument = shapes.as_type_argument(argument)
+    if not type_argument {
+        note_unknown("a type argument that is not a type", current_line)
+        return null
+    }
+    crash type_argument.value
+    return resolve_type_reference(type_argument.value)
+}

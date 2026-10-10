@@ -1,0 +1,110 @@
+# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+var name = ""
+var class_name = ""
+var c_name = ""
+var parameter_names = List<String>()
+var blocks = List<HighBlock>()
+var values = List<HighValue>()
+var fact = HighFact()
+var covered = false
+var not_covered_reason = ""
+var makes_object = false
+var walks_a_list = false
+var touches_a_container = false
+var touches_a_field_owner = false
+var names_an_unmade_class = false
+
+func HighFunction(starting_name: String, starting_class_name: String, starting_c_name: String) {
+    name = starting_name
+    class_name = starting_class_name
+    c_name = starting_c_name
+}
+
+func new_block(block_kind: String): HighBlock {
+    var number = blocks.count()
+    var made = HighBlock(number, block_kind)
+    blocks.append(made)
+    return made
+}
+
+func block_at(number: Integer): HighBlock {
+    var made = blocks[number]
+    crash made
+    return made
+}
+
+func new_value(
+    value_kind: String,
+    value_owner: Integer,
+    value_points_at: Integer,
+    value_name: String,
+    value_version: Integer,
+    value_type: Analysis.SpiteType?,
+): Integer {
+    var made = HighValue()
+    made.number = values.count()
+    made.kind = value_kind
+    made.owner = value_owner
+    made.points_at = value_points_at
+    made.name = value_name
+    made.version = value_version
+    made.spite_type = value_type
+    values.append(made)
+    return made.number
+}
+
+func value_at(number: Integer): HighValue {
+    var made = values[number]
+    crash made
+    return made
+}
+
+func note_reason(reason: String) {
+    if not_covered_reason.is_empty() {
+        not_covered_reason = reason
+    }
+}
+
+# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+func fold_facts() {
+    blocks.each(fold_block)
+}
+
+func fold_block(current: HighBlock) {
+    current.operations.each(fold_operation)
+}
+
+func fold_operation(operation: HighOperation) {
+    if operation.kind == "unknown effect" {
+        fact.note_unknown(operation.unknown_reason)
+        return
+    }
+    var index = 0
+    while index < operation.reads.count() {
+        note_value_read(operation.reads[index])
+        index = index + 1
+    }
+    index = 0
+    while index < operation.writes.count() {
+        note_value_written(operation.writes[index])
+        index = index + 1
+    }
+    fact.call(operation.call_name)
+    if operation.kind == "loop" or operation.kind == "list walk" {
+        fact.loops = true
+    }
+}
+
+func note_value_read(value_number: Integer) {
+    var read = value_at(value_number)
+    if read.is_of_an_object() {
+        fact.read("{read.owner}#{read.name}")
+    }
+}
+
+func note_value_written(value_number: Integer) {
+    var written = value_at(value_number)
+    if written.is_of_an_object() {
+        fact.write("{written.owner}#{written.name}")
+    }
+}

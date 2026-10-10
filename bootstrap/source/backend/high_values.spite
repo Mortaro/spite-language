@@ -1,0 +1,40 @@
+# ../../../design/backend_high_level_ir.md#values-and-owners
+var entries = Dictionary<String, Integer>()
+
+func value_of(key: String): Integer {
+    crash entries[key]
+    return entries[key]
+}
+
+func held(key: String): Boolean {
+    return entries.has(key)
+}
+
+func put(key: String, value_number: Integer) {
+    entries[key] = value_number
+}
+
+func names(): List<String> {
+    return entries.keys()
+}
+
+func copied(): HighValues {
+    var made = HighValues()
+    var given = names()
+    var index = 0
+    while index < given.count() {
+        var key = given[index]
+        var copied_value = value_of(key)
+        made.put(key, copied_value)
+        index = index + 1
+    }
+    return made
+}
+
+func value_or(key: String, otherwise: Integer): Integer {
+    var held_here = entries[key]
+    if not held_here {
+        return otherwise
+    }
+    return held_here
+}
