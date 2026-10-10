@@ -1073,12 +1073,12 @@ if ! grep -q "^int32_t Workshop_build___unguarded(Workshop\* self) {" "$stateles
   echo "FAILED: singleton_stateless_calls should lock Workshop.build and not Workshop.make_piece"; exit 1
 fi
 # D265: a counted loop calling one locked singleton takes its lock once around the loop and calls the unlocked body;
-# a loop polling another singleton for what a Parallel posts keeps a lock per call, or it would never see the post.
+# a loop polling another singleton for what a Parallel posts keeps a lock per call unless no task is in flight (D573), or it would never see the post.
 coarse="$work/coarse_locks.c"
 "$work/generation_two.exe" conformance/stage6/coarse_locks --check --c-source --c-path="$coarse" > /dev/null 2>&1 || {
   echo "FAILED: coarse_locks does not write its C"; exit 1; }
-if ! grep -q "^#define spite_coarse_0_enter() spite_guard_enter(&Tally___guard)$" "$coarse" \
-   || ! grep -q "^Tally_add___unguarded(self->tally_, 1);$" "$coarse" || grep -q "Mailbox_take___unguarded(self->mailbox_" "$coarse" \
+if ! grep -q "^#define spite_coarse_[0-9]*_enter() spite_guard_enter(&Tally___guard)$" "$coarse" \
+   || ! grep -q "^Tally_add___unguarded(self->tally_, 1);$" "$coarse" || grep -q "^got_ = Mailbox_take___unguarded(self->mailbox_" "$coarse" \
    || grep -q "Mailbox_put___unguarded(self->mailbox_" "$coarse"; then
   echo "FAILED: coarse_locks should lock Tally once around count_up's loop and Mailbox on every call"; exit 1
 fi
