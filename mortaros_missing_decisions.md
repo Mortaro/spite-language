@@ -18,7 +18,7 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
-- **D567, the error text for naming `Spite.Internal` outside the library**: "`<Name>` is internal to Spite and cannot
+- **D568, the error text for naming `Spite.Internal` outside the library**: "`<Name>` is internal to Spite and cannot
   be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain
   type, and leave threads to the compiler". It is built and refuses any use, reopening or new class there; the
   namespace holds no class yet. Say "confirmed" or give the wording you want.
