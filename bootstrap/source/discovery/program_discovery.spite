@@ -287,16 +287,50 @@ func internal_name_error(path: String, line: Integer, name: String): String {
 
 func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {
     var index = from
-    while index < tokens.count() and (tokens[index].kind == 'newline' or tokens[index].kind == 'comment') {
-        index = index + 1
+    var skipping = true
+    while skipping and index < tokens.count() {
+        crash tokens[index]
+        var token = tokens[index]
+        skipping = token.kind == 'newline' or token.kind == 'comment'
+        if skipping {
+            index = index + 1
+        }
     }
     return index
+}
+
+func internal_member(tokens: List<Syntax.Token>, internal: Integer): String {
+    var name = "Spite.Internal"
+    var after = next_significant(tokens, internal + 1)
+    var member = next_significant(tokens, after + 1)
+    if member < tokens.count() {
+        crash tokens[after]
+        crash tokens[member]
+        var after_token = tokens[after]
+        var member_token = tokens[member]
+        if after_token.kind == 'dot' and member_token.kind == 'identifier' {
+            name = "Spite.Internal.{member_token.lexeme}"
+        }
+    }
+    return name
+}
+
+func names_internal(tokens: List<Syntax.Token>, index: Integer): Boolean {
+    var dot = next_significant(tokens, index + 1)
+    var internal = next_significant(tokens, dot + 1)
+    assert internal < tokens.count()
+    crash tokens[dot]
+    crash tokens[internal]
+    var dot_token = tokens[dot]
+    var internal_token = tokens[internal]
+    return dot_token.kind == 'dot' and internal_token.lexeme == "Internal"
 }
 
 func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_override: Integer) {
     assert not walking_library and not internal_allowed
     var index = 0
     while index < tokens.count() and not has_error {
+        crash tokens[index]
         var word = tokens[index]
         var line = word.line
         if line_override > 0 {
@@ -308,21 +342,10 @@ func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_overri
                 refuse_internal_names(path, hole_lexer.tokens, line)
             }
         }
-        if word.kind == 'identifier' and word.lexeme == "Spite" {
-            var dot = next_significant(tokens, index + 1)
-            var internal = next_significant(tokens, dot + 1)
-            if internal < tokens.count() and tokens[dot].kind == 'dot' and tokens[internal].lexeme == "Internal" {
-                var after = next_significant(tokens, internal + 1)
-                var name = "Spite.Internal"
-                if after < tokens.count() and tokens[after].kind == 'dot' {
-                    var member = next_significant(tokens, after + 1)
-                    if member < tokens.count() and tokens[member].kind == 'identifier' {
-                        name = "Spite.Internal.{tokens[member].lexeme}"
-                    }
-                }
-                has_error = true
-                error_message = internal_name_error(path, line, name)
-            }
+        if word.kind == 'identifier' and word.lexeme == "Spite" and names_internal(tokens, index) {
+            var internal = next_significant(tokens, next_significant(tokens, index + 1) + 1)
+            has_error = true
+            error_message = internal_name_error(path, line, internal_member(tokens, internal))
         }
         index = index + 1
     }
