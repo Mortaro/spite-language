@@ -221,6 +221,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   timing record or scratch list may run at once; an item of one singleton's list and an item of another's are told
   apart by comparing the two lists when the loop starts. Why: it is what keeps the naive engine's two stress
   systems apart, with no annotation.
+- **D567, no hand copy of a library operator in a reopening**: a program's reopening of a library class (`Matrix4`)
+  may not add a function that rewrites the object's attributes from parameters of the same class when the library
+  class already has the operator (`set_product(left, right)` beside `*`). Why: it competes with the compiler's own
+  form of the answer (D564). Narrow: operators only (`+ - * / %` and negation), same parameter types, and a
+  function that assigns attributes; a copy of a plain library function is not caught. Say if it should reach plain
+  functions too.
 
 ## Open
 

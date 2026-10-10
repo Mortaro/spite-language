@@ -138,13 +138,6 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
-- (found 2026-10-09 in the engine package) A program may reopen a library class and add a hand-optimised copy of
-  what the library already does (`Matrix4.set_product`, an in-place multiply beside `*`), and nothing refuses it: the
-  name rule (`diagnostics/named_like_library`) only catches a new class with a library name. That breaks writing it
-  plainly (D564): the hand form competes with the compiler's own (an answer built in the caller's frame). Open: how
-  the compiler could tell a duplicate of library behaviour (a reopening's function whose result an existing
-  operator or function already gives) from a real addition.
-
 - (suspected 2026-10-08, not reproduced) The integer `absolute` macro in `library/maths_primitives.spite` appears
   to answer the smallest value unchanged (`Integer.smallest.absolute()` cannot be represented). The generated C seen
   so far guards `absolute()` with an overflow check, so it may already halt; confirm that every path to it halts
