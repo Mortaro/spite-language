@@ -18,6 +18,10 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
+- **D568, the error text for naming `Spite.Internal` outside the library**: "`<Name>` is internal to Spite and cannot
+  be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain
+  type, and leave threads to the compiler". It is built and refuses any use, reopening or new class there; the
+  namespace holds no class yet. Say "confirmed" or give the wording you want.
 - **D562, a write-back of what the slot already holds is not written, across calls**: a call made as a statement
   is left out when the compiler proves, by following values through the calls from every known caller, that it only
   stores into slots what they already hold, checks what was already checked and leaves numbers it can set in its
@@ -227,11 +231,11 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   form of the answer (D564). Narrow: operators only (`+ - * / %` and negation), same parameter types, and a
   function that assigns attributes; a copy of a plain library function is not caught. Say if it should reach plain
   functions too.
-- **D568, every class made on one thread has a pool**: not only the classes a list holds, but a container's own
+- **D570, every class made on one thread has a pool**: not only the classes a list holds, but a container's own
   object (a `List`, a `Vector`) only when a list holds it. Why: a chain made and dropped over and over went from 81
   to 17 ms, with no allocation per link after the first round. The cost to confirm: memory a class used stays that
   class's, now for every class, and a program that only makes one object of a class takes a run of 16 for it.
-- **D569, a deep copy nothing changes is the original**: per copy site, when nothing writes the copy or the
+- **D571, a deep copy nothing changes is the original**: per copy site, when nothing writes the copy or the
   original while the copy lives and nothing in the program asks a copied class for its identity, the copy is the
   original counted once more. Why: a program that copies to read (a report over a snapshot) makes nothing; the
   deep copy case went from 49.5 to 2.1 ms. The cost to confirm: `--debug-memory` counts no allocation for such a

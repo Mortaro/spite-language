@@ -1,0 +1,5 @@
+var console = Console()
+
+func InternalClass() {
+    console.print("no")
+}

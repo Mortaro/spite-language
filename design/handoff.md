@@ -94,7 +94,10 @@ Everything a program must not use directly (the memory floor, `Concurrent`, `Par
 `Atomic`, `ThreadLocal`) moves into `Spite.Internal` (name to confirm); outside `library/` naming it is a compile error
 that names the plain form. Library code above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off memory
 onto `List<Byte>` and plain values. The compiler then reads a `BinaryReader` record from a `List<Byte>` with one check
-and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace, the error.
+and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace. The error
+itself is built (D568): any file outside `library/` and `bootstrap/` that names `Spite.Internal` is refused, so moving
+a class into `library/spite/internal/` is all the namespace needs. A moved class still named bare (`Memory`) would
+resolve without the prefix: refuse those names when the first class moves.
 
 ## The order of work after that (by what closes the engine gap)
 

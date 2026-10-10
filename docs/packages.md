@@ -251,6 +251,11 @@ func SpiteNamespaceError() {
 'spite' is reserved for the built-in Spite namespace
 ```
 
+`Spite.Internal` is the one namespace of the standard library that a program may not name at all: it holds the
+machinery under the library (raw memory, threads, locks), and the library offers plain forms instead, such as
+`List<Byte>` and `BinaryReader` for bytes. Naming it from your own code is a compile error that says which plain form
+to use.
+
 ## `load` is a bundle boundary
 
 `load` marks where a dynamic library or lazy-loaded bundle can split, the way an async `import()` does in
