@@ -85,6 +85,15 @@ rounds alternating original and naive, medians in microseconds (the spread acros
 | physics SortColliders | 275 | 688 | 2.50 |
 | physics ReadCharacters | 179 | 362 | 2.02 |
 
+**Quiet measurement (2026-10-10, nothing else running).** Compiler `ec70d80e` (after D562 and D568 to D573),
+`--optimized --build`, 5 rounds, medians in microseconds, naive engine `main` against the original's numbers above
+(the original no longer compiles: D567 refuses its hand-written `Matrix4.set_product`):
+
+| Benchmark | Original | Naive | Naive / original |
+|---|---|---|---|
+| stress tick | 5,953 | 10,881 | 1.83 |
+| physics step | 5,691 | 6,451 | 1.13 |
+
 The original's stress tick runs its two systems on two threads (5.6 ms each, at once); the naive one runs them one
 after the other (12.2 ms each). One thread each, the gap is about 2.2x per system.
 
