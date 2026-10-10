@@ -59,7 +59,7 @@ as the proposal's slices say.
 
 ## Rules (refused by the hook or `check.sh` otherwise)
 
-- No em dashes anywhere: not the character, not two hyphens between spaces (git's ` -- ` separator counts too).
+- No em dashes anywhere: not the character, not two hyphens between spaces (git's double-hyphen separator between spaces counts too).
 - Names in full words, no abbreviations.
 - Every failure is loud (D244). A case the walk does not understand is an unknown-effect operation or a crash
   naming its cause, never a wrong fact.
