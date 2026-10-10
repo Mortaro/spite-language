@@ -294,9 +294,7 @@ func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {
 }
 
 func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_override: Integer) {
-    if walking_library or internal_allowed {
-        return
-    }
+    assert not walking_library and not internal_allowed
     var index = 0
     while index < tokens.count() and not has_error {
         var word = tokens[index]
@@ -343,9 +341,7 @@ func discover_program(entry_path: String, entry_source: String) {
     assert not has_error
     internal_allowed = part_of_the_compiler(entry_path)
     refuse_internal_names(entry_path, lexer.tokens, 0)
-    if has_error {
-        return
-    }
+    assert not has_error
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
     if parser.has_error {
@@ -1012,9 +1008,7 @@ func read_and_add_file(path: String, segments: List<String>) {
         check_comments(path, lexer.tokens)
         assert not has_error
         refuse_internal_names(path, lexer.tokens, 0)
-        if has_error {
-            return
-        }
+        assert not has_error
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()
         if parser.has_error {
