@@ -25,6 +25,11 @@ Every command and flag, with exactly what it does, is listed under [Command line
 freely (a production build may keep the REPL), and the outputs combine: one compile can build the executable and
 write its final classes.
 
+The command is `spite.exe` from a [release](getting_started.md#install-the-compiler), the one a passing
+`bash check.sh` keeps in `.spite/shared/latest/` ([working on Spite itself](getting_started.md#working-on-spite-itself)),
+or `bin/spite` in a checkout of the repository. Either `spite.exe` needs a C compiler named in `CC`, or `cc`, `clang`
+or `gcc` on the `PATH`.
+
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
 compiler from the seed for the system it runs on (`bootstrap/seed/linux/spite_compiler.c`, or `windows/`) into
 `.spite/spite.exe` the first time, and again whenever the seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else

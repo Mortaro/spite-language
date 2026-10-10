@@ -35,6 +35,21 @@ The compiler writes C and builds it with the command in the `CC` environment var
 `clang` and `gcc` it finds. `bin/spite` picks that command itself: `SPITE_CC` if it is set, else the first C
 compiler it finds (Visual Studio's clang included), and hands it to the compiler as `CC`.
 
+### Working on Spite itself
+
+`bash check.sh`, run from the repository root, proves the compiler and keeps the compiler of every run that passes in
+`.spite/shared/latest/spite.exe`. Put that folder first on your `PATH` and set `CC`, and `spite` is always the newest
+compiler that passed, reading `launcher/` and `library/` from your checkout:
+
+```bash
+spite examples/hello
+```
+
+The first check builds the compiler. A later one builds it again only when `bootstrap/`, `launcher/` or `library/`
+changed, and then starts from the kept compiler instead of the seed. When none of them changed, it runs every check
+with the compiler that passed for exactly those files. A push to `master` that changes them releases the next
+`0.0.x` on its own, and is refused unless a check passed with them.
+
 ## Hello world
 
 A program is a folder, and its entry file is the file named after the folder. Make `hello_world/hello_world.spite`:
