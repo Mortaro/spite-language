@@ -316,9 +316,10 @@ func internal_member(tokens: List<Syntax.Token>, internal: Integer): String {
 func names_internal(tokens: List<Syntax.Token>, index: Integer): Boolean {
     var dot = next_significant(tokens, index + 1)
     var internal = next_significant(tokens, dot + 1)
-    assert internal < tokens.count()
+    if internal >= tokens.count() {
+        return false
+    }
     crash tokens[dot]
-    crash tokens[internal]
     var dot_token = tokens[dot]
     var internal_token = tokens[internal]
     return dot_token.kind == 'dot' and internal_token.lexeme == "Internal"
