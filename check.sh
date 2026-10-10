@@ -111,8 +111,18 @@ build_seed() {
   seed_before_check=$seed_flags_before_check
   "$CC_BIN" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$work/seed.exe" $maths_library 2> "$job_errors" || { head -20 "$job_errors"; return 1; }
 }
+# Sources that already passed every check have their compiler kept under .spite/shared/passed/: that compiler runs
+# the tests, and nothing of the compiler is built again (generation 2, generation 3, its --debug-memory build and the
+# other systems' seeds were all proven for exactly these sources when it was kept).
+inputs=$(working_tree_inputs "$work/inputs")
+known="$shared/passed/$inputs/$system"
+compiler_known=false
+[ -f "$known/spite.exe" ] && [ -f "$known/spite_compiler.c" ] && compiler_known=true
+export compiler_known
 starter=seed
-if [ -x "$latest" ]; then
+if $compiler_known; then
+  echo "1/4 these compiler sources passed before, so their compiler runs the checks and is not built again"
+elif [ -x "$latest" ]; then
   echo "1/4 starting from the last compiler that passed every check"
   cp "$latest" "$work/seed.exe" || exit 1
   seed_before_check=false
@@ -124,12 +134,16 @@ wait $writing; written=$?
 cat "$work/writing.txt"
 [ "$written" == "0" ] || exit 1
 
+if $compiler_known; then
+  cp "$known/spite.exe" "$work/generation_two.exe" && cp "$known/spite_compiler.c" "$work/generation_two.c" || exit 1
+else
 echo "2/4 the seed compiles the compiler sources (generation 2)"
 if ! compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe"; then
   [ "$starter" == "latest" ] || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
   echo "  the last compiler that passed could not compile these sources, so the seed compiles them"
   build_seed || exit 1
   compile_compiler "$work/seed.exe" "$work/generation_two.c" "$work/generation_two.exe" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
+fi
 fi
 cp "$work/generation_two.exe" .spite/spite_development.exe   # the freshly built compiler, handy for trying things by hand
 # bin/spite builds its compiler from the seed, and a seed from before --check and --build cannot compile a program
@@ -148,6 +162,7 @@ position_independent="-fPIC"; [ "$system" == "windows" ] && position_independent
 export work jobs repository CC_BIN maths_library system
 
 job_generation_three() {
+  if $compiler_known; then cp "$work/generation_two.c" "$work/generation_three.c"; return; fi
   compile_compiler "$work/generation_two.exe" "$work/generation_three.c" || { echo "FAILED: generation 2 could not compile the compiler sources"; exit 1; }
 }
 
@@ -314,6 +329,7 @@ job_tests() {
 # counts is only in a --debug-memory build, so the compiler builds itself once more with it.
 job_compiler_memory() {
   local self_leaks
+  $compiler_known && return 0
   SPITE_TRANSLATION_UNITS="$jobs" "$work/generation_two.exe" bootstrap --build --debug-memory --executable-path="$work/generation_two_debug.exe" || {
     echo "FAILED: the compiler does not build itself with --debug-memory"; exit 1; }
   self_leaks=$("$work/generation_two_debug.exe" bootstrap --check 2>&1 > /dev/null | head -5)   # no output: compile only
@@ -326,6 +342,7 @@ job_compiler_memory() {
 # UDP and secure random numbers), since each system answers its own way.
 job_target() {
   local system=$1 program=$2 name errors
+  [ "$program" == "bootstrap" ] && $compiler_known && return 0
   name=$(basename "$program")
   "$work/generation_two.exe" "$program" --check --c-source --c-path="$work/target_${system}_$name.c" --target-operating-system="$system" || {
     echo "FAILED: $program does not compile with library/$system"; exit 1; }
@@ -1768,7 +1785,7 @@ failures=$((failures + pooled_failures))
 # generation 2 writes every other one with --target-operating-system, which gives the very C that system's own
 # generation 2 writes, since nothing of the system doing the compiling reaches the C. So one machine keeps them all.
 stale=()
-for seed_folder in bootstrap/seed/*/; do
+$compiler_known || for seed_folder in bootstrap/seed/*/; do
   seed_system=$(basename "$seed_folder")
   written="$work/generation_two.c"
   if [ "$seed_system" != "$system" ]; then
@@ -1792,7 +1809,7 @@ fi
 # as the release of these sources: pushing a commit with the same sources to master publishes it as the next 0.0.x
 # (scripts/hooks/pre-push). The ten newest are kept.
 if [ ${#stale[@]} == 0 ]; then
-  inputs=$(working_tree_inputs "$work/inputs")
+  inputs=$(working_tree_inputs "$work/inputs")   # again: --update-seed may have rewritten a seed
   record="$shared/passed/$inputs/$system"
   mkdir -p "$record" "$shared/latest" || exit 1
   cp "$work/generation_two.exe" "$record/spite.exe" && cp "bootstrap/seed/$system/spite_compiler.c" "$record/spite_compiler.c"     && cp "$work/generation_two.exe" "$latest.new" && mv -f "$latest.new" "$latest" || { echo "FAILED: could not record this compiler"; exit 1; }

@@ -5,7 +5,8 @@
 Download the newest `spite-0.0.<n>-windows.zip` from the repository's
 [releases](https://github.com/Mortaro/spite-language/releases), unzip it anywhere, and put the folder on your `PATH`. The
 folder holds `spite.exe` with the `launcher/` and `library/` it reads, so keep them together. Spite writes C and
-builds it, so you also need a C compiler: the clang that ships with Visual Studio is found on its own, or set `CC`.
+builds it, so you also need a C compiler, named in the `CC` environment variable (for example the clang that ships
+with Visual Studio), or `cc`, `clang` or `gcc` on your `PATH`.
 Then `spite hello_world` compiles and runs the program of the [next section](#hello-world).
 
 Each release also carries `spite_compiler.c`, the C that `spite.exe` was built from, and `SHA256SUMS` for both:
