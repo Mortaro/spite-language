@@ -94,7 +94,7 @@ it is compiled and run by `bash check.sh`. The formal definition is [`specs/`](s
 page with every rule, edge case and exact error text. Read the docs in this order, from a first program to what the
 compiler proves; each page ends with a link to the next:
 
-1. [Getting started](docs/getting_started.md): build the compiler, run hello world, a program of two classes.
+1. [Getting started](docs/getting_started.md): install the compiler, run hello world, a program of two classes.
 2. [Write it plainly](docs/write_it_plainly.md): why you write the plain program and the compiler decides
    threads, layout and memory, and how to write code it can make fast.
 3. [Classes and files](docs/classes_and_files.md): a file is a class; what it holds and in what order;
@@ -154,49 +154,33 @@ built yet. In short:
 
 Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
 
-## Build and run
+## Get Spite
 
-Spite compiles itself. `bootstrap/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for
-Windows, so building the compiler needs nothing but a C compiler.
-
-```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
-./spite examples/hello
-```
-
-Check the compiler: `check.sh` builds the seed, requires generation 2 and generation 3 to be byte identical,
-runs every program in `conformance/` requiring exact output and balanced allocations, and reports whether the
-committed seeds are current (`bash check.sh --update-seed` refreshes every one of them, from either system). It uses the first of `cc`, `clang` or
-`gcc` it finds, or whatever `CC` names.
+Download the newest `spite-0.0.<n>-windows.zip` from the
+[releases](https://github.com/Mortaro/spite-language/releases), unzip it anywhere and put the folder on your `PATH`.
+It holds `spite.exe` and the `launcher/` and `library/` it reads, so keep them together. Spite writes C and builds
+it, so it also needs a C compiler, named in `CC` (on Windows, the clang inside Visual Studio, by its short path) or
+`cc`, `clang` or `gcc` on the `PATH`:
 
 ```
-bash check.sh
+spite path/to/folder
 ```
+
+Each release carries `spite_compiler.c`, the C its `spite.exe` was built from, and `SHA256SUMS`. Releases are
+Windows only for now ([docs/getting_started.md](docs/getting_started.md#install-the-compiler)).
 
 ## Write your own
 
-Build the compiler once, then point it at a program's folder:
+Point `spite` at a program's folder:
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
-export CC=cc                     # the compiler shells out to this to build the C it emits
-./spite path/to/folder
+spite path/to/folder
 ```
 
 That builds the executable into `.spite/build/path/to/folder/folder.exe` in the folder you ran it from, and runs
 it: nothing is written beside the source. The compiler reads the whole program first and then produces every
 output asked for: `--check` only checks that it compiles and writes nothing, `--build` builds the executable
 without running it, and `--executable-path=` puts it somewhere else ([docs/compiler.md](docs/compiler.md)).
-
-On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
-contains spaces, so use the short form:
-
-```
-CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
-"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/windows/spite_compiler.c -o spite.exe
-export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
-./spite.exe path/to/thing
-```
 
 **Put each program in its own folder.** `spite arena` loads the whole `arena` folder ([docs/packages.md](docs/packages.md)), so
 every `.spite` file in it is part of the same program.
@@ -208,6 +192,38 @@ without BOM.
 **`docs/` is the ground truth for what the language is**: every titled program in it, and every program in
 `conformance/` and `examples/`, is compiled and checked by `bash check.sh`. What is decided but not built yet is
 listed in [design/status.md](design/status.md).
+
+## Build it yourself
+
+You need this only to work on Spite itself, or on a system without a release. Spite compiles itself:
+`bootstrap/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for Windows, so building the
+compiler needs nothing but a C compiler.
+
+```
+cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
+export CC=cc                     # the compiler shells out to this to build the C it emits
+./spite examples/hello
+```
+
+On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
+contains spaces, so use the short form:
+
+```
+CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
+"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/windows/spite_compiler.c -o spite.exe
+export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
+./spite.exe path/to/thing
+```
+
+Check the compiler with `bash check.sh`: it requires the compiler to rebuild itself byte for byte, runs every
+program in `conformance/` requiring exact output and balanced allocations, and reports whether the committed seeds
+are current (`bash check.sh --update-seed` refreshes them). A run that passes keeps its compiler in
+`.spite/shared/latest/` for the next run and for your `PATH`, and a push to `master` that changes the compiler
+releases the next version on its own ([working on Spite itself](docs/getting_started.md#working-on-spite-itself)).
+
+```
+bash check.sh
+```
 
 ## Where to look
 
