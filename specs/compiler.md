@@ -31,7 +31,19 @@ spite program ada --player-name=x       run it, passing a setting its Environmen
 spite connect port                      talk to a program running with --repl-port=port (repl.md)
 spite connect port --command="..."      send one REPL command, print its raw JSON answer line, and exit
 spite reload program ... --executable-path=running   what a --hot-reload program runs to rebuild itself (repl.md)
+spite verify                            in a checkout of Spite: build the compiler from compiler/, run every test
+                                        with the new compiler, and keep it as the one to run when all of them pass
+spite verify --release                  the same, and also prove the compiler frees what it takes, write every
+                                        system's seed, and record the compiler for the next release
 ```
+
+`spite verify` is how Spite proves itself, and it is the compiler's own code: the compiler built from `compiler/`
+compiles itself again and must write the same C, then runs the conformance corpus, the examples, the documentation's
+programs, the diagnostics, the benchmark cases and the test package, each to its exact expected output with
+balanced memory. Any failure names the program and stops with a nonzero status, and the compiler that was kept
+before stays. When everything passes, the new compiler replaces the kept one. `--release` adds the compiler's own
+`--debug-memory` build, the other systems' seeds, and the record a push to `master` releases; a release is never
+made from a run without it.
 
 A `Boolean` flag may be given bare: `--optimized` is `--optimized=true`, and `--optimized=false` stays allowed.
 Flags mix freely, and every output that is on comes from the same compile: an `--optimized` build may keep

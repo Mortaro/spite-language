@@ -886,9 +886,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [testing.md](../docs/testing.md)
 
-- D577: a program's tests run as part of compiling it, can be left out of a quick build and never out of a release
-  build, and the launcher class configures the build (output path, the program's own flags such as a version bump).
-  Not built; `check.sh` stands in until it is.
+- D580: `spite verify` (and `spite verify --release`), the compiler's own command that builds the compiler, runs
+  every test with it and keeps it when they pass, replacing `check.sh` (specs/compiler.md, "Command line"). Not
+  built: `check.sh` does it until then. D577's tests run while compiling are set aside.
 
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.

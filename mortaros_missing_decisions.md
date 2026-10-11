@@ -15,6 +15,10 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D580, the command's name: `spite verify`, and `spite verify --release` for the full run.** You suggested a flag
+  such as `--test-and-movealong`; a command beside `spite connect` and `spite reload` fits because it takes no
+  program. Easy to rename.
+
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
 
@@ -253,14 +257,6 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 
 ## Open
 
-- **D577, tests while compiling: what counts as a test, and where a program declares them.** The note says the tests
-  run as part of compiling and "build crashes by nature of how we test with crashes". Today a test is a `crash`
-  inside a test class run by the test package, or a conformance program with its expected output. Which of those
-  runs while compiling: every `crash` the compiler can reach in a test class, run at compile time? And do the
-  conformance programs (expected output, balanced memory) become tests of the compiler itself, declared by it?
-- **D577, the launcher configuring the build: which class.** "the launcher class" is `launcher/launcher.spite`, the
-  one that loads the standard library first. Is it that one, which every program shares, or should each program's
-  own entry class (or its `build.spite`) declare its output path and flags?
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a
   Spite program, or is the rule only about the repository's own tools?

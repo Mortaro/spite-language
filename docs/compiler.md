@@ -30,6 +30,10 @@ The command is `spite.exe` from a [release](getting_started.md#install-the-compi
 or `bin/spite` in a checkout of the repository. Either `spite.exe` needs a C compiler named in `CC`, or `cc`, `clang`
 or `gcc` on the `PATH`.
 
+In a checkout of Spite itself, `spite verify` builds the compiler from `compiler/`, runs every test with it, and keeps
+it as the compiler you run once they all pass; `spite verify --release` also does everything a release needs
+([the command](../specs/compiler.md#command-line)).
+
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
 compiler from the seed for the system it runs on (`compiler/seed/linux/spite_compiler.c`, or `windows/`) into
 `.spite/spite.exe` the first time, and again whenever the seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
