@@ -886,9 +886,19 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [testing.md](../docs/testing.md)
 
-- D581: `spite compiler --verify` (and `--verify --release`): the compiler program's own settings, under which the
-  new compiler runs every test and keeps itself when they pass, replacing `check.sh` (specs/compiler.md, "The
-  compiler proves itself"). Not built: `check.sh` does it until then. D577's tests run while compiling are set aside.
+- D581: `spite compiler --verify` is built (step 1, D582): the compiler compiles itself again and must write the same
+  C (settling one more generation if a change altered it), runs the conformance corpus, the examples, the
+  documentation's programs, the diagnostics and the `tests` package in parallel, and replaces the kept compiler.
+  Step 2 is not built, and `check.sh` still does it: `--release` (prints that it is not built and exits 1), the
+  benchmark cases, the compiler's `--debug-memory` build, the other systems' seeds, the special greps (writing check,
+  seeds), hot reload, REPL, sockets, fast reloads, final classes and the launcher checks, and the repeated crash runs.
+  `--verify` shows its progress on the error output and its summary only when it ends (a run captures the program's
+  output). A hung program's grandchildren are not stopped by the time limit (only the compiler it runs is).
+  D577's tests run while compiling are set aside.
+- D244, open: `Process.run` (and the pipes the compiler reads a program's output through) open the pipe in text
+  mode on Windows, where a byte 0x1A in the output reads as the end of it: the rest is dropped and the child can
+  block writing to a pipe nobody reads. `--verify` writes each program's output to a file instead; the library's
+  `Process` should read it in binary.
 
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.

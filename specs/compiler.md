@@ -50,6 +50,35 @@ nonzero status, and the compiler that was kept before stays. When everything pas
 kept one. `--release` adds the compiler's own `--debug-memory` build, the other systems' seeds, and the record a push
 to `master` releases; a release is never made from a run without it.
 
+How a run works:
+
+- **The C it was built from.** The compiler's `build.spite` sets `c_source`, so every build of the compiler keeps the
+  C it was built from at `.spite/build/compiler/compiler.c`. The run reads it first, and refuses with a message when
+  it is missing or newer than the compiler running (it was not written by the build that made this compiler). That C
+  is built again with `-O3`, and the compiler that makes is the one that runs every program and the one that is
+  kept, so what is kept is always the fast build. The compiler then compiles its sources again and that C must be byte identical. When it is not, a change to how the
+  compiler compiles its own sources needs one more generation to settle: the new C is built into a compiler, that
+  compiler compiles the sources once more, those two must be identical, and every program then runs with the
+  settled compiler, which is the one kept.
+- **Every program is a compile of its own.** Each program is built and run by this compiler as `spite program
+  --debug-memory`, one process each, as many at once as there are processors (`CHECK_JOBS` sets how many). Its whole
+  output must equal its `expected_output.txt` (its `expected_output.<system>.txt` where the systems differ), with
+  allocations equal to frees and, where an `allocations.txt` pins them, exactly that many; a program with a
+  `crashes.txt` is held to the crash it reports, compared without what differs on every run. A program that prints
+  only `skipped: <why>` is counted as skipped. The documentation's programs are written out by
+  `scripts/docs_corpus`, a `diagnostics/` folder must fail to compile with exactly its `expected_errors.txt`, and
+  the `tests` package must print nothing and balance.
+- **A program that hangs fails by name.** Each program has 300 seconds (`CHECK_TIMEOUT` sets them), limited with
+  GNU `timeout`, which `--verify` requires to be the `timeout` on `PATH`; a program stopped that way fails with
+  `check: stopped after 300 seconds, the program did not finish`.
+- **The report.** Each failure is printed as it is found, on the error output, as `FAILED <kind> <folder>: <what
+  differed>` followed by the first lines of what the program printed. The run ends by printing how many programs,
+  documentation programs and diagnostics passed, and exits 0 when everything did and 1 otherwise; after a failure the
+  work folder `.spite/verify_<number>/` stays for inspection.
+- **Keeping.** The kept compiler is `.spite/shared/latest/spite.exe` beside the main checkout's `.git`. The new one
+  is written beside it, the old one is renamed aside (a running program cannot be deleted on Windows, but it can be
+  renamed), and the new one is renamed into its place, so a failed run never leaves the kept path empty.
+
 A `Boolean` flag may be given bare: `--optimized` is `--optimized=true`, and `--optimized=false` stays allowed.
 Flags mix freely, and every output that is on comes from the same compile: an `--optimized` build may keep
 the REPL (it is then inspectable), and `--build --final-classes=folder` builds the executable and writes the

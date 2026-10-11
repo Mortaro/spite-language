@@ -32,10 +32,16 @@ var breakpoint_requests = List<String>()
 
 func Compiler() {
     load "source"
+    load "proof"
     var arguments = Arguments()
     var command = first_argument(arguments)
     if command == "connect" {
         run_connect(arguments)
+        return
+    }
+    if asks_for_verification(arguments) {
+        var verifier = Verification.Verifier()
+        verifier.run()
         return
     }
     language_folder = folder_holding_launcher()
@@ -70,6 +76,21 @@ func first_argument(arguments: Arguments): String {
         return ""
     }
     return arguments.get(0)
+}
+
+func asks_for_verification(arguments: Arguments): Boolean {
+    if not named_program(arguments).is_empty() {
+        return false
+    }
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments.get(index)
+        if argument == "--verify" or argument.starts_with("--verify=") or argument == "--release" or argument.starts_with("--release=") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func print_usage() {

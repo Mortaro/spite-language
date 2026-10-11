@@ -1,0 +1,2 @@
+var verify = false
+var release = false

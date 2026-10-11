@@ -1,0 +1,195 @@
+func normalized(text: String): String {
+    var lines = text.split("\n")
+    var kept = List<String>()
+    var index = 0
+    while index < lines.count() {
+        var line = with_numbers_hidden(lines[index])
+        if not dropped(line) {
+            var hidden_status = with_heap_status_hidden(line)
+            kept.append(hidden_status)
+        }
+        index = index + 1
+    }
+    return kept.join("\n")
+}
+
+func with_numbers_hidden(line: String): String {
+    var hidden = with_digits_hidden(line, "+0x", true, 1)
+    hidden = with_digits_hidden(hidden, "address=0x", true, 6)
+    hidden = with_named_number_hidden(hidden)
+    return with_digits_hidden(hidden, "\tscheduler_thread=", false, 1)
+}
+
+func with_digits_hidden(line: String, prefix: String, hexadecimal: Boolean, minimum: Integer): String {
+    var pieces = List<String>()
+    var prefix_length = prefix.length()
+    var line_length = line.length()
+    var position = 0
+    while position < line_length {
+        var end = position
+        if line.matches_at(prefix, position) {
+            end = digits_end(line, position + prefix_length, hexadecimal)
+        }
+        if end > position and end - position - prefix_length >= minimum {
+            pieces.append("{prefix}...")
+            position = end
+        } else {
+            var character = line.character_at(position)
+            pieces.append(character)
+            position = position + 1
+        }
+    }
+    return pieces.join("")
+}
+
+func with_named_number_hidden(line: String): String {
+    var pieces = List<String>()
+    var line_length = line.length()
+    var position = 0
+    while position < line_length {
+        var end = named_number_end(line, position)
+        if end > position {
+            var name_stop = name_end(line, position + 1)
+            var named = line.slice(position, name_stop + 1)
+            pieces.append(named)
+            pieces.append("...")
+            position = end
+        } else {
+            var character = line.character_at(position)
+            pieces.append(character)
+            position = position + 1
+        }
+    }
+    return pieces.join("")
+}
+
+func name_end(line: String, start: Integer): Integer {
+    var line_length = line.length()
+    var end = start
+    while end < line_length {
+        var code = line.code_at(end)
+        if not is_name_character(code) {
+            return end
+        }
+        end = end + 1
+    }
+    return end
+}
+
+func named_number_end(line: String, position: Integer): Integer {
+    if line.code_at(position) != 9 {
+        return position
+    }
+    var equals_position = name_end(line, position + 1)
+    if equals_position == position + 1 or equals_position >= line.length() or line.code_at(equals_position) != 61 {
+        return position
+    }
+    var end = digits_end(line, equals_position + 1, false)
+    if end - equals_position - 1 >= 9 {
+        return end
+    }
+    return position
+}
+
+func is_name_character(code: Integer): Boolean {
+    return code >= 97 and code <= 122 or code == 95
+}
+
+func digits_end(line: String, start: Integer, hexadecimal: Boolean): Integer {
+    var line_length = line.length()
+    var end = start
+    while end < line_length {
+        var code = line.code_at(end)
+        if not is_digit(code, hexadecimal) {
+            return end
+        }
+        end = end + 1
+    }
+    return end
+}
+
+func is_digit(code: Integer, hexadecimal: Boolean): Boolean {
+    if code >= 48 and code <= 57 {
+        return true
+    }
+    return hexadecimal and code >= 97 and code <= 102
+}
+
+func dropped(line: String): Boolean {
+    if line.contains("malloc: ***") or hidden_abort(line) or hidden_notice(line) {
+        return true
+    }
+    if line.contains("\t") {
+        return false
+    }
+    var words = ["free", "malloc", "realloc", "calloc", "munmap_chunk", "double free", "corrupted"]
+    var index = 0
+    while index < words.count() {
+        if line.starts_with(words[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func hidden_abort(line: String): Boolean {
+    var notices = ["Aborted", "Abort trap: 6"]
+    var index = 0
+    while index < notices.count() {
+        var notice = notices[index]
+        if line == notice or line == "{notice} (core dumped)" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func hidden_notice(line: String): Boolean {
+    var marker = ": line "
+    var marker_length = marker.length()
+    var line_length = line.length()
+    var position = line.index_of(marker)
+    while position >= 0 and position < line_length {
+        if notice_at(line, position + marker_length) {
+            return true
+        }
+        var rest = line.slice(position + 1, line_length)
+        var next = rest.index_of(marker)
+        if next < 0 {
+            return false
+        }
+        position = position + 1 + next
+    }
+    return false
+}
+
+func notice_at(line: String, start: Integer): Boolean {
+    var number_end = digits_end(line, start, false)
+    if number_end == start or not line.matches_at(": ", number_end) {
+        return false
+    }
+    var process_start = number_end + 2
+    var process_end = digits_end(line, process_start, false)
+    if process_end == process_start or not line.matches_at(" ", process_end) {
+        return false
+    }
+    var name_start = process_end + 1
+    return line.matches_at("Segmentation fault", name_start) or line.matches_at("Illegal instruction", name_start)
+}
+
+func with_heap_status_hidden(line: String): String {
+    var fields = line.split("\t")
+    if fields.count() < 7 or fields[0] != "spite.fault" or fields[1] != "heap-corruption" {
+        return line
+    }
+    var status_field = fields[5]
+    var at_field = fields[6]
+    if not (status_field.starts_with("code=") or status_field.starts_with("signal=")) or not at_field.starts_with("at=") {
+        return line
+    }
+    fields[5] = "status=..."
+    fields[6] = "at=..."
+    return fields.join("\t")
+}

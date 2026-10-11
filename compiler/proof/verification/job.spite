@@ -1,0 +1,389 @@
+var shell = Shell()
+var program = Program()
+var crash_text = CrashText()
+var kind: JobKind = 'program'
+var folder = ""
+var command = ""
+var working_folder = ""
+var work_folder = ""
+var limit_seconds = 300
+var system = ""
+var reference = ""
+var produced_path = ""
+var variant = ""
+var output_path = ""
+var output = ""
+var status = 0
+var outcome: JobOutcome = 'failed'
+var detail = ""
+var differs = false
+var needs_retry = false
+var retried = false
+
+func Job(starting_kind: JobKind, starting_folder: String) {
+    kind = starting_kind
+    folder = starting_folder
+}
+
+func prepare(compiler_path: String, work: String, host_system: String, seconds: Integer) {
+    work_folder = work
+    system = host_system
+    limit_seconds = seconds
+    var compiler = "\"{compiler_path}\""
+    if kind == 'generation' {
+        prepare_generation(compiler)
+    } else if kind == 'program' {
+        prepare_program(compiler)
+    } else if kind == 'documentation' {
+        prepare_documentation(compiler)
+    } else if kind == 'diagnostic' {
+        prepare_diagnostic(compiler)
+    } else {
+        prepare_tests(compiler)
+    }
+}
+
+func limiter(): String {
+    return "timeout -k 10 {limit_seconds} "
+}
+
+func flags_text(): String {
+    var words = OutputText().words_of("{folder}/flags.txt")
+    var text = ""
+    var index = 0
+    while index < words.count() {
+        var quoted_word = shell.quoted(words[index])
+        text = "{text} {quoted_word}"
+        index = index + 1
+    }
+    return text
+}
+
+func prepare_generation(compiler: String) {
+    var null_device = shell.null_device()
+    produced_path = ".spite/build/compiler/compiler.c"
+    var sink = everything_to_file()
+    command = "{compiler} compiler --check --c-source < {null_device}{sink}"
+}
+
+func chosen_output_path(): String {
+    var sanitized = folder.replace("/", "_")
+    var root = program.working_directory().replace("\\", "/")
+    var native = shell.native_path("{root}/{work_folder}/output_{sanitized}.txt")
+    output_path = native
+    return native
+}
+
+func everything_to_file(): String {
+    var native = chosen_output_path()
+    return " > \"{native}\" 2>&1"
+}
+
+func errors_to_file(): String {
+    var null_device = shell.null_device()
+    var native = chosen_output_path()
+    return " >{null_device} 2> \"{native}\""
+}
+
+func prepare_program(compiler: String) {
+    var executable_flag = shell.quoted("--executable-path={work_folder}/{folder}.exe")
+    var input = shell.null_device()
+    if File("{folder}/input.txt").exists() {
+        var native_input = shell.native_path("{folder}/input.txt")
+        input = shell.quoted(native_input)
+    }
+    var flags = flags_text()
+    var program_folder = shell.quoted(folder)
+    var limit = limiter()
+    var sink = everything_to_file()
+    command = "{limit}{compiler} {program_folder} --debug-memory {executable_flag}{flags} < {input}{sink}"
+}
+
+func name_of_folder(): String {
+    var segments = folder.split("/")
+    var last = segments.last()
+    crash last
+    return last
+}
+
+func prepare_documentation(compiler: String) {
+    var name = name_of_folder()
+    var null_device = shell.null_device()
+    var flags = flags_text()
+    var program_folder = shell.quoted(folder)
+    if File("{folder}/must_fail.txt").exists() {
+        variant = "must_fail"
+        var errors = errors_to_file()
+        command = "{compiler} {program_folder} --check{flags}{errors}"
+        return
+    }
+    var only = OutputText().file_content("{folder}/system.txt")
+    if only and only != system {
+        variant = "other_system"
+        var c_path = "{work_folder}/docs_{name}.c"
+        var c_compiler = shell.c_compiler()
+        var sink = everything_to_file()
+        var appended = sink.replace(" > ", " >> ")
+        command = "{compiler} {program_folder} --check --c-source --c-path={c_path} --target-operating-system={only}{flags}{sink} && {c_compiler} -fsyntax-only -w {c_path}{appended}"
+        return
+    }
+    var executable_flag = shell.quoted("--executable-path={work_folder}/docs_{name}.exe")
+    var limit = limiter()
+    var sink = everything_to_file()
+    command = "{limit}{compiler} {program_folder} --debug-memory {executable_flag}{flags} < {null_device}{sink}"
+}
+
+func prepare_diagnostic(compiler: String) {
+    var flags = flags_text()
+    var program_folder = shell.quoted(folder)
+    working_folder = "{work_folder}/unformatted"
+    var errors = errors_to_file()
+    command = "{compiler} {program_folder} --check{flags}{errors}"
+}
+
+func prepare_tests(compiler: String) {
+    var null_device = shell.null_device()
+    var executable_flag = shell.quoted("--executable-path={work_folder}/tests.exe")
+    var limit = limiter()
+    var sink = everything_to_file()
+    command = "{limit}{compiler} tests --debug-memory {executable_flag} < {null_device}{sink}"
+}
+
+func process(): Process {
+    var no_arguments = List<String>()
+    var made = Process(command, no_arguments)
+    made.working_directory = working_folder
+    return made
+}
+
+func retry() {
+    retried = true
+    needs_retry = false
+    var made = process()
+    var exit_status = made.run()
+    var text = made.output()
+    finish(text, exit_status)
+}
+
+func could_not_start() {
+    outcome = 'failed'
+    detail = "the process could not be started: {command}"
+}
+
+func finish(text: String, exit_status: Integer) {
+    status = exit_status
+    var captured = File(output_path).read()
+    var seen = text
+    if captured {
+        seen = captured
+    }
+    output = OutputText().plain(seen)
+    if status == 124 or status == 137 {
+        output = "{output}\ncheck: stopped after {limit_seconds} seconds, the program did not finish"
+    }
+    if (kind == 'program' or kind == 'tests') and not retried and output.contains("failed to check cache") {
+        needs_retry = true
+        return
+    }
+    if kind == 'generation' {
+        judge_generation()
+    } else if kind == 'program' {
+        judge_program()
+    } else if kind == 'documentation' {
+        judge_documentation()
+    } else if kind == 'diagnostic' {
+        judge_diagnostic()
+    } else {
+        judge_tests()
+    }
+}
+
+func pass() {
+    outcome = 'passed'
+    detail = ""
+}
+
+func fail(reason: String) {
+    outcome = 'failed'
+    detail = reason
+}
+
+func judge_generation() {
+    if status != 0 {
+        fail("the compiler could not compile its own sources")
+        return
+    }
+    var produced = File(produced_path).read()
+    if not produced {
+        fail("no C was written at {produced_path}")
+        return
+    }
+    if produced == reference {
+        pass()
+        return
+    }
+    File("{work_folder}/generation_three.c").write(produced)
+    differs = true
+    fail("the C it writes differs from the C it was built from, {first_difference(reference, produced)}")
+}
+
+func first_difference(first: String, second: String): String {
+    var second_length = second.length()
+    var shortest = first.length().minimum(second_length)
+    var index = 0
+    while index < shortest and first.code_at(index) == second.code_at(index) {
+        index = index + 1
+    }
+    var line = 1
+    var scanned = 0
+    while scanned < index {
+        if first.code_at(scanned) == 10 {
+            line = line + 1
+        }
+        scanned = scanned + 1
+    }
+    var was = line_at(first, index)
+    var is_now = line_at(second, index)
+    return "first at line {line}: was '{was}', now '{is_now}'"
+}
+
+func line_at(text: String, index: Integer): String {
+    var start = index
+    while start > 0 and text.code_at(start - 1) != 10 {
+        start = start - 1
+    }
+    var end = index
+    while end < text.length() and text.code_at(end) != 10 {
+        end = end + 1
+    }
+    if end - start > 160 {
+        end = start + 160
+    }
+    return text.slice(start, end)
+}
+
+func expected_file_name(base: String): String {
+    var by_system = "{folder}/{base}.{system}.txt"
+    if File(by_system).exists() {
+        return by_system
+    }
+    return "{folder}/{base}.txt"
+}
+
+func judge_program() {
+    var expected_path = expected_file_name("expected_output")
+    var expected = OutputText().file_content(expected_path)
+    if not expected {
+        fail("cannot read {expected_path}")
+        return
+    }
+    if File("{folder}/crashes.txt").exists() {
+        if crash_text.normalized(output) == expected {
+            pass()
+            return
+        }
+        fail("the crash it reports differs from {expected_path}")
+        return
+    }
+    var balance = Balance(output)
+    var pinned_path = expected_file_name("allocations")
+    var pinned = OutputText().file_content(pinned_path)
+    if pinned and balance.allocations != pinned {
+        fail("it allocated {balance.allocations} times, {pinned_path} says {pinned}")
+        return
+    }
+    if balance.body == expected and balance.balanced() {
+        pass()
+        return
+    }
+    if balance.body_lines.count() == 1 and balance.body.starts_with("skipped: ") and balance.balanced() {
+        outcome = 'skipped'
+        detail = balance.body
+        return
+    }
+    fail("its output differs from {expected_path}, or it did not free everything it took")
+}
+
+func judge_documentation() {
+    if variant == "must_fail" {
+        judge_must_fail()
+        return
+    }
+    if variant == "other_system" {
+        judge_other_system()
+        return
+    }
+    var expected = OutputText().file_content("{folder}/expected_output.txt")
+    if not expected {
+        fail("cannot read {folder}/expected_output.txt")
+        return
+    }
+    var without_notes = OutputText().without_fetch_notes(output)
+    var balance = Balance(without_notes)
+    if balance.body == expected and balance.balanced() {
+        pass()
+        return
+    }
+    fail("its output differs from expected_output.txt, or it did not free everything it took")
+}
+
+func judge_must_fail() {
+    var wanted = OutputText().file_content("{folder}/expected_diagnostic.txt")
+    if not wanted {
+        fail("cannot read {folder}/expected_diagnostic.txt")
+        return
+    }
+    if not output.is_empty() and output.contains(wanted) {
+        pass()
+        return
+    }
+    fail("it wanted an error saying '{wanted}'")
+}
+
+func judge_other_system() {
+    if status == 0 {
+        pass()
+        return
+    }
+    fail("it does not compile for the other system")
+}
+
+func judge_diagnostic() {
+    var expected = OutputText().file_content("{folder}/expected_errors.txt")
+    if not expected {
+        fail("cannot read {folder}/expected_errors.txt")
+        return
+    }
+    if output == expected {
+        pass()
+        return
+    }
+    fail("its errors differ from expected_errors.txt")
+}
+
+func judge_tests() {
+    var balance = Balance(output)
+    if balance.body_lines.is_empty() and balance.balanced() {
+        pass()
+        return
+    }
+    fail("a test failed, or the tests did not free everything they took")
+}
+
+func kind_name(): String {
+    switch kind {
+        'generation': return "generation"
+        'program': return "program"
+        'documentation': return "documentation"
+        'diagnostic': return "diagnostic"
+        _: return "tests"
+    }
+}
+
+func failure_text(): String {
+    var shown = OutputText().first_lines(output, 8)
+    if shown.is_empty() {
+        return "FAILED {kind_name()} {folder}: {detail}"
+    }
+    return "FAILED {kind_name()} {folder}: {detail}\n{shown}"
+}

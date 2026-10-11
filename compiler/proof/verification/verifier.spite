@@ -1,0 +1,259 @@
+var console = Console()
+var program = Program()
+var environment = Environment()
+var clock = Clock()
+var shell = Shell()
+var pool = JobPool()
+var kept = KeptCompiler()
+var compiler_path = ""
+var work_folder = ""
+var stamp: Long = 0
+var seconds_limit = 300
+var settled = false
+
+func run() {
+    if environment.release {
+        refuse(
+            "error: '--release' is not built yet: 'spite compiler --verify' proves everything but the release record (the compiler's --debug-memory build, the other systems' seeds and the record a push to master releases), and nothing is released without it",
+        )
+        return
+    }
+    if not environment.verify {
+        refuse("error: nothing to do: give --verify")
+        return
+    }
+    if not File("compiler/compiler.spite").exists() or not File("launcher/launcher.spite").exists() {
+        refuse(
+            "error: '--verify' proves a checkout of Spite and is run from its root, where compiler/ and launcher/ are",
+        )
+        return
+    }
+    shell.run("timeout --version 2>&1")
+    if not shell.last_output.contains("GNU coreutils") {
+        refuse(
+            "error: '--verify' limits each program with GNU timeout, and the 'timeout' found is not it: put Git's /usr/bin before the system folders on PATH, or install coreutils",
+        )
+        return
+    }
+    var started = clock.elapsed_milliseconds()
+    var now = clock.now()
+    var seconds = now.since_1970.total('seconds')
+    stamp = seconds
+    work_folder = ".spite/verify_{stamp}"
+    seconds_limit = shell.number_from_environment("CHECK_TIMEOUT", 300)
+    var processors = shell.processor_count()
+    pool.running_limit = shell.number_from_environment("CHECK_JOBS", processors)
+    compiler_path = program.executable_path()
+    var reference = generation_two_c()
+    if not reference {
+        program.exit(1)
+        return
+    }
+    shell.create_folder("{work_folder}/unformatted")
+    progress("1/3 building the compiler again from its C with -O3, which is the compiler that is tested and kept")
+    if not built_optimised_compiler() {
+        program.exit(1)
+        return
+    }
+    progress("1/3 preparing the documentation's programs, the diagnostics and the C libraries some programs call")
+    if not prepared_inputs() {
+        program.exit(1)
+        return
+    }
+    var plan = new_plan()
+    plan.add_generation(reference)
+    plan.add_everything_else()
+    var job_count = plan.jobs.count()
+    progress(
+        "2/3 the compiler compiles its own sources again while {job_count} programs, tests and diagnostics run, {pool.running_limit} at a time",
+    )
+    pool.run_all(plan.jobs)
+    var generation = plan.jobs.first()
+    crash generation
+    if generation.differs and settled_generations(generation) {
+        plan = new_plan()
+        plan.add_everything_else()
+        pool.finished_count = 0
+        pool.failed_count = 0
+        progress("every program is checked again with the compiler that settled")
+        if not prepared_inputs() {
+            program.exit(1)
+            return
+        }
+        pool.run_all(plan.jobs)
+    }
+    finished(plan.jobs, started)
+}
+
+func refuse(message: String) {
+    console.error(message)
+    program.exit(1)
+}
+
+func progress(text: String) {
+    console.error(text)
+}
+
+func new_plan(): JobList {
+    return JobList(compiler_path, work_folder, seconds_limit)
+}
+
+func generation_two_c(): String? {
+    var c_path = ".spite/build/compiler/compiler.c"
+    var written = File(c_path).modified_nanoseconds()
+    var own_path = program.executable_path()
+    var built = File(own_path).modified_nanoseconds()
+    if not written or not built or written > built {
+        console.error(
+            "error: the C this compiler was built from is not at {c_path}, or it is newer than this compiler: build it again with 'spite compiler --verify' (the compiler's build.spite keeps its C there)",
+        )
+        return null
+    }
+    var reference = File(c_path).read()
+    if not reference {
+        console.error("error: could not read {c_path}")
+    }
+    return reference
+}
+
+func prepared_inputs(): Boolean {
+    var plan = new_plan()
+    if not plan.built_fixtures() {
+        return false
+    }
+    shell.removed_tree(".spite/docs")
+    var executable_flag = shell.quoted("--executable-path={work_folder}/docs_corpus.exe")
+    var status = shell.run("2>&1 \"{compiler_path}\" scripts/docs_corpus {executable_flag}")
+    if status != 0 {
+        var shown = OutputText().first_lines(shell.last_output, 8)
+        console.error("FAILED: could not extract the documentation's programs\n{shown}")
+        return false
+    }
+    shell.removed_tree("{work_folder}/unformatted")
+    shell.create_folder("{work_folder}/unformatted")
+    if not shell.copied_tree("diagnostics", "{work_folder}/unformatted/diagnostics") {
+        console.error("FAILED: could not copy diagnostics/ for the formatting check")
+        return false
+    }
+    return true
+}
+
+func built_optimised_compiler(): Boolean {
+    var optimised_path = "{work_folder}/generation_two.exe"
+    var c_path = ".spite/build/compiler/compiler.c"
+    if not built_from_c(c_path, optimised_path) {
+        return false
+    }
+    var working = program.working_directory().replace("\\", "/")
+    compiler_path = shell.native_path("{working}/{optimised_path}")
+    return true
+}
+
+func built_from_c(c_path: String, executable: String): Boolean {
+    var math_library = ""
+    if not shell.is_windows() {
+        math_library = " -lm"
+    }
+    var c_compiler = shell.c_compiler()
+    var status = shell.run(
+        "{c_compiler} -O3 -Wno-parentheses-equality -Wno-deprecated-declarations \"{c_path}\" -o \"{executable}\"{math_library} 2>&1",
+    )
+    if status != 0 {
+        var shown = OutputText().first_lines(shell.last_output, 8)
+        console.error("FAILED: the C does not build with -O3\n{shown}")
+        return false
+    }
+    return true
+}
+
+func settled_generations(generation: Job): Boolean {
+    console.error("    {generation.detail}")
+    progress("generation 2 and 3 differ: building generation 3 and compiling the sources once more")
+    var third_c = "{work_folder}/generation_three.c"
+    var third_executable = "{work_folder}/generation_three.exe"
+    if not built_from_c(third_c, third_executable) {
+        return false
+    }
+    var third_text = File(third_c).read()
+    crash third_text
+    var working = program.working_directory().replace("\\", "/")
+    compiler_path = shell.native_path("{working}/{third_executable}")
+    var fourth = new_plan()
+    fourth.add_generation(third_text)
+    pool.run_all(fourth.jobs)
+    var fourth_generation = fourth.jobs.first()
+    crash fourth_generation
+    if fourth_generation.outcome != 'passed' {
+        console.error("FAILED: no fixpoint, generation 3 and 4 still write different C")
+        return false
+    }
+    settled = true
+    return true
+}
+
+func finished(jobs: List<Job>, started: Long) {
+    var failures = counted_failures(jobs)
+    var seconds = (clock.elapsed_milliseconds() - started) / 1000
+    if failures > 0 {
+        console.print("FAILED: {failures} jobs failed; the work is left in {work_folder}")
+        console.print("verified in {seconds} seconds")
+        program.exit(1)
+        return
+    }
+    report_passes(jobs)
+    if not kept.replaced_by(compiler_path, stamp) {
+        program.exit(1)
+        return
+    }
+    shell.removed_tree(work_folder)
+    console.print("kept: this compiler is now {kept.kept_path}")
+    console.print("verified in {seconds} seconds")
+}
+
+func counted_failures(jobs: List<Job>): Integer {
+    var failures = 0
+    var index = 0
+    while index < jobs.count() {
+        if jobs[index].outcome == 'failed' {
+            failures = failures + 1
+        }
+        index = index + 1
+    }
+    return failures
+}
+
+func report_passes(jobs: List<Job>) {
+    var programs_passed = 0
+    var programs_skipped = 0
+    var documented = 0
+    var checked = 0
+    var index = 0
+    while index < jobs.count() {
+        var job = jobs[index]
+        if job.kind == 'program' and job.outcome == 'passed' {
+            programs_passed = programs_passed + 1
+        }
+        if job.kind == 'program' and job.outcome == 'skipped' {
+            programs_skipped = programs_skipped + 1
+            console.print("SKIPPED: {job.folder}: {job.detail}")
+        }
+        if job.kind == 'documentation' {
+            documented = documented + 1
+        }
+        if job.kind == 'diagnostic' {
+            checked = checked + 1
+        }
+        index = index + 1
+    }
+    console.print("conformance and examples: {programs_passed} passed, 0 failed, {programs_skipped} skipped")
+    console.print("documentation: {documented} passed, 0 failed")
+    console.print("diagnostics: {checked} checked, 0 wrong")
+    console.print("tests: passed")
+    if settled {
+        console.print(
+            "generation 4: byte identical to generation 3 (generation 2 differed, so every program ran with generation 3)",
+        )
+        return
+    }
+    console.print("generation 3: byte identical to generation 2")
+}

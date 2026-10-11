@@ -17,6 +17,10 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 - **D581, the settings' names: `spite compiler --verify`, and `--verify --release` for the full run.** You suggested
   a flag such as `--test-and-movealong`. Easy to rename.
+- **D582, how `--verify` works**: the compiler keeps its own C through `c_source` in its `build.spite`; one more
+  generation settles when a change alters the compiler's own C; every program is a child compiler process limited by
+  GNU `timeout` (required on `PATH`); progress goes to the error output, the summary to the output; the kept compiler
+  is replaced by renaming. Say "confirmed" or give the other answer.
 
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.

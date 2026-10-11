@@ -1,0 +1,76 @@
+var console = Console()
+var heap = Memory.Heap()
+var running_limit = 1
+var finished_count = 0
+var failed_count = 0
+
+func run_all(jobs: List<Job>) {
+    var running = List<Job>()
+    var processes = List<Process>()
+    var handles = List<Long>()
+    var next = 0
+    var total = jobs.count()
+    while next < total or not running.is_empty() {
+        if next < total and running.count() < running_limit {
+            started(jobs[next], running, processes, handles)
+            next = next + 1
+        } else {
+            finish_oldest(running, processes, handles, total)
+        }
+    }
+}
+
+func started(job: Job, running: List<Job>, processes: List<Process>, handles: List<Long>) {
+    var process = job.process()
+    var command_text = process.command_line()
+    var handle = process.open_process(command_text)
+    if handle == 0 {
+        job.could_not_start()
+        reported(job, 0)
+        return
+    }
+    running.append(job)
+    processes.append(process)
+    handles.append(handle)
+}
+
+func finish_oldest(running: List<Job>, processes: List<Process>, handles: List<Long>, total: Integer) {
+    var job = running.remove_first()
+    var process = processes.remove_first()
+    var handle = handles.remove_first()
+    crash job
+    crash process
+    crash handle
+    var text = read_all(process, handle)
+    var status = process.close_process(handle)
+    job.finish(text, status)
+    if job.needs_retry {
+        job.retry()
+    }
+    reported(job, total)
+}
+
+func read_all(process: Process, handle: Long): String {
+    var chunk = heap.allocate(4096)
+    var pieces = List<String>()
+    var got = process.read_into(chunk, 4096, handle)
+    while got > 0 {
+        var piece = chunk.text(got)
+        pieces.append(piece)
+        got = process.read_into(chunk, 4096, handle)
+    }
+    heap.free(chunk)
+    return pieces.join("")
+}
+
+func reported(job: Job, total: Integer) {
+    finished_count = finished_count + 1
+    if job.outcome == 'failed' {
+        failed_count = failed_count + 1
+        var failure = job.failure_text()
+        console.error(failure)
+    }
+    if total > 0 and finished_count % 100 == 0 {
+        console.error("    {finished_count} of {total} finished, {failed_count} failed")
+    }
+}

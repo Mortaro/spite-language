@@ -3,3 +3,4 @@ var run = true
 var executable = false
 var translation_units = 0
 var tune_for_this_machine = false
+var c_source = true

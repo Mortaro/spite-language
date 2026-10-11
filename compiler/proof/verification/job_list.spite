@@ -1,0 +1,116 @@
+var console = Console()
+var shell = Shell()
+var jobs = List<Job>()
+var compiler_path = ""
+var work_folder = ""
+var system = ""
+var limit_seconds = 300
+
+func JobList(starting_compiler: String, starting_work: String, seconds: Integer) {
+    compiler_path = starting_compiler
+    work_folder = starting_work
+    limit_seconds = seconds
+    system = shell.system_name()
+}
+
+func prepared(kind: JobKind, folder: String): Job {
+    var job = Job(kind, folder)
+    job.prepare(compiler_path, work_folder, system, limit_seconds)
+    jobs.append(job)
+    return job
+}
+
+func add_generation(reference: String) {
+    var job = prepared('generation', "compiler")
+    job.reference = reference
+}
+
+func add_everything_else() {
+    prepared('tests', "tests")
+    add_programs()
+    add_documentation()
+    add_diagnostics()
+}
+
+func program_folders(): List<String> {
+    var folders = List<String>()
+    var conformance = Directory("conformance")
+    var stage_names = conformance.entry_names(true)
+    var stages = conformance.sorted(stage_names)
+    var stage_index = 0
+    while stage_index < stages.count() {
+        append_children(folders, "conformance/{stages[stage_index]}")
+        stage_index = stage_index + 1
+    }
+    append_children(folders, "examples")
+    return folders
+}
+
+func append_children(folders: List<String>, parent: String) {
+    var parent_folder = Directory(parent)
+    var folder_names = parent_folder.entry_names(true)
+    var names = parent_folder.sorted(folder_names)
+    var index = 0
+    while index < names.count() {
+        folders.append("{parent}/{names[index]}")
+        index = index + 1
+    }
+}
+
+func add_programs() {
+    var folders = program_folders()
+    var index = 0
+    while index < folders.count() {
+        prepared('program', folders[index])
+        index = index + 1
+    }
+}
+
+func add_documentation() {
+    var folders = List<String>()
+    append_children(folders, ".spite/docs")
+    var index = 0
+    while index < folders.count() {
+        prepared('documentation', folders[index])
+        index = index + 1
+    }
+}
+
+func add_diagnostics() {
+    var folders = List<String>()
+    append_children(folders, "diagnostics")
+    var index = 0
+    while index < folders.count() {
+        prepared('diagnostic', folders[index])
+        index = index + 1
+    }
+}
+
+func built_fixtures(): Boolean {
+    var folders = program_folders()
+    var index = 0
+    while index < folders.count() {
+        if File("{folders[index]}/fixture.c").exists() and not built_fixture(folders[index]) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func built_fixture(folder: String): Boolean {
+    var c_compiler = shell.c_compiler()
+    var position_independent = ""
+    if not shell.is_windows() {
+        position_independent = " -fPIC"
+    }
+    var status = shell.run(
+        "{c_compiler} -shared{position_independent} -w \"{folder}/fixture.c\" -o \"{folder}/fixture.dll\" 2>&1",
+    )
+    if status != 0 {
+        var shown = OutputText().first_lines(shell.last_output, 5)
+        console.error("FAILED: could not build {folder}/fixture.c\n{shown}")
+        return false
+    }
+    return true
+}

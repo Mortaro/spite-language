@@ -1,0 +1,92 @@
+var console = Console()
+var shell = Shell()
+var program = Program()
+var kept_path = ""
+
+func shared_folder(): String {
+    var status = shell.run("git rev-parse --path-format=absolute --git-common-dir 2>&1")
+    if status != 0 {
+        return ""
+    }
+    var common = shell.last_output.trim().replace("\\", "/")
+    var segments = common.split("/")
+    segments.remove_last()
+    if segments.is_empty() {
+        return ""
+    }
+    var folder = segments.join("/")
+    return "{folder}/.spite/shared"
+}
+
+func replaced_by(executable_path: String, stamp: Long): Boolean {
+    var shared = shared_folder()
+    if shared.is_empty() {
+        console.error(
+            "error: the kept compiler is not replaced: this is not a git checkout, so there is no .spite/shared beside its .git",
+        )
+        return false
+    }
+    var latest = "{shared}/latest"
+    shell.create_folder(latest)
+    kept_path = "{latest}/spite.exe"
+    var next_path = "{latest}/spite.next_{stamp}.exe"
+    if not copied(executable_path, next_path) {
+        File(next_path).remove()
+        return false
+    }
+    if File(kept_path).exists() and not moved_aside(latest, stamp) {
+        File(next_path).remove()
+        return false
+    }
+    if not File(next_path).move_to(kept_path) {
+        console.error(
+            "error: could not move the new compiler into place at {kept_path}; the one it replaced is {latest}/spite.previous_{stamp}.exe",
+        )
+        return false
+    }
+    removed_older_compilers(latest, stamp)
+    return true
+}
+
+func removed_older_compilers(latest: String, stamp: Long) {
+    var names = Directory(latest).entry_names(false)
+    var marker = "_{stamp}."
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if name.starts_with("spite.previous_") and not name.contains(marker) {
+            File("{latest}/{name}").remove()
+        }
+        index = index + 1
+    }
+}
+
+func moved_aside(latest: String, stamp: Long): Boolean {
+    var previous_path = "{latest}/spite.previous_{stamp}.exe"
+    if File(kept_path).move_to(previous_path) {
+        return true
+    }
+    console.error("error: could not move the kept compiler {kept_path} aside to {previous_path}")
+    return false
+}
+
+func copied(from_path: String, to_path: String): Boolean {
+    var bytes = File(from_path).read_bytes()
+    if not bytes {
+        console.error("error: could not read the compiler {from_path}")
+        return false
+    }
+    if not File(to_path).write_bytes(bytes) {
+        console.error("error: could not write {to_path}")
+        return false
+    }
+    var written = File(to_path).size()
+    if not written or written != bytes.count() {
+        console.error("error: {to_path} is not a whole copy of {from_path}")
+        return false
+    }
+    if not shell.is_windows() {
+        shell.run("chmod +x \"{to_path}\" 2>&1")
+    }
+    return true
+}

@@ -1,0 +1,7 @@
+enum JobKind {
+    'generation'
+    'program'
+    'documentation'
+    'diagnostic'
+    'tests'
+}
