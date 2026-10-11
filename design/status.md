@@ -886,9 +886,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [testing.md](../docs/testing.md)
 
-- D580: `spite verify` (and `spite verify --release`), the compiler's own command that builds the compiler, runs
-  every test with it and keeps it when they pass, replacing `check.sh` (specs/compiler.md, "Command line"). Not
-  built: `check.sh` does it until then. D577's tests run while compiling are set aside.
+- D581: `spite compiler --verify` (and `--verify --release`): the compiler program's own settings, under which the
+  new compiler runs every test and keeps itself when they pass, replacing `check.sh` (specs/compiler.md, "The
+  compiler proves itself"). Not built: `check.sh` does it until then. D577's tests run while compiling are set aside.
 
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.

@@ -15,9 +15,8 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
-- **D580, the command's name: `spite verify`, and `spite verify --release` for the full run.** You suggested a flag
-  such as `--test-and-movealong`; a command beside `spite connect` and `spite reload` fits because it takes no
-  program. Easy to rename.
+- **D581, the settings' names: `spite compiler --verify`, and `--verify --release` for the full run.** You suggested
+  a flag such as `--test-and-movealong`. Easy to rename.
 
 Decided by an agent under D509 (anything that can be changed later). Each is built or documented as decided; say
 "confirmed" or give the other answer, and the agent changes it.
