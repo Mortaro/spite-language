@@ -81,6 +81,15 @@ written by its bare name counts (`Vector3`, `Color`, `List`): one inside a names
 file with its name reopens it, so a program's `Function` or `Arena` is legal (`conformance/stage6/namespaced_library_names`). A file with the library class's whole dotted
 name is not a new class but a reopening of it ([Reopening a class](../docs/classes_and_files.md#reopening-a-class)).
 
+**A reopening of a standard library class may not add a hand copy of what the library already answers.** A
+function that a program's file adds to a library class is an error when it takes a parameter of the reopened class,
+assigns the class's own attributes, and the library class already declares an operator function (`sum`,
+`subtract`, `multiply`, `divide`, `remainder` or `negate`) whose parameter types the added function also takes.
+The error names the operator to write: "matrix4.spite:1: error: 'Matrix4.set_product', added
+by this reopening, rewrites this Matrix4 from two Matrix4 values, which the library's '*' already answers: write
+'target = left * right' (the answer is built in target's place)" (`diagnostics/hand_copy_of_library`). A function
+on other types, or one that reads without writing the object, stays legal.
+
 ## Constructor rules
 
 - A function named exactly like its class is the constructor, and a call of the class's name makes an object;

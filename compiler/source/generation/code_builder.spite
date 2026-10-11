@@ -1,0 +1,686 @@
+var typedefs = List<String>()
+var prototypes = List<String>()
+var support_bodies = List<String>()
+var user_bodies = List<String>()
+var main_lines = List<String>()
+var slot_lines = List<String>()
+var slot_names = List<String>()
+var binding_names = List<String>()
+var binding_lines = Dictionary<String, String>()
+var guard_names = List<String>()
+var guard_lines = List<String>()
+var guard_otherwise = List<String>()
+var type_guards = List<Integer>()
+var shaken_macros = Dictionary<String, Boolean>()
+var maths_guard = -1
+var shakes = true
+var threads = false
+var hot_reload = false
+var debug_memory = false
+var folds = false
+var counts_by_class = false
+var buffer_holders = Dictionary<String, Boolean>()
+var count_sharing: CountSharing? = null
+var nested_lists = NestedLists()
+var row_together = Dictionary<String, Boolean>()
+var folded_functions = 0
+var host = HotReloadLibrary()
+var constant_texts = Dictionary<String, String>()
+var faults = NativeFaults()
+var function_owners = Dictionary<String, String>()
+var function_names = Dictionary<String, String>()
+var function_lines = Dictionary<String, Integer>()
+var function_classes = Dictionary<String, String>()
+var configured_values: ItemValues? = null
+var configured_functions = 0
+var mentioned_names = Dictionary<String, Boolean>()
+var scanned_typedefs = 0
+var scanned_support = 0
+var scanned_user = 0
+var scanned_main = 0
+var scanned_slots = 0
+var last_shaker: TreeShaker? = null
+var rendered_types = ""
+var rendered_prototypes = ""
+var rendered_main = ""
+var rendered_bodies = ""
+
+func mentions(name: String): Boolean {
+    scanned_typedefs = scan_from(typedefs, scanned_typedefs)
+    scanned_support = scan_from(support_bodies, scanned_support)
+    scanned_user = scan_from(user_bodies, scanned_user)
+    scanned_main = scan_from(main_lines, scanned_main)
+    scanned_slots = scan_from(slot_lines, scanned_slots)
+    return mentioned_names.has(name)
+}
+
+func scan_from(lines: List<String>, start: Integer): Integer {
+    var index = start
+    while index < lines.count() {
+        scan_names(lines[index])
+        index = index + 1
+    }
+    return index
+}
+
+func scan_names(line: String) {
+    var line_length = line.length()
+    var start = -1
+    var position = 0
+    while position <= line_length {
+        var code = line.code_at(position)
+        var inside = position < line_length and is_name_code(code)
+        if inside and start < 0 {
+            start = position
+        }
+        if not inside and start >= 0 {
+            var name = line.slice(start, position)
+            mentioned_names[name] = true
+            start = -1
+        }
+        position = position + 1
+    }
+}
+
+func is_name_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func add_typedef(line: String) {
+    typedefs.append(line)
+}
+
+func typedef_count(): Integer {
+    return typedefs.count()
+}
+
+func drop_typedefs_after(count: Integer) {
+    while typedefs.count() > count {
+        typedefs.remove_last()
+    }
+    if scanned_typedefs > count {
+        scanned_typedefs = count
+    }
+}
+
+func replace_typedef(position: Integer, line: String) {
+    typedefs[position] = line
+    if position < scanned_typedefs {
+        scan_names(line)
+    }
+}
+
+func add_prototype(line: String) {
+    prototypes.append(line)
+}
+
+func add_slot(name: String, line: String) {
+    slot_names.append(name)
+    slot_lines.append(line)
+}
+
+func add_support(line: String) {
+    support_bodies.append(line)
+}
+
+func support_count(): Integer {
+    return support_bodies.count()
+}
+
+func typedef_at(position: Integer): String {
+    crash typedefs[position]
+    return typedefs[position]
+}
+
+func support_at(position: Integer): String {
+    crash support_bodies[position]
+    return support_bodies[position]
+}
+
+func replace_support(position: Integer, line: String) {
+    support_bodies[position] = line
+    if position < scanned_support {
+        scan_names(line)
+    }
+}
+
+func add_user(line: String) {
+    user_bodies.append(line)
+}
+
+func user_count(): Integer {
+    return user_bodies.count()
+}
+
+func user_at(position: Integer): String {
+    crash user_bodies[position]
+    return user_bodies[position]
+}
+
+func replace_user(position: Integer, line: String) {
+    user_bodies[position] = line
+}
+
+func insert_user(position: Integer, line: String) {
+    user_bodies.insert(position, line)
+}
+
+func remove_user_range(start: Integer, end: Integer) {
+    var index = end - 1
+    while index >= start {
+        user_bodies.remove_at(index)
+        index = index - 1
+    }
+}
+
+func take_user_from(start: Integer): List<String> {
+    var taken = List<String>()
+    var index = start
+    while index < user_bodies.count() {
+        var line = user_bodies[index]
+        taken.append(line)
+        index = index + 1
+    }
+    var end = user_bodies.count()
+    remove_user_range(start, end)
+    return taken
+}
+
+func note_function_class(c_name: String, class_c_name: String) {
+    function_classes[c_name] = class_c_name
+}
+
+func name_function(c_name: String, owner: String, name: String, line: Integer) {
+    function_owners[c_name] = owner
+    function_names[c_name] = name
+    function_lines[c_name] = line
+}
+
+func add_main(line: String) {
+    main_lines.append(line)
+}
+
+func add_main_if_kept(guard: String, line: String) {
+    var placeholder = placeholder_if_kept(guard, line, "")
+    main_lines.append(placeholder)
+}
+
+func placeholder_if_kept(name: String, kept: String, otherwise: String): String {
+    var position = guard_names.count()
+    guard_names.append(name)
+    guard_lines.append(kept)
+    guard_otherwise.append(otherwise)
+    return "/*spite_guard {position}*/"
+}
+
+func guarded(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
+    if guard_names.is_empty() {
+        return text
+    }
+    var parts = text.split("/*spite_guard ")
+    var result = List<String>()
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        if index == 0 {
+            result.append(part)
+        } else {
+            var end = part.index_of("*/")
+            var digits = part.slice(0, end)
+            var position = digits.to_integer()
+            crash position
+            var part_length = part.length()
+            var rest = part.slice(end + 2, part_length)
+            var chosen = guard_choice(position, shaker, keeps_all)
+            result.append(chosen)
+            result.append(rest)
+        }
+        index = index + 1
+    }
+    return result.join("")
+}
+
+func type_placeholder_if_kept(name: String, kept: String, otherwise: String): String {
+    var position = guard_names.count()
+    type_guards.append(position)
+    return placeholder_if_kept(name, kept, otherwise)
+}
+
+func guarded_types(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
+    var result = text
+    var index = 0
+    while index < type_guards.count() {
+        var position = type_guards[index]
+        var chosen = guard_choice(position, shaker, keeps_all)
+        result = result.replace("/*spite_guard {position}*/", chosen)
+        index = index + 1
+    }
+    return result
+}
+
+func guard_choice(position: Integer, shaker: TreeShaker, keeps_all: Boolean): String {
+    crash guard_names[position]
+    crash guard_lines[position]
+    crash guard_otherwise[position]
+    var guard = guard_names[position]
+    if keeps_all or any_kept(guard, shaker) {
+        return guard_lines[position]
+    }
+    return guard_otherwise[position]
+}
+
+func any_kept(guard: String, shaker: TreeShaker): Boolean {
+    return shaker.guard_holds(guard)
+}
+
+# ../../../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling
+func apply_item_values(values: ItemValues) {
+    configured_values = values
+    applied_in(support_bodies, values)
+    applied_in(user_bodies, values)
+    applied_in(main_lines, values)
+    applied_in(slot_lines, values)
+    applied_in(guard_lines, values)
+    applied_in(guard_otherwise, values)
+    var names = binding_lines.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var line = binding_lines[name]
+        crash line
+        binding_lines[name] = values.applied(line)
+        index = index + 1
+    }
+}
+
+func applied_in(lines: List<String>, values: ItemValues) {
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if line.contains(values.opening) {
+            lines[index] = values.applied(line)
+        }
+        index = index + 1
+    }
+}
+
+func add_shaken_macro(name: String) {
+    shaken_macros[name] = true
+}
+
+func include_maths_library(macro_name: String) {
+    if maths_guard >= 0 {
+        crash guard_names[maths_guard]
+        var names = guard_names[maths_guard]
+        guard_names[maths_guard] = "{names} {macro_name}"
+        return
+    }
+    maths_guard = guard_names.count()
+    var placeholder = type_placeholder_if_kept(macro_name, "#include <math.h>", "")
+    add_typedef(placeholder)
+}
+
+func render(): String {
+    var main_text = List<String>()
+    main_text.append("int main(int argument_count, char** argument_values) \{")
+    main_text.append("spite_fault_install();")
+    main_text.append(
+        "spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };",
+    )
+    main_text.append("#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif")
+    var joined_main_lines = main_lines.join("\n")
+    main_text.append(joined_main_lines)
+    main_text.append("return 0;\n}")
+    var main_function = main_text.join("\n")
+    var typedef_text = typedefs.join("\n")
+    var prototype_lines = prototypes.join("\n")
+    var bodies = unbound_bodies_text()
+    if shakes {
+        var shaker = TreeShaker()
+        shaker.watched_names = binding_names
+        shaker.guard_names = guard_names
+        shaker.guard_lines = guard_lines
+        shaker.shaken_macros = shaken_macros
+        bodies = shaker.shake_program(typedef_text, prototype_lines, main_function, bodies)
+        last_shaker = shaker
+        bodies = guarded(bodies, shaker, false)
+        main_function = guarded(main_function, shaker, false)
+        var kept_types = shaker.kept_types()
+        typedef_text = guarded_types(kept_types, shaker, false)
+        prototype_lines = shaker.kept_prototypes(prototype_lines)
+        var kept_bindings = shaker.kept_watched_names()
+        bodies = bound(bodies, kept_bindings)
+    } else {
+        rendered_types = typedef_text
+        rendered_prototypes = prototype_lines
+        rendered_main = main_function
+        rendered_bodies = bodies
+        bodies = bound(bodies, binding_names)
+        var unused_shaker = TreeShaker()
+        bodies = guarded(bodies, unused_shaker, true)
+        main_function = guarded(main_function, unused_shaker, true)
+        typedef_text = guarded_types(typedef_text, unused_shaker, true)
+    }
+    if threads and shakes and counts_by_class {
+        var sharing = CountSharing()
+        sharing.together = row_together
+        bodies = sharing.plain_counts(typedef_text, bodies, main_function)
+        typedef_text = sharing.unguarded_types(typedef_text)
+        count_sharing = sharing
+    }
+    if shakes and counts_by_class {
+        bodies = nested_lists.with_slots(typedef_text, prototype_lines, bodies)
+    }
+    if shakes and configured_values {
+        var copies = ConfiguredCopies()
+        var unshared = List<String>()
+        if count_sharing {
+            unshared = count_sharing.plain_classes
+        }
+        bodies = copies.copied(
+            bodies,
+            main_function,
+            configured_values,
+            function_classes,
+            function_names,
+            threads,
+            unshared,
+        )
+        configured_functions = copies.copied_functions
+    }
+    if shakes and counts_by_class and allocates_plainly(typedef_text) {
+        bodies = with_class_pools(typedef_text, bodies)
+    }
+    if folds {
+        var folder = FunctionFolder()
+        bodies = folder.fold(typedef_text, bodies, main_function)
+        main_function = folder.main_text
+        folded_functions = folder.folded_count
+        var pointers = folder.pointers()
+        if not pointers.is_empty() {
+            prototype_lines = "{prototype_lines}\n{pointers}"
+        }
+    }
+    var defines = ""
+    if threads {
+        defines = "#define SPITE_THREADS\n"
+    }
+    if debug_memory {
+        defines = "{defines}#define SPITE_DEBUG_MEMORY\n"
+    }
+    var slot_text = ""
+    if hot_reload {
+        slot_text = "{slot_lines.join("\n")}\n"
+        host.record_host(prototype_lines, bodies, constant_texts)
+        var symbol_table = host.symbol_table("{typedef_text}\n{prototype_lines}")
+        bodies = "{bodies}\n{symbol_table}"
+    }
+    var fault_text = native_fault_text(typedef_text, bodies)
+    return "{defines}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{fault_text}\n{main_function}\n"
+}
+
+func allocates_plainly(typedef_text: String): Boolean {
+    var counted = typedef_text.contains("spite_counted_realloc") or typedef_text.contains("spite_debug_realloc")
+    return not debug_memory and not counted and typedef_text.contains("#define SPITE_MALLOC(size) malloc(size)")
+}
+
+# ../../../docs/optimizations.md#objects-of-one-class-sit-together
+func with_class_pools(types: String, bodies: String): String {
+    var pools = ClassPools()
+    if not threads {
+        return pools.with_pools(types, bodies, null, buffer_holders)
+    }
+    if count_sharing {
+        return pools.with_pools(types, bodies, count_sharing, buffer_holders)
+    }
+    return bodies
+}
+
+func native_fault_text(typedef_text: String, bodies: String): String {
+    var table = faults.places_table("{typedef_text}\n{bodies}", function_owners, function_names, function_lines)
+    var records_foreign = typedef_text.contains("spite_last_foreign_call = 0;")
+    var traces_asserts = typedef_text.contains("spite_assert_total = 0;")
+    var fault_defines = faults.defines(records_foreign, traces_asserts)
+    var handler = faults.handler()
+    return "{table}\n{fault_defines}\n{handler}"
+}
+
+func reached_functions(names: List<String>): List<Boolean> {
+    var shaker = reaching_shaker()
+    var reached = List<Boolean>()
+    var reached_index = 0
+    while reached_index < names.count() {
+        var reached_item = shaker.is_kept_name(names[reached_index])
+        reached.append(reached_item)
+        reached_index = reached_index + 1
+    }
+    return reached
+}
+
+func reaching_shaker(): TreeShaker {
+    if last_shaker {
+        return last_shaker
+    }
+    var probe = TreeShaker()
+    probe.watched_names = binding_names
+    probe.guard_names = guard_names
+    probe.guard_lines = guard_lines
+    probe.shaken_macros = shaken_macros
+    probe.shake_program(rendered_types, rendered_prototypes, rendered_main, rendered_bodies)
+    return probe
+}
+
+func bodies_text(): String {
+    var unbound = unbound_bodies_text()
+    var bodies = bound(unbound, binding_names)
+    var unused_shaker = TreeShaker()
+    return guarded(bodies, unused_shaker, true)
+}
+
+func unbound_bodies_text(): String {
+    return "{support_bodies.join("\n")}\n{user_bodies.join("\n")}"
+}
+
+func add_binding(name: String, line: String): String {
+    binding_names.append(name)
+    binding_lines[name] = line
+    return "/*spite_binding {name}*/"
+}
+
+func bound(text: String, kept_names: List<String>): String {
+    if binding_names.is_empty() {
+        return text
+    }
+    var parts = text.split("/*spite_binding ")
+    var result = List<String>()
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        if index == 0 {
+            result.append(part)
+        } else {
+            var kept = kept_binding(part, kept_names)
+            result.append(kept)
+        }
+        index = index + 1
+    }
+    return result.join("")
+}
+
+func kept_binding(part: String, kept_names: List<String>): String {
+    var end = part.index_of("*/")
+    var name = part.slice(0, end)
+    var part_length = part.length()
+    var rest = part.slice(end + 2, part_length)
+    var line = binding_lines[name]
+    if line and kept_names.contains(name) {
+        return "{line}{rest}"
+    }
+    return rest
+}
+
+# ../../../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written
+func rewrite_mirrors(decisions: Dictionary<String, MirrorDecision>, atomic: Dictionary<String, List<String>>) {
+    var counts = Dictionary<String, Integer>()
+    var broken = Dictionary<String, Boolean>()
+    var index = 0
+    while index < user_bodies.count() {
+        var line = user_bodies[index]
+        if line.starts_with("/*spite-mirror-") {
+            var marker = mirror_marker(line)
+            var counted = 1
+            var earlier = counts[marker]
+            if earlier {
+                counted = earlier + 1
+            }
+            counts[marker] = counted
+            var words = marker.split(" ")
+            if words[0] == "open" {
+                var id = words[1]
+                crash id
+                var closed = index + 2 < user_bodies.count()
+                if closed {
+                    var closing = user_bodies[index + 2]
+                    closed = closing == "/*spite-mirror-close {id}*/"
+                }
+                if not closed {
+                    broken[id] = true
+                }
+            }
+        }
+        index = index + 1
+    }
+    var accepted = Dictionary<String, MirrorDecision>()
+    var ids = decisions.keys()
+    index = 0
+    while index < ids.count() {
+        var decided_id = ids[index]
+        var decision = decisions[decided_id]
+        crash decision
+        if mirror_markers_whole(decided_id, decision, counts, broken, atomic) {
+            accepted[decided_id] = decision
+        }
+        index = index + 1
+    }
+    var rewritten = List<String>()
+    var skipping = false
+    index = 0
+    while index < user_bodies.count() {
+        var body_line = user_bodies[index]
+        if not body_line.starts_with("/*spite-mirror-") {
+            if not skipping {
+                rewritten.append(body_line)
+            }
+            skipping = false
+        } else {
+            skipping = mirror_rewritten(body_line, accepted, rewritten)
+        }
+        index = index + 1
+    }
+    user_bodies = rewritten
+}
+
+func mirror_marker(line: String): String {
+    var length = line.length()
+    return line.slice(15, length - 2)
+}
+
+func mirror_markers_whole(
+    id: String,
+    decision: MirrorDecision,
+    counts: Dictionary<String, Integer>,
+    broken: Dictionary<String, Boolean>,
+    atomic: Dictionary<String, List<String>>,
+): Boolean {
+    var opens = counts["open {id}"]
+    var closes = counts["close {id}"]
+    if not opens or not closes or broken.has(id) {
+        return false
+    }
+    if opens != closes {
+        return false
+    }
+    var atomic_fields = atomic[id]
+    if atomic_fields {
+        var write_index = 0
+        while write_index < decision.writes.count() {
+            var written = decision.writes[write_index]
+            if atomic_fields.contains(written) {
+                return false
+            }
+            write_index = write_index + 1
+        }
+    }
+    var index = 0
+    while index < decision.flags.count() {
+        var flag = decision.flags[index]
+        var declared = counts["flag {id} {flag}"]
+        var set = counts["set {id} {flag}"]
+        if not declared or not set {
+            return false
+        }
+        if declared != opens or set != opens {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func mirror_rewritten(line: String, accepted: Dictionary<String, MirrorDecision>, rewritten: List<String>): Boolean {
+    var words = mirror_marker(line).split(" ")
+    var kind = words[0]
+    var id = words[1]
+    crash kind
+    crash id
+    var decision = accepted[id]
+    if not decision {
+        return false
+    }
+    if kind == "flag" or kind == "set" {
+        var flag = words[2]
+        crash flag
+        var flag_number = flag.to_integer()
+        crash flag_number
+        if decision.flags.contains(flag_number) {
+            mirror_flag_line(kind, id, flag, rewritten)
+        }
+        return false
+    }
+    if kind == "open" {
+        if decision.flags.is_empty() {
+            return true
+        }
+        var conditions = List<String>()
+        var index = 0
+        while index < decision.flags.count() {
+            conditions.append("spite_mirror_{id}_{decision.flags[index]}")
+            index = index + 1
+        }
+        rewritten.append("if ({conditions.join(" || ")}) \{")
+        return false
+    }
+    if not decision.flags.is_empty() and not decision.writes.is_empty() {
+        rewritten.append("} else \{")
+    }
+    var write_index = 0
+    while write_index < decision.writes.count() {
+        var written = decision.writes[write_index]
+        var number = decision.numbers[write_index]
+        crash number
+        rewritten.append("self->{written}_ = {number};")
+        write_index = write_index + 1
+    }
+    if not decision.flags.is_empty() {
+        rewritten.append("}")
+    }
+    return false
+}
+
+func mirror_flag_line(kind: String, id: String, flag: String, rewritten: List<String>) {
+    if kind == "flag" {
+        rewritten.append("bool spite_mirror_{id}_{flag} = false;")
+        return
+    }
+    rewritten.append("spite_mirror_{id}_{flag} = true;")
+}

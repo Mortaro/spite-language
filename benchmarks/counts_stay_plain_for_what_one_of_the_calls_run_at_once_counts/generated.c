@@ -1316,6 +1316,144 @@ static __typeof__(&List_Painting_count) spite_folded_List_Painting_count = ((__t
 static __typeof__(&List_Console_Printable_count) spite_folded_List_Console_Printable_count = ((__typeof__(&List_Console_Printable_count))&List_ThreadPoolJob_count);
 static __typeof__(&List_Symbol_clear) spite_folded_List_Symbol_clear = ((__typeof__(&List_Symbol_clear))&List_String_clear);
 static __typeof__(&TypedMemory__Symbol_release_value) spite_folded_TypedMemory__Symbol_release_value = ((__typeof__(&TypedMemory__Symbol_release_value))&TypedMemory__String_release_value);
+static Launcher* Launcher___pool_free = 0;
+static char* Launcher___pool_next = 0;
+static char* Launcher___pool_end = 0;
+static size_t Launcher___pool_count = 0;
+static void Launcher___pool_grow(void) {
+if (Launcher___pool_count == 0) { Launcher___pool_count = 16; } else if (Launcher___pool_count * sizeof(Launcher) < 262144) { Launcher___pool_count = Launcher___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Launcher___pool_count * sizeof(Launcher) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Launcher___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Launcher___pool_end = Launcher___pool_next + Launcher___pool_count * sizeof(Launcher);
+}
+static inline Launcher* Launcher___pool_take(void) {
+Launcher* self = Launcher___pool_free;
+if (self != 0) { Launcher___pool_free = *(Launcher**)self; return self; }
+if (Launcher___pool_next == Launcher___pool_end) Launcher___pool_grow();
+self = (Launcher*)Launcher___pool_next;
+Launcher___pool_next = Launcher___pool_next + sizeof(Launcher);
+return self;
+}
+static inline void Launcher___pool_give(Launcher* self) {
+*(Launcher**)self = Launcher___pool_free;
+Launcher___pool_free = self;
+}
+static Duration* Duration___pool_free = 0;
+static char* Duration___pool_next = 0;
+static char* Duration___pool_end = 0;
+static size_t Duration___pool_count = 0;
+static void Duration___pool_grow(void) {
+if (Duration___pool_count == 0) { Duration___pool_count = 16; } else if (Duration___pool_count * sizeof(Duration) < 262144) { Duration___pool_count = Duration___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Duration___pool_count * sizeof(Duration) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Duration___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Duration___pool_end = Duration___pool_next + Duration___pool_count * sizeof(Duration);
+}
+static inline Duration* Duration___pool_take(void) {
+Duration* self = Duration___pool_free;
+if (self != 0) { Duration___pool_free = *(Duration**)self; return self; }
+if (Duration___pool_next == Duration___pool_end) Duration___pool_grow();
+self = (Duration*)Duration___pool_next;
+Duration___pool_next = Duration___pool_next + sizeof(Duration);
+return self;
+}
+static inline void Duration___pool_give(Duration* self) {
+*(Duration**)self = Duration___pool_free;
+Duration___pool_free = self;
+}
+static Nothing* Nothing___pool_free = 0;
+static char* Nothing___pool_next = 0;
+static char* Nothing___pool_end = 0;
+static size_t Nothing___pool_count = 0;
+static void Nothing___pool_grow(void) {
+if (Nothing___pool_count == 0) { Nothing___pool_count = 16; } else if (Nothing___pool_count * sizeof(Nothing) < 262144) { Nothing___pool_count = Nothing___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Nothing___pool_count * sizeof(Nothing) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Nothing___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Nothing___pool_end = Nothing___pool_next + Nothing___pool_count * sizeof(Nothing);
+}
+static inline Nothing* Nothing___pool_take(void) {
+Nothing* self = Nothing___pool_free;
+if (self != 0) { Nothing___pool_free = *(Nothing**)self; return self; }
+if (Nothing___pool_next == Nothing___pool_end) Nothing___pool_grow();
+self = (Nothing*)Nothing___pool_next;
+Nothing___pool_next = Nothing___pool_next + sizeof(Nothing);
+return self;
+}
+static inline void Nothing___pool_give(Nothing* self) {
+*(Nothing**)self = Nothing___pool_free;
+Nothing___pool_free = self;
+}
+static Naive* Naive___pool_free = 0;
+static char* Naive___pool_next = 0;
+static char* Naive___pool_end = 0;
+static size_t Naive___pool_count = 0;
+static void Naive___pool_grow(void) {
+if (Naive___pool_count == 0) { Naive___pool_count = 16; } else if (Naive___pool_count * sizeof(Naive) < 262144) { Naive___pool_count = Naive___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Naive___pool_count * sizeof(Naive) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Naive___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Naive___pool_end = Naive___pool_next + Naive___pool_count * sizeof(Naive);
+}
+static inline Naive* Naive___pool_take(void) {
+Naive* self = Naive___pool_free;
+if (self != 0) { Naive___pool_free = *(Naive**)self; return self; }
+if (Naive___pool_next == Naive___pool_end) Naive___pool_grow();
+self = (Naive*)Naive___pool_next;
+Naive___pool_next = Naive___pool_next + sizeof(Naive);
+return self;
+}
+static inline void Naive___pool_give(Naive* self) {
+*(Naive**)self = Naive___pool_free;
+Naive___pool_free = self;
+}
+static Archive* Archive___pool_free = 0;
+static char* Archive___pool_next = 0;
+static char* Archive___pool_end = 0;
+static size_t Archive___pool_count = 0;
+static void Archive___pool_grow(void) {
+if (Archive___pool_count == 0) { Archive___pool_count = 16; } else if (Archive___pool_count * sizeof(Archive) < 262144) { Archive___pool_count = Archive___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Archive___pool_count * sizeof(Archive) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Archive___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Archive___pool_end = Archive___pool_next + Archive___pool_count * sizeof(Archive);
+}
+static inline Archive* Archive___pool_take(void) {
+Archive* self = Archive___pool_free;
+if (self != 0) { Archive___pool_free = *(Archive**)self; return self; }
+if (Archive___pool_next == Archive___pool_end) Archive___pool_grow();
+self = (Archive*)Archive___pool_next;
+Archive___pool_next = Archive___pool_next + sizeof(Archive);
+return self;
+}
+static inline void Archive___pool_give(Archive* self) {
+*(Archive**)self = Archive___pool_free;
+Archive___pool_free = self;
+}
+static Gallery* Gallery___pool_free = 0;
+static char* Gallery___pool_next = 0;
+static char* Gallery___pool_end = 0;
+static size_t Gallery___pool_count = 0;
+static void Gallery___pool_grow(void) {
+if (Gallery___pool_count == 0) { Gallery___pool_count = 16; } else if (Gallery___pool_count * sizeof(Gallery) < 262144) { Gallery___pool_count = Gallery___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Gallery___pool_count * sizeof(Gallery) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Gallery___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Gallery___pool_end = Gallery___pool_next + Gallery___pool_count * sizeof(Gallery);
+}
+static inline Gallery* Gallery___pool_take(void) {
+Gallery* self = Gallery___pool_free;
+if (self != 0) { Gallery___pool_free = *(Gallery**)self; return self; }
+if (Gallery___pool_next == Gallery___pool_end) Gallery___pool_grow();
+self = (Gallery*)Gallery___pool_next;
+Gallery___pool_next = Gallery___pool_next + sizeof(Gallery);
+return self;
+}
+static inline void Gallery___pool_give(Gallery* self) {
+*(Gallery**)self = Gallery___pool_free;
+Gallery___pool_free = self;
+}
 static Letter* Letter___pool_free = 0;
 static char* Letter___pool_next = 0;
 static char* Letter___pool_end = 0;
@@ -1487,7 +1625,7 @@ void Launcher___init(Launcher* self) {
 self->build_ = spite_singleton_Build();
 }
 Launcher* Launcher___allocate(void) {
-Launcher* self = (Launcher*)SPITE_MALLOC(sizeof(Launcher));
+Launcher* self = Launcher___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 1;
 Launcher___init(self);
@@ -1509,7 +1647,7 @@ spite_untrack_Launcher(self);
 #ifdef SPITE_WEAK_Launcher
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Launcher___pool_give(self);
 }
 static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) {
 fflush(stdout);
@@ -1638,7 +1776,7 @@ self->_seconds_ = SpiteInteger_to_long(0);
 self->_nanoseconds_ = 0;
 }
 Duration* Duration___allocate(void) {
-Duration* self = (Duration*)SPITE_MALLOC(sizeof(Duration));
+Duration* self = Duration___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 27;
 Duration___init(self);
@@ -1666,7 +1804,7 @@ spite_untrack_Duration(self);
 #ifdef SPITE_WEAK_Duration
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Duration___pool_give(self);
 }
 void DynamicLibrary___init(DynamicLibrary* self) {
 self->file_name_ = spite_lit_1;
@@ -1707,7 +1845,7 @@ spite_singleton_free_later(self);
 void Nothing___init(Nothing* self) {
 }
 Nothing* Nothing___allocate(void) {
-Nothing* self = (Nothing*)SPITE_MALLOC(sizeof(Nothing));
+Nothing* self = Nothing___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 54;
 Nothing___init(self);
@@ -1729,7 +1867,7 @@ spite_untrack_Nothing(self);
 #ifdef SPITE_WEAK_Nothing
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Nothing___pool_give(self);
 }
 static int64_t spite_long_digits(char* digits, int64_t value) {
 char reversed[24];
@@ -2078,7 +2216,7 @@ self->library_ = spite_singleton_Library();
 self->sorter_ = Sorter___make();
 }
 Naive* Naive___allocate(void) {
-Naive* self = (Naive*)SPITE_MALLOC(sizeof(Naive));
+Naive* self = Naive___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 111;
 Naive___init(self);
@@ -2102,7 +2240,7 @@ spite_untrack_Naive(self);
 #ifdef SPITE_WEAK_Naive
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Naive___pool_give(self);
 }
 Spite_Function* spite_function_value_Sorter_sort_all(Sorter* owner) {
 Spite_Function* described = Spite_Function___make(spite_symbol_3, spite_class_object_Nothing());
@@ -2142,7 +2280,7 @@ self->letters_ = List_Letter___make();
 self->kept_total_ = 0;
 }
 Archive* Archive___allocate(void) {
-Archive* self = (Archive*)SPITE_MALLOC(sizeof(Archive));
+Archive* self = Archive___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 112;
 Archive___init(self);
@@ -2169,14 +2307,14 @@ spite_untrack_Archive(self);
 #ifdef SPITE_WEAK_Archive
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Archive___pool_give(self);
 }
 void Gallery___init(Gallery* self) {
 self->paintings_ = List_Painting___make();
 self->hung_total_ = 0;
 }
 Gallery* Gallery___allocate(void) {
-Gallery* self = (Gallery*)SPITE_MALLOC(sizeof(Gallery));
+Gallery* self = Gallery___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 113;
 Gallery___init(self);
@@ -2203,7 +2341,7 @@ spite_untrack_Gallery(self);
 #ifdef SPITE_WEAK_Gallery
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Gallery___pool_give(self);
 }
 void Letter___init(Letter* self) {
 self->words_ = 0;
@@ -4203,6 +4341,24 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_string_code_at, "-\t-", "spite_string_code_at", 0},
 {(const void*)&spite_described_enter, "-\t-", "spite_described_enter", 0},
 {(const void*)&spite_described_leave, "-\t-", "spite_described_leave", 0},
+{(const void*)&Launcher___pool_grow, "-\t-", "Launcher___pool_grow", 0},
+{(const void*)&Launcher___pool_take, "-\t-", "Launcher___pool_take", 0},
+{(const void*)&Launcher___pool_give, "-\t-", "Launcher___pool_give", 0},
+{(const void*)&Duration___pool_grow, "-\t-", "Duration___pool_grow", 0},
+{(const void*)&Duration___pool_take, "-\t-", "Duration___pool_take", 0},
+{(const void*)&Duration___pool_give, "-\t-", "Duration___pool_give", 0},
+{(const void*)&Nothing___pool_grow, "-\t-", "Nothing___pool_grow", 0},
+{(const void*)&Nothing___pool_take, "-\t-", "Nothing___pool_take", 0},
+{(const void*)&Nothing___pool_give, "-\t-", "Nothing___pool_give", 0},
+{(const void*)&Naive___pool_grow, "-\t-", "Naive___pool_grow", 0},
+{(const void*)&Naive___pool_take, "-\t-", "Naive___pool_take", 0},
+{(const void*)&Naive___pool_give, "-\t-", "Naive___pool_give", 0},
+{(const void*)&Archive___pool_grow, "-\t-", "Archive___pool_grow", 0},
+{(const void*)&Archive___pool_take, "-\t-", "Archive___pool_take", 0},
+{(const void*)&Archive___pool_give, "-\t-", "Archive___pool_give", 0},
+{(const void*)&Gallery___pool_grow, "-\t-", "Gallery___pool_grow", 0},
+{(const void*)&Gallery___pool_take, "-\t-", "Gallery___pool_take", 0},
+{(const void*)&Gallery___pool_give, "-\t-", "Gallery___pool_give", 0},
 {(const void*)&Letter___pool_grow, "-\t-", "Letter___pool_grow", 0},
 {(const void*)&Letter___pool_take, "-\t-", "Letter___pool_take", 0},
 {(const void*)&Letter___pool_give, "-\t-", "Letter___pool_give", 0},
@@ -4425,9 +4581,9 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
 {(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
-{(const void*)&Console__write_output, "bootstrap/source/generation/prelude.spite\tConsole", "_write_output", 1},
-{(const void*)&Console__write_error, "bootstrap/source/generation/prelude.spite\tConsole", "_write_error", 2},
-{(const void*)&Console__flush, "bootstrap/source/generation/prelude.spite\tConsole", "_flush", 4},
+{(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
+{(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
+{(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},
@@ -4435,9 +4591,9 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Duration__seconds_per_unit, "library/duration.spite\tDuration", "_seconds_per_unit", 142},
 {(const void*)&DynamicLibrary_DynamicLibrary, "library/dynamic_library.spite\tDynamicLibrary", "DynamicLibrary", 6},
 {(const void*)&DynamicLibrary_drop, "library/dynamic_library.spite\tDynamicLibrary", "drop", 11},
-{(const void*)&DynamicLibrary_open_library, "bootstrap/source/generation/prelude.spite\tDynamicLibrary", "open_library", 1},
-{(const void*)&DynamicLibrary_find_symbol, "bootstrap/source/generation/prelude.spite\tDynamicLibrary", "find_symbol", 2},
-{(const void*)&DynamicLibrary_close_library, "bootstrap/source/generation/prelude.spite\tDynamicLibrary", "close_library", 3},
+{(const void*)&DynamicLibrary_open_library, "compiler/source/generation/prelude.spite\tDynamicLibrary", "open_library", 1},
+{(const void*)&DynamicLibrary_find_symbol, "compiler/source/generation/prelude.spite\tDynamicLibrary", "find_symbol", 2},
+{(const void*)&DynamicLibrary_close_library, "compiler/source/generation/prelude.spite\tDynamicLibrary", "close_library", 3},
 {(const void*)&SpiteInteger_to_string, "library/integer.spite\tInteger", "to_string", 3},
 {(const void*)&SpiteLong_to_string, "library/long.spite\tLong", "to_string", 3},
 {(const void*)&SpiteString_to_string, "library/string.spite\tString", "to_string", 184},
@@ -4462,18 +4618,18 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&ThreadPool_wait_for_signal, "library/windows/thread_pool.spite\tThreadPool", "wait_for_signal", 50},
 {(const void*)&ThreadPool_signal_one, "library/windows/thread_pool.spite\tThreadPool", "signal_one", 54},
 {(const void*)&ThreadPool_signal_all, "library/windows/thread_pool.spite\tThreadPool", "signal_all", 58},
-{(const void*)&ThreadPool_entry_address, "bootstrap/source/generation/prelude.spite\tThreadPool", "entry_address", 1},
-{(const void*)&ThreadPool_address, "bootstrap/source/generation/prelude.spite\tThreadPool", "address", 2},
-{(const void*)&ThreadPool__task_begun, "bootstrap/source/generation/prelude.spite\tThreadPool", "_task_begun", 3},
-{(const void*)&ThreadPool__task_ended, "bootstrap/source/generation/prelude.spite\tThreadPool", "_task_ended", 4},
+{(const void*)&ThreadPool_entry_address, "compiler/source/generation/prelude.spite\tThreadPool", "entry_address", 1},
+{(const void*)&ThreadPool_address, "compiler/source/generation/prelude.spite\tThreadPool", "address", 2},
+{(const void*)&ThreadPool__task_begun, "compiler/source/generation/prelude.spite\tThreadPool", "_task_begun", 3},
+{(const void*)&ThreadPool__task_ended, "compiler/source/generation/prelude.spite\tThreadPool", "_task_ended", 4},
 {(const void*)&SpiteMemory_Address_text, "library/memory/address.spite\tMemory.Address", "text", 3},
 {(const void*)&SpiteMemory_Address_to_string, "library/memory/address.spite\tMemory.Address", "to_string", 13},
 {(const void*)&Memory_Arena_allocate, "library/memory/arena.spite\tMemory.Arena", "allocate", 11},
 {(const void*)&Memory_Arena_free, "library/memory/arena.spite\tMemory.Arena", "free", 21},
 {(const void*)&Memory_Arena_start_block, "library/memory/arena.spite\tMemory.Arena", "start_block", 23},
-{(const void*)&Memory_Heap_allocate, "bootstrap/source/generation/prelude.spite\tMemory.Heap", "allocate", 1},
-{(const void*)&Memory_Heap_resize, "bootstrap/source/generation/prelude.spite\tMemory.Heap", "resize", 2},
-{(const void*)&Memory_Heap_free, "bootstrap/source/generation/prelude.spite\tMemory.Heap", "free", 3},
+{(const void*)&Memory_Heap_allocate, "compiler/source/generation/prelude.spite\tMemory.Heap", "allocate", 1},
+{(const void*)&Memory_Heap_resize, "compiler/source/generation/prelude.spite\tMemory.Heap", "resize", 2},
+{(const void*)&Memory_Heap_free, "compiler/source/generation/prelude.spite\tMemory.Heap", "free", 3},
 {(const void*)&Spite_Argument_Argument, "library/spite/argument.spite\tSpite.Argument", "Argument", 6},
 {(const void*)&Spite_Class_Class, "library/spite/class.spite\tSpite.Class", "Class", 16},
 {(const void*)&Spite_Function_Function, "library/spite/function.spite\tSpite.Function", "Function", 11},
@@ -4488,7 +4644,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Sorter_sort_all, "benchmarks/counts_stay_plain_for_what_one_of_the_calls_run_at_once_counts/naive/sorter.spite\tSorter", "sort_all", 3},
 {(const void*)&List_String_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&List_String_drop, "library/list.spite\tList", "drop", 830},
-{(const void*)&TypedMemory__String_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__String_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_ThreadPoolJob_count, "library/list.spite\tList", "count", 9},
 {(const void*)&List_ThreadPoolJob_is_empty, "library/list.spite\tList", "is_empty", 13},
 {(const void*)&List_ThreadPoolJob_get_at, "library/list.spite\tList", "get_at", 41},
@@ -4497,9 +4653,9 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_failed_5, "-\t-", "spite_failed_5", 0},
 {(const void*)&List_ThreadPoolJob_drop, "library/list.spite\tList", "drop", 830},
 {(const void*)&List_ThreadPoolJob_move_items, "library/list.spite\tList", "move_items", 877},
-{(const void*)&TypedMemory__ThreadPoolJob_read_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
-{(const void*)&TypedMemory__ThreadPoolJob_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
-{(const void*)&TypedMemory__ThreadPoolJob_value_bytes, "bootstrap/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
+{(const void*)&TypedMemory__ThreadPoolJob_read_value, "compiler/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
+{(const void*)&TypedMemory__ThreadPoolJob_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__ThreadPoolJob_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
 {(const void*)&List_Spite_AttributeDeclaration_drop, "library/list.spite\tList", "drop", 830},
 {(const void*)&List_Spite_Function_drop, "library/list.spite\tList", "drop", 830},
 {(const void*)&List_Spite_Argument_drop, "library/list.spite\tList", "drop", 830},
@@ -4510,15 +4666,15 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Letter_make_room, "library/list.spite\tList", "make_room", 849},
 {(const void*)&List_Letter__grow, "library/list.spite\tList", "_grow", 855},
 {(const void*)&List_Letter__resized, "library/list.spite\tList", "_resized", 865},
-{(const void*)&TypedMemory__Letter_write_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
-{(const void*)&TypedMemory__Letter_value_bytes, "bootstrap/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
+{(const void*)&TypedMemory__Letter_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
+{(const void*)&TypedMemory__Letter_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
 {(const void*)&List_Painting_append, "library/list.spite\tList", "append", 17},
 {(const void*)&List_Painting_drop, "library/list.spite\tList", "drop", 830},
 {(const void*)&List_Painting_make_room, "library/list.spite\tList", "make_room", 849},
 {(const void*)&List_Painting__grow, "library/list.spite\tList", "_grow", 855},
 {(const void*)&List_Painting__resized, "library/list.spite\tList", "_resized", 865},
-{(const void*)&TypedMemory__Painting_write_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
-{(const void*)&TypedMemory__Painting_value_bytes, "bootstrap/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
+{(const void*)&TypedMemory__Painting_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
+{(const void*)&TypedMemory__Painting_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
 {(const void*)&List_Naive_Collection_append, "library/list.spite\tList", "append", 17},
 {(const void*)&List_Naive_Collection_drop, "library/list.spite\tList", "drop", 830},
 {(const void*)&List_Naive_Collection_make_room, "library/list.spite\tList", "make_room", 849},
@@ -4526,46 +4682,46 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Naive_Collection__resized, "library/list.spite\tList", "_resized", 865},
 {(const void*)&List_Naive_Collection_spite_row_sort, "library/list.spite\tList", "spite_row_sort", 1},
 {(const void*)&List_Naive_Collection_each_sort, "library/list.spite\tList", "each_sort", 0},
-{(const void*)&TypedMemory__Naive_Collection_write_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
-{(const void*)&TypedMemory__Naive_Collection_value_bytes, "bootstrap/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
+{(const void*)&TypedMemory__Naive_Collection_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
+{(const void*)&TypedMemory__Naive_Collection_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
 {(const void*)&List_Console_Printable_get_at, "library/list.spite\tList", "get_at", 41},
 {(const void*)&List_Console_Printable_drop, "library/list.spite\tList", "drop", 830},
-{(const void*)&TypedMemory__Console_Printable_read_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
+{(const void*)&TypedMemory__Console_Printable_read_value, "compiler/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
 {(const void*)&List_Symbol_drop, "library/list.spite\tList", "drop", 830},
 {(const void*)&Benchmark__Nothing_Benchmark, "library/benchmark.spite\tBenchmark", "Benchmark", 7},
 {(const void*)&ThreadPool_run_marked, "library/thread_pool.spite\tThreadPool", "run_marked", 178},
 {(const void*)&List_ThreadPoolJob_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&List_Spite_AttributeDeclaration_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Spite_AttributeDeclaration_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Spite_AttributeDeclaration_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Spite_Function_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Spite_Function_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Spite_Function_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Spite_Argument_append, "library/list.spite\tList", "append", 17},
 {(const void*)&List_Spite_Argument_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&List_Spite_Argument_make_room, "library/list.spite\tList", "make_room", 849},
 {(const void*)&List_Spite_Argument__grow, "library/list.spite\tList", "_grow", 855},
 {(const void*)&List_Spite_Argument__resized, "library/list.spite\tList", "_resized", 865},
-{(const void*)&TypedMemory__Spite_Argument_write_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
-{(const void*)&TypedMemory__Spite_Argument_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
-{(const void*)&TypedMemory__Spite_Argument_value_bytes, "bootstrap/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
+{(const void*)&TypedMemory__Spite_Argument_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
+{(const void*)&TypedMemory__Spite_Argument_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Spite_Argument_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
 {(const void*)&List_Spite_Class_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Spite_Class_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Spite_Class_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Spite_Namespace_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Spite_Namespace_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Spite_Namespace_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Letter_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Letter_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Letter_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Painting_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Painting_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Painting_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Naive_Collection_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&List_Naive_Collection_spite_row_sort_piece, "library/list.spite\tList", "spite_row_sort_piece", 1},
-{(const void*)&TypedMemory__Naive_Collection_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Naive_Collection_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Console_Printable_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Console_Printable_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Console_Printable_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&ThreadPool_submit, "library/thread_pool.spite\tThreadPool", "submit", 33},
 {(const void*)&List_ThreadPoolJob_append, "library/list.spite\tList", "append", 17},
 {(const void*)&List_ThreadPoolJob_make_room, "library/list.spite\tList", "make_room", 849},
 {(const void*)&List_ThreadPoolJob__grow, "library/list.spite\tList", "_grow", 855},
 {(const void*)&List_ThreadPoolJob__resized, "library/list.spite\tList", "_resized", 865},
-{(const void*)&TypedMemory__ThreadPoolJob_write_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
+{(const void*)&TypedMemory__ThreadPoolJob_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
 {(const void*)&main, "-\t-", "main", 0},
 {0, 0, 0, 0}
 };

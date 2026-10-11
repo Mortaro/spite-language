@@ -34,7 +34,7 @@ until the compiler can prove ownership at `append` and report every refusal ([be
   functions it is passed to, to the attributes it is stored in and back to the callers it is returned to, and
   follows an appended value back to where it was made, through callers when it is a parameter. It changes
   nothing. Its limits are [at the end](#what-the-study-script-gets-wrong).
-- **Corpora:** the compiler (`bootstrap/`, 925 list sites), `library/` (82), the 200 conformance programs (173),
+- **Corpora:** the compiler (`compiler/`, 925 list sites), `library/` (82), the 200 conformance programs (173),
   the 20 benchmarks (29), and a read-only copy of the engine package (`engine/`, `plugins/`, `examples/`, 417 files, 298
   sites) in `.spite`.
 - **Speed:** the engine package's `examples/stress` compiled by this tree's compiler (`--optimized`, `clang -O2`, 200 000

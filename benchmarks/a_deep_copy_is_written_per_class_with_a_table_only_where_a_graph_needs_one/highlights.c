@@ -7,13 +7,18 @@ int64_t Naive_copy_rounds___held_0(Naive* self, List_Order* orders_) {
     int32_t round_ = 0;
     while (((round_ < 40))) {
         List_Order* copies_ = List_Order___deep_copy(orders_);
+        Order* first_ = List_Order_get_at(copies_, 0);
+        if (((first_) != 0)) {
+            (first_)->id_ = ({ int32_t spite_temp_1 = (first_)->id_; int32_t spite_temp_2 = 3; int32_t spite_temp_3; if (__builtin_expect(__builtin_add_overflow(spite_temp_1, spite_temp_2, &spite_temp_3), 0)) spite_overflowed("first.id + 3", "an Integer", "+", (int64_t)spite_temp_1, (int64_t)spite_temp_2, spite_site_1()); spite_temp_3; });
+        }
         int32_t value_ = List_Order_sum_value(copies_);
         total_ = (total_ + SpiteInteger_to_long(value_));
         round_ = (round_ + 1);
+        Order___release(first_);
         List_Order___release(copies_);
     }
-    int64_t spite_temp_1 = total_;
-    return spite_temp_1;
+    int64_t spite_temp_4 = total_;
+    return spite_temp_4;
 }
 
 List_Order* List_Order___deep_copy(List_Order* self) {

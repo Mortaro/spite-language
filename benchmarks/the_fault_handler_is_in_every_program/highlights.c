@@ -34,6 +34,9 @@ static void spite_fault_thread(void) {
     SetThreadStackGuarantee(&reserve);
 }
 
+{(const void*)&Naive___pool_grow, "-\t-", "Naive___pool_grow", 0},
+{(const void*)&Naive___pool_take, "-\t-", "Naive___pool_take", 0},
+{(const void*)&Naive___pool_give, "-\t-", "Naive___pool_give", 0},
 {(const void*)&Naive___init, "-\t-", "Naive___init", 0},
 {(const void*)&Naive___allocate, "-\t-", "Naive___allocate", 0},
 {(const void*)&Naive___release, "-\t-", "Naive___release", 0},

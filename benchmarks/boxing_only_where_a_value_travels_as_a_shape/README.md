@@ -41,11 +41,11 @@ held in the `String` itself ([short text](../short_text_lives_inside_the_string/
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 17 926 | 198 144 |
-| naive C: `naive.c`, `clang -O2` | 86 632 | 142 848 |
-| expert C: `expert.c`, `clang -O2` | 12 008 | 140 288 |
+| Spite: `naive/`, `--optimized` | 17 402 | 200 704 |
+| naive C: `naive.c`, `clang -O2` | 85 074 | 142 848 |
+| expert C: `expert.c`, `clang -O2` | 12 047 | 140 288 |
 
-Spite takes 0.21 times naive C's time and 1.49 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=17926 naive=86632 expert=12008 -->
+Spite takes 0.20 times naive C's time and 1.44 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=17402 naive=85074 expert=12047 -->
 <!-- /timings -->

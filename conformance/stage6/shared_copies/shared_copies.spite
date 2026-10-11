@@ -1,0 +1,41 @@
+var console = Console()
+var orders = List<Order>()
+var tags = List<Tag>()
+
+func SharedCopies() {
+    var index = 0
+    while index < 3 {
+        var order = Order(index * 10)
+        orders.append(order)
+        var tag = Tag(index)
+        tags.append(tag)
+        index = index + 1
+    }
+    var sum = 0
+    var round = 0
+    while round < 4 {
+        var copies = orders.deep_copy()
+        sum = sum + copies.sum_total()
+        round = round + 1
+    }
+    console.print("sum", sum)
+    changed()
+    compared()
+}
+
+func changed() {
+    var copies = orders.deep_copy()
+    var first = copies[0]
+    crash first
+    first.total = 99
+    var original_sum = orders.sum_total()
+    var copied_sum = copies.sum_total()
+    console.print("original", original_sum, "copy", copied_sum)
+}
+
+func compared() {
+    var copies = tags.deep_copy()
+    var same = copies[0] == tags[0]
+    var levels = copies.sum_level()
+    console.print("same", same, "levels", levels)
+}

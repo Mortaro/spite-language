@@ -134,13 +134,15 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [An object made for its owner is told apart](#an-object-made-for-its-owner-is-told-apart) | calls that each keep their own object run at once | counted as one object of its class |
 | [No other thread counts a class](#no-other-thread-counts-a-class) | plain counts | atomic counts |
 | [What one of the calls run at once counts](#what-one-of-the-calls-run-at-once-counts) | plain counts and pools for what one call counts | atomic counts |
-| [Objects a list holds, made on one thread](#objects-a-list-holds-made-on-one-thread) | a pool per class | the C library's allocator |
+| [Objects of a class made on one thread](#objects-of-a-class-made-on-one-thread) | a pool per class | the C library's allocator |
 | [Which singletons a `Parallel` reaches](#which-singletons-a-parallel-reaches) | no lock | a lock |
 | [No other thread touches a singleton](#no-other-thread-touches-a-singleton) | no lock, plain attributes | the form it had |
 | [Read-only and atomic singletons](#read-only-and-atomic-singletons) | no lock | a lock |
 | [A function that touches no changing state](#a-function-that-touches-no-changing-state-takes-no-lock) | no lock for it | the lock |
 | [Reading functions share the lock](#reading-functions-share-the-lock) | readers never contend | the plain lock |
 | [A counted loop takes the lock once](#a-counted-loop-takes-a-singletons-lock-once) | one lock per loop | one lock per call |
+| [No attribute is read past the lock](#no-attribute-is-read-past-the-lock) | plain attributes under the lock | atomic attributes |
+| [A loop that starts no task tests for tasks once](#a-loop-that-starts-no-task-tests-for-tasks-once) | one test per loop | one test per call |
 | [A lock that would wait forever](#a-lock-that-would-wait-forever-is-an-error) | refuses a hang | none |
 | [A loop that can never end](#a-loop-that-can-never-end-is-an-error) | refuses a spin or a lost pool thread | none |
 | [A poll that nothing steps](#a-poll-that-nothing-steps-is-an-error) | refuses a hang | the run-time halt |
@@ -1260,23 +1262,45 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
   everywhere; a count the compiler cannot place makes every class atomic, as before.
 - **Shows it.** [optimizations.md](optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts).
 
-### Objects a list holds, made on one thread
+### Objects of a class made on one thread
 
-- **Proves.** Every object of a class is made and let go on the program's own thread, and the program keeps
-  objects of the class in a list.
+- **Proves.** Every object of a class is made and let go on the program's own thread, by the class's own release.
 - **Rule.** Read from the program after every generic class is made and the program is tree shaken. The class is
   not shared under [No other thread counts a class](#no-other-thread-counts-a-class), and no code that can run on
   another thread (the same code that proof follows) makes an object of it, copies one or frees one. In a program
-  without threads every class meets the first half. The second half holds when the class is the item of a `List`,
-  or of anything else built on `TypedMemory<T>` such as a `Dictionary`'s values, anywhere in the program; the class
-  is not a singleton and frees its objects through its own release alone.
+  without threads every class meets the first half. The class is not a singleton and frees its objects through its
+  own release alone. A class with an attribute that is a `Memory.Address` (a container's own object) also has to be
+  the item of a `List`, or of anything else built on `TypedMemory<T>` such as a `Dictionary`'s values, anywhere in
+  the program.
 - **Buys.** The class's objects come from a pool of its own, with no lock: side by side in memory, made and given
   back with a few plain writes ([optimizations.md](optimizations.md#objects-of-one-class-sit-together)).
 - **Falls back.** The C library's `malloc` and `free` for the class: a class another thread counts, makes or frees,
-  one no list holds, a singleton, a `--debug-memory` build, a program that reads `live_allocations()` or
+  a container no list holds, a singleton, a `--debug-memory` build, a program that reads `live_allocations()` or
   `live_bytes()`, and an inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). Nothing
   for the program to write: the fallback is the allocator every object had before.
 - **See.** [optimizations.md](optimizations.md#objects-of-one-class-sit-together); `conformance/stage6/class_pools`.
+
+### A copy nothing changes is the original
+
+- **Proves.** While a `deep_copy()` lives, nothing changes it or the object it copies, and nothing asks either one
+  which object it is, so the copy and the original answer every question the same and one object can be both.
+- **Rule.** The copy is the whole value of a `var` with no declared class, `var copies = orders.deep_copy()`, and
+  `orders` is a parameter, an attribute, an attribute's attribute, or a local the function holds on the heap. From
+  the copy to the end of its block, every statement writes only plain names (numbers, `Boolean`s, enums) declared
+  before the copy, or names declared after it; every call it makes, its operators and its getters are proven by
+  their call effects to write no attribute, grow, shrink or store into no list, and let nothing go; nothing reaches
+  `Parallel`, `Concurrent`, a lock, a file or a socket; nothing reads `.memory`, `.class`, `.attributes` or
+  `.functions`; and a `return` answers a plain value. The copied classes (every class, list and dictionary its
+  attributes reach) have no `drop()`, are not reached by a `Weak`, have no cycle (so the copy keeps no table), are
+  the program's own, and nothing in the whole program compares one of them by identity (`==`, `!=`), reads its
+  `.memory`, keys a `Dictionary` by it or walks its `instances`. The program starts no thread and no
+  `Concurrent`. Not in the inspectable builds.
+- **Buys.** The copy is the original, counted once more: no object is made and none let go.
+- **Falls back.** The copy, as written: a call whose effects are not known, a write anywhere while the copy lives,
+  an identity question anywhere in the program about a copied class. Nothing is an error, and nothing changes in
+  what the program prints.
+- **See.** [optimizations.md: A deep copy nothing changes is the original](optimizations.md#a-deep-copy-nothing-changes-is-the-original);
+  `conformance/stage6/shared_copies`.
 
 ### Which singletons a `Parallel` reaches
 
@@ -1366,6 +1390,37 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 
 While no task is on the thread pool, a locked function also skips its lock. That is a run-time test of a
 counter, one load per call, not a proof: [optimizations.md](optimizations.md#while-no-task-runs-a-singletons-lock-is-skipped).
+
+### A loop that starts no task tests for tasks once
+
+- **Proves.** Nothing a loop runs can start a task or wait, so a count of tasks in flight that is zero when the loop
+  starts stays zero until it ends.
+- **Rule.** The conditions of [a counted loop](#a-counted-loop-takes-a-singletons-lock-once) but being counted: a
+  `while` outside the singleton that cannot `return`, calls only that singleton's functions and plain-value list
+  functions, computes only plain values, every `while` inside it counted, and whose calls reach no wait and no
+  `Parallel`, `Concurrent`, `ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`; at least one
+  call takes the lock; a thread can reach the singleton.
+- **Buys.** One test of the count for the loop, and the unlocked bodies inlined into it: 41.5 to 9.5 ms for ten
+  million calls.
+- **Falls back.** A test per call, as before, and the lock on every call when a task was in flight at the start.
+- **See.** [optimizations.md: A loop of calls to one singleton tests for tasks
+  once](optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once);
+  `benchmarks/while_no_task_runs_a_singletons_lock_is_skipped`.
+
+### No attribute is read past the lock
+
+- **Proves.** No code reads a locked singleton's attribute without holding its lock or knowing that no other thread
+  runs.
+- **Rule.** Of the attributes atomic on their own, none is read directly from another class (the one read that
+  takes no lock); every other read is in the singleton's functions, behind the lock, its readers' side or the skip
+  while no task runs.
+- **Buys.** Its attributes are read and written plainly: one addition where there were locked `fetch_add`s, 76.6 to
+  24.4 ms for 20 million calls under a lock taken once.
+- **Falls back.** Atomic attributes, as soon as one read from another class names one of them; the atomics form keeps
+  its atomics.
+- **See.** [optimizations.md: An attribute read only under its singleton's lock is a plain
+  number](optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number);
+  `conformance/stage6/lone_atomic_counter` keeps `stage` atomic, since a task reads it from another class.
 
 ### A lock that would wait forever is an error
 

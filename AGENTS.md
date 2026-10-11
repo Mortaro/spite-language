@@ -101,6 +101,15 @@ runs once:
 git config core.hooksPath scripts/hooks
 ```
 
+## Releases are automatic
+
+A `check.sh` run that passes keeps the compiler it built (with `-O3`), and the next run starts from it, in every
+checkout and worktree (D574, D575). `bash check.sh --update-seed` is the full check, and only a full run records a
+compiler for release. Pushing to `master` releases it: the `pre-push` hook tags the next `v0.0.x`, packages it and
+publishes it. A push that changes `compiler/`, `launcher/` or `library/` without a full check that passed with
+exactly those files is refused: run `bash check.sh --update-seed` on exactly what you push, commit the seeds it
+rewrites, and push; no second run is needed. Nothing may skip the hook.
+
 ## Changing a Spite program: a worktree is a folder that loads it
 
 To propose a change to a Spite program (a package, an example, anything written in Spite), do not edit it in
@@ -177,11 +186,11 @@ docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned
 - `specs/`: the language, normative: one page per docs page with that part's rules in full.
 - `design/`: decisions, status, open questions, proposals and known issues (above).
 - `PLAN.md`: milestones and implementation status.
-- `bootstrap/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.
+- `compiler/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.
 - `conformance/`, `examples/`, `tests/`, `diagnostics/`: what `bash check.sh` runs: programs with their exact
   expected output and balanced memory, the test package, and programs that must fail with exact errors.
 - `backend/`: what the own backend builds, one program per milestone, each loading what it proves out of
-  `bootstrap/source/backend/` and answering it on the system whose executable it writes.
+  `compiler/source/backend/` and answering it on the system whose executable it writes.
 - `benchmarks/`: one folder per case, each a program in naive Spite, naive C and expert C with the whole C the
   compiler generates from it and the excerpt that shows the optimisation ([`benchmarks/README.md`](benchmarks/README.md)).
   Every benchmark compares Spite with C (D524); `check.sh` keeps each case's generated C current, and

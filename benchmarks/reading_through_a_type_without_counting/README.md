@@ -53,11 +53,11 @@ Spite is about three times slower than `naive.c` on this loop, for reasons outsi
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 26 109 | 203 776 |
-| naive C: `naive.c`, `clang -O2` | 9 468 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 5 124 | 139 776 |
+| Spite: `naive/`, `--optimized` | 27 815 | 207 360 |
+| naive C: `naive.c`, `clang -O2` | 9 328 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 5 173 | 139 776 |
 
-Spite takes 2.76 times naive C's time and 5.10 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=26109 naive=9468 expert=5124 -->
+Spite takes 2.98 times naive C's time and 5.38 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=27815 naive=9328 expert=5173 -->
 <!-- /timings -->

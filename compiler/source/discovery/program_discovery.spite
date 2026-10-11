@@ -1,0 +1,2197 @@
+var shape = Analysis.AstShape()
+var class_files = List<DiscoveredClass>()
+var has_error = false
+var error_message = ""
+var walking_library = false
+var internal_allowed = false
+var language_folder = "."
+var build = Build()
+var host_operating_system = build.target_operating_system
+var supplied_settings = Dictionary<String, String>()
+var bare_settings = List<String>()
+var build_values = Dictionary<String, String>()
+var entry_qualified = ""
+var entry_file_path = ""
+var loaded_folders = List<String>()
+var loaded_roots = List<String>()
+var loaded_root_sites = List<String>()
+var paths = Paths()
+var program_paths = List<String>()
+var program_texts = Dictionary<String, String>()
+var pending_files = List<Syntax.SourceFile>()
+var following_loads = false
+var walking_program = false
+var program_files = List<Syntax.SourceFile>()
+var program_load_names = List<String>()
+var loaded_inside = List<String>()
+var program_build_fields = List<String>()
+var printer = Syntax.SourcePrinter()
+var program_environment = Environment()
+var working_folder = "."
+var loads_from_repositories = GitLoad()
+var earlier: Versions? = null
+var current_library = ""
+var current_checkout = ""
+var current_version = ""
+var library_of_file = Dictionary<String, String>()
+var library_classes = List<String>()
+
+func discover(entry_path: String, entry_source: String): DiscoveryResult {
+    loads_from_repositories.working_folder = working_folder
+    loads_from_repositories.cache_folder = "{working_folder}/.spite"
+    loads_from_repositories.earlier = earlier
+    choose_target_operating_system()
+    choose_program(entry_path)
+    if has_error {
+        return failure(error_message)
+    }
+    var launcher = read_launcher()
+    if has_error {
+        return failure(error_message)
+    }
+    crash launcher
+    var loads = launcher_loads(launcher)
+    var index = 0
+    while index < loads.count() and not has_error {
+        load_folder(loads[index], entry_path, entry_source)
+        index = index + 1
+    }
+    if has_error {
+        return failure(error_message)
+    }
+    read_settings()
+    check_class_names()
+    if has_error {
+        return failure(error_message)
+    }
+    mark_program_load()
+    var entry_stem = file_stem(entry_path)
+    var entry_pascal_name = pascal_case(entry_stem)
+    var entry_mangled_name = mangle_dotted(entry_pascal_name)
+    var discovered = DiscoveryResult(class_files, entry_mangled_name, false, "")
+    discovered.build_values = build_values
+    discovered.launcher_mangled_name = "Launcher"
+    discovered.loaded_folders = loaded_folders
+    discovered.program_paths = program_paths
+    discovered.program_texts = program_texts
+    discovered.checkout_folders = loads_from_repositories.checkout_folders
+    discovered.versions = loads_from_repositories.versions
+    if not earlier {
+        return discovered
+    }
+    note_pinned_versions()
+    if has_error {
+        return failure(error_message)
+    }
+    discovered.version_notes = version_notes()
+    return discovered
+}
+
+func choose_program(entry_path: String) {
+    if supplied_settings.has("program") {
+        has_error = true
+        error_message = "error: '--program' cannot be given: the program is the folder named on the command line, 'spite folder', and Build.program is set from it"
+    }
+    supplied_settings["program"] = directory_of(entry_path)
+}
+
+func launcher_path(): String {
+    return "launcher/launcher.spite"
+}
+
+func read_launcher(): Syntax.SourceFile? {
+    var path = launcher_path()
+    var launcher_file = File("{language_folder}/{path}")
+    if not launcher_file.read() {
+        has_error = true
+        error_message = "error: could not read '{language_folder}/{path}', the Spite program that loads the standard library and then this program: the compiler looks for it in the folders above its own executable"
+        return null
+    }
+    var no_segments = List<String>()
+    walking_library = true
+    read_and_add_file(path, no_segments)
+    walking_library = false
+    return class_file_named("Launcher")
+}
+
+func launcher_loads(launcher: Syntax.SourceFile): List<Syntax.Expressions.CallExpression> {
+    var loads = List<Syntax.Expressions.CallExpression>()
+    var index = 0
+    while index < launcher.statements.count() {
+        var function = shape.as_function_declaration(launcher.statements[index])
+        if function {
+            if function.name == "Launcher" {
+                collect_loads(function.body, loads)
+            }
+        }
+        index = index + 1
+    }
+    return loads
+}
+
+func collect_loads(statements: List<Syntax.Statements.Statement>, loads: List<Syntax.Expressions.CallExpression>) {
+    var index = 0
+    while index < statements.count() {
+        var expression_statement = shape.as_expression_statement(statements[index])
+        if expression_statement {
+            crash expression_statement.value
+            var call = shape.as_call(expression_statement.value)
+            if call {
+                if is_load_call(call) {
+                    loads.append(call)
+                }
+            }
+        }
+        index = index + 1
+    }
+}
+
+func is_load_call(call: Syntax.Expressions.CallExpression): Boolean {
+    crash call.callee
+    var identifier = shape.as_identifier(call.callee)
+    if identifier {
+        return identifier.name == "load" and call.arguments.count() == 1
+    }
+    return false
+}
+
+func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, entry_source: String) {
+    crash call.arguments[0]
+    var path = load_path(call.arguments[0])
+    if not path {
+        has_error = true
+        error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like 'load \"library/\{build.target_operating_system}\"' beside 'var build = Build()'"
+        return
+    }
+    if path == supplied_settings["program"] {
+        discover_program(entry_path, entry_source)
+        return
+    }
+    var folder = Directory("{language_folder}/{path}")
+    if not folder.exists() {
+        has_error = true
+        error_message = "{launcher_path()}: error: could not find the folder '{path}' it loads"
+        return
+    }
+    var no_segments = List<String>()
+    var no_skip: String? = null
+    var no_exclusions = List<String>()
+    walking_library = true
+    walk_directory(path, no_segments, no_skip, no_exclusions)
+    walking_library = false
+}
+
+func load_path(expression: Syntax.Expressions.Expression): String? {
+    var literal = shape.as_string_literal(expression)
+    if literal {
+        return literal.value
+    }
+    var joined = shape.as_binary(expression)
+    if joined {
+        crash joined.left
+        crash joined.right
+        var left = load_path(joined.left)
+        var right = load_path(joined.right)
+        if left {
+            if right {
+                return "{left}{right}"
+            }
+        }
+        return null
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        var receiver = shape.as_identifier(member.object)
+        if receiver {
+            if launcher_binds_build(receiver.name) {
+                return supplied_settings[member.name]
+            }
+        }
+    }
+    return null
+}
+
+func launcher_binds_build(name: String): Boolean {
+    var launcher = class_file_named("Launcher")
+    crash launcher
+    if declares_build(launcher.statements, name) {
+        return true
+    }
+    var index = 0
+    while index < launcher.statements.count() {
+        var function = shape.as_function_declaration(launcher.statements[index])
+        if function {
+            if function.name == "Launcher" {
+                return declares_build(function.body, name)
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func declares_build(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
+    var index = 0
+    while index < statements.count() {
+        var declaration = shape.as_variable_declaration(statements[index])
+        if declaration {
+            crash declaration.value
+            if declaration.name == name and is_build_call(declaration.value) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_build_call(expression: Syntax.Expressions.Expression): Boolean {
+    var call = shape.as_call(expression)
+    if call {
+        crash call.callee
+        var identifier = shape.as_identifier(call.callee)
+        if identifier {
+            return identifier.name == "Build" and call.arguments.is_empty()
+        }
+    }
+    return false
+}
+
+func mark_program_load() {
+    var launcher = class_file_named("Launcher")
+    crash launcher
+    var loads = launcher_loads(launcher)
+    var index = 0
+    while index < loads.count() {
+        crash loads[index].arguments[0]
+        var path = load_path(loads[index].arguments[0])
+        if path == supplied_settings["program"] {
+            loads[index].runs_program = true
+        }
+        index = index + 1
+    }
+}
+
+func part_of_the_compiler(path: String): Boolean {
+    return path == "compiler/compiler.spite" or path.ends_with("/compiler/compiler.spite") or path.ends_with("\\compiler\\compiler.spite")
+}
+
+func internal_name_error(path: String, line: Integer, name: String): String {
+    var place = path
+    if line > 0 {
+        place = "{path}:{line}"
+    }
+    return "{place}: error: {name} is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+}
+
+func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {
+    var index = from
+    var skipping = true
+    while skipping and index < tokens.count() {
+        var token = tokens[index]
+        skipping = token.kind == 'newline' or token.kind == 'comment'
+        if skipping {
+            index = index + 1
+        }
+    }
+    return index
+}
+
+func internal_member(tokens: List<Syntax.Token>, internal: Integer): String {
+    var name = "Spite.Internal"
+    var after = next_significant(tokens, internal + 1)
+    var member = next_significant(tokens, after + 1)
+    if member < tokens.count() {
+        crash tokens[after]
+        var after_token = tokens[after]
+        var member_token = tokens[member]
+        if after_token.kind == 'dot' and member_token.kind == 'identifier' {
+            name = "Spite.Internal.{member_token.lexeme}"
+        }
+    }
+    return name
+}
+
+func names_internal(tokens: List<Syntax.Token>, index: Integer): Boolean {
+    var dot = next_significant(tokens, index + 1)
+    var internal = next_significant(tokens, dot + 1)
+    if internal >= tokens.count() {
+        return false
+    }
+    crash tokens[dot]
+    var dot_token = tokens[dot]
+    var internal_token = tokens[internal]
+    return dot_token.kind == 'dot' and internal_token.lexeme == "Internal"
+}
+
+func refuse_internal_names(path: String, tokens: List<Syntax.Token>, line_override: Integer) {
+    assert not walking_library and not internal_allowed
+    var index = 0
+    while index < tokens.count() and not has_error {
+        var word = tokens[index]
+        var line = word.line
+        if line_override > 0 {
+            line = line_override
+        }
+        if word.kind == 'interpolation' {
+            var hole_lexer = Syntax.Lexer(word.text)
+            if not hole_lexer.has_error {
+                refuse_internal_names(path, hole_lexer.tokens, line)
+            }
+        }
+        if word.kind == 'identifier' and word.lexeme == "Spite" and names_internal(tokens, index) {
+            var dot = next_significant(tokens, index + 1)
+            var internal = next_significant(tokens, dot + 1)
+            var member_name = internal_member(tokens, internal)
+            has_error = true
+            error_message = internal_name_error(path, line, member_name)
+        }
+        index = index + 1
+    }
+}
+
+func discover_program(entry_path: String, entry_source: String) {
+    program_paths.append(entry_path)
+    program_texts[entry_path] = entry_source
+    var lexer = Syntax.Lexer(entry_source)
+    if lexer.has_error {
+        has_error = true
+        error_message = lex_failure(entry_path, lexer)
+        return
+    }
+    check_comments(entry_path, lexer.tokens)
+    assert not has_error
+    internal_allowed = part_of_the_compiler(entry_path)
+    refuse_internal_names(entry_path, lexer.tokens, 0)
+    assert not has_error
+    var parser = Syntax.Parser(lexer.tokens)
+    var entry_file = parser.parse_file()
+    if parser.has_error {
+        has_error = true
+        error_message = "{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
+        return
+    }
+    var stem = file_stem(entry_path)
+    var pascal_name = pascal_case(stem)
+    check_order(entry_path, entry_file, pascal_name)
+    check_entry_constructor(entry_path, entry_file, pascal_name)
+    assert not has_error
+    var entry_directory = directory_of(entry_path)
+    check_folder_name(entry_directory, entry_path)
+    var entry_stem = file_stem(entry_path)
+    var entry_basename = basename(entry_path)
+    collect_file_load_names(entry_file, program_load_names)
+    var empty_segments = List<String>()
+    reopen_with_supplied_members()
+    entry_file.path = entry_path
+    current_library = entry_directory
+    library_of_file[entry_path] = current_library
+    add_parsed_file(entry_file, empty_segments, entry_stem)
+    entry_qualified = compute_qualified(empty_segments, entry_stem)
+    entry_file_path = entry_path
+    walking_program = true
+    walk_directory(entry_directory, empty_segments, entry_basename, program_load_names)
+    walking_program = false
+    current_library = ""
+    pending_files.append(entry_file)
+    var index = 0
+    while index < program_files.count() {
+        pending_files.append(program_files[index])
+        index = index + 1
+    }
+}
+
+func check_folder_name(folder: String, named_by: String) {
+    var name = basename(folder)
+    assert name != "." and name != ".." and not has_error
+    assert not is_snake_case(name)
+    assert holds_spite_files(folder)
+    has_error = true
+    error_message = "{named_by}: error: the folder '{name}' is not named in snake_case: every folder of a program, a package's own folder included, is lowercase words joined by '_', so rename it '{snake_case_of(name)}'"
+}
+
+func is_snake_case(name: String): Boolean {
+    if name.is_empty() {
+        return false
+    }
+    var first = name.code_at(0)
+    if first < 97 or first > 122 {
+        return false
+    }
+    var index = 1
+    while index < name.length() {
+        var code = name.code_at(index)
+        if (code < 97 or code > 122) and (code < 48 or code > 57) and code != 95 {
+            return false
+        }
+        index = index + 1
+    }
+    return not name.ends_with("_") and not name.contains("__")
+}
+
+func snake_case_of(name: String): String {
+    var written = ""
+    var index = 0
+    while index < name.length() {
+        var letter = name.slice(index, index + 1)
+        var lower = letter.lower_case()
+        var separates = letter == "-" or letter == " " or letter == "." or letter == "_"
+        if separates {
+            lower = "_"
+        }
+        if lower != letter and not separates and index > 0 and not written.ends_with("_") {
+            written = "{written}_"
+        }
+        if not (separates and (written.is_empty() or written.ends_with("_"))) {
+            written = written + lower
+        }
+        index = index + 1
+    }
+    return written
+}
+
+func holds_spite_files(folder: String): Boolean {
+    var directory = Directory(folder)
+    if not directory.exists() {
+        return false
+    }
+    var files = directory.entries().filter_files().map_names()
+    if files.any(is_spite_file) {
+        return true
+    }
+    var folders = directory.entries().filter_directories().map_names()
+    var index = 0
+    while index < folders.count() {
+        if holds_spite_files("{folder}/{folders[index]}") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_spite_file(name: String): Boolean {
+    return name.ends_with(".spite")
+}
+
+func load_root(entry_path: String, entry_directory: String, root_name: String, line: Integer) {
+    if root_name == "spite" {
+        has_error = true
+        error_message = "{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else"
+        return
+    }
+    var from_repository = loads_from_repositories.is_git_load(root_name)
+    var root_folder = "{entry_directory}/{root_name}"
+    if from_repository {
+        crash library_of_file[entry_path]
+        var fetched = loads_from_repositories.folder_of(
+            root_name,
+            entry_directory,
+            "{entry_path}:{line}",
+            library_of_file[entry_path],
+        )
+        if not fetched {
+            has_error = true
+            error_message = "{entry_path}:{line}: error: {loads_from_repositories.problem}"
+            return
+        }
+        root_folder = fetched
+    } else if is_absolute_path(root_name) {
+        root_folder = root_name.replace("\\", "/")
+    }
+    assert not loaded_folders.contains("{root_folder}/")
+    var canonical = paths.normalized(root_folder)
+    assert not loaded_roots.contains(canonical)
+    if not from_repository and loads_from_repositories.escapes_checkout(entry_directory, root_folder, root_name) {
+        has_error = true
+        error_message = "{entry_path}:{line}: error: {loads_from_repositories.problem}"
+        return
+    }
+    var root_directory = Directory(root_folder)
+    if not root_directory.exists() and loads_from_repositories.misses_commit(root_name) {
+        has_error = true
+        error_message = "{entry_path}:{line}: error: 'load \"{root_name}\"' names a repository without its commit, and a load from a repository is pinned: write its commit after the repository. {loads_from_repositories.form()}"
+        return
+    }
+    if not root_directory.exists() {
+        has_error = true
+        error_message = "could not find the folder '{root_name}' loaded by {entry_path}"
+        return
+    }
+    if not from_repository or not loads_from_repositories.is_checkout_root(root_folder) {
+        check_folder_name(root_folder, entry_path)
+    }
+    assert not has_error
+    loaded_folders.append("{root_folder}/")
+    note_loads_inside(root_folder)
+    assert not refuses_overlapping_load(canonical, "{entry_path}:{line}", root_name)
+    loaded_roots.append(canonical)
+    loaded_root_sites.append("{entry_path}:{line}")
+    var empty_segments = List<String>()
+    var no_skip: String? = null
+    var no_exclusions = List<String>()
+    crash library_of_file[entry_path]
+    current_library = library_of_file[entry_path]
+    current_checkout = ""
+    current_version = ""
+    var checkout = loads_from_repositories.checkout_holding(root_folder)
+    if checkout {
+        current_library = checkout
+        current_checkout = checkout
+        current_version = loads_from_repositories.version_prefix(checkout)
+    }
+    walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
+    current_library = ""
+    current_checkout = ""
+    current_version = ""
+}
+
+func is_absolute_path(path: String): Boolean {
+    if path.starts_with("/") {
+        return true
+    }
+    if path.length() < 3 {
+        return false
+    }
+    var letter = path.code_at(0)
+    var is_letter = letter >= 65 and letter <= 90 or letter >= 97 and letter <= 122
+    return is_letter and path.slice(1, 2) == ":" and (path.slice(2, 3) == "/" or path.slice(2, 3) == "\\")
+}
+
+func lex_failure(path: String, lexer: Syntax.Lexer): String {
+    if lexer.error_message.is_empty() {
+        return "could not lex '{path}'"
+    }
+    return "{path}:{lexer.error_line}: error: {lexer.error_message}"
+}
+
+func comment_lesson(): String {
+    return "a comment is one line holding only a link to a markdown section, like '# docs/memory.md#cycles', and only outside functions. Ask whether the note is needed: if a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and link to it; if it warns against a change, a test or a compile error pushes harder than prose"
+}
+
+func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
+    var kinds = [
+        "the singleton line"
+        "a generic line"
+        "an enum"
+        "a union"
+        "a type"
+        "a variable"
+        "the constructor"
+        "a function"
+    ]
+    var reached = 0
+    var index = 0
+    while index < file.statements.count() {
+        var statement = file.statements[index]
+        var rank = order_rank(statement, class_name)
+        if rank >= 0 and rank < reached and not has_error {
+            has_error = true
+            crash kinds[rank]
+            crash kinds[reached]
+            error_message = "{path}:{statement_line(statement)}: error: {kinds[rank]} comes after {kinds[reached]} here, but a file is ordered: the singleton line, generic lines, enums, unions, types, variables, the constructor, then functions"
+        }
+        if rank > reached {
+            reached = rank
+        }
+        index = index + 1
+    }
+}
+
+func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: String) {
+    var index = 0
+    while index < file.statements.count() and not has_error {
+        var function = shape.as_function_declaration(file.statements[index])
+        if function {
+            if function.name == class_name and not function.parameters.is_empty() {
+                has_error = true
+                error_message = "{path}:{function.line}: error: '{class_name}' is the entry constructor, and it takes no arguments: a program reads its run-time settings through Environment() (declared in its environment.spite, given on the command line beside the compiler's flags), what its build decided through Build(), and the raw command line through Arguments(), anywhere"
+            }
+        }
+        index = index + 1
+    }
+}
+
+func order_rank(statement: Syntax.Statements.Statement, class_name: String): Integer {
+    if shape.as_singleton_declaration(statement) {
+        return 0
+    }
+    if shape.as_generic_declaration(statement) {
+        return 1
+    }
+    if shape.as_enum_declaration(statement) {
+        return 2
+    }
+    if shape.as_union_declaration(statement) {
+        return 3
+    }
+    if shape.as_type_declaration(statement) {
+        return 4
+    }
+    if shape.as_variable_declaration(statement) {
+        return 5
+    }
+    var function = shape.as_function_declaration(statement)
+    if function {
+        if function.name == class_name {
+            return 6
+        }
+        return 7
+    }
+    return -1
+}
+
+func statement_line(statement: Syntax.Statements.Statement): Integer {
+    var enumeration = shape.as_enum_declaration(statement)
+    if enumeration {
+        return enumeration.line
+    }
+    var joined = shape.as_union_declaration(statement)
+    if joined {
+        return joined.line
+    }
+    var described = shape.as_type_declaration(statement)
+    if described {
+        return described.line
+    }
+    var variable = shape.as_variable_declaration(statement)
+    if variable {
+        return variable.line
+    }
+    var function = shape.as_function_declaration(statement)
+    if function {
+        return function.line
+    }
+    var generic_line = shape.as_generic_declaration(statement)
+    if generic_line {
+        return generic_line.line
+    }
+    var singleton_line = shape.as_singleton_declaration(statement)
+    if singleton_line {
+        return singleton_line.line
+    }
+    return 0
+}
+
+func check_comments(path: String, tokens: List<Syntax.Token>) {
+    var depth = 0
+    var index = 0
+    while index < tokens.count() {
+        var token = tokens[index]
+        if token.kind == 'left_brace' {
+            depth = depth + 1
+        }
+        if token.kind == 'right_brace' {
+            depth = depth - 1
+        }
+        if token.kind == 'comment' and not has_error {
+            var trimmed_text = token.text.trim()
+            var problem = comment_problem(path, trimmed_text, depth)
+            if not problem.is_empty() {
+                has_error = true
+                error_message = "{path}:{token.line}: error: {problem}"
+            }
+        }
+        index = index + 1
+    }
+}
+
+func comment_problem(path: String, text: String, depth: Integer): String {
+    if depth > 0 {
+        return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
+    }
+    if text.ends_with(".spite") and not text.contains(" ") and not text.contains("#") {
+        return spite_link_problem(path, text)
+    }
+    var hash_position = text.index_of("#")
+    if text.contains(" ") or hash_position < 1 or not text.slice(0, hash_position).ends_with(".md") {
+        return "this comment is not a link: {comment_lesson()}"
+    }
+    var markdown_path = text.slice(0, hash_position)
+    var text_length = text.length()
+    var anchor = text.slice(hash_position + 1, text_length)
+    var folder = directory_of(path)
+    var content = File("{folder}/{markdown_path}").read()
+    if not content {
+        return "this comment links to '{markdown_path}', which does not exist (the path is relative to the folder of the file the comment is in, like load)"
+    }
+    if not markdown_anchors(content).contains(anchor) {
+        return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
+    }
+    return ""
+}
+
+# ../../../docs/compiler.md#inspect-merged-classes
+func spite_link_problem(path: String, linked: String): String {
+    var folder = directory_of(path)
+    if not in_final_classes(folder) {
+        return "this comment links to '{linked}', a .spite file, and only a file '--final-classes' wrote may link one, to name the file that supplied a declaration: anywhere else a comment links a markdown section"
+    }
+    var linked_file = File("{folder}/{linked}")
+    if not linked_file.exists() {
+        return "this comment links to '{linked}', which does not exist (the path is relative to the folder of the file the comment is in, like load)"
+    }
+    return ""
+}
+
+func in_final_classes(folder: String): Boolean {
+    var current = folder
+    var climbs = 0
+    while climbs < 64 {
+        var marker = File("{current}/.final-classes")
+        if marker.exists() {
+            return true
+        }
+        var parent = "{current}/.."
+        if current == "." {
+            parent = ".."
+        }
+        current = parent
+        climbs = climbs + 1
+    }
+    return false
+}
+
+func markdown_anchors(content: String): List<String> {
+    var anchors = List<String>()
+    var lines = content.lines()
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        if line.starts_with("#") {
+            var heading = line
+            while heading.starts_with("#") {
+                var heading_length = heading.length()
+                heading = heading.slice(1, heading_length)
+            }
+            var trimmed_heading = heading.trim()
+            var anchor = heading_anchor(trimmed_heading)
+            var candidate = anchor
+            var suffix = 1
+            while anchors.contains(candidate) {
+                candidate = "{anchor}-{suffix}"
+                suffix = suffix + 1
+            }
+            anchors.append(candidate)
+        }
+        index = index + 1
+    }
+    return anchors
+}
+
+func heading_anchor(heading: String): String {
+    var lowered = heading.lower_case()
+    var anchor = ""
+    var index = 0
+    while index < lowered.length() {
+        var code = lowered.code_at(index)
+        var is_letter = code >= 97 and code <= 122
+        var is_digit = code >= 48 and code <= 57
+        if is_letter or is_digit or code == 45 or code == 95 {
+            anchor = anchor + lowered.character_at(index)
+        }
+        if code == 32 {
+            anchor = "{anchor}-"
+        }
+        index = index + 1
+    }
+    return anchor
+}
+
+func failure(message: String): DiscoveryResult {
+    var empty = List<DiscoveredClass>()
+    return DiscoveryResult(empty, "", true, message)
+}
+
+func is_program_path(path: String): Boolean {
+    return not path.is_empty() and not path.starts_with("library/")
+}
+
+func overrides_platform(variable: Syntax.Statements.VariableDeclaration): Boolean {
+    if not is_platform_setting(variable.name) or not is_program_path(variable.source_path) {
+        return false
+    }
+    crash variable.value
+    var reader = literal_reader(variable.value)
+    if reader.is_empty() {
+        return false
+    }
+    var declared = literal_text(variable.value)
+    return not declared.is_empty() and declared != supplied_settings[variable.name]
+}
+
+func is_platform_setting(name: String): Boolean {
+    return name == "target_operating_system" or name == "operating_system"
+}
+
+func is_platform_folder(name: String): Boolean {
+    return name == "windows" or name == "linux" or name == "mac"
+}
+
+func choose_target_operating_system() {
+    if supplied_settings.has("operating_system") {
+        has_error = true
+        error_message = "error: '--operating-system' cannot be given: Build.operating_system is the system doing the compiling ({host_operating_system}). To write the program for another system, give --target-operating-system=linux (or windows, or mac)"
+    }
+    supplied_settings["operating_system"] = host_operating_system
+    if supplied_settings["target_operating_system"] {
+        if not is_platform_folder(supplied_settings["target_operating_system"]) and not has_error {
+            has_error = true
+            error_message = "error: '--target-operating-system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
+        }
+    } else {
+        supplied_settings["target_operating_system"] = host_operating_system
+    }
+}
+
+func walk_directory(
+    root_folder: String,
+    segments: List<String>,
+    skip_basename: String?,
+    excluded_top_level: List<String>,
+) {
+    var path = root_folder
+    var index = 0
+    while index < segments.count() {
+        path = "{path}/{segments[index]}"
+        index = index + 1
+    }
+    var folder_on_disk = on_disk(path)
+    var directory = Directory(folder_on_disk)
+    assert directory.exists()
+    var files = directory.entries().filter_files().map_names()
+    var file_index = 0
+    while file_index < files.count() {
+        var name = files[file_index]
+        if name.ends_with(".spite") {
+            var skip = false
+            if segments.is_empty() {
+                if skip_basename {
+                    if name == skip_basename {
+                        skip = true
+                    }
+                }
+            }
+            if not skip {
+                read_and_add_file("{path}/{name}", segments)
+            }
+        }
+        file_index = file_index + 1
+    }
+    var folders = directory.entries().filter_directories().map_names()
+    var folder_index = 0
+    while folder_index < folders.count() {
+        var folder_name = folders[folder_index]
+        var excluded = loaded_inside.contains("{folder_on_disk}/{folder_name}") or is_tool_folder(folder_name)
+        if segments.is_empty() and not excluded {
+            excluded = excluded_top_level.contains(folder_name)
+            if walking_library and is_platform_folder(folder_name) {
+                excluded = true
+            }
+        }
+        if not excluded and not has_error {
+            check_folder_name("{folder_on_disk}/{folder_name}", folder_on_disk)
+        }
+        if not excluded and not has_error {
+            var child_segments = copy_segments(segments)
+            child_segments.append(folder_name)
+            walk_directory(root_folder, child_segments, skip_basename, excluded_top_level)
+        }
+        folder_index = folder_index + 1
+    }
+}
+
+func is_tool_folder(name: String): Boolean {
+    return name == ".spite" or name == ".spite-cache" or name == ".git"
+}
+
+func refuses_overlapping_load(canonical: String, site: String, root_name: String): Boolean {
+    var index = 0
+    while index < loaded_roots.count() {
+        var earlier = loaded_roots[index]
+        var inner = canonical.starts_with("{earlier}/")
+        var outer = earlier.starts_with("{canonical}/")
+        var nested = canonical
+        if outer {
+            nested = earlier
+        }
+        if (inner or outer) and not walked_apart(nested) {
+            crash loaded_root_sites[index]
+            var earlier_site = loaded_root_sites[index]
+            var whole = earlier
+            var part = canonical
+            if outer {
+                whole = canonical
+                part = earlier
+            }
+            has_error = true
+            error_message = "{site}: error: 'load \"{root_name}\"' and the load at {earlier_site} both reach the files of '{part}', which lies inside '{whole}', so those files would be loaded twice: load only '{whole}', whose subfolders are already its namespaces"
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func walked_apart(folder: String): Boolean {
+    var index = 0
+    while index < loaded_inside.count() {
+        if paths.normalized(loaded_inside[index]) == folder {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_loads_inside(root_folder: String) {
+    var directory = Directory(root_folder)
+    assert directory.exists()
+    var files = directory.entries().filter_files().map_names()
+    var index = 0
+    while index < files.count() {
+        if files[index].ends_with(".spite") {
+            var file_loads = written_loads("{root_folder}/{files[index]}")
+            note_loaded_names(root_folder, file_loads)
+        }
+        index = index + 1
+    }
+    var folders = directory.entries().filter_directories().map_names()
+    index = 0
+    while index < folders.count() {
+        if not is_tool_folder(folders[index]) {
+            note_loads_inside("{root_folder}/{folders[index]}")
+        }
+        index = index + 1
+    }
+}
+
+func written_loads(path: String): List<String> {
+    var names = List<String>()
+    var content = File(path).read()
+    assert content
+    var lexer = Syntax.Lexer(content)
+    assert not lexer.has_error
+    var tokens = lexer.tokens
+    var index = 0
+    while index < tokens.count() - 1 {
+        crash tokens[index + 1]
+        var word = tokens[index]
+        var named = tokens[index + 1]
+        if word.kind == 'identifier' and word.lexeme == "load" and named.kind == 'string_literal' {
+            names.append(named.text)
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func note_loaded_names(folder: String, names: List<String>) {
+    var index = 0
+    while index < names.count() {
+        var inside = "{folder}/{names[index]}"
+        var outside = names[index].starts_with("../") or is_absolute_path(names[index]) or names[index].contains("@")
+        if not outside and not loaded_inside.contains(inside) {
+            loaded_inside.append(inside)
+        }
+        index = index + 1
+    }
+}
+
+func on_disk(path: String): String {
+    if walking_library {
+        return "{language_folder}/{path}"
+    }
+    return path
+}
+
+func copy_segments(segments: List<String>): List<String> {
+    return segments.copy()
+}
+
+func read_and_add_file(path: String, segments: List<String>) {
+    assert not has_error
+    var file_on_disk = on_disk(path)
+    var program_file = File(file_on_disk)
+    var content = program_file.read()
+    if not walking_library {
+        program_paths.append(path)
+        if content {
+            program_texts[path] = content
+        }
+    }
+    if content {
+        var lexer = Syntax.Lexer(content)
+        if lexer.has_error {
+            has_error = true
+            error_message = lex_failure(path, lexer)
+            return
+        }
+        check_comments(path, lexer.tokens)
+        assert not has_error
+        refuse_internal_names(path, lexer.tokens, 0)
+        assert not has_error
+        var parser = Syntax.Parser(lexer.tokens)
+        var parsed_file = parser.parse_file()
+        if parser.has_error {
+            has_error = true
+            error_message = "{path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
+            return
+        }
+        parsed_file.path = path
+        library_of_file[path] = current_library
+        var stem = file_stem(path)
+        var pascal_name = pascal_case(stem)
+        check_order(path, parsed_file, pascal_name)
+        assert not has_error
+        stem = file_stem(path)
+        add_parsed_file(parsed_file, segments, stem)
+        if following_loads and not walking_library {
+            pending_files.append(parsed_file)
+        }
+        var follows_loads = walking_program and compute_qualified(segments, stem) != "Launcher"
+        if follows_loads {
+            program_files.append(parsed_file)
+        }
+        if follows_loads and segments.is_empty() {
+            collect_file_load_names(parsed_file, program_load_names)
+        }
+        if follows_loads {
+            var file_loads = List<String>()
+            collect_file_load_names(parsed_file, file_loads)
+            var file_folder = directory_of(path)
+            note_loaded_names(file_folder, file_loads)
+        }
+    } else {
+        has_error = true
+        error_message = "could not read '{path}'"
+    }
+}
+
+func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, stem: String) {
+    var qualified = compute_qualified(segments, stem)
+    var simple_name = pascal_case(stem)
+    var namespace_dotted = compute_namespace(segments)
+    if not current_checkout.is_empty() {
+        crash loads_from_repositories.identities[current_checkout]
+        loads_from_repositories.versions.note_defined(qualified, loads_from_repositories.identities[current_checkout])
+    }
+    var version = version_of(parsed_file.path, qualified)
+    assert not has_error
+    if not version.is_empty() {
+        qualified = "{version}.{qualified}"
+        namespace_dotted = "{version}.{namespace_dotted}"
+        if namespace_dotted.ends_with(".") {
+            var namespace_length = namespace_dotted.length()
+            namespace_dotted = namespace_dotted.slice(0, namespace_length - 1)
+        }
+    }
+    var mangled_name = mangle_dotted(qualified)
+    var qualified_dotted = qualified
+    if walking_library and not library_classes.contains(qualified_dotted) {
+        library_classes.append(qualified_dotted)
+    }
+    var existing = class_files.find_by_qualified_dotted(qualified_dotted)
+    if existing and not walking_library and not internal_allowed and qualified_dotted.starts_with("Spite.Internal.") {
+        has_error = true
+        error_message = internal_name_error(parsed_file.path, 0, qualified_dotted)
+        return
+    }
+    if existing {
+        if qualified_dotted == entry_qualified {
+            has_error = true
+            error_message = "{parsed_file.path}: error: '{qualified_dotted}' is the program's entry class ({entry_file_path}), so no other file may be a class of that name: rename this file, or the program's folder and its entry file"
+            return
+        }
+        var class_file_file = existing.file
+        if qualified_dotted == "Build" and walking_program {
+            note_program_build_fields(parsed_file)
+        }
+        var kept_names = List<String>()
+        if qualified_dotted == "Build" and following_loads {
+            kept_names = program_build_fields
+        }
+        if not walking_library and library_classes.contains(qualified_dotted) {
+            check_hand_copies(existing, parsed_file)
+            assert not has_error
+        }
+        reopen_class(class_file_file, parsed_file, kept_names)
+        return
+    }
+    if not walking_library and qualified_dotted.starts_with("Spite.") {
+        if qualified_dotted.starts_with("Spite.Internal.") {
+            error_message = internal_name_error(parsed_file.path, 0, qualified_dotted)
+            has_error = true
+            return
+        }
+        has_error = true
+        error_message = "{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
+        return
+    }
+    var discovered = DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file)
+    discovered.plain_dotted = compute_qualified(segments, stem)
+    class_files.append(discovered)
+}
+
+func check_class_names() {
+    var index = 0
+    while index < class_files.count() and not has_error {
+        check_class_name(class_files[index])
+        index = index + 1
+    }
+}
+
+func check_class_name(checked: DiscoveredClass) {
+    var checked_in_library = library_classes.contains(checked.qualified_dotted)
+    var index = 0
+    while index < class_files.count() and not has_error {
+        var other = class_files[index]
+        var other_in_library = library_classes.contains(other.qualified_dotted)
+        if other.plain_dotted.starts_with("{checked.plain_dotted}.") and not (checked_in_library and other_in_library) {
+            report_class_and_namespace(checked, other, checked_in_library)
+        } else if other.simple_name == checked.simple_name and other.plain_dotted != checked.plain_dotted and not checked_in_library {
+            var always_prefixed = other_in_library and other.plain_dotted.contains(".")
+            if not always_prefixed {
+                report_same_name(checked, other, other_in_library)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func report_class_and_namespace(class_file: DiscoveredClass, inside: DiscoveredClass, class_in_library: Boolean) {
+    var levels = inside.plain_dotted.split(".").count() - class_file.plain_dotted.split(".").count()
+    var folder = directory_of(inside.file.path)
+    while levels > 1 {
+        folder = directory_of(folder)
+        levels = levels - 1
+    }
+    has_error = true
+    if class_in_library {
+        error_message = "{inside.file.path}: error: '{class_file.plain_dotted}' is a class of the standard library and also the namespace of the folder '{folder}': a dotted name means one thing, so rename the folder"
+        return
+    }
+    error_message = "{class_file.file.path}: error: '{class_file.plain_dotted}' is this class and also the namespace of the folder '{folder}': a dotted name means one thing, so rename the file or the folder"
+}
+
+func report_same_name(checked: DiscoveredClass, other: DiscoveredClass, other_in_library: Boolean) {
+    if other_in_library {
+        has_error = true
+        error_message = "{checked.file.path}: error: the class '{checked.plain_dotted}' is named like the standard library's class '{other.plain_dotted}': use '{other.plain_dotted}', reopening it to add what it lacks, or give this class a clearer name"
+        return
+    }
+    report_hidden_class(checked, other)
+}
+
+func report_hidden_class(inner: DiscoveredClass, outer: DiscoveredClass) {
+    var inner_prefix = inner.plain_dotted.split(".")
+    var outer_prefix = outer.plain_dotted.split(".")
+    var hidden_name = ""
+    while not inner_prefix.is_empty() and not outer_prefix.is_empty() and inner_prefix[inner_prefix.count() - 1] == outer_prefix[outer_prefix.count() - 1] {
+        var shared = outer_prefix.remove_last()
+        inner_prefix.remove_last()
+        crash shared
+        if hidden_name.is_empty() {
+            hidden_name = shared
+        } else {
+            hidden_name = "{shared}.{hidden_name}"
+        }
+        var inner_namespace = inner_prefix.join(".")
+        var outer_namespace = outer_prefix.join(".")
+        var hides = not inner_namespace.is_empty() and (outer_namespace.is_empty() or inner_namespace.starts_with("{outer_namespace}."))
+        if hides {
+            has_error = true
+            error_message = "{inner.file.path}: error: the class '{inner.plain_dotted}' hides the class '{outer.plain_dotted}' ({outer.file.path}): inside '{inner_namespace}' the name '{hidden_name}' would mean this class, so give one of them a clearer name"
+            return
+        }
+    }
+}
+
+func reopen_with_supplied_members() {
+    var prelude = Generation.Prelude()
+    var stems = prelude.reopened_classes()
+    var index = 0
+    while index < stems.count() {
+        var class_path = stems[index]
+        var source = prelude.reopening(class_path)
+        var lexer = Syntax.Lexer(source)
+        var parser = Syntax.Parser(lexer.tokens)
+        var parsed_file = parser.parse_file()
+        crash not parser.has_error
+        parsed_file.path = prelude.path()
+        var segments = class_path.split("/")
+        var stem = segments.remove_last()
+        crash stem
+        add_parsed_file(parsed_file, segments, stem)
+        index = index + 1
+    }
+}
+
+func declared_name(statement: Syntax.Statements.Statement): String {
+    var function = shape.as_function_declaration(statement)
+    if function {
+        return "func {function.name}"
+    }
+    var variable = shape.as_variable_declaration(statement)
+    if variable {
+        return "var {variable.name}"
+    }
+    var enumeration = shape.as_enum_declaration(statement)
+    if enumeration {
+        return "enum {enumeration.name}"
+    }
+    var generic_line = shape.as_generic_declaration(statement)
+    if generic_line {
+        return "generic {generic_line.name}"
+    }
+    if shape.as_singleton_declaration(statement) {
+        return "singleton"
+    }
+    return ""
+}
+
+func stamp_source_path(statement: Syntax.Statements.Statement, path: String) {
+    var function = shape.as_function_declaration(statement)
+    if function {
+        function.source_path = path
+    }
+    var variable = shape.as_variable_declaration(statement)
+    assert variable
+    variable.source_path = path
+}
+
+func note_program_build_fields(build: Syntax.SourceFile) {
+    var index = 0
+    while index < build.statements.count() {
+        var variable = shape.as_variable_declaration(build.statements[index])
+        if variable {
+            program_build_fields.append("var {variable.name}")
+        }
+        index = index + 1
+    }
+}
+
+func check_hand_copies(library_class: DiscoveredClass, reopening: Syntax.SourceFile) {
+    var attributes = List<String>()
+    var operators = List<Syntax.Statements.FunctionDeclaration>()
+    var original = library_class.file
+    var index = 0
+    while index < original.statements.count() {
+        var variable = shape.as_variable_declaration(original.statements[index])
+        if variable {
+            attributes.append(variable.name)
+        }
+        var declared = shape.as_function_declaration(original.statements[index])
+        if declared {
+            if operator_symbol(declared.name) != "" {
+                operators.append(declared)
+            }
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < reopening.statements.count() and not has_error {
+        var added = shape.as_function_declaration(reopening.statements[index])
+        if added {
+            check_hand_copy(library_class, added, reopening.path, attributes, operators)
+        }
+        index = index + 1
+    }
+}
+
+func check_hand_copy(
+    library_class: DiscoveredClass,
+    added: Syntax.Statements.FunctionDeclaration,
+    path: String,
+    attributes: List<String>,
+    operators: List<Syntax.Statements.FunctionDeclaration>,
+) {
+    var own_type = library_class.simple_name
+    var added_types = List<String>()
+    var operands = 0
+    var index = 0
+    while index < added.parameters.count() {
+        var type_name = parameter_type_name(added.parameters[index])
+        added_types.append(type_name)
+        if type_name == own_type {
+            operands = operands + 1
+        }
+        index = index + 1
+    }
+    assert operands != 0 and assigns_attribute(added.body, attributes)
+    crash added.parameters.count() > 0
+    index = 0
+    while index < operators.count() {
+        var candidate = operators[index]
+        if library_operator_answers(candidate, added_types) {
+            has_error = true
+            var symbol = operator_symbol(candidate.name)
+            var first = added.parameters[0].name
+            var example = "target = {symbol}{first}"
+            var values = "one {own_type} value"
+            if candidate.parameters.count() > 0 and added.parameters.count() > 1 {
+                var second = added.parameters[1].name
+                example = "target = {first} {symbol} {second}"
+                values = "two {own_type} values"
+            }
+            error_message = "{path}:{added.line}: error: '{library_class.plain_dotted}.{added.name}', added by this reopening, rewrites this {own_type} from {values}, which the library's '{symbol}' already answers: write '{example}' (the answer is built in target's place)"
+            return
+        }
+        index = index + 1
+    }
+}
+
+func library_operator_answers(candidate: Syntax.Statements.FunctionDeclaration, added_types: List<String>): Boolean {
+    if candidate.parameters.count() + 1 != added_types.count() {
+        return false
+    }
+    var index = 0
+    while index < candidate.parameters.count() {
+        var needed = parameter_type_name(candidate.parameters[index])
+        if not added_types.contains(needed) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func operator_symbol(name: String): String {
+    switch name {
+        "sum": return "+"
+        "subtract": return "-"
+        "multiply": return "*"
+        "divide": return "/"
+        "remainder": return "%"
+        "negate": return "-"
+        _: return ""
+    }
+}
+
+func parameter_type_name(parameter: Syntax.Statements.Parameter): String {
+    if parameter.type_reference {
+        var named = shape.as_named_type(parameter.type_reference)
+        if named {
+            var last = named.path[named.path.count() - 1]
+            if last {
+                return last
+            }
+        }
+    }
+    return ""
+}
+
+func assigns_attribute(body: List<Syntax.Statements.Statement>, attributes: List<String>): Boolean {
+    var index = 0
+    while index < body.count() {
+        var statement = body[index]
+        var assignment = shape.as_assignment_statement(statement)
+        if assignment {
+            if assignment.target {
+                var written = shape.as_identifier(assignment.target)
+                if written and attributes.contains(written.name) {
+                    return true
+                }
+            }
+        }
+        var branch = shape.as_if_statement(statement)
+        if branch {
+            if assigns_attribute(branch.then_branch, attributes) or assigns_attribute(branch.else_branch, attributes) {
+                return true
+            }
+        }
+        var loop = shape.as_while_statement(statement)
+        if loop {
+            if assigns_attribute(loop.body, attributes) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile, kept_names: List<String>) {
+    var index = 0
+    while index < reopening.statements.count() {
+        var statement = reopening.statements[index]
+        stamp_source_path(statement, reopening.path)
+        var name = declared_name(statement)
+        var replaced = kept_names.contains(name)
+        if replaced {
+            name = ""
+        }
+        if not name.is_empty() {
+            var original_index = 0
+            while original_index < original.statements.count() {
+                if declared_name(original.statements[original_index]) == name {
+                    original.statements[original_index] = statement
+                    replaced = true
+                }
+                original_index = original_index + 1
+            }
+        }
+        if not replaced {
+            original.statements.append(statement)
+        }
+        index = index + 1
+    }
+}
+
+func read_settings() {
+    var build = class_file_named("Build")
+    crash build
+    hardcode_build(build)
+    load_pending_roots()
+    assert not has_error
+    var build_names = hardcode_build(build)
+    assert not has_error
+    var environment = class_file_named("Environment")
+    crash environment
+    var environment_names = read_environment(environment, build_names)
+    check_supplied_settings(build_names, environment_names)
+}
+
+func hardcode_build(build: Syntax.SourceFile): List<String> {
+    var declared = List<String>()
+    var index = 0
+    while index < build.statements.count() and not has_error {
+        var variable = shape.as_variable_declaration(build.statements[index])
+        if variable {
+            if variable.name == "format" {
+                has_error = true
+                error_message = "{variable.source_path}:{variable.line}: error: 'Build.format' cannot be declared: every compile formats the program's own files first, and nothing turns that off: '--check' formats and checks a program without building it"
+                return declared
+            }
+            if overrides_platform(variable) {
+                has_error = true
+                error_message = "{variable.source_path}:{variable.line}: error: 'Build.{variable.name}' cannot be declared by a program: the standard library for the target system is loaded before the program, so the target is given to the compiler, --target-operating-system=linux (or windows, or mac), and is the system doing the compiling otherwise"
+                return declared
+            }
+            declared.append(variable.name)
+            var reader = setting_reader(variable, "Build", build.path)
+            variable.hardcoded_value = variable.value
+            if supplied_settings.has(variable.name) and not has_error {
+                hardcode_setting(variable, reader)
+            }
+            if not has_error {
+                crash variable.hardcoded_value
+                build_values[variable.name] = literal_text(variable.hardcoded_value)
+            }
+        }
+        index = index + 1
+    }
+    return declared
+}
+
+func read_environment(environment: Syntax.SourceFile, build_names: List<String>): List<String> {
+    var readings = List<Syntax.Statements.Statement>()
+    var declared = List<String>()
+    var index = 0
+    while index < environment.statements.count() and not has_error {
+        var variable = shape.as_variable_declaration(environment.statements[index])
+        if variable and not variable.name.starts_with("_") {
+            reject_shared_flag(variable, environment.path, build_names)
+            if not has_error {
+                declared.append(variable.name)
+                var reader = setting_reader(variable, "Environment", environment.path)
+                check_given_setting(variable.name, reader)
+                var reading = setting_reading(variable, reader)
+                readings.append(reading)
+            }
+        }
+        index = index + 1
+    }
+    if has_error or readings.is_empty() {
+        return declared
+    }
+    var first_reading = readings.first()
+    var check = spelling_check(declared, first_reading)
+    readings.insert(0, check)
+    var constructor = environment_constructor(environment)
+    var body_index = 0
+    while body_index < constructor.body.count() {
+        readings.append(constructor.body[body_index])
+        body_index = body_index + 1
+    }
+    constructor.body = readings
+    return declared
+}
+
+func check_given_setting(name: String, reader: String) {
+    assert not has_error
+    assert supplied_settings[name]
+    var given = "{flag_of(name)}={supplied_settings[name]}"
+    var literal = spelled_setting(reader, supplied_settings[name])
+    if bare_settings.contains(name) {
+        given = flag_of(name)
+        if reader != "boolean_setting" {
+            literal = null
+        }
+    }
+    assert not literal
+    has_error = true
+    error_message = "error: '{given}' was given, but 'Environment.{name}' is {setting_expectation(reader, name)}"
+}
+
+func reject_shared_flag(variable: Syntax.Statements.VariableDeclaration, file_path: String, build_names: List<String>) {
+    assert build_names.contains(variable.name)
+    var declared_path = variable.source_path
+    if declared_path.is_empty() {
+        declared_path = file_path
+    }
+    has_error = true
+    error_message = "{declared_path}:{variable.line}: error: 'Environment.{variable.name}' and 'Build.{variable.name}' are both '{flag_of(variable.name)}' on the command line: a program's settings and the compiler's flags share one set of names, so one of them needs another name"
+}
+
+func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Statement): Syntax.Statements.Statement {
+    var names = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < declared.count() {
+        var checked_name = Syntax.Expressions.StringLiteralExpression(declared[index])
+        names.append(checked_name)
+        index = index + 1
+    }
+    var checker = Syntax.Expressions.IdentifierExpression("reject_misspelled_settings")
+    var call = Syntax.Expressions.CallExpression(checker, names)
+    var check = Syntax.Statements.ExpressionStatement(call)
+    check.line = line_of(first_reading)
+    return check
+}
+
+func class_file_named(qualified_name: String): Syntax.SourceFile? {
+    var found = class_files.find_by_qualified_dotted(qualified_name)
+    assert found
+    return found.file
+}
+
+func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.FunctionDeclaration {
+    var index = 0
+    while index < environment.statements.count() {
+        var function = shape.as_function_declaration(environment.statements[index])
+        if function {
+            if function.name == "Environment" {
+                return function
+            }
+        }
+        index = index + 1
+    }
+    var no_parameters = List<Syntax.Statements.Parameter>()
+    var no_statements = List<Syntax.Statements.Statement>()
+    var made = Syntax.Statements.FunctionDeclaration("Environment", no_parameters, null, no_statements)
+    environment.statements.append(made)
+    return made
+}
+
+func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name: String, file_path: String): String {
+    crash variable.value
+    var reader = literal_reader(variable.value)
+    if variable.type_reference or reader.is_empty() {
+        var declared_path = variable.source_path
+        if declared_path.is_empty() {
+            declared_path = file_path
+        }
+        has_error = true
+        error_message = "{declared_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Boolean), 'var {variable.name} = 0' (Integer) or 'var {variable.name} = \"\"' (String)"
+    }
+    return reader
+}
+
+func setting_source(name: String, class_name: String): String {
+    if class_name == "Build" {
+        return "decided when compiling, by the compiler's {flag_of(name)}=value"
+    }
+    return "a setting, read from the program's command line ({flag_of(name)}=value) or its environment ({name.upper_case()})"
+}
+
+func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
+    var flag = flag_of(variable.name)
+    crash supplied_settings[variable.name]
+    var literal = spelled_setting(reader, supplied_settings[variable.name])
+    var given = "{flag}={supplied_settings[variable.name]}"
+    if bare_settings.contains(variable.name) {
+        given = flag
+        if reader != "boolean_setting" {
+            literal = null
+        }
+    }
+    if literal {
+        variable.hardcoded_value = literal
+    } else {
+        has_error = true
+        error_message = "error: '{given}' was given to the compiler, but 'Build.{variable.name}' is {setting_expectation(reader, variable.name)}"
+    }
+}
+
+func setting_expectation(reader: String, name: String): String {
+    var flag = flag_of(name)
+    if reader == "boolean_setting" {
+        return "a Boolean: {flag}, {flag}=true or {flag}=false"
+    }
+    if reader == "text_setting" {
+        return "a String: {flag}=text"
+    }
+    return "an Integer: a whole number, like {flag}=3"
+}
+
+func flag_of(name: String): String {
+    var hyphenated = name.replace("_", "-")
+    return "--{hyphenated}"
+}
+
+func spelled_setting(reader: String, text: String): Syntax.Expressions.Expression? {
+    if reader == "text_setting" {
+        return Syntax.Expressions.StringLiteralExpression(text)
+    }
+    if reader == "boolean_setting" {
+        return boolean_literal(text)
+    }
+    return integer_literal(text)
+}
+
+func boolean_literal(text: String): Syntax.Expressions.Expression? {
+    if text == "true" {
+        return Syntax.Expressions.TrueLiteral()
+    }
+    if text == "false" {
+        return Syntax.Expressions.FalseLiteral()
+    }
+    return null
+}
+
+func integer_literal(text: String): Syntax.Expressions.Expression? {
+    assert program_environment.is_whole_number(text)
+    if text.starts_with("-") {
+        var text_length = text.length()
+        var magnitude_text = text.slice(1, text_length)
+        var magnitude = magnitude_text.to_long()
+        assert magnitude
+        var operand = Syntax.Expressions.IntegerLiteral(magnitude)
+        return Syntax.Expressions.UnaryExpression('negate', operand)
+    }
+    var value = text.to_long()
+    assert value
+    return Syntax.Expressions.IntegerLiteral(value)
+}
+
+func literal_text(literal: Syntax.Expressions.Expression): String {
+    if shape.is_true_literal(literal) {
+        return "true"
+    }
+    if shape.is_false_literal(literal) {
+        return "false"
+    }
+    var text = shape.as_string_literal(literal)
+    if text {
+        return text.value
+    }
+    var whole_number = shape.as_integer_literal(literal)
+    if whole_number {
+        return whole_number.value
+    }
+    var negated = shape.as_unary(literal)
+    crash negated
+    crash negated.operand
+    var magnitude = shape.as_integer_literal(negated.operand)
+    crash magnitude
+    return "-{magnitude.value}"
+}
+
+func check_supplied_settings(build_names: List<String>, environment_names: List<String>) {
+    var supplied_names = supplied_settings.keys()
+    var index = 0
+    while index < supplied_names.count() and not has_error {
+        var name = supplied_names[index]
+        if name == "format" {
+            has_error = true
+            error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off: '--check' formats and checks a program without building it"
+        } else if not build_names.contains(name) and not environment_names.contains(name) {
+            has_error = true
+            error_message = removed_flag_error(name)
+            if error_message.is_empty() {
+                error_message = "error: '{flag_of(name)}' is not a compiler option, and this program declares no setting '{name}' (its Build declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite with 'var {name} = ...'"
+            }
+        }
+        index = index + 1
+    }
+}
+
+func removed_flag_error(name: String): String {
+    switch name {
+        "run": return "error: '--run' is not a compiler option: 'spite program' builds the program and runs it, 'spite program --check' only checks that it compiles, and 'spite program --build' builds it without running it"
+        "executable": return "error: '--executable' is not a compiler option: 'spite program --build' builds the executable without running it, and 'spite program' builds it and runs it"
+        "translation_units": return "error: '--translation-units' is not a compiler option: the compiler chooses how many C files it compiles a program from"
+        "tune_for_this_machine": return "error: '--tune-for-this-machine' is not a compiler option: a default or --hot-reload build is tuned for the machine that builds it, and an --optimized build, the one shipped, runs on any machine"
+        _: return ""
+    }
+}
+
+func setting_reading(variable: Syntax.Statements.VariableDeclaration, reader: String): Syntax.Statements.Statement {
+    var arguments = List<Syntax.Expressions.Expression>()
+    var setting_name = Syntax.Expressions.StringLiteralExpression(variable.name)
+    arguments.append(setting_name)
+    if build_values["hot_reload"] == "true" {
+        crash variable.value
+        arguments.append(variable.value)
+    } else {
+        var default_value = Syntax.Expressions.IdentifierExpression(variable.name)
+        arguments.append(default_value)
+    }
+    var reader_name = Syntax.Expressions.IdentifierExpression(reader)
+    var call = Syntax.Expressions.CallExpression(reader_name, arguments)
+    var target = Syntax.Expressions.IdentifierExpression(variable.name)
+    var assignment = Syntax.Statements.AssignmentStatement(target, call)
+    assignment.line = variable.line
+    return assignment
+}
+
+func literal_reader(declared: Syntax.Expressions.Expression): String {
+    if shape.is_true_literal(declared) or shape.is_false_literal(declared) {
+        return "boolean_setting"
+    }
+    if shape.as_string_literal(declared) {
+        return "text_setting"
+    }
+    if shape.as_integer_literal(declared) {
+        return "integer_setting"
+    }
+    var negated = shape.as_unary(declared)
+    if negated {
+        crash negated.operand
+        if negated.operator == 'negate' and shape.as_integer_literal(negated.operand) {
+            return "integer_setting"
+        }
+    }
+    return ""
+}
+
+func collect_file_load_names(file: Syntax.SourceFile, found: List<String>) {
+    var index = 0
+    while index < file.statements.count() {
+        var function_declaration = shape.as_function_declaration(file.statements[index])
+        if function_declaration {
+            collect_load_names(function_declaration.body, found)
+        }
+        index = index + 1
+    }
+}
+
+func collect_load_names(statements: List<Syntax.Statements.Statement>, found: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var folder = load_of(statement)
+        if folder {
+            var literal = shape.as_string_literal(folder)
+            if literal {
+                found.append(literal.value)
+            }
+        }
+        collect_nested_load_names(statement, found)
+        index = index + 1
+    }
+}
+
+func collect_nested_load_names(statement: Syntax.Statements.Statement, found: List<String>) {
+    var if_statement = shape.as_if_statement(statement)
+    if if_statement {
+        collect_load_names(if_statement.then_branch, found)
+        collect_load_names(if_statement.else_branch, found)
+    }
+    var while_statement = shape.as_while_statement(statement)
+    if while_statement {
+        collect_load_names(while_statement.body, found)
+    }
+    var switch_statement = shape.as_switch_statement(statement)
+    assert switch_statement
+    var index = 0
+    while index < switch_statement.cases.count() {
+        collect_load_names(switch_statement.cases[index].body, found)
+        index = index + 1
+    }
+}
+
+func load_of(statement: Syntax.Statements.Statement): Syntax.Expressions.Expression? {
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    return printer.loaded_folder(expression_statement.value)
+}
+
+func contains_load(statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if load_of(statements[index]) {
+            return true
+        }
+        if nested_contains_load(statements[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func nested_contains_load(statement: Syntax.Statements.Statement): Boolean {
+    var if_statement = shape.as_if_statement(statement)
+    if if_statement {
+        return contains_load(if_statement.then_branch) or contains_load(if_statement.else_branch)
+    }
+    var while_statement = shape.as_while_statement(statement)
+    if while_statement {
+        return contains_load(while_statement.body)
+    }
+    var switch_statement = shape.as_switch_statement(statement)
+    if not switch_statement {
+        return false
+    }
+    var index = 0
+    while index < switch_statement.cases.count() {
+        if contains_load(switch_statement.cases[index].body) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func load_pending_roots() {
+    following_loads = true
+    var index = 0
+    while index < pending_files.count() and not has_error {
+        load_roots_of(pending_files[index])
+        index = index + 1
+    }
+    following_loads = false
+}
+
+func load_roots_of(file: Syntax.SourceFile) {
+    var index = 0
+    while index < file.statements.count() and not has_error {
+        var function_declaration = shape.as_function_declaration(file.statements[index])
+        if function_declaration {
+            load_roots_in(function_declaration.body, file)
+        }
+        index = index + 1
+    }
+}
+
+func load_roots_in(statements: List<Syntax.Statements.Statement>, file: Syntax.SourceFile) {
+    var index = 0
+    while index < statements.count() and not has_error {
+        load_roots_at(statements[index], file)
+        index = index + 1
+    }
+}
+
+func load_roots_at(statement: Syntax.Statements.Statement, file: Syntax.SourceFile) {
+    var line = line_of(statement)
+    var folder = load_of(statement)
+    if folder {
+        load_named_root(folder, file, line)
+        return
+    }
+    var if_statement = shape.as_if_statement(statement)
+    if if_statement {
+        load_roots_under_if(if_statement, file)
+        return
+    }
+    assert nested_contains_load(statement)
+    has_error = true
+    error_message = "{file.path}:{line}: error: a 'load' inside a 'while' or a 'switch' is never decided: the compiler reads every loaded folder before it compiles, so a 'load' stands in a function's body, or under an 'if' whose condition it can decide"
+}
+
+func line_of(statement: Syntax.Statements.Statement): Integer {
+    switch statement {
+        _: return statement.line
+    }
+}
+
+func load_named_root(folder: Syntax.Expressions.Expression, file: Syntax.SourceFile, line: Integer) {
+    var literal = shape.as_string_literal(folder)
+    if literal {
+        var directory = directory_of(file.path)
+        load_root(file.path, directory, literal.value, line)
+        return
+    }
+    has_error = true
+    error_message = "{file.path}:{line}: error: a program's 'load' names its folder with text, like 'load \"engine\"': the compiler reads every loaded folder before it compiles, so the folder cannot be computed"
+}
+
+func load_roots_under_if(if_statement: Syntax.Statements.IfStatement, file: Syntax.SourceFile) {
+    assert contains_load(if_statement.then_branch) or contains_load(if_statement.else_branch)
+    crash if_statement.condition
+    var decided = folded_value(if_statement.condition, file)
+    if decided == "true" {
+        load_roots_in(if_statement.then_branch, file)
+        return
+    }
+    if decided == "false" {
+        load_roots_in(if_statement.else_branch, file)
+        return
+    }
+    has_error = true
+    error_message = "{file.path}:{if_statement.line}: error: this 'if' holds a 'load', so the compiler decides it, and it cannot decide this condition: around a 'load' a condition reads only Build fields (through 'var build = Build()' beside the attributes), text, whole numbers, true and false, joined by ==, !=, and, or and not"
+}
+
+func folded_value(expression: Syntax.Expressions.Expression, file: Syntax.SourceFile): String? {
+    var text = shape.as_string_literal(expression)
+    if text {
+        return text.value
+    }
+    var whole_number = shape.as_integer_literal(expression)
+    if whole_number {
+        return whole_number.value
+    }
+    if shape.is_true_literal(expression) {
+        return "true"
+    }
+    if shape.is_false_literal(expression) {
+        return "false"
+    }
+    var member = shape.as_member(expression)
+    if member {
+        return build_field_value(member, file)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        return folded_unary(unary, file)
+    }
+    var binary = shape.as_binary(expression)
+    assert binary
+    return folded_binary(binary, file)
+}
+
+func build_field_value(member: Syntax.Expressions.MemberExpression, file: Syntax.SourceFile): String? {
+    crash member.object
+    var receiver = shape.as_identifier(member.object)
+    assert receiver
+    assert declares_build(file.statements, receiver.name)
+    return build_values[member.name]
+}
+
+func folded_unary(unary: Syntax.Expressions.UnaryExpression, file: Syntax.SourceFile): String? {
+    crash unary.operand
+    var operand = folded_value(unary.operand, file)
+    assert operand
+    if unary.operator == 'negate' {
+        return "-{operand}"
+    }
+    if operand == "true" {
+        return "false"
+    }
+    assert operand == "false"
+    return "true"
+}
+
+func folded_binary(binary: Syntax.Expressions.BinaryExpression, file: Syntax.SourceFile): String? {
+    crash binary.left
+    crash binary.right
+    assert not binary.is_text_join
+    var left = folded_value(binary.left, file)
+    var right = folded_value(binary.right, file)
+    assert left
+    assert right
+    if binary.operator == 'equal' {
+        return truth_text(left == right)
+    }
+    if binary.operator == 'not_equal' {
+        return truth_text(left != right)
+    }
+    assert is_truth_text(left) and is_truth_text(right)
+    if binary.operator == 'logical_and' {
+        return truth_text(left == "true" and right == "true")
+    }
+    assert binary.operator == 'logical_or'
+    return truth_text(left == "true" or right == "true")
+}
+
+func truth_text(value: Boolean): String {
+    if value {
+        return "true"
+    }
+    return "false"
+}
+
+func is_truth_text(text: String): Boolean {
+    return text == "true" or text == "false"
+}
+
+func pascal_case(snake: String): String {
+    var result = ""
+    var capitalize_next = true
+    var index = 0
+    while index < snake.length() {
+        var character = snake.character_at(index)
+        if character == "_" {
+            capitalize_next = true
+        } else if capitalize_next {
+            result = result + character.upper_case()
+            capitalize_next = false
+        } else {
+            result = result + character
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func mangle_dotted(dotted: String): String {
+    return dotted.replace(".", "_")
+}
+
+func pascal_join(segments: List<String>): String {
+    var result = ""
+    var index = 0
+    while index < segments.count() {
+        if index > 0 {
+            result = "{result}."
+        }
+        result = result + pascal_case(segments[index])
+        index = index + 1
+    }
+    return result
+}
+
+func compute_namespace(segments: List<String>): String {
+    return pascal_join(segments)
+}
+
+func compute_qualified(segments: List<String>, stem: String): String {
+    if segments.is_empty() {
+        return pascal_case(stem)
+    }
+    return "{pascal_join(segments)}.{pascal_case(stem)}"
+}
+
+func all_but_last(segments: List<String>): List<String> {
+    var result = segments.copy()
+    result.remove_last()
+    return result
+}
+
+func directory_of(path: String): String {
+    var segments = path.split("/")
+    if segments.count() <= 1 {
+        return "."
+    }
+    var leading_segments = all_but_last(segments)
+    return join_with_slash(leading_segments)
+}
+
+func join_with_slash(segments: List<String>): String {
+    var result = ""
+    var index = 0
+    while index < segments.count() {
+        if index > 0 {
+            result = "{result}/"
+        }
+        result = result + segments[index]
+        index = index + 1
+    }
+    return result
+}
+
+func basename(path: String): String {
+    var segments = path.split("/")
+    var last = segments.last()
+    crash last
+    return last
+}
+
+func file_stem(path: String): String {
+    var base = basename(path)
+    if base.ends_with(".spite") {
+        var base_length = base.length()
+        return base.slice(0, base_length - 6)
+    }
+    return base
+}
+
+func version_of(path: String, qualified: String): String {
+    if not current_version.is_empty() {
+        if library_classes.contains(qualified) {
+            return ""
+        }
+        return current_version
+    }
+    if walking_library or not earlier {
+        return ""
+    }
+    var defining = earlier.defined_by[qualified]
+    if not defining {
+        return ""
+    }
+    crash library_of_file[path]
+    var index = 0
+    while index < defining.count() {
+        var identity = defining[index]
+        if earlier.versioned.contains(identity) {
+            var pinned = earlier.pinned_by(library_of_file[path], identity)
+            if pinned {
+                return earlier.prefix_of(identity, pinned)
+            }
+            has_error = true
+            error_message = "{path}: error: '{qualified}' reopens a class of a repository this program loads at two commits ({versions_of(identity)}), and this package pins neither: a package reopens the version it loads, so load the one it reopens here"
+            return ""
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func versions_of(identity: String): String {
+    crash earlier
+    crash earlier.commits[identity]
+    var described = List<String>()
+    var index = 0
+    while index < earlier.commits[identity].count() {
+        var commit = earlier.commits[identity][index]
+        var description = earlier.described(identity, commit)
+        described.append(description)
+        index = index + 1
+    }
+    return described.join("; ")
+}
+
+func note_pinned_versions() {
+    crash earlier
+    var index = 0
+    while index < class_files.count() and not has_error {
+        var discovered = class_files[index]
+        var file = discovered.file
+        if library_of_file[file.path] {
+            var pinned_index = 0
+            while pinned_index < earlier.versioned.count() {
+                var identity = earlier.versioned[pinned_index]
+                var pinned = earlier.pinned_by(library_of_file[file.path], identity)
+                if pinned {
+                    var prefix = earlier.prefix_of(identity, pinned)
+                    discovered.pinned_versions.append(prefix)
+                }
+                pinned_index = pinned_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func version_notes(): Dictionary<String, String> {
+    crash earlier
+    var notes = Dictionary<String, String>()
+    var index = 0
+    while index < earlier.versioned.count() {
+        var identity = earlier.versioned[index]
+        crash earlier.commits[identity]
+        var commit_index = 0
+        while commit_index < earlier.commits[identity].count() {
+            var commit = earlier.commits[identity][commit_index]
+            var prefix = earlier.prefix_of(identity, commit)
+            notes[prefix] = earlier.described(identity, commit)
+            commit_index = commit_index + 1
+        }
+        index = index + 1
+    }
+    return notes
+}

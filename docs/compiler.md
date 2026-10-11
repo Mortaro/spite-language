@@ -25,8 +25,18 @@ Every command and flag, with exactly what it does, is listed under [Command line
 freely (a production build may keep the REPL), and the outputs combine: one compile can build the executable and
 write its final classes.
 
+The command is `spite.exe` from a [release](getting_started.md#install-the-compiler), the one a passing
+`bash check.sh` keeps in `.spite/shared/latest/` ([working on Spite itself](getting_started.md#working-on-spite-itself)),
+or `bin/spite` in a checkout of the repository. Either `spite.exe` needs a C compiler named in `CC`, or `cc`, `clang`
+or `gcc` on the `PATH`.
+
+In a checkout of Spite itself, the compiler is a program like any other: `spite compiler --verify` builds it from
+`compiler/` and runs it, and the new compiler runs every test and keeps itself as the compiler you run once they all
+pass; `--verify --release` also does everything a release needs
+([the compiler proves itself](../specs/compiler.md#the-compiler-proves-itself)).
+
 `bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
-compiler from the seed for the system it runs on (`bootstrap/seed/linux/spite_compiler.c`, or `windows/`) into
+compiler from the seed for the system it runs on (`compiler/seed/linux/spite_compiler.c`, or `windows/`) into
 `.spite/spite.exe` the first time, and again whenever the seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
 through. A program's own settings and arguments reach it exactly as they were typed, from bash or from PowerShell
 or `cmd` through `spite.cmd`: `spite tool --prefixes=/Game/Legacy/` gives the program `--prefixes=/Game/Legacy/`,
@@ -44,7 +54,7 @@ program reads its command line through `Environment()`, what its build decided t
 arguments through `Arguments()`. A program is named only by its folder: `spite game/game.spite` is an
 error that answers with the folder form, `spite game`, and a folder with no entry file named after it is an error
 naming the file it looked for ([the texts](../specs/compiler.md#naming-a-program)). The compiler compiles itself the same way,
-`spite bootstrap`, whose entry is `bootstrap/bootstrap.spite`.
+`spite compiler`, whose entry is `compiler/compiler.spite`.
 
 ## How a program is loaded
 
@@ -402,7 +412,7 @@ a folder named by the repository and the commit (`engine_6c7dca9/`), since the v
 
 Each attribute and function is marked with one comment line linking the `.spite` file that supplied it, the
 program's own file, a file it loads, the reopening that replaced it, or the compiler's own reopening
-(`bootstrap/source/generation/prelude.spite`) for a body the compiler supplies, as a path relative to the printed
+(`compiler/source/generation/prelude.spite`) for a body the compiler supplies, as a path relative to the printed
 file. The folder holds a `.final-classes` file, which is what lets a comment there link a `.spite` file
 ([style.md](style.md#comments-are-links)), so the printed program compiles with its links checked like any other.
 

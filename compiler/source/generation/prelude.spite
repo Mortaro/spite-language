@@ -1,0 +1,730 @@
+var maths = MathsPrimitives()
+
+func header(): String {
+    var lines = [
+        "/* The floor: the only C the Spite compiler writes by hand. Everything above it"
+        " * is Spite from library/, and the tree shaker drops what a program never calls. */"
+        ""
+        "#if defined(__linux__) && !defined(_GNU_SOURCE)"
+        "#define _GNU_SOURCE"
+        "#endif"
+        "#include <stddef.h>"
+        "#include <stdint.h>"
+        "#include <stdbool.h>"
+        "#include <stdio.h>"
+        "#include <stdlib.h>"
+        "#include <string.h>"
+        "#include <ctype.h>"
+        ""
+        "#ifdef _WIN32"
+        "#ifndef WIN32_LEAN_AND_MEAN"
+        "#define WIN32_LEAN_AND_MEAN"
+        "#endif"
+        "#include <fcntl.h>"
+        "#include <io.h>"
+        "#include <direct.h>"
+        "#include <windows.h>"
+        "#include <malloc.h>"
+        "#else"
+        "#include <dirent.h>"
+        "#include <sys/stat.h>"
+        "#include <time.h>"
+        "#include <unistd.h>"
+        "#include <dlfcn.h>"
+        "#include <signal.h>"
+        "#include <sys/ucontext.h>"
+        "#endif"
+        ""
+        "/* A program that starts a thread counts references atomically, and the compiler defines SPITE_THREADS for it;"
+        " * every other program counts them with plain arithmetic, and so does a class no thread can reach"
+        " * (docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class). */"
+        "#define SPITE_PLAIN_COUNT_UP(count) ((count) = (count) + 1)"
+        "#define SPITE_PLAIN_COUNT_DOWN(count) ((count) = (count) - 1)"
+        "#ifdef SPITE_THREADS"
+        "#define SPITE_COUNT_UP(count) __atomic_add_fetch(&(count), 1, __ATOMIC_RELAXED)"
+        "#define SPITE_COUNT_DOWN(count) __atomic_sub_fetch(&(count), 1, __ATOMIC_ACQ_REL)"
+        "#define SPITE_THREAD_LOCAL _Thread_local"
+        "#define SPITE_SINGLETON_FOUND(cache) __atomic_load_n(&(cache), __ATOMIC_ACQUIRE)"
+        "#define SPITE_SINGLETON_PUBLISH(cache, made) __atomic_store_n(&(cache), (made), __ATOMIC_RELEASE)"
+        "#define SPITE_LOCK(lock) while (__atomic_exchange_n(&(lock), 1, __ATOMIC_ACQUIRE) != 0) \{}"
+        "#define SPITE_UNLOCK(lock) __atomic_store_n(&(lock), 0, __ATOMIC_RELEASE)"
+        "static int64_t spite_tasks_in_flight = 0;"
+        "static SPITE_THREAD_LOCAL void* spite_skipped[16];"
+        "static SPITE_THREAD_LOCAL int32_t spite_skipped_taken[16];"
+        "static SPITE_THREAD_LOCAL int32_t spite_skipped_depth = 0;"
+        "static void spite_enter_skipped(void* guard);"
+        "/* Each thread holds what one Console call writes and hands it over in one fwrite, so a line is never split by"
+        " * another thread's output (docs/standard_library.md#console). */"
+        "typedef struct SpiteHeldText \{ char* bytes; size_t used; size_t room; char first[256]; } SpiteHeldText;"
+        "static SPITE_THREAD_LOCAL SpiteHeldText spite_held_output;"
+        "static SPITE_THREAD_LOCAL SpiteHeldText spite_held_error;"
+        "static inline void spite_hold_text(SpiteHeldText* held, const char* bytes, size_t count) \{"
+        "if (held->bytes == 0) \{ held->bytes = held->first; held->room = sizeof(held->first); }"
+        "if (held->used + count > held->room) \{"
+        "size_t room = (held->used + count) * 2;"
+        "char* grown = held->bytes == held->first ? (char*)malloc(room) : (char*)realloc(held->bytes, room);"
+        "if (grown == 0) \{ fputs(\"spite: out of memory holding printed text\\n\", stderr); exit(1); }"
+        "if (held->bytes == held->first) memcpy(grown, held->first, held->used);"
+        "held->bytes = grown; held->room = room;"
+        "}"
+        "memcpy(held->bytes + held->used, bytes, count);"
+        "held->used = held->used + count;"
+        "}"
+        "static inline void spite_write_held(SpiteHeldText* held, FILE* stream) \{"
+        "if (held->used > 0) fwrite(held->bytes, 1, held->used, stream);"
+        "held->used = 0;"
+        "if (held->bytes != held->first) \{ free(held->bytes); held->bytes = held->first; held->room = sizeof(held->first); }"
+        "}"
+        "#else"
+        "#define SPITE_COUNT_UP(count) ((count) = (count) + 1)"
+        "#define SPITE_COUNT_DOWN(count) ((count) = (count) - 1)"
+        "#define SPITE_THREAD_LOCAL"
+        "#define SPITE_SINGLETON_FOUND(cache) (cache)"
+        "#define SPITE_SINGLETON_PUBLISH(cache, made) ((cache) = (made))"
+        "#define SPITE_LOCK(lock) (void)(lock)"
+        "#define SPITE_UNLOCK(lock) (void)(lock)"
+        "#endif"
+        ""
+        "/* A native fault is reported, never silent (D244, docs/failure.md): main installs the handler first, each thread"
+        " * the program starts gets room to report its own stack overflow, and each foreign call names itself here. */"
+        "static void spite_fault_install(void);"
+        "static void spite_fault_thread(void);"
+        "static SPITE_THREAD_LOCAL const char* spite_last_foreign_call = 0;"
+        ""
+        "/* ---- allocation ---- */"
+        ""
+        "/* Every Spite object is built on these. A library --hot-reload compiles for a running program"
+        " * (SPITE_RELOADED) allocates through that program, which it is handed when it is loaded; otherwise the"
+        " * compiler writes what this build needs in place of the comment below (docs/memory.md). */"
+        "#ifdef SPITE_RELOADED"
+        "static void* (*spite_host_realloc)(void* pointer, size_t size) = 0;"
+        "static void (*spite_host_free)(void* pointer) = 0;"
+        "#define SPITE_REALLOC(pointer, size) spite_host_realloc(pointer, size)"
+        "#define SPITE_FREE(pointer) spite_host_free(pointer)"
+        "#define SPITE_MALLOC(size) spite_host_realloc(0, size)"
+        "#else"
+        "/*spite_allocator*/"
+        "#endif"
+        ""
+        "/* ---- object model: reference counting (milestone 9a) ----"
+        " *"
+        " * D1 (Mortaro, 2026-09-19): reference counting is the default memory model."
+        " * Every non-scalar value (class instance, List<T>, Dictionary<T>, String,"
+        " * an object literal) is a heap object whose first field is a `SpiteHeader`;"
+        " * variables/attributes/elements/parameters hold pointers to these objects."
+        " * Passing, assigning, storing and returning share the same object: a copy"
+        " * is only ever made by an explicit `copy()`/`deep_copy()` call"
+        " * (docs/memory.md)."
+        " *"
+        " * Each concrete type gets its own small, readable, generated"
+        " * `\{Type}___retain`/`\{Type}___release` pair; this"
+        " * header only holds what is shared: the header layout itself. */"
+        ""
+        "typedef struct SpiteHeader \{"
+        "    int32_t ref_count;"
+        "    int32_t class_id;"
+        "} SpiteHeader;"
+        ""
+        "/* A value of a type that holds no attributes (Anything, Printable): an object with its class id as the tag, or"
+        " * a number, Boolean or enum value held in place with its class's id, never a box (docs/optimizations.md). */"
+        "typedef struct SpiteTagged \{"
+        "    int32_t tag;"
+        "    int32_t plain;"
+        "    union \{ void* object; uint64_t bits; } value;"
+        "} SpiteTagged;"
+        "#define SPITE_TAGGED_NULL ((SpiteTagged)\{ 0, 0, \{ 0 } })"
+        "#define SPITE_TAGGED_PRESENT(tagged) ((tagged).plain != 0 || (tagged).value.object != 0)"
+        "#define SPITE_TAGGED_VALUE(tagged, type) (\{ SpiteTagged spite_tagged_read = (tagged); type spite_tagged_value; memcpy(&spite_tagged_value, &spite_tagged_read.value, sizeof(type)); spite_tagged_value; })"
+        "static inline SpiteTagged spite_tagged_object(int32_t tag, void* object) \{ SpiteTagged tagged; tagged.tag = object == 0 ? 0 : tag; tagged.plain = 0; tagged.value.object = object; return tagged; }"
+        "static inline SpiteTagged spite_tagged_from_pointer(void* object) \{ SpiteTagged tagged; tagged.plain = 0; tagged.value.object = object; tagged.tag = object == 0 ? 0 : ((SpiteHeader*)object)->class_id; if (tagged.tag < 0) tagged.tag = 0; return tagged; }"
+        ""
+        "/* String's layout is written after the enums, from the attributes library/string.spite declares. */"
+        "typedef struct SpiteString SpiteString;"
+    ]
+    return lines.join("\n")
+}
+
+func table_allocator(): String {
+    var lines = [
+        "/* --debug-memory: every allocation goes through the live table, which is Spite"
+        " * (library/allocation_table.spite) called by functions the compiler writes after the classes. */"
+        "void* spite_debug_realloc(void* pointer, size_t size);"
+        "void spite_debug_free(void* pointer);"
+        "void spite_debug_register_object(void* pointer, int32_t class_id);"
+        "void spite_debug_set_class_names(const char* const* names, int64_t count);"
+        "void spite_debug_report(void);"
+        "int64_t spite_live_allocation_count(void);"
+        "int64_t spite_live_byte_count(void);"
+        "#define SPITE_REALLOC(pointer, size) spite_debug_realloc(pointer, size)"
+        "#define SPITE_FREE(pointer) spite_debug_free(pointer)"
+        "#define SPITE_MALLOC(size) spite_debug_realloc(0, size)"
+    ]
+    return lines.join("\n")
+}
+
+func counted_allocator(): String {
+    var lines = [
+        "/* The program reads Memory.Heap.live_allocations(), so allocations are counted. */"
+        "#if defined(__APPLE__)"
+        "#include <malloc/malloc.h>"
+        "#define SPITE_USABLE_SIZE(pointer) malloc_size(pointer)"
+        "#else"
+        "#include <malloc.h>"
+        "#ifdef _WIN32"
+        "#define SPITE_USABLE_SIZE(pointer) _msize(pointer)"
+        "#else"
+        "#define SPITE_USABLE_SIZE(pointer) malloc_usable_size(pointer)"
+        "#endif"
+        "#endif"
+        "static int64_t spite_live_allocations = 0;"
+        "static int64_t spite_live_bytes = 0;"
+        "static void* spite_counted_realloc(void* pointer, size_t size) \{"
+        "    int64_t before = pointer == 0 ? 0 : (int64_t)SPITE_USABLE_SIZE(pointer);"
+        "    void* result = realloc(pointer, size);"
+        "    if (result == 0) return result;"
+        "    if (pointer == 0) SPITE_COUNT_UP(spite_live_allocations);"
+        "    __atomic_add_fetch(&spite_live_bytes, (int64_t)SPITE_USABLE_SIZE(result) - before, __ATOMIC_RELAXED);"
+        "    return result;"
+        "}"
+        "static void spite_counted_free(void* pointer) \{"
+        "    if (pointer == 0) return;"
+        "    SPITE_COUNT_DOWN(spite_live_allocations);"
+        "    __atomic_sub_fetch(&spite_live_bytes, (int64_t)SPITE_USABLE_SIZE(pointer), __ATOMIC_RELAXED);"
+        "    free(pointer);"
+        "}"
+        "static int64_t spite_live_allocation_count(void) \{ return spite_live_allocations; }"
+        "static int64_t spite_live_byte_count(void) \{ return __atomic_load_n(&spite_live_bytes, __ATOMIC_RELAXED); }"
+        "#define SPITE_REALLOC(pointer, size) spite_counted_realloc(pointer, size)"
+        "#define SPITE_FREE(pointer) spite_counted_free(pointer)"
+        "#define SPITE_MALLOC(size) spite_counted_realloc(0, size)"
+    ]
+    return lines.join("\n")
+}
+
+func plain_allocator(): String {
+    var lines = [
+        "#define SPITE_REALLOC(pointer, size) realloc(pointer, size)"
+        "#define SPITE_FREE(pointer) free(pointer)"
+        "#define SPITE_MALLOC(size) malloc(size)"
+    ]
+    return lines.join("\n")
+}
+
+func structs(): String {
+    var lines = [
+        "typedef struct \{"
+        "    int64_t count;"
+        "    const char** items;"
+        "} SpiteArguments;"
+        ""
+        "static SpiteArguments spite_program_arguments;"
+    ]
+    return lines.join("\n")
+}
+
+func prototypes(): String {
+    var lines = [
+        "int64_t SpiteArguments_count(SpiteArguments* self);"
+        "SpiteString SpiteArguments_get(SpiteArguments* self, int64_t index);"
+        "SpiteString SpiteArguments_lookup(SpiteArguments* self, const char* key);"
+    ]
+    return lines.join("\n")
+}
+
+func bodies(): String {
+    var lines = [
+        "int64_t SpiteArguments_count(SpiteArguments* self) \{"
+        "    return self->count;"
+        "}"
+        ""
+        "SpiteString SpiteArguments_get(SpiteArguments* self, int64_t index) \{"
+        "    if (index < 0 || index >= self->count) return SPITE_STRING_EMPTY;"
+        "    return spite_string_from_cstring_owned(self->items[index]);"
+        "}"
+        ""
+        "SpiteString SpiteArguments_lookup(SpiteArguments* self, const char* key) \{"
+        "    int64_t key_length = (int64_t)strlen(key);"
+        "    for (int64_t index = 0; index < self->count; index = index + 1) \{"
+        "        const char* item = self->items[index];"
+        "        if (strncmp(item, \"--\", 2) == 0 && strncmp(item + 2, key, (size_t)key_length) == 0 && item[2 + key_length] == '=') \{"
+        "            return spite_string_from_cstring_owned(item + 2 + key_length + 1);"
+        "        }"
+        "    }"
+        "    return SPITE_STRING_NULL;"
+        "}"
+    ]
+    return lines.join("\n")
+}
+
+func path(): String {
+    return "compiler/source/generation/prelude.spite"
+}
+
+func reopened_classes(): List<String> {
+    var classes = [
+        "console"
+        "program"
+        "process"
+        "memory/heap"
+        "memory/address"
+        "typed_memory"
+        "weak"
+        "inline_memory"
+        "binary_writer"
+        "binary_reader"
+        "dynamic_library"
+        "hot_reload"
+        "read_evaluate_print_loop"
+        "concurrent"
+        "thread_pool"
+        "scheduler"
+        "spite/attribute"
+        "spite/function"
+    ]
+    var numbers = number_classes()
+    var index = 0
+    while index < numbers.count() {
+        classes.append(numbers[index])
+        index = index + 1
+    }
+    return classes
+}
+
+func number_classes(): List<String> {
+    return [
+        "integer"
+        "long"
+        "float"
+        "double"
+        "boolean"
+        "tiny"
+        "short"
+        "byte"
+        "unsigned_short"
+        "unsigned_integer"
+        "unsigned_long"
+    ]
+}
+
+func number_members(stem: String): List<String> {
+    var words = stem.split("_")
+    var type_name = ""
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var word_length = word.length()
+        type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
+        index = index + 1
+    }
+    var members = ["func to_type(type: Symbol): type.class", "written per type by the generator: a C cast"]
+    var whole_numbers = [
+        "tiny"
+        "short"
+        "integer"
+        "long"
+        "byte"
+        "unsigned_short"
+        "unsigned_integer"
+        "unsigned_long"
+    ]
+    var widths = [8, 16, 32, 64, 8, 16, 32, 64]
+    var is_signed = not stem.starts_with("unsigned_") and stem != "byte"
+    var index = 0
+    while index < whole_numbers.count() {
+        if whole_numbers[index] == stem {
+            crash widths[index]
+            var width = widths[index]
+            var bitwise = bitwise_members(type_name, width, is_signed)
+            var member_index = 0
+            while member_index < bitwise.count() {
+                members.append(bitwise[member_index])
+                member_index = member_index + 1
+            }
+        }
+        index = index + 1
+    }
+    var maths_members = maths_members_of(stem, type_name)
+    var maths_index = 0
+    while maths_index < maths_members.count() {
+        members.append(maths_members[maths_index])
+        maths_index = maths_index + 1
+    }
+    var bit_views = maths.bit_view_members(stem)
+    var view_index = 0
+    while view_index < bit_views.count() {
+        members.append(bit_views[view_index])
+        view_index = view_index + 1
+    }
+    return members
+}
+
+func maths_members_of(stem: String, type_name: String): List<String> {
+    if stem == "float" or stem == "double" {
+        return maths.decimal_members(type_name)
+    }
+    assert stem != "boolean"
+    return maths.whole_members(type_name)
+}
+
+func bitwise_members(type_name: String, width: Integer, is_signed: Boolean): List<String> {
+    var value_type = "uint{width}_t"
+    var right_shift = "if (count_ >= {width}) return 0;\nreturn ({value_type})(self >> count_);"
+    if is_signed {
+        value_type = "int{width}_t"
+        var last_bit = width - 1
+        right_shift = "if (count_ > {last_bit}) count_ = {last_bit};\nreturn ({value_type})(self < 0 ? ~(~self >> count_) : self >> count_);"
+    }
+    var bits_type = "uint{width}_t"
+    var left_crash = negative_count_crash(type_name, "shifted_left")
+    var right_crash = negative_count_crash(type_name, "shifted_right")
+    var above_width = 64 - width
+    return [
+        "func shifted_left(count: Integer): {type_name}"
+        "{left_crash}if (count_ >= {width}) return 0;\nreturn ({value_type})({bits_type})(({bits_type})self << count_);"
+        "func shifted_right(count: Integer): {type_name}"
+        "{right_crash}{right_shift}"
+        "func bits_and(other: {type_name}): {type_name}"
+        "return ({value_type})(self & other_);"
+        "func bits_or(other: {type_name}): {type_name}"
+        "return ({value_type})(self | other_);"
+        "func bits_exclusive_or(other: {type_name}): {type_name}"
+        "return ({value_type})(self ^ other_);"
+        "func bits_inverted(): {type_name}"
+        "return ({value_type})~self;"
+        "func set_bit_count(): Integer"
+        "return (int32_t)__builtin_popcountll((uint64_t)({bits_type})self);"
+        "func leading_zero_count(): Integer"
+        "if (({bits_type})self == 0) return {width};\nreturn (int32_t)__builtin_clzll((uint64_t)({bits_type})self) - {above_width};"
+        "func trailing_zero_count(): Integer"
+        "if (({bits_type})self == 0) return {width};\nreturn (int32_t)__builtin_ctzll((uint64_t)({bits_type})self);"
+    ]
+}
+
+func negative_count_crash(type_name: String, name: String): String {
+    return "if (count_ < 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: {type_name}.{name} was given the count %d, and a shift count is 0 or more\\n\", (int)count_);\nexit(1);\n}\n"
+}
+
+func reopening(stem: String): String {
+    var members = supplied_members(stem)
+    var lines = List<String>()
+    var index = 0
+    while index < members.count() {
+        lines.append(members[index])
+        index = index + 2
+    }
+    var joined_lines = lines.join("\n")
+    return "{joined_lines}\n"
+}
+
+func supplied_body(stem: String, name: String): String? {
+    var members = supplied_members(stem)
+    var index = 0
+    while index < members.count() - 1 {
+        if members[index].starts_with("func {name}(") {
+            var body_index = index + 1
+            return members[body_index]
+        }
+        index = index + 2
+    }
+    return null
+}
+
+func supplied_members(stem: String): List<String> {
+    switch stem {
+        "console": return console_members()
+        "program": return written_output_members()
+        "process": return written_output_members()
+        "memory/heap": return heap_members()
+        "memory/address": return address_members()
+        "typed_memory": return typed_memory_members()
+        "weak": return weak_members()
+        "inline_memory": return inline_memory_members()
+        _: {
+            if stem == "binary_writer" or stem == "binary_reader" {
+                return [
+                    "func schema(): Long"
+                    "written per value type by the generator: a constant hash of the attribute walk"
+                ]
+            }
+            switch stem {
+                "concurrent": return concurrent_members()
+                "thread_pool": return task_members()
+                "scheduler": return scheduler_members()
+                _: {
+                    var numbers = number_classes()
+                    if numbers.contains(stem) {
+                        return number_members(stem)
+                    }
+                    switch stem {
+                        "dynamic_library": return dynamic_library_members()
+                        "hot_reload": return hot_reload_members()
+                        "read_evaluate_print_loop": return read_evaluate_print_loop_members()
+                        "spite/attribute": return attribute_members()
+                        "spite/function": return function_members()
+                        _: return List<String>()
+                    }
+                }
+            }
+        }
+    }
+}
+
+func console_members(): List<String> {
+    return [
+        "func _write_output(text: String)"
+        "#ifdef SPITE_THREADS\nspite_hold_text(&spite_held_output, spite_string_bytes(&text_), (size_t)spite_string_length(text_));\n#else\nfwrite(spite_string_bytes(&text_), 1, (size_t)spite_string_length(text_), stdout);\n#endif\nSpiteString___release(text_);"
+        "func _write_error(text: String)"
+        "#ifdef SPITE_THREADS\nspite_hold_text(&spite_held_error, spite_string_bytes(&text_), (size_t)spite_string_length(text_));\n#else\nfwrite(spite_string_bytes(&text_), 1, (size_t)spite_string_length(text_), stderr);\n#endif\nSpiteString___release(text_);"
+        "func _write_held()"
+        "#ifdef SPITE_THREADS\nspite_write_held(&spite_held_output, stdout);\nspite_write_held(&spite_held_error, stderr);\n#endif"
+        "func _flush()"
+        "#ifdef SPITE_THREADS\nspite_write_held(&spite_held_output, stdout);\nspite_write_held(&spite_held_error, stderr);\n#endif\nfflush(stdout);\nfflush(stderr);"
+    ]
+}
+
+func written_output_members(): List<String> {
+    return ["func _flush_output()", "fflush(stdout);\nfflush(stderr);"]
+}
+
+func heap_members(): List<String> {
+    return [
+        "func allocate(bytes: Long): Memory.Address"
+        "return (int64_t)(intptr_t)SPITE_MALLOC((size_t)bytes_);"
+        "func resize(address: Memory.Address, bytes: Long): Memory.Address"
+        "return (int64_t)(intptr_t)SPITE_REALLOC((void*)(intptr_t)address_, (size_t)bytes_);"
+        "func free(address: Memory.Address)"
+        "SPITE_FREE((void*)(intptr_t)address_);"
+        "func live_allocations(): Integer"
+        "return (int32_t)spite_live_allocation_count();"
+        "func live_bytes(): Long"
+        "(void)&Memory_Heap_live_allocations;\nreturn spite_live_byte_count();"
+    ]
+}
+
+func address_members(): List<String> {
+    var members = [
+        "func to_type(type: Symbol): type.class"
+        "written per type by the generator: a C cast"
+        "func copy_to(target: Memory.Address, bytes: Long)"
+        "written by the generator: one machine operation"
+        "func compare_bytes(other: Memory.Address, bytes: Long): Integer"
+        "written by the generator: one machine operation"
+        "func exchange_long(offset: Long, value: Long): Long"
+        "written by the generator: one machine operation"
+        "func read_long_atomically(offset: Long): Long"
+        "written by the generator: one machine operation"
+        "func write_long_atomically(offset: Long, value: Long)"
+        "written by the generator: one machine operation"
+        "func add_long_atomically(offset: Long, value: Long): Long"
+        "written by the generator: one machine operation"
+        "func compare_and_swap_long(offset: Long, expected: Long, desired: Long): Boolean"
+        "written by the generator: one machine operation"
+    ]
+    var types = [
+        "Byte"
+        "Tiny"
+        "Short"
+        "UnsignedShort"
+        "Integer"
+        "UnsignedInteger"
+        "Long"
+        "UnsignedLong"
+        "Float"
+        "Double"
+    ]
+    var words = [
+        "byte"
+        "tiny"
+        "short"
+        "unsigned_short"
+        "integer"
+        "unsigned_integer"
+        "long"
+        "unsigned_long"
+        "float"
+        "double"
+    ]
+    var index = 0
+    while index < types.count() {
+        crash words[index]
+        var type_name = types[index]
+        var word = words[index]
+        members.append("func read_{word}(offset: Long): {type_name}")
+        members.append("written by the generator: one machine operation")
+        members.append("func write_{word}(offset: Long, value: {type_name})")
+        members.append("written by the generator: one machine operation")
+        if index > 1 {
+            members.append("func read_{word}_big_endian(offset: Long): {type_name}")
+            members.append("written by the generator: one machine operation and a byte swap")
+            members.append("func write_{word}_big_endian(offset: Long, value: {type_name})")
+            members.append("written by the generator: a byte swap and one machine operation")
+        }
+        index = index + 1
+    }
+    return members
+}
+
+func task_members(): List<String> {
+    return [
+        "func entry_address(): Long"
+        "written by the generator: the address of the thread entry that runs this class"
+        "func address(): Long"
+        "written by the generator: the address of the object itself"
+        "func _task_begun()"
+        "written by the generator: takes the singleton locks this thread skipped while no task ran, and counts a task in flight"
+        "func _task_ended()"
+        "written by the generator: counts a task out of flight"
+        "func _world_enter()"
+        "written by the generator: in a --hot-reload build, waits while a reload moves objects, then counts this thread as running the program"
+        "func _world_leave()"
+        "written by the generator: in a --hot-reload build, counts this thread out of running the program"
+    ]
+}
+
+func concurrent_members(): List<String> {
+    return [
+        "func _start_frame(): Long"
+        "written by the generator: the state machine of the work, or 0 when the work never waits"
+        "func _frame_result(): $result_type"
+        "written per result type by the generator: takes the result out of a finished state machine"
+        "func _free_frame()"
+        "written by the generator: frees the state machine's frame once the handle is dropped, so every join still waiting on it reads a live frame"
+    ]
+}
+
+func scheduler_members(): List<String> {
+    return [
+        "func step_frame(frame: Long): Boolean"
+        "return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);"
+        "func release_work(frame: Long)"
+        "void** spite_slot = (void**)((char*)(intptr_t)frame_ + 16); Spite_Function* spite_work = (Spite_Function*)*spite_slot; *spite_slot = 0; Spite_Function___release(spite_work);"
+        "func _want_check_point()"
+        "written by the generator: raises the flag every loop's check point loads, in a build that has check points"
+        "func _take_check_point(): Boolean"
+        "written by the generator: lowers that flag and answers whether it was raised"
+    ]
+}
+
+func weak_members(): List<String> {
+    return [
+        "func _box_of(target: $value_type): Memory.Address"
+        "written per value type by the generator"
+        "func get(): $value_type?"
+        "written per value type by the generator"
+        "func _release_box()"
+        "written per value type by the generator"
+    ]
+}
+
+func typed_memory_members(): List<String> {
+    return [
+        "func read_value(address: Memory.Address, index: Integer): $value_type"
+        "written per value type by the generator"
+        "func write_value(address: Memory.Address, index: Integer, value: $value_type)"
+        "written per value type by the generator"
+        "func release_value(address: Memory.Address, index: Integer)"
+        "written per value type by the generator"
+        "func value_bytes(): Long"
+        "written per value type by the generator"
+        "func swap_values(address: Memory.Address, first_index: Integer, second_index: Integer)"
+        "written per value type by the generator"
+        "func value_bits(value: $value_type): UnsignedLong"
+        "written per value type by the generator"
+    ]
+}
+
+func inline_memory_members(): List<String> {
+    return [
+        "func item_at(address: Memory.Address, index: Integer): $value_type"
+        "written per value type by the generator"
+        "func write_item(address: Memory.Address, index: Integer, value: $value_type)"
+        "written per value type by the generator"
+        "func copy_item(source: Memory.Address, source_index: Integer, address: Memory.Address, index: Integer)"
+        "written per value type by the generator"
+        "func release_item(address: Memory.Address, index: Integer)"
+        "written per value type by the generator"
+        "func item_bytes(): Long"
+        "written per value type by the generator"
+        "func item_start(): Long"
+        "written per value type by the generator"
+        "func block_bytes(item_count: Integer): Long"
+        "written per value type by the generator"
+        "func swap_items(address: Memory.Address, first_index: Integer, second_index: Integer)"
+        "written per value type by the generator"
+    ]
+}
+
+func dynamic_library_members(): List<String> {
+    return [
+        "func open_library(file: String): Long"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nif (opened == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", spite_string_bytes(&file_));\nexit(1);\n}\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;"
+        "func find_symbol(name: String, wanted_by: String): Long"
+        "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle_, spite_string_bytes(&name_));\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle_, spite_string_bytes(&name_));\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", spite_string_bytes(&self->file_name_), spite_string_bytes(&name_), spite_string_bytes(&wanted_by_));\nexit(1);\n}\nSpiteString___release(name_);\nSpiteString___release(wanted_by_);\nreturn (int64_t)(intptr_t)found;"
+        "func close_library(opened: Long)"
+        "if (opened_ == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened_);\n#else\ndlclose((void*)(intptr_t)opened_);\n#endif"
+    ]
+}
+
+func hot_reload_members(): List<String> {
+    return [
+        "func compiler(): String"
+        "written per build by the generator: the compiler that built the program"
+        "func build_arguments(): String"
+        "written per build by the generator: what that compiler was given, one per line"
+        "func program_file(): String"
+        "written per build by the generator: the executable it wrote"
+        "func loaded_folders(): String"
+        "written per build by the generator: every folder the program loads, one per line"
+        "func watcher_entry(): Long"
+        "written per build by the generator: the address of the watcher thread's entry"
+        "func open(file: String): Long"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;"
+        "func install(library: Long): String"
+        "written per build by the generator: binds the library to the program and swaps its functions in"
+    ]
+}
+
+func read_evaluate_print_loop_members(): List<String> {
+    return [
+        "func singletons(): List<Spite.Attribute>"
+        "written per build by the generator: every singleton the program binds, one not made yet without a value"
+        "func class_names(): String"
+        "written per build by the generator: the program's own classes that are not singletons, one per line"
+        "func class_descriptions(): String"
+        "written per build by the generator: each of the program's classes, its attributes and its functions, a blank line between classes"
+        "func enum_names(): String"
+        "written per build by the generator: the program's own enums, each with its values, one per line"
+    ]
+}
+
+func attribute_members(): List<String> {
+    return [
+        "func value_attributes(): List<Spite.Attribute>"
+        "if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute___make();"
+        "func value_functions(): List<Spite.Function>"
+        "if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function___make();"
+        "func assign(text: String): Boolean"
+        "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, (void*)(intptr_t)self->spite_stored_address, text_);\nSpiteString___release(text_);\nreturn assigned;"
+        "func held_class(): Spite.Class?"
+        "if (self->spite_held == 0 || self->spite_held_class == 0) return 0;\nreturn (Spite_Class*)self->spite_held_class();"
+        "func assign_null(): Boolean"
+        "if (self->spite_owner == 0 || self->spite_assign == 0) return false;\nreturn self->spite_assign(self->spite_owner, (void*)(intptr_t)self->spite_stored_address, SPITE_STRING_NULL);"
+        "func assign_attribute(source: Spite.Attribute): Boolean"
+        "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_store != 0 && source_ != 0 && source_->spite_held != 0) assigned = self->spite_store(self->spite_owner, (void*)(intptr_t)self->spite_stored_address, source_->spite_held);\nSpite_Attribute___release(source_);\nreturn assigned;"
+        "func held_memory(): Spite.Memory?"
+        "if (self->spite_held == 0 || self->spite_held_bytes <= 0) return 0;\nreturn Spite_Memory___make((int64_t)(intptr_t)self->spite_held, self->spite_held_bytes, Spite_Memory_Section_heap);"
+        "func stored_memory(): Spite.Memory?"
+        "if (self->spite_stored_address == 0) return 0;\nreturn Spite_Memory___make(self->spite_stored_address, self->spite_stored_bytes, Spite_Memory_Section_heap);"
+        "func buffer_memory(): Spite.Memory?"
+        "if (self->spite_buffer_address == 0) return 0;\nreturn Spite_Memory___make(self->spite_buffer_address, self->spite_buffer_bytes, Spite_Memory_Section_heap);"
+    ]
+}
+
+func function_members(): List<String> {
+    return [
+        "func call_function()"
+        "if (self->spite_call == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: call_function() cannot call '%s': it takes arguments, and call_function() passes none\\n\", spite_string_bytes(&self->_name_));\nexit(1);\n}\nself->spite_call(self->spite_owner);"
+        "func call_with_text(arguments: List<String>): Spite.Attribute?"
+        "Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments_);\nList_String___release(arguments_);\nreturn result;"
+    ]
+}

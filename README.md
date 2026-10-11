@@ -94,7 +94,7 @@ it is compiled and run by `bash check.sh`. The formal definition is [`specs/`](s
 page with every rule, edge case and exact error text. Read the docs in this order, from a first program to what the
 compiler proves; each page ends with a link to the next:
 
-1. [Getting started](docs/getting_started.md): build the compiler, run hello world, a program of two classes.
+1. [Getting started](docs/getting_started.md): install the compiler, run hello world, a program of two classes.
 2. [Write it plainly](docs/write_it_plainly.md): why you write the plain program and the compiler decides
    threads, layout and memory, and how to write code it can make fast.
 3. [Classes and files](docs/classes_and_files.md): a file is a class; what it holds and in what order;
@@ -130,73 +130,33 @@ Writing Spite with an AI? Give it the skill in [skills/spite/](skills/spite/SKIL
 dense page: copy that folder into your project's `.claude/skills/spite/` (or paste `reference.md` into any model's
 context).
 
-## Status
+## Get Spite
 
-The docs describe the language as decided; [design/status.md](design/status.md) says, page by page, what is not
-built yet. In short:
-
-| Area | Status |
-|---|---|
-| Files as classes, `singleton` and `generic $name` header lines, enforced file order | implemented |
-| Values, numbers as classes (`this`, casts by assignment), `T?` narrowing, `assert` and `crash` | implemented |
-| Functions as values, variadic `...args: List<T>`, operators as functions | implemented |
-| Enums, unions, shapes (`type`), `value == Class` tests | implemented |
-| Metaprogramming: templates whose name carries the member, walks over reflection objects folded while compiling, compile-time type tests, fused member-template chains | implemented |
-| Reflection: every class an instance of `Spite.Class` (with `Spite.Namespace`, `Spite.Function`, `Spite.Attribute`, `Spite.Argument`), get-only members | implemented |
-| Memory: reference counting, the `Memory` namespace (`Memory.Address`, `Memory.Heap`, `Memory.Arena`), an allocator per object, `TypedMemory`, tree-shaken output | implemented; `Vector<T>` and `Memory.Frame` planned |
-| `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
-| Standard library in Spite: `String`, `List`, `Dictionary`, `JsonWriter`/`JsonReader`, `BinaryWriter`/`BinaryReader`, `File`, `Directory`, `FileSystemWatcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
-| Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (the thread pool), singletons made safe by the compiler | implemented on Windows; checking what a `Parallel` function reaches is not built |
-| Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
-| REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |
-| Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |
-| Web target, isomorphic classes | planned ([docs/targets.md](docs/targets.md)) |
-
-Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
-
-## Build and run
-
-Spite compiles itself. `bootstrap/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for
-Windows, so building the compiler needs nothing but a C compiler.
+Download the newest `spite-0.0.<n>-windows.zip` from the
+[releases](https://github.com/Mortaro/spite-language/releases), unzip it anywhere and put the folder on your `PATH`.
+It holds `spite.exe` and the `launcher/` and `library/` it reads, so keep them together. Spite writes C and builds
+it, so it also needs a C compiler, named in `CC` (on Windows, the clang inside Visual Studio, by its short path) or
+`cc`, `clang` or `gcc` on the `PATH`:
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
-./spite examples/hello
+spite path/to/folder
 ```
 
-Check the compiler: `check.sh` builds the seed, requires generation 2 and generation 3 to be byte identical,
-runs every program in `conformance/` requiring exact output and balanced allocations, and reports whether the
-committed seeds are current (`bash check.sh --update-seed` refreshes every one of them, from either system). It uses the first of `cc`, `clang` or
-`gcc` it finds, or whatever `CC` names.
-
-```
-bash check.sh
-```
+Each release carries `spite_compiler.c`, the C its `spite.exe` was built from, and `SHA256SUMS`. Releases are
+Windows only for now ([docs/getting_started.md](docs/getting_started.md#install-the-compiler)).
 
 ## Write your own
 
-Build the compiler once, then point it at a program's folder:
+Point `spite` at a program's folder:
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
-export CC=cc                     # the compiler shells out to this to build the C it emits
-./spite path/to/folder
+spite path/to/folder
 ```
 
 That builds the executable into `.spite/build/path/to/folder/folder.exe` in the folder you ran it from, and runs
 it: nothing is written beside the source. The compiler reads the whole program first and then produces every
 output asked for: `--check` only checks that it compiles and writes nothing, `--build` builds the executable
 without running it, and `--executable-path=` puts it somewhere else ([docs/compiler.md](docs/compiler.md)).
-
-On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
-contains spaces, so use the short form:
-
-```
-CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
-"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/windows/spite_compiler.c -o spite.exe
-export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
-./spite.exe path/to/thing
-```
 
 **Put each program in its own folder.** `spite arena` loads the whole `arena` folder ([docs/packages.md](docs/packages.md)), so
 every `.spite` file in it is part of the same program.
@@ -208,6 +168,38 @@ without BOM.
 **`docs/` is the ground truth for what the language is**: every titled program in it, and every program in
 `conformance/` and `examples/`, is compiled and checked by `bash check.sh`. What is decided but not built yet is
 listed in [design/status.md](design/status.md).
+
+## Build it yourself
+
+You need this only to work on Spite itself, or on a system without a release. Spite compiles itself:
+`compiler/seed/<system>/spite_compiler.c` is the committed fixpoint C for Linux and for Windows, so building the
+compiler needs nothing but a C compiler.
+
+```
+cc -O2 -Wno-parentheses-equality compiler/seed/linux/spite_compiler.c -o spite -lm
+export CC=cc                     # the compiler shells out to this to build the C it emits
+./spite examples/hello
+```
+
+On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
+contains spaces, so use the short form:
+
+```
+CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
+"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations compiler/seed/windows/spite_compiler.c -o spite.exe
+export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
+./spite.exe path/to/thing
+```
+
+Check the compiler with `bash check.sh`: it requires the compiler to rebuild itself byte for byte, runs every
+program in `conformance/` requiring exact output and balanced allocations, and reports whether the committed seeds
+are current (`bash check.sh --update-seed` refreshes them). A run that passes keeps its compiler in
+`.spite/shared/latest/` for the next run and for your `PATH`, and a push to `master` that changes the compiler
+releases the next version on its own ([working on Spite itself](docs/getting_started.md#working-on-spite-itself)).
+
+```
+bash check.sh
+```
 
 ## Where to look
 
@@ -230,7 +222,7 @@ listed in [design/status.md](design/status.md).
   language models.
 - [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
   left.
-- [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
+- [`compiler/COMPILER_PLAN.md`](compiler/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
   implements today, and what it does not.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
 
@@ -239,4 +231,6 @@ listed in [design/status.md](design/status.md).
 Spite is built mostly by AI agents, so the most useful thing to give is agent time. [RESEARCH.md](RESEARCH.md) lists
 the research Spite needs (closing the gap to C tuned by hand, layout, cores, the compiler's own backend) and how to
 hand back what you find: a finding in the research notebook, a benchmark case, or a pull request whose commits
-name the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing the compiler.
+name the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing the compiler, and
+[Working on Spite itself](docs/getting_started.md#working-on-spite-itself) for how `bash check.sh` keeps the compiler
+you run.

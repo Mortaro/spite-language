@@ -48,11 +48,11 @@ runs `find_attributes` as three calls that each reach the column singleton and a
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 61 083 | 219 136 |
-| naive C: `naive.c`, `clang -O2` | 17 943 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 4 433 | 139 776 |
+| Spite: `naive/`, `--optimized` | 50 065 | 223 232 |
+| naive C: `naive.c`, `clang -O2` | 17 612 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 4 478 | 139 776 |
 
-Spite takes 3.40 times naive C's time and 13.78 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=61083 naive=17943 expert=4433 -->
+Spite takes 2.84 times naive C's time and 11.18 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=50065 naive=17612 expert=4478 -->
 <!-- /timings -->

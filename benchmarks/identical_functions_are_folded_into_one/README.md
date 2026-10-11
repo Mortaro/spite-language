@@ -43,7 +43,7 @@ on Windows with clang, before and after:
 
 | program | bytes before | bytes after | functions before | functions after |
 |---|---|---|---|---|
-| the compiler (`bootstrap`) | 9 211 392 | 9 197 056 | 4 894 | 4 614 |
+| the compiler (`compiler`) | 9 211 392 | 9 197 056 | 4 894 | 4 614 |
 | a program of sparse columns over generic classes | 246 784 | 244 224 | 437 | 404 |
 | a program of walked rows over generic classes | 211 968 | 210 944 | 277 | 259 |
 
@@ -56,10 +56,10 @@ dependency, and generic classes over classes of the same layout.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | not timed | 175 616 |
+| Spite: `naive/`, `--optimized` | not timed | 176 640 |
 | naive C: `naive.c`, `clang -O2` | not timed | 139 264 |
 | expert C: `expert.c`, `clang -O2` | not timed | 139 264 |
 
-Measured 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+Measured 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
 <!-- measured untimed -->
 <!-- /timings -->

@@ -1,0 +1,1045 @@
+var pieces = List<String>()
+var piece_names = List<String>()
+var next_same = List<Integer>()
+var first_body = 0
+var table = TreeShaker()
+var roots = List<Integer>()
+var reached = List<Boolean>()
+var shared = Dictionary<String, Boolean>()
+var counted_unknown = false
+var plain_classes = List<String>()
+var shared_classes = List<String>()
+var typed_targets = List<Integer>()
+var dropping_targets = List<Integer>()
+var called_arities = Dictionary<String, Boolean>()
+var typed_calls_unknown = false
+var dropping_called = false
+var made_elsewhere = Dictionary<String, Boolean>()
+var free_guards = Dictionary<String, Boolean>()
+var free_guard_count = 0
+var free_atomics = Dictionary<String, Boolean>()
+var free_atomic_count = 0
+var group_pieces = List<Integer>()
+var member_reached = List<Boolean>()
+var member_counted = Dictionary<String, Boolean>()
+var member_made = Dictionary<String, Boolean>()
+var member_arities = Dictionary<String, Boolean>()
+var member_typed_unknown = false
+var member_dropping = false
+var together = Dictionary<String, Boolean>()
+var group_shared = Dictionary<String, Boolean>()
+var group_made = Dictionary<String, Boolean>()
+var skip_teardowns = false
+var member_keeps_holders = false
+
+# ../../../docs/optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class
+func plain_counts(types: String, bodies: String, main_function: String): String {
+    var type_shaker = TreeShaker()
+    type_shaker.split_pieces(types)
+    var body_shaker = TreeShaker()
+    body_shaker.split_pieces(bodies)
+    table.reserve_slots("{types}\n{bodies}")
+    type_shaker.pieces.each(add_piece)
+    first_body = pieces.count()
+    body_shaker.pieces.each(add_piece)
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        var name = piece_names[index]
+        crash name
+        var unnamed_code = name.is_empty() and looks_like_code(piece)
+        var taken = mentions(piece, not unnamed_code)
+        taken.each(roots.append)
+        index = index + 1
+    }
+    var taken_in_main = mentions(main_function, true)
+    taken_in_main.each(roots.append)
+    reach_from_roots()
+    group_pieces.each(share_group_members)
+    note_free_guards()
+    if counted_unknown and free_guard_count == 0 {
+        return bodies
+    }
+    if counted_unknown {
+        return guard_free_bodies()
+    }
+    return rewritten_bodies()
+}
+
+# ../../../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock
+func note_free_guards() {
+    var declared = List<String>()
+    var atomic = List<String>()
+    var mentioned = Dictionary<String, Boolean>()
+    var touched = Dictionary<String, Boolean>()
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        if piece.starts_with("#define ") and piece.ends_with("___atomic 1") {
+            var atomic_end = piece.index_of("___atomic 1")
+            var atomic_name = piece.slice(8, atomic_end)
+            atomic.append(atomic_name)
+        } else if piece.starts_with("static SpiteGuard ") {
+            var end = piece.index_of("___guard")
+            if end > 18 {
+                var declared_name = piece.slice(18, end)
+                declared.append(declared_name)
+            }
+        } else if reached[index] == true {
+            note_guard_mentions(piece, "___guard", mentioned)
+            note_guard_mentions(piece, "___readers", mentioned)
+            note_guard_mentions(piece, "___atomic", touched)
+            note_singleton_accesses(piece, "SPITE_SINGLETON_LOAD(", touched)
+            note_singleton_accesses(piece, "SPITE_SINGLETON_STORE(", touched)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < declared.count() {
+        var name = declared[index]
+        if not mentioned.has(name) {
+            free_guards[name] = true
+            free_guard_count = free_guard_count + 1
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < atomic.count() {
+        var name = atomic[index]
+        if not mentioned.has(name) and not touched.has(name) {
+            free_atomics[name] = true
+            free_atomic_count = free_atomic_count + 1
+        }
+        index = index + 1
+    }
+    index = first_body
+    while free_guard_count > 0 and index < pieces.count() {
+        var piece = pieces[index]
+        var freed = freed_guard_of(piece)
+        if not freed.is_empty() {
+            pieces[index] = unguarded_wrapper(piece)
+        }
+        index = index + 1
+    }
+}
+
+func note_guard_mentions(piece: String, suffix: String, mentioned: Dictionary<String, Boolean>) {
+    var at = piece.index_of(suffix)
+    while at > 0 {
+        var name = table.name_before(piece, at)
+        if not name.is_empty() {
+            mentioned[name] = true
+        }
+        at = index_after(piece, suffix, at + 1)
+    }
+}
+
+func note_singleton_accesses(piece: String, opening: String, touched: Dictionary<String, Boolean>) {
+    var opening_length = opening.length()
+    var at = piece.index_of(opening)
+    while at >= 0 {
+        var start = at + opening_length
+        var end = name_end_from(piece, start)
+        if end > start {
+            var name = piece.slice(start, end)
+            touched[name] = true
+        }
+        at = index_after(piece, opening, start)
+    }
+}
+
+func guard_free_bodies(): String {
+    var kept = List<String>()
+    var index = first_body
+    while index < pieces.count() {
+        var piece = pieces[index]
+        kept.append(piece)
+        index = index + 1
+    }
+    return kept.join("\n")
+}
+
+func freed_guard_of(piece: String): String {
+    var skip = "spite_skipped[spite_skip] = (void*)&"
+    var at = piece.index_of(skip)
+    if at < 0 or not piece.contains("\nif (spite_skipped_depth < 16 && __atomic_load_n(&spite_tasks_in_flight") {
+        return ""
+    }
+    var start = at + skip.length()
+    var end = index_after(piece, "___guard;", start)
+    if end < 0 {
+        return ""
+    }
+    var name = piece.slice(start, end)
+    if not free_guards.has(name) {
+        return ""
+    }
+    return name
+}
+
+func unguarded_wrapper(piece: String): String {
+    var piece_lines = piece.split("\n")
+    var counted = piece_lines.index_of("SPITE_GUARDS_COUNT(1);")
+    crash counted
+    if counted < 1 or counted + 1 >= piece_lines.count() {
+        return piece
+    }
+    var done = counted + 2
+    while done < piece_lines.count() and not starts_line_with(piece_lines, done, "return") {
+        done = done + 1
+    }
+    if done >= piece_lines.count() {
+        return piece
+    }
+    crash piece_lines[0]
+    var kept = List<String>()
+    kept.append(piece_lines[0])
+    kept.append("SPITE_GUARDS_COUNT(1);")
+    kept.append(piece_lines[counted + 1])
+    kept.append("SPITE_GUARDS_COUNT(-1);")
+    kept.append(piece_lines[done])
+    kept.append("}")
+    return kept.join("\n")
+}
+
+# ../../../docs/optimizations.md#a-singleton-no-other-thread-reaches-takes-no-lock
+func unguarded_types(types: String): String {
+    if free_guard_count == 0 and free_atomic_count == 0 {
+        return types
+    }
+    var type_lines = types.split("\n")
+    var quieted = Dictionary<String, Boolean>()
+    var index = 0
+    while index < type_lines.count() {
+        var line = type_lines[index]
+        if line.starts_with("#define ") and line.ends_with("___atomic 1") {
+            var atomic_end = line.index_of("___atomic 1")
+            var atomic_name = line.slice(8, atomic_end)
+            if free_atomics.has(atomic_name) {
+                type_lines[index] = "#define {atomic_name}___atomic 0"
+            }
+        } else if line.starts_with("#define ") and frees_a_guard(line) {
+            var head = macro_head(line)
+            type_lines[index] = "{head} ((void)0)"
+            if head.ends_with("_skip_enter()") {
+                type_lines[index] = "{head} 0"
+            }
+            var name_end = head.index_of("(")
+            var name = head.slice(8, name_end)
+            quieted[name] = true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < type_lines.count() {
+        var line = type_lines[index]
+        if line.starts_with("#define ") and line.contains("_leave(") {
+            var head = macro_head(line)
+            var name_end = head.index_of("(")
+            var name = head.slice(8, name_end)
+            var name_length = name.length()
+            var entered = "{name.slice(0, name_length - 6)}_enter"
+            if name.ends_with("_leave") and quieted.has(entered) {
+                type_lines[index] = "{head} ((void)0)"
+            }
+        }
+        index = index + 1
+    }
+    return type_lines.join("\n")
+}
+
+func frees_a_guard(line: String): Boolean {
+    var at = line.index_of("___guard")
+    while at > 0 {
+        var name = table.name_before(line, at)
+        var name_length = name.length()
+        if free_guards.has(name) and line.code_at(at - name_length - 1) == 38 {
+            return true
+        }
+        at = index_after(line, "___guard", at + 1)
+    }
+    return false
+}
+
+func starts_line_with(piece_lines: List<String>, index: Integer, start: String): Boolean {
+    crash piece_lines[index]
+    var line = piece_lines[index]
+    return line.starts_with(start)
+}
+
+func macro_head(line: String): String {
+    var close = line.index_of(")")
+    return line.slice(0, close + 1)
+}
+
+func add_piece(piece: String) {
+    var name = defined_name(piece)
+    var position = pieces.count()
+    pieces.append(piece)
+    piece_names.append(name)
+    next_same.append(-1)
+    reached.append(false)
+    assert not name.is_empty()
+    var name_length = name.length()
+    var same = table.find_function(name, 0, name_length)
+    if same < 0 {
+        table.add_function(name, position)
+        return
+    }
+    while same < next_same.count() and next_same[same] >= 0 {
+        same = next_same[same]
+    }
+    next_same[same] = position
+}
+
+func defined_name(piece: String): String {
+    var first_line = piece
+    var line_end = piece.index_of("\n")
+    if line_end >= 0 {
+        first_line = piece.slice(0, line_end)
+    }
+    var trimmed = first_line.trim()
+    if trimmed.starts_with("#define ") {
+        var name_end = name_end_from(trimmed, 8)
+        return trimmed.slice(8, name_end)
+    }
+    if trimmed.starts_with("#") or trimmed.starts_with("typedef") or trimmed.starts_with("struct ") {
+        return ""
+    }
+    var head = trimmed
+    var brace = trimmed.index_of("\{")
+    if brace >= 0 {
+        head = trimmed.slice(0, brace)
+    }
+    var open = head.index_of("(")
+    var equals = head.index_of("=")
+    if open <= 0 or equals >= 0 and equals < open {
+        return ""
+    }
+    var end = open
+    while end > 0 and head.code_at(end - 1) == 32 {
+        end = end - 1
+    }
+    var name = table.name_before(head, end)
+    var keywords = ["if", "while", "for", "switch", "return", "sizeof", "void", "int", "char"]
+    if keywords.contains(name) {
+        return ""
+    }
+    return name
+}
+
+func looks_like_code(piece: String): Boolean {
+    var trimmed = piece.trim()
+    return not trimmed.starts_with("#") and trimmed.contains("(")
+}
+
+func mentions(text: String, only_taken: Boolean): List<Integer> {
+    var found = List<Integer>()
+    var text_length = text.length()
+    var quote = 0
+    var index = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        if quote != 0 and code == 92 {
+            index = index + 2
+        } else if quote != 0 {
+            if code == quote {
+                quote = 0
+            }
+            index = index + 1
+        } else if code == 34 or code == 39 {
+            quote = code
+            index = index + 1
+        } else if code == 47 and text.code_at(index + 1) == 42 {
+            index = table.comment_end(text, index + 2)
+        } else if table.is_name_code(code) {
+            var start = index
+            index = name_end_from(text, index)
+            note_mention(text, start, index, only_taken, found)
+        } else {
+            index = index + 1
+        }
+    }
+    return found
+}
+
+func name_end_from(text: String, start: Integer): Integer {
+    var text_length = text.length()
+    var index = start
+    while index < text_length {
+        var code = text.code_at(index)
+        if not table.is_name_code(code) {
+            return index
+        }
+        index = index + 1
+    }
+    return index
+}
+
+func is_address_taken(text: String, start: Integer, end: Integer): Boolean {
+    var text_length = text.length()
+    var after = end
+    while after < text_length and is_space_at(text, after) {
+        after = after + 1
+    }
+    if after < text_length and text.code_at(after) == 40 {
+        return false
+    }
+    var before = start
+    while before > 0 and is_space_at(text, before - 1) {
+        before = before - 1
+    }
+    return not ends_with_at(text, before, "(void)&") and not ends_with_at(text, before, "spite_singleton_created(")
+}
+
+func ends_with_at(text: String, end: Integer, suffix: String): Boolean {
+    var suffix_length = suffix.length()
+    if end < suffix_length {
+        return false
+    }
+    var index = 0
+    while index < suffix_length {
+        if text.code_at(end - suffix_length + index) != suffix.code_at(index) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_space_at(text: String, index: Integer): Boolean {
+    var code = text.code_at(index)
+    return code == 32 or code == 9 or code == 10 or code == 13
+}
+
+func note_mention(text: String, start: Integer, end: Integer, only_taken: Boolean, found: List<Integer>) {
+    assert not skip_teardowns or not ends_with_at(text, start, "spite_singleton_created(")
+    var position = table.find_function(text, start, end)
+    if position >= 0 and not only_taken {
+        found.append(position)
+    } else if position >= 0 and is_address_taken(text, start, end) {
+        note_taken(text, start, position, found)
+    }
+}
+
+func note_taken(text: String, start: Integer, position: Integer, found: List<Integer>) {
+    var before = start
+    while before > 0 and is_space_at(text, before - 1) {
+        before = before - 1
+    }
+    if ends_with_at(text, before, "->spite_typed_call = (void*)") and is_group_piece(position) {
+        group_pieces.append(position)
+    } else if ends_with_at(text, before, "->spite_typed_call = (void*)") {
+        typed_targets.append(position)
+    } else if ends_with_at(text, before, "->spite_call = (void (*)(void*))") {
+        dropping_targets.append(position)
+    } else {
+        found.append(position)
+    }
+}
+
+func reach_from_roots() {
+    var waiting = roots.copy()
+    while not waiting.is_empty() {
+        reach_all(waiting)
+        add_called_values(waiting)
+    }
+}
+
+func reach_all(waiting: List<Integer>) {
+    while not waiting.is_empty() {
+        var position = waiting.last()
+        crash position
+        waiting.remove_last()
+        if reached[position] == false {
+            reached[position] = true
+            reach_piece(position, waiting)
+        }
+    }
+}
+
+func add_called_values(waiting: List<Integer>) {
+    var index = 0
+    while index < typed_targets.count() {
+        var target = typed_targets[index]
+        var arity = target_arity(target)
+        var called = typed_calls_unknown or arity == "unknown" or called_arities.has(arity)
+        if reached[target] == false and called {
+            waiting.append(target)
+        }
+        index = index + 1
+    }
+    index = 0
+    while dropping_called and index < dropping_targets.count() {
+        var target = dropping_targets[index]
+        if reached[target] == false {
+            waiting.append(target)
+        }
+        index = index + 1
+    }
+}
+
+func target_arity(position: Integer): String {
+    crash pieces[position]
+    crash piece_names[position]
+    var piece = pieces[position]
+    var name = piece_names[position]
+    var name_at = piece.index_of("{name}(")
+    if name_at < 0 {
+        return "unknown"
+    }
+    var open = name_at + name.length()
+    return arity_after(piece, open)
+}
+
+func arity_after(text: String, open: Integer): String {
+    var text_length = text.length()
+    var depth = 0
+    var commas = 0
+    var index = open
+    while index < text_length {
+        var code = text.code_at(index)
+        if code == 40 {
+            depth = depth + 1
+        } else if code == 41 {
+            depth = depth - 1
+        } else if code == 44 and depth == 1 {
+            commas = commas + 1
+        }
+        if code == 41 and depth == 0 {
+            return counted_arity(text, open, index, commas)
+        }
+        index = index + 1
+    }
+    return "unknown"
+}
+
+func counted_arity(text: String, open: Integer, close: Integer, commas: Integer): String {
+    var inside = text.slice(open + 1, close)
+    var parameters = inside.trim()
+    if parameters.is_empty() or parameters == "void" {
+        return "0"
+    }
+    var arity = commas + 1
+    return arity.to_string()
+}
+
+func note_value_calls(piece: String) {
+    if piece.contains("spite_call") {
+        note_dropping_calls(piece)
+    }
+    var at = piece.index_of("spite_typed_call")
+    while at >= 0 {
+        note_typed_call(piece, at)
+        at = index_after(piece, "spite_typed_call", at + 16)
+    }
+}
+
+func index_after(text: String, wanted: String, start: Integer): Integer {
+    var text_length = text.length()
+    var rest = text.slice(start, text_length)
+    var found = rest.index_of(wanted)
+    if found < 0 {
+        return -1
+    }
+    return start + found
+}
+
+func note_dropping_calls(piece: String) {
+    var piece_length = piece.length()
+    var at = piece.index_of("spite_call")
+    while at >= 0 {
+        var end = at + 10
+        var starts_name = at == 0 or not receiver_code_at(piece, at - 1)
+        var ends_name = end >= piece_length or not receiver_code_at(piece, end)
+        if starts_name and ends_name and not is_assigned_field(piece, at, end) {
+            dropping_called = true
+            return
+        }
+        at = index_after(piece, "spite_call", end)
+    }
+}
+
+func is_assigned_field(piece: String, start: Integer, end: Integer): Boolean {
+    if not ends_with_at(piece, start, "->") {
+        return false
+    }
+    var piece_length = piece.length()
+    var after = end
+    while after < piece_length and is_space_at(piece, after) {
+        after = after + 1
+    }
+    var next = piece.code_at(after + 1)
+    return after < piece_length and piece.code_at(after) == 61 and next != 61
+}
+
+func note_typed_call(piece: String, at: Integer) {
+    var end = at + 16
+    var piece_length = piece.length()
+    var after = end
+    while after < piece_length and is_space_at(piece, after) {
+        after = after + 1
+    }
+    var next = piece.code_at(after)
+    var following = piece.code_at(after + 1)
+    var compared = next == 61 and following == 61 or next == 33 and following == 61
+    assert not compared and not is_assigned_field(piece, at, end)
+    if next != 41 or not ends_with_at(piece, at, "->") {
+        typed_calls_unknown = true
+        return
+    }
+    var receiver = at - 2
+    while receiver > 0 and receiver_code_at(piece, receiver - 1) {
+        receiver = receiver - 1
+    }
+    var cast_end = receiver - 1
+    if cast_end < 1 or piece.code_at(cast_end) != 41 {
+        typed_calls_unknown = true
+        return
+    }
+    var cast_open = matching_open(piece, cast_end)
+    if cast_open < 1 {
+        typed_calls_unknown = true
+        return
+    }
+    var signature = piece.slice(cast_open + 1, cast_end)
+    var pointer_at = signature.index_of("(*)(")
+    if pointer_at < 0 {
+        typed_calls_unknown = true
+        return
+    }
+    var arity = arity_after(signature, pointer_at + 3)
+    called_arities[arity] = true
+}
+
+func receiver_code_at(text: String, index: Integer): Boolean {
+    var code = text.code_at(index)
+    return table.is_name_code(code)
+}
+
+func matching_open(text: String, close: Integer): Integer {
+    var depth = 0
+    var index = close
+    while index >= 0 {
+        var code = text.code_at(index)
+        if code == 41 {
+            depth = depth + 1
+        } else if code == 40 {
+            depth = depth - 1
+        }
+        if code == 40 and depth == 0 {
+            return index
+        }
+        index = index - 1
+    }
+    return -1
+}
+
+func reach_piece(position: Integer, waiting: List<Integer>) {
+    crash pieces[position]
+    crash piece_names[position]
+    crash next_same[position]
+    var piece = pieces[position]
+    var name = piece_names[position]
+    if next_same[position] >= 0 {
+        waiting.append(next_same[position])
+    }
+    var counts = piece.contains("SPITE_COUNT_UP(") or piece.contains("SPITE_COUNT_DOWN(")
+    if counts and position >= first_body and not counts_its_own(name) {
+        counted_unknown = true
+    }
+    var counted_class = counted_class_of(name)
+    if not counted_class.is_empty() {
+        shared[counted_class] = true
+        var released = "{counted_class}___release"
+        var released_length = released.length()
+        var release = table.find_function(released, 0, released_length)
+        if release >= 0 {
+            waiting.append(release)
+        } else if counts and not piece.contains("(self->header.ref_count)") {
+            counted_unknown = true
+        }
+    }
+    note_value_calls(piece)
+    note_made_elsewhere(piece, name)
+    var mentioned = mentions(piece, false)
+    mentioned.each(waiting.append)
+}
+
+# ../../../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts
+func is_group_piece(position: Integer): Boolean {
+    crash piece_names[position]
+    var name = piece_names[position]
+    return name.contains("_spite_row_") and name.ends_with("_piece")
+}
+
+func share_group_members(piece_position: Integer) {
+    var targets = member_targets(piece_position)
+    if targets.is_empty() {
+        var waiting = [piece_position]
+        reach_all(waiting)
+        reach_from_roots()
+        return
+    }
+    var blocked = Dictionary<Integer, Boolean>()
+    var index = 0
+    while index < targets.count() {
+        var blocked_target = targets[index]
+        blocked[blocked_target] = true
+        index = index + 1
+    }
+    member_keeps_holders = true
+    member_walk(piece_position, blocked)
+    member_keeps_holders = false
+    var own = member_counted.keys()
+    own.each(note_shared)
+    var own_made = member_made.keys()
+    own_made.each(note_made_elsewhere_class)
+    var counted_sets = List<Dictionary<String, Boolean>>()
+    var made_sets = List<Dictionary<String, Boolean>>()
+    var no_block = Dictionary<Integer, Boolean>()
+    index = 0
+    while index < targets.count() {
+        member_walk(targets[index], no_block)
+        counted_sets.append(member_counted)
+        made_sets.append(member_made)
+        index = index + 1
+    }
+    var first = 0
+    while first < targets.count() {
+        var second = first + 1
+        while second < targets.count() {
+            if runs_together(targets[first], targets[second]) {
+                crash counted_sets[first]
+                crash counted_sets[second]
+                crash made_sets[first]
+                crash made_sets[second]
+                share_common(counted_sets[first], counted_sets[second], group_shared)
+                share_common(made_sets[first], made_sets[second], group_made)
+            }
+            second = second + 1
+        }
+        first = first + 1
+    }
+}
+
+func runs_together(first: Integer, second: Integer): Boolean {
+    crash piece_names[first]
+    crash piece_names[second]
+    var first_name = piece_names[first]
+    var second_name = piece_names[second]
+    return together.has("{first_name}|{second_name}") or together.has("{second_name}|{first_name}")
+}
+
+func share_common(
+    first: Dictionary<String, Boolean>,
+    second: Dictionary<String, Boolean>,
+    into: Dictionary<String, Boolean>,
+) {
+    var names = first.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if second.has(name) {
+            into[name] = true
+        }
+        index = index + 1
+    }
+}
+
+func note_shared(counted_class: String) {
+    group_shared[counted_class] = true
+}
+
+func note_made_elsewhere_class(made_class: String) {
+    group_made[made_class] = true
+}
+
+func counts_shared(counted_class: String): Boolean {
+    return shared.has(counted_class) or group_shared.has(counted_class)
+}
+
+# ../../../docs/optimizations.md#counts-stay-plain-for-what-one-of-the-calls-run-at-once-counts
+func pools_per_thread(class_name: String): Boolean {
+    return group_shared.has(class_name) or group_made.has(class_name)
+}
+
+func member_targets(piece_position: Integer): List<Integer> {
+    var targets = List<Integer>()
+    crash pieces[piece_position]
+    var piece = pieces[piece_position]
+    var marker = "___call_"
+    var at = piece.index_of(marker)
+    if at < 0 {
+        return targets
+    }
+    var name = table.name_before(piece, at)
+    var end = name_end_from(piece, at)
+    var dispatcher_name = "{name}{piece.slice(at, end)}"
+    var dispatcher_length = dispatcher_name.length()
+    var dispatcher = table.find_function(dispatcher_name, 0, dispatcher_length)
+    if dispatcher < 0 {
+        return targets
+    }
+    crash pieces[dispatcher]
+    crash next_same[dispatcher]
+    if next_same[dispatcher] >= 0 {
+        return targets
+    }
+    var lines = pieces[dispatcher].split("\n")
+    var index = 1
+    while index < lines.count() {
+        var line = lines[index]
+        var open = line.index_of(") \{ ")
+        var tested = line.contains("->class_id == ") or line.contains(".tag == ")
+        if tested and open > 0 {
+            var line_length = line.length()
+            var rest = line.slice(open + 4, line_length)
+            var call_open = rest.index_of("(")
+            var target = table.find_function(rest, 0, call_open)
+            assert call_open > 0 and target >= 0
+            targets.append(target)
+        }
+        index = index + 1
+    }
+    return targets
+}
+
+func member_walk(start: Integer, blocked: Dictionary<Integer, Boolean>) {
+    member_reached = List<Boolean>()
+    var index = 0
+    while index < pieces.count() {
+        member_reached.append(false)
+        index = index + 1
+    }
+    member_counted = Dictionary<String, Boolean>()
+    member_made = Dictionary<String, Boolean>()
+    member_arities = Dictionary<String, Boolean>()
+    member_typed_unknown = false
+    member_dropping = false
+    var waiting = [start]
+    while not waiting.is_empty() {
+        member_reach_all(waiting, blocked)
+        add_member_values(waiting)
+    }
+}
+
+func member_reach_all(waiting: List<Integer>, blocked: Dictionary<Integer, Boolean>) {
+    while not waiting.is_empty() {
+        var position = waiting.last()
+        crash position
+        waiting.remove_last()
+        if member_reached[position] == false and not blocked.has(position) {
+            member_reached[position] = true
+            member_reach_piece(position, waiting)
+        }
+    }
+}
+
+func add_member_values(waiting: List<Integer>) {
+    var index = 0
+    while index < typed_targets.count() {
+        var target = typed_targets[index]
+        var arity = target_arity(target)
+        var called = member_typed_unknown or arity == "unknown" or member_arities.has(arity)
+        if member_reached[target] == false and called {
+            waiting.append(target)
+        }
+        index = index + 1
+    }
+    index = 0
+    while member_dropping and index < dropping_targets.count() {
+        var target = dropping_targets[index]
+        if member_reached[target] == false {
+            waiting.append(target)
+        }
+        index = index + 1
+    }
+}
+
+func member_reach_piece(position: Integer, waiting: List<Integer>) {
+    crash pieces[position]
+    crash piece_names[position]
+    crash next_same[position]
+    var piece = pieces[position]
+    var name = piece_names[position]
+    if next_same[position] >= 0 {
+        waiting.append(next_same[position])
+    }
+    var counts = piece.contains("SPITE_COUNT_UP(") or piece.contains("SPITE_COUNT_DOWN(")
+    if counts and position >= first_body and not counts_its_own(name) {
+        counted_unknown = true
+    }
+    var counted_class = counted_class_of(name)
+    if not counted_class.is_empty() {
+        member_counted[counted_class] = true
+        var released = "{counted_class}___release"
+        var released_length = released.length()
+        var release = table.find_function(released, 0, released_length)
+        if release >= 0 {
+            waiting.append(release)
+        } else if counts and not piece.contains("(self->header.ref_count)") {
+            counted_unknown = true
+        }
+    }
+    assert not member_keeps_holders or not name.ends_with("___release")
+    note_member_value_calls(piece)
+    note_member_made(piece, name)
+    skip_teardowns = true
+    var mentioned = mentions(piece, false)
+    skip_teardowns = false
+    mentioned.each(waiting.append)
+}
+
+func note_member_value_calls(piece: String) {
+    var saved_arities = called_arities
+    var saved_unknown = typed_calls_unknown
+    var saved_dropping = dropping_called
+    called_arities = member_arities
+    typed_calls_unknown = member_typed_unknown
+    dropping_called = member_dropping
+    note_value_calls(piece)
+    member_arities = called_arities
+    member_typed_unknown = typed_calls_unknown
+    member_dropping = dropping_called
+    called_arities = saved_arities
+    typed_calls_unknown = saved_unknown
+    dropping_called = saved_dropping
+}
+
+func note_member_made(piece: String, name: String) {
+    var saved = made_elsewhere
+    made_elsewhere = member_made
+    note_made_elsewhere(piece, name)
+    member_made = made_elsewhere
+    made_elsewhere = saved
+}
+
+func note_made_elsewhere(piece: String, name: String) {
+    if name.ends_with("___free") {
+        var name_length = name.length()
+        var freed_class = name.slice(0, name_length - 7)
+        made_elsewhere[freed_class] = true
+    }
+    assert piece.contains(")SPITE_MALLOC(sizeof(")
+    var parts = piece.split(")SPITE_MALLOC(sizeof(")
+    var index = 1
+    while index < parts.count() {
+        var part = parts[index]
+        var end = part.index_of(")")
+        if end > 0 {
+            var made_class = part.slice(0, end)
+            made_elsewhere[made_class] = true
+        }
+        index = index + 1
+    }
+}
+
+# ../../../docs/optimizations.md#objects-of-one-class-sit-together
+func leaves_to_one_thread(class_name: String): Boolean {
+    return not counted_unknown and not shared.has(class_name) and not made_elsewhere.has(class_name)
+}
+
+func counts_its_own(name: String): Boolean {
+    var boxes = name == "spite_box_release" or name == "spite_string_box_release"
+    return boxes or name.ends_with("___retain") or name.ends_with("___release")
+}
+
+func counted_class_of(name: String): String {
+    var name_length = name.length()
+    if name.ends_with("___retain") {
+        return name.slice(0, name_length - 9)
+    }
+    if name.ends_with("___release") {
+        return name.slice(0, name_length - 10)
+    }
+    return ""
+}
+
+func rewritten_bodies(): String {
+    var kept = List<String>()
+    var index = first_body
+    while index < pieces.count() {
+        var piece = pieces[index]
+        var name = piece_names[index]
+        crash name
+        var counted_class = counted_class_of(name)
+        var counts_up = piece.contains("SPITE_COUNT_UP(self->header.ref_count)")
+        var own_count = counts_up or piece.contains("SPITE_COUNT_DOWN(self->header.ref_count)")
+        if name.ends_with("___retain") and is_plain_union_retain(piece, counted_class) {
+            var plain_object = piece.replace(
+                "SPITE_COUNT_UP(((SpiteHeader*)self",
+                "SPITE_PLAIN_COUNT_UP(((SpiteHeader*)self",
+            )
+            kept.append(plain_object)
+        } else if counted_class.is_empty() or not own_count {
+            kept.append(piece)
+        } else if shared.has(counted_class) {
+            note_class(shared_classes, counted_class)
+            kept.append(piece)
+        } else if group_shared.has(counted_class) {
+            note_class(shared_classes, counted_class)
+            var row_up = piece.replace(
+                "SPITE_COUNT_UP(self->header.ref_count)",
+                "SPITE_ROW_COUNT_UP(self->header.ref_count)",
+            )
+            var row = row_up.replace(
+                "SPITE_COUNT_DOWN(self->header.ref_count)",
+                "SPITE_ROW_COUNT_DOWN(self->header.ref_count)",
+            )
+            kept.append(row)
+        } else {
+            note_class(plain_classes, counted_class)
+            var plain_up = piece.replace(
+                "SPITE_COUNT_UP(self->header.ref_count)",
+                "SPITE_PLAIN_COUNT_UP(self->header.ref_count)",
+            )
+            var plain = plain_up.replace(
+                "SPITE_COUNT_DOWN(self->header.ref_count)",
+                "SPITE_PLAIN_COUNT_DOWN(self->header.ref_count)",
+            )
+            kept.append(plain)
+        }
+        index = index + 1
+    }
+    return kept.join("\n")
+}
+
+func is_plain_union_retain(piece: String, counted_class: String): Boolean {
+    if counts_shared(counted_class) or not piece.contains("SPITE_COUNT_UP(((SpiteHeader*)self") {
+        return false
+    }
+    var released = "{counted_class}___release"
+    var released_length = released.length()
+    var release = table.find_function(released, 0, released_length)
+    if release < 0 {
+        return false
+    }
+    crash pieces[release]
+    crash next_same[release]
+    var release_piece = pieces[release]
+    if next_same[release] >= 0 or not release_piece.contains("if (self") {
+        return false
+    }
+    var members = mentions(release_piece, false)
+    return members.all(is_plain_member)
+}
+
+func is_plain_member(position: Integer): Boolean {
+    crash piece_names[position]
+    var name = piece_names[position]
+    if reached[position] == true {
+        return false
+    }
+    if name == "spite_box_release" or name == "spite_string_box_release" {
+        return true
+    }
+    var member = counted_class_of(name)
+    return not member.is_empty() and not counts_shared(member)
+}
+
+func note_class(names: List<String>, counted_class: String) {
+    if names.is_empty() or names.last() != counted_class {
+        names.append(counted_class)
+    }
+}

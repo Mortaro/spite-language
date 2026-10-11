@@ -39,11 +39,11 @@ same function, and removes them, so `naive.c` runs as fast as `expert.c`, and no
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 4 029 | 193 536 |
-| naive C: `naive.c`, `clang -O2` | 3 902 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 3 895 | 139 264 |
+| Spite: `naive/`, `--optimized` | 3 986 | 196 096 |
+| naive C: `naive.c`, `clang -O2` | 3 828 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 3 869 | 139 264 |
 
-Spite takes 1.03 times naive C's time and 1.03 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=4029 naive=3902 expert=3895 -->
+Spite takes 1.04 times naive C's time and 1.03 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=3986 naive=3828 expert=3869 -->
 <!-- /timings -->

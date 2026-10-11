@@ -2,7 +2,7 @@
 # Compile time at scale: how long building an executable takes, from one C file and from translation units
 # compiled in parallel and cached (docs/compiler.md#translation-units-the-c-compiled-in-parallel-and-cached). Not part of check.sh. Run from anywhere:
 #   bash scripts/build_times.sh [compiler] [program folder ...]
-# With no program named it times the compiler itself (bootstrap) and a generated program of about 200 000 lines
+# With no program named it times the compiler itself (compiler) and a generated program of about 200 000 lines
 # (written to .spite/build_times/synthetic by the awk below); name another folder (a copy of an engine's
 # example, say) to time that too. Every build is timed four ways, with and without --optimized:
 #   one file   SPITE_TRANSLATION_UNITS=1, the whole C in one file and one C compiler process, as before
@@ -55,7 +55,7 @@ if [ ! -f "$synthetic/synthetic.spite" ]; then
 fi
 
 programs=("$@")
-[ ${#programs[@]} -eq 0 ] && programs=(bootstrap "$synthetic")
+[ ${#programs[@]} -eq 0 ] && programs=(compiler "$synthetic")
 
 milliseconds() {
     local start finish

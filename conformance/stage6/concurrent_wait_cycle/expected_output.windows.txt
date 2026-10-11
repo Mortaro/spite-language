@@ -3,7 +3,7 @@ spite.frame	library/scheduler.spite:90	Scheduler	joins
 spite.frame	-	-	Scheduler_wait_for___step
 spite.frame	-	-	Concurrent__Nothing__join___step
 spite.frame	-	-	Board_release_first___step
-spite.frame	bootstrap/source/generation/prelude.spite:1	Scheduler	step_frame
+spite.frame	compiler/source/generation/prelude.spite:1	Scheduler	step_frame
 spite.frame	library/scheduler.spite:68	Scheduler	run_frame
 spite.frame	library/scheduler.spite:150	Scheduler	step_ready
 spite.frame	library/scheduler.spite:322	Scheduler	idle_stepping

@@ -4,9 +4,11 @@
 
 int32_t Naive_add_many(Naive* self, int32_t count_) {
     int32_t index_ = 0;
+    int32_t spite_coarse_1_skipping = spite_coarse_1_skip_enter();
     while (((index_ < count_))) {
-        index_ = Tally_add(self->tally_, index_);
+        index_ = (spite_coarse_1_skipping ? Tally_add___unguarded(self->tally_, index_) : Tally_add(self->tally_, index_));
     }
+    spite_coarse_1_skip_leave(spite_coarse_1_skipping);
     int32_t spite_temp_1 = index_;
     return spite_temp_1;
 }

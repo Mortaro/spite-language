@@ -67,8 +67,8 @@ the script:
 
 | program | C | build | one file | cold | warm | one edit |
 |---|---|---|---|---|---|---|
-| the compiler (`bootstrap`) | 7.2 MB | default (`-O0`) | 18 989 | 22 467 | 12 799 | 13 298 |
-| the compiler (`bootstrap`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
+| the compiler (`compiler`) | 7.2 MB | default (`-O0`) | 18 989 | 22 467 | 12 799 | 13 298 |
+| the compiler (`compiler`) | 7.2 MB | `--optimized` | 37 673 | 14 495 | 11 392 | 13 348 |
 | a large game's example | 14.1 MB | default (`-O0`), one file only | 26 071 | 23 546 | 23 971 | 27 202 |
 | a large game's example | 14.1 MB | `--optimized` | 80 127 | 45 670 | 30 696 | 67 173 |
 | synthetic, 209 206 lines | 20.5 MB | default (`-O0`) | 31 577 | 32 067 | 17 417 | 19 939 |
@@ -91,10 +91,10 @@ its warm build because the edited class is generic, and every instantiation of i
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | not timed | 169 984 |
+| Spite: `naive/`, `--optimized` | not timed | 171 008 |
 | naive C: `naive.c`, `clang -O2` | not timed | 138 752 |
 | expert C: `expert.c`, `clang -O2` | not timed | 138 752 |
 
-Measured 2026-10-07, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; shared with another session building and benchmarking the compiler at the same time.
+Measured 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
 <!-- measured untimed -->
 <!-- /timings -->

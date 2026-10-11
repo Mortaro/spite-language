@@ -40,11 +40,11 @@ still one addition after another; only the reassociation lets the additions run 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 31 791 | 219 648 |
-| naive C: `naive.c`, `clang -O2` | 508 341 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 15 935 | 139 264 |
+| Spite: `naive/`, `--optimized` | 31 528 | 222 208 |
+| naive C: `naive.c`, `clang -O2` | 504 044 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 15 874 | 139 264 |
 
-Spite takes 0.06 times naive C's time and 2.00 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=31791 naive=508341 expert=15935 -->
+Spite takes 0.06 times naive C's time and 1.99 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=31528 naive=504044 expert=15874 -->
 <!-- /timings -->

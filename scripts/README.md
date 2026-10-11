@@ -1,10 +1,6 @@
 # Helper tools
 
-Rescued from `.spite-cache/` before it was deleted; they were written while porting the compiler and are not
-part of any build.
-
-- `patch_tool.py`: applies a patch file to `bootstrap/source/generation/generator.spite`.
-- `regenerate_type_shape.py`: regenerates type-shape tables.
+The programs and scripts `check.sh` and the release hook use. Every tool here is to become Spite (D578).
 
 `formatting/` lists every `.spite` file under the folders it is given that the compiler's formatter would change,
 writing nothing: `check.sh` runs it over the repository, since a compile formats a program's own files but never

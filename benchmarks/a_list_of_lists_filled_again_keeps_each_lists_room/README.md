@@ -32,11 +32,11 @@ appended without a single allocation after the first round.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 121 142 | 207 872 |
-| naive C: `naive.c`, `clang -O2` | 342 006 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 6 829 | 139 264 |
+| Spite: `naive/`, `--optimized` | 100 933 | 210 944 |
+| naive C: `naive.c`, `clang -O2` | 290 814 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 6 298 | 139 264 |
 
-Spite takes 0.35 times naive C's time and 17.74 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=121142 naive=342006 expert=6829 -->
+Spite takes 0.35 times naive C's time and 16.03 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=100933 naive=290814 expert=6298 -->
 <!-- /timings -->

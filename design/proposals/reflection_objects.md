@@ -82,7 +82,7 @@ By mechanism:
   `forget_arrived`; `Symbol<System>` in `app.spite`; `Symbol<Asset>`, `Symbol<Recipe>` in `recipes/`;
   `Symbol<Bundle>` in `world.spite`.
 - **Conformance**: 28 stage6 programs and 13 diagnostics use `Symbol<`; about 20 of them test a mechanism that goes.
-- **Compiler**: the plural and range machinery is in `bootstrap/source/generation/generator.spite` (`namespace_walk`
+- **Compiler**: the plural and range machinery is in `compiler/source/generation/generator.spite` (`namespace_walk`
   at 5493, the plural check `misnamed_plural` at 11640, about 90 functions touching templates, plurals or ranges)
   and `template_info`, `template_walk`, `row_walk`.
 

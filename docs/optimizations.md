@@ -67,6 +67,8 @@ emit nothing.
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | every but `--hot-reload`, decided per program | an uncontended lock per call, only with `Parallel` |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [A counted loop of calls to one singleton takes its lock once](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once) | every but `--hot-reload`, `--repl`, `--repl-port`, decided per loop | one lock for the loop instead of one per call, only with `Parallel` |
+| [An attribute read only under its singleton's lock is a plain number](#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number) | every but `--hot-reload`, `--repl`, `--repl-port`, decided per singleton | nothing but speed |
+| [A loop of calls to one singleton tests for tasks once](#a-loop-of-calls-to-one-singleton-tests-for-tasks-once) | every but `--hot-reload`, `--repl`, `--repl-port`, only with `Parallel` | one test per loop instead of one per call |
 | [A singleton's reading functions do not exclude each other](#a-singletons-reading-functions-do-not-exclude-each-other) | every but `--hot-reload`, decided per singleton | readers count on their own cache line; 2 KiB of counts per such singleton |
 | [While no task runs, a singleton's lock is skipped](#while-no-task-runs-a-singletons-lock-is-skipped) | every but `--hot-reload`, only with `Parallel` | one load per locked call, two atomic additions per task |
 | [The fault handler is in every program](#the-fault-handler-is-in-every-program) | every | a cost, not an optimisation: about 3.7 KB of code and 32 bytes and a name per function; one store per foreign call |
@@ -107,7 +109,7 @@ emit nothing.
 
 **What it does.** After the program is generated, the compiler keeps only the C that `main` can reach: every
 function nothing calls, from your classes, `library/` or the compiler's own prelude, is dropped along with its
-prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
+prototype (`compiler/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
 `struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
 and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
 would free that object at exit, every text literal, static table and prototype only dropped code named, and the
@@ -825,7 +827,7 @@ machines ([below](#hidden-asyncawait-as-compile-time-state-machines)). [concurre
 **What it does.** Waiting on IO is written as an ordinary call and the compiler turns it into a point where other
 work runs. It is done at compile time, with no stacks to switch: every function that can reach a wait from inside
 a `Concurrent` is compiled a second time as a **state machine**
-(`bootstrap/source/generation/state_machine.spite`, and the `emit_state_machines` part of the generator):
+(`compiler/source/generation/state_machine.spite`, and the `emit_state_machines` part of the generator):
 
 - a **frame**, a C struct holding the function's parameters, every local and temporary of its body, and one slot
   per wait for the frame of the function it is waiting on;
@@ -1163,7 +1165,9 @@ Only when none of these applies does the singleton take [the lock](#singletons-a
    it too) is atomic on its own. Reading it from another class is one atomic load and takes no lock; the
    singleton's functions still take their lock and read and write it atomically; a write to it from another class
    still takes the lock. Since no write leaves it half done and every writer holds the lock, a reader that takes no
-   lock sees a value some locked step left, exactly as if it had waited for the lock and read it.
+   lock sees a value some locked step left, exactly as if it had waited for the lock and read it. Only a read from
+   another class reads it past the lock, so where the program has no such read, the attribute is a plain number
+   again ([below](#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)).
 
 ```gdscript
 singleton
@@ -1214,7 +1218,8 @@ singleton locked exactly as it would have, and nothing it can see differs.
 
 **When.** In every wrapper the lock gives a function, writing and reading ones alike, in a program that makes a
 `Parallel` or a `parallel_each_` pass; sixteen skipped singletons deep at most, beyond which the lock is taken as
-before. Writes and reads of attributes from other classes and counted loops keep their lock.
+before. Writes and reads of attributes from other classes and counted loops keep their lock. A loop of calls that would take the lock once but
+for not being counted [tests once for the whole loop](#a-loop-of-calls-to-one-singleton-tests-for-tasks-once).
 
 **What you notice.** Speed where the program's own thread calls a locked singleton while nothing runs on the pool, an
 engine applying queued inserts between stages for example: [its case](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/),
@@ -1401,6 +1406,155 @@ exactly as before, and other threads' calls on the singleton wait until the loop
 between two of its calls, which is one of the orders they could already run in. A long counted loop keeps other
 threads that want the singleton waiting for all of it. In the C, the loop is between `spite_coarse_<n>_enter()` and
 `spite_coarse_<n>_leave()` and calls `<function>___unguarded` (`conformance/stage6/coarse_locks`).
+
+### An attribute read only under its singleton's lock is a plain number
+
+**The case:** [benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/).
+
+**What it does.** A locked singleton's attribute that is [atomic on its
+own](#thread-safety-for-singletons-the-cheapest-safe-form) is made atomic so that another class can read it without
+the lock. When no other class reads it directly anywhere in the program (every read of it is in one of the
+singleton's own functions, which hold the lock, or skip it [while no task
+runs](#while-no-task-runs-a-singletons-lock-is-skipped)), nothing ever reads it past the lock, and its reads and
+writes are plain loads, stores and additions: `total = total + amount` is one addition and its overflow test, not a
+locked `fetch_add`.
+
+```gdscript title=locked_tally/tally.spite
+singleton
+
+var total = 0
+var calls = 0
+
+func add(amount: Integer) {
+    total = total + amount
+    calls = calls + 1
+}
+
+func sum(): Integer {
+    return total
+}
+
+func call_count(): Integer {
+    return calls
+}
+```
+```gdscript title=locked_tally/counter.spite
+var tally = Tally()
+
+func run(): Integer {
+    var index = 0
+    while index < 1000 {
+        tally.add(index % 3)
+        index = index + 1
+    }
+    return index
+}
+```
+```gdscript title=locked_tally/locked_tally.spite entry
+var console = Console()
+var tally = Tally()
+
+func LockedTally() {
+    var first = Counter()
+    var second = Counter()
+    var first_run = Parallel(first.run)
+    var second_run = Parallel(second.run)
+    var counted = first_run + second_run
+    var total = tally.sum()
+    var calls = tally.call_count()
+    console.print("counted", counted, "total", total, "calls", calls)
+}
+```
+```output
+counted 2000 total 1998 calls 2000
+```
+
+`add` writes `total` and `calls` once each, so both are atomic on their own, but the program reads them only through
+`sum` and `call_count`, which take `Tally`'s lock: `Tally___atomic` is 0, and `Tally_add___unguarded` adds to them
+plainly. Reading `tally.total` from `LockedTally` instead would read it past the lock and keep it atomic.
+
+**When.** In every build that has lone atomic attributes (not `--hot-reload`, `--repl` or `--repl-port`), for a
+locked singleton none of whose attributes is read from another class by a read that takes no lock. A singleton in
+the atomics form keeps its atomics, since nothing locks it.
+
+**What you notice.** Speed: in [the counted loop's case](../benchmarks/a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/),
+four workers making 5 million calls each under the lock they take once, the 20 million calls took 76.6 ms with two
+locked additions each and 24.4 ms with plain ones. Nothing a program prints changes: every read and write was already
+made under the lock, or while no other thread ran.
+
+### A loop of calls to one singleton tests for tasks once
+
+**The case:** [benchmarks/while_no_task_runs_a_singletons_lock_is_skipped](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/).
+
+**What it does.** A `while` that calls a locked singleton's functions, and that would take [its lock
+once](#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once) but for not being counted (its index is what a
+call answers, or it ends on a condition), asks once, before it starts, whether any task is on the thread pool. When
+none is, it notes on its thread's stack that it skipped the singleton's lock, as [a skipped
+call](#while-no-task-runs-a-singletons-lock-is-skipped) does, and calls the functions' unlocked bodies directly for
+the whole loop; when one is, every call takes the lock as before. Each call is written as both direct calls,
+`(spite_coarse_<n>_skipping ? <function>___unguarded(...) : <function>(...))`, so the C compiler inlines the unlocked
+body into a copy of the loop it makes for the skipping case.
+
+```gdscript title=tested_once/tally.spite
+singleton
+
+var total = 0
+var calls = 0
+
+func add(amount: Integer): Integer {
+    total = total + amount
+    calls = calls + 1
+    return amount + 1
+}
+
+func sum(): Integer {
+    return total
+}
+```
+```gdscript title=tested_once/worker.spite
+var tally = Tally()
+
+func run(): Integer {
+    return tally.add(1)
+}
+```
+```gdscript title=tested_once/tested_once.spite entry
+var console = Console()
+var tally = Tally()
+
+func TestedOnce() {
+    var worker = Worker()
+    var first: Integer = Parallel(worker.run)
+    var index = 0
+    while index < 1000 {
+        index = tally.add(index)
+    }
+    var total = tally.sum()
+    console.print("first", first, "reached", index, "total", total)
+}
+```
+```output
+first 2 reached 1000 total 499501
+```
+
+The `Parallel` makes `Tally` locked, and once it has been read no task is on the pool. The loop's index is what
+`tally.add` answers, so it is not a counted loop, but it locks nothing else and waits for nothing: it tests
+`spite_tasks_in_flight` once, and its thousand calls are `Tally_add___unguarded`.
+
+**When.** Where a counted loop would take the lock once in every respect but being counted: a `while` outside the
+singleton that cannot `return`, calls only that singleton's functions through the attribute that binds it and
+plain-value lists, computes only plain values, and whose calls reach no wait and no `Parallel`, `Concurrent`,
+`ThreadPool`, `Scheduler`, `Lock`, `Program`, `Console`, `File` or `Socket`; every `while` inside it counted; at least
+one call taking the lock; and a singleton that the walk while compiling finds a thread can reach. Not in
+`--hot-reload`, `--repl` or `--repl-port` builds, nor in the resumable copy of a function a `Concurrent` runs.
+
+**What you notice.** Speed:
+[its case](../benchmarks/while_no_task_runs_a_singletons_lock_is_skipped/), ten million calls on the program's
+thread with no task in flight, took 41.5 ms testing for tasks on every call and 9.5 ms testing once. Nothing a
+program prints changes. Nothing in the loop can start a task, and while none runs only the program's own thread runs
+the program, so no other thread can call the singleton until the loop ends; if a task were started anyway, the pool
+would take the skipped lock for this thread first, as for a skipped call, and let it go when the loop ends. A loop
+that started with a task in flight takes the lock on every call, as before, even if the task ends while it runs.
 
 ### An argument its caller holds is passed without counting
 
@@ -2527,8 +2681,8 @@ is 922 lines with this, the crash trace and the foreign library changes in [Smal
 against 1 356 without them.
 
 **Freed small blocks are not kept by size.** Keeping each freed object of up to 256 bytes on a per-thread
-list for its size, for the next allocation of that size, was tried and is not done (objects a list holds are kept
-by class instead, [below](#objects-of-one-class-sit-together)): it was not a clear,
+list for its size, for the next allocation of that size, was tried and is not done (objects are kept by class
+instead, [below](#objects-of-one-class-sit-together)): it was not a clear,
 repeatable gain on a game engine, the program it was for. Against the plain C allocator, `clang -O2`, best of
 nine interleaved runs on one machine: `examples/stress` ticks 42.9 ms with it and 41.9 without in parallel,
 49.0 and 50.9 single-threaded, 60 ticks after despawning 87.7 and 87.2 ms; only the 200 000 spawns (449 and 504
@@ -2540,12 +2694,14 @@ the cost of up to 2 MB kept per thread.
 
 **The case:** [benchmarks/objects_of_one_class_sit_together](../benchmarks/objects_of_one_class_sit_together/).
 
-**What it does.** Every object of a class that a list holds is made from that class's own pool: blocks the size of
-one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
+**What it does.** Every object of a class made and let go on the program's own thread is made from that class's own
+pool: blocks the size of one object, side by side, handed out in order, and taken back by the class when an object is let go, for its next
 object. The C library's allocator puts each object wherever a block of its size is free, so objects of different
 classes made in turn (an entity's position, then its velocity, then its health) end up interleaved, and a loop over
 one class's list touches a new cache line for every object. From their class's pool, the positions sit side by
-side, four 16-byte objects to a 64-byte line, and the loop reads its memory in order.
+side, four 16-byte objects to a 64-byte line, and the loop reads its memory in order. A class made and let go over
+and over, such as the links of a chain made and dropped each round, is made and given back with a few plain
+writes instead of a call into the C library each time.
 
 ```gdscript title=nearby_points/point.spite
 var across = 0
@@ -2596,24 +2752,70 @@ A point and a note are made in turn, a thousand times. Each `Point` comes from `
 `Note`'s, so the loop that sums the points reads one run of points after another and never a note. A point let go
 goes back to `Point`'s pool, and the next `Point` made takes its place.
 
+No list has to hold a class's objects for it to have a pool. Each round below makes a chain of a hundred links and
+lets it go: every `Link` after the first round is one a previous chain gave back, and nothing is asked of the C
+library at all.
+
+```gdscript title=chain_links/link.spite
+var value = 0
+var next: Link? = null
+
+func Link(new_value: Integer, new_next: Link?) {
+    value = new_value
+    next = new_next
+}
+```
+```gdscript title=chain_links/chain_links.spite entry
+var console = Console()
+
+func ChainLinks() {
+    var total = 0
+    var round = 0
+    while round < 100 {
+        var head = Link(0, null)
+        var index = 1
+        while index < 100 {
+            var added = Link(index, head)
+            head = added
+            index = index + 1
+        }
+        var current: Link? = head
+        while current {
+            total = total + current.value
+            current = current.next
+        }
+        round = round + 1
+    }
+    console.print("total", total)
+}
+```
+```output
+total 495000
+```
+
 A pool starts with room for 16 objects and doubles the room it takes each time it runs out, until a run of
 blocks is at least 256 KiB, each run starting on a cache line. Taking an object is a read of the last one given back, or the next free block; giving
-one back is two writes. Nothing else runs: there is no collector and no table, and a class whose objects no list
-holds keeps the C library's allocator.
+one back is two writes. Nothing else runs: there is no collector and no table.
 
 **When.** Production builds, ordinary or `--optimized`, that allocate with the C library's `malloc` and `free`:
 not a `--debug-memory` build, whose table names every object, not a program that reads
 `Memory.Heap().live_allocations()` or `live_bytes()`, which count the C library's blocks, and not an inspectable
-build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). A class qualifies when the program keeps its objects in a list
-(a `List`, or anything built on `TypedMemory<T>` the same way, such as a `Dictionary`'s values), and it is not a
-singleton. In a program with
-threads, a class qualifies only when no code that can run on another thread counts, makes or frees one of its
-objects ([Proofs](proofs.md#objects-a-list-holds-made-on-one-thread)); a pool has no lock.
+build (`--repl`, `--repl-port`, `--hot-reload`, `--development`). A class qualifies when it is not a singleton and
+frees its objects through its own release alone. One that holds memory of its own (an attribute that is a
+`Memory.Address`, as a `List`, a `Vector`, an `Items` and a `Dictionary` do) qualifies only when the program keeps
+its objects in a list (a `List`, or anything built on `TypedMemory<T>` the same way, such as a `Dictionary`'s
+values): a container's own object is read beside its items, and taken from a pool it slowed `particles` by a tenth.
+In a program with threads, a class qualifies only when no code that can run on another thread counts, makes or
+frees one of its objects ([Proofs](proofs.md#objects-of-a-class-made-on-one-thread)); a pool has no lock.
 
 **What you notice.** Speed, and less memory: a pooled object carries no block header of the C library's. In a game
 engine's stress test (200 000 entities moved by two systems) a tick went from 64.0 to 47.6 ms (60.5 to 43.2 built
 as one C file), sixty ticks after despawning every entity from 113 to 21 ms, spawning them from 163 to 98 ms, and
-the program's peak memory from 96 to 67 MB; a physics step of 5 000 characters from 9.5 to 8.5 ms. The cost is
+the program's peak memory from 96 to 67 MB; a physics step of 5 000 characters from 9.5 to 8.5 ms.
+[allocation_is_the_c_librarys_counted_only_where_read](../benchmarks/allocation_is_the_c_librarys_counted_only_where_read/),
+which makes and drops a chain of 1 000 links 2 000 times, went from 81 to 17 ms, and
+[defaults_the_constructor_replaces_are_never_made](../benchmarks/defaults_the_constructor_replaces_are_never_made/)
+from 30 to 7 ms. The cost is
 that memory a class used stays that class's: an object given back is kept for the next object of its class, never
 for another class and never returned to the system while the program runs. A program that makes a million objects
 of one class, lets them all go and then makes a million of another holds room for both.
@@ -2796,6 +2998,59 @@ copy: allocate, copy each attribute, return, with no table and no lookup.
 copies as fast as before. A copy of a graph allocates its table once per outermost `deep_copy()` call, outside the
 counted allocations `--debug-memory` reports, and frees it before `deep_copy()` returns. A program that never deep
 copies a class that needs the table carries none of it.
+
+### A deep copy nothing changes is the original
+
+**The case:** [benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](../benchmarks/a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/).
+
+**What it does.** A copy is only worth making if something tells it from the original: a write to one that the
+other must not see, or a question about which object it is. When the compiler proves that nothing writes the copy
+or the original for as long as the copy lives, and that nothing in the program asks one of the copied classes for
+its identity, `var copies = orders.deep_copy()` makes nothing: `copies` is `orders`, counted once more, and is let
+go at the end of its block like any copy ([Proofs](proofs.md#a-copy-nothing-changes-is-the-original)).
+
+```gdscript title=shared_copies/order.spite
+var total = 0
+
+func Order(new_total: Integer) {
+    total = new_total
+}
+```
+```gdscript title=shared_copies/shared_copies.spite entry
+var console = Console()
+var orders = List<Order>()
+
+func SharedCopies() {
+    var index = 0
+    while index < 3 {
+        var order = Order(index * 10)
+        orders.append(order)
+        index = index + 1
+    }
+    var sum = 0
+    var round = 0
+    while round < 4 {
+        var copies = orders.deep_copy()
+        sum = sum + copies.sum_total()
+        round = round + 1
+    }
+    console.print("sum", sum)
+}
+```
+```output
+sum 120
+```
+
+Each round only reads its copy, so no round makes one: the four copies of three orders are the list itself. The
+copy is decided per place it is made, so the same class can be copied for real in another function that changes
+its copy.
+
+**When.** Every build but the inspectable ones, in a program that starts no thread and no `Concurrent`, for a copy
+the proof holds for. The decision about identity is made once the whole program is written out, so a comparison
+of the copied class anywhere keeps every copy of it real.
+
+**What you notice.** Fewer allocations under `--debug-memory`: none for the copy. Nothing else: what the program
+prints, and every value it reads through the copy, is the same.
 
 ### A word inflected while compiling
 
@@ -3145,7 +3400,7 @@ reads back to exactly those bits, and infinity and not-a-number as `__builtin_in
 with the same sign and payload.
 
 **How the answer is the C library's.** The compiler works it out by calling the very function it would have written:
-it runs the same member on its own `Float` or `Double` (`bootstrap/source/generation/maths_primitives.spite`), and
+it runs the same member on its own `Float` or `Double` (`compiler/source/generation/maths_primitives.spite`), and
 that member is lowered, in the compiler as in any program, to the C library's `sinf`, `sqrt`, and so on. The operands
 are rounded as the C would round them first (a literal to a `Float` for a `Float` receiver, a `Float` constant widened
 exactly for a `Double` one), so the folded bits are the ones the program would have computed at run time, `nan` sign

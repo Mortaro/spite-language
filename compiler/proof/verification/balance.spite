@@ -1,0 +1,39 @@
+var body = ""
+var allocations = ""
+var frees = ""
+var present = false
+var body_lines = List<String>()
+
+func Balance(text: String) {
+    var lines = text.split("\n")
+    var balance_line = ""
+    var balance_count = 0
+    var index = 0
+    while index < lines.count() {
+        if lines[index].starts_with("allocations: ") {
+            balance_line = lines[index]
+            balance_count = balance_count + 1
+        } else {
+            body_lines.append(lines[index])
+        }
+        index = index + 1
+    }
+    var joined = body_lines.join("\n")
+    body = OutputText().without_final_newlines(joined)
+    if balance_count == 1 {
+        read_counts(balance_line)
+    }
+}
+
+func read_counts(line: String) {
+    var fields = line.split(" ")
+    if fields.count() == 4 and fields[2] == "frees:" {
+        allocations = fields[1]
+        frees = fields[3]
+        present = true
+    }
+}
+
+func balanced(): Boolean {
+    return present and allocations == frees
+}

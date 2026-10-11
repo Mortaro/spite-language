@@ -7,8 +7,8 @@ item lands, delete it here and its line in status.md in the same commit.
 
 Drafted 2026-10-02 from `master` (decisions to D376) and the unmerged branches below.
 Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are relative to the repository;
-`generator.spite` is `bootstrap/source/generation/generator.spite` (about 43 800 lines), `bootstrap.spite` is
-`bootstrap/bootstrap.spite`.
+`generator.spite` is `compiler/source/generation/generator.spite` (about 43 800 lines), `compiler.spite` is
+`compiler/compiler.spite`.
 
 ## Landing from branches (do not build again)
 
@@ -306,9 +306,9 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 2 Types and storage | M1, M7, M4, M3, M5 | `dispatch_classes.spite`, `type_shape.spite`, `tree_shaker.spite`, `function_folder.spite`, generator.spite copy and dispatch regions; `library/list.spite`, `items.spite`, `vector.spite`, the maths classes |
 | 3 Arithmetic | N1, N2 | generator.spite operator and overflow regions, `maths_primitives.spite`, the number classes, the hash and codec files |
 | 4 Memory | E1, E4, E3, E5 | `placement.spite`, `object_escape.spite`, `object_frames.spite`, `owned_local.spite`, `library/memory/*`, `typed_memory.spite`, `weak.spite` |
-| 5 Driver and toolchain | C7, C8, C9 | `bootstrap.spite`, `bin/spite`, `check.sh`, `bootstrap/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
+| 5 Driver and toolchain | C7, C8, C9 | `compiler.spite`, `bin/spite`, `check.sh`, `compiler/source/translation/*`, `code_builder.spite`, `native_faults.spite`, `prelude.spite`, `library/build.spite`, `program.spite` |
 | 6 Waiting, IO and library | K1, K6, S3, K5, S5, then S2 and S1 | `state_machine.spite`, `wait_facts.spite`, `library/console.spite`, `socket.spite`, `udp_socket.spite`, `http_*`, `scheduler.spite`, `foreign_callback.spite`, the system folders |
-| 7 Language rules | L3, S6, F1, F2, F4 | `bootstrap/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
+| 7 Language rules | L3, S6, F1, F2, F4 | `compiler/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |
 | 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |

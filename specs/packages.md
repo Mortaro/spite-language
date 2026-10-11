@@ -119,6 +119,14 @@ package/engine/physics/physics.spite     ->  Engine.Physics.Physics()   (no file
   one, and a new class of your own belongs in a namespace of your own" (`diagnostics/new_spite_class`), and
   `load "spite"` is "'spite' is reserved for the built-in Spite namespace: name the folder something else"
   (`diagnostics/reserved_spite_namespace`).
+- **`Spite.Internal` is for the standard library alone.** The namespace holds what a program must not use directly.
+  Any file outside `library/` and the compiler's own sources that names it is refused: a type, a call, an
+  inheritance, a class written in a `spite/internal/` folder (new or reopening one), or the name inside a string
+  interpolation. The message names the class written (or `Spite.Internal` alone when no class follows) and the plain
+  form to use: "Spite.Internal.Memory is internal to Spite and cannot be used outside the standard library: read
+  bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+  (`diagnostics/internal_use`, `diagnostics/internal_class`). Inside `library/` it is ordinary code. A program that
+  does not use the namespace carries none of it.
 - **Each operating system reopens the classes it changes.** `library/` holds what every system shares, and
   `library/windows/`, `library/linux/` and `library/mac/` hold only what differs: `library/linux/file.spite` reopens
   `File` with the functions that call `libc.so.6`, `library/windows/file.spite` the same functions over

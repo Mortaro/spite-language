@@ -32,7 +32,7 @@ milestone is small, has an exact acceptance test, and leaves the compiler workin
   imperative summary, and end with a trailer naming your actual model, for example
   `Co-authored-by: big-pickle via opencode <noreply@opencode.ai>`. The commit hook refuses a commit without one,
   and refuses em dashes anywhere in the message.
-- Read `AGENTS.md` and `SPITE.md` first. The backend is written in Spite, in `bootstrap/source/backend/`.
+- Read `AGENTS.md` and `SPITE.md` first. The backend is written in Spite, in `compiler/source/backend/`.
 - Each milestone ends with its acceptance test passing and `bash check.sh` still green (the C path must never break).
 - **Nothing in the compiler exists only for a human to read** (D561). Humans skim the final program, not the
   compiler's steps: the IR has no text format, pretty printer or readable names unless a test or a diagnostic needs
@@ -67,7 +67,7 @@ Each is a separate pull of work. Do them in order; stop and report at the end of
 
 ### M0: a hand-built executable (Windows)
 
-Write `bootstrap/source/backend/windows_executable_writer.spite`: given machine code bytes for `main` and a list of
+Write `compiler/source/backend/windows_executable_writer.spite`: given machine code bytes for `main` and a list of
 imported functions from `kernel32.dll`, write a valid Windows executable. Acceptance: a test program builds an
 executable whose code calls `ExitProcess(42)`; running it exits with status 42. Add it to `check.sh` as a step that
 runs only on Windows.
@@ -84,6 +84,11 @@ push, pop, lea, the SSE moves and arithmetic for `Float` and `Double`). Acceptan
 encodes each instruction and compares the bytes with a table checked by hand (taken once from an assembler).
 
 ### M3: the two-level IR and a first lowering (D560)
+
+The whole program's high-level IR stays in memory (hot reload needs it held anyway) and is cached on disk, keyed
+by a hash of each function's source and what it depends on, so a later build, a production one included, loads it
+instead of building it again and rebuilds only what changed (D569). A stale or unreadable entry is rebuilt, never
+trusted. The fast check is built on this cache, after the IR.
 
 `high_ir.spite`, `low_ir.spite` and `lower.spite`. The high-level IR is built from the compiler's typed tree and the
 facts the proof passes record; keep Spite's operations as operations (a list walk is one instruction with a body,

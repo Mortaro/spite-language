@@ -31,11 +31,11 @@ over `steps` stays; folding those too is step 2 of pair S1.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 26 817 | 197 632 |
-| naive C: `naive.c`, `clang -O2` | 37 851 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 19 526 | 139 264 |
+| Spite: `naive/`, `--optimized` | 26 751 | 200 704 |
+| naive C: `naive.c`, `clang -O2` | 37 751 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 19 433 | 139 264 |
 
-Spite takes 0.71 times naive C's time and 1.37 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=26817 naive=37851 expert=19526 -->
+Spite takes 0.71 times naive C's time and 1.38 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=26751 naive=37751 expert=19433 -->
 <!-- /timings -->

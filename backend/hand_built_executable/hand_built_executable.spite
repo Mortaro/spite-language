@@ -3,7 +3,7 @@ var console = Console()
 var program = Program()
 
 func HandBuiltExecutable() {
-    load "../../bootstrap/source/backend"
+    load "../../compiler/source/backend"
     var imported = List<String>()
     imported.append("ExitProcess")
     var image = WindowsExecutableWriter(imported)

@@ -32,9 +32,8 @@ its functions touches it once. `Journal_note` appends with no lock and no atomic
 turn with nothing around them. `naive.c` takes a mutex twice per round, once for the step and once for the hit;
 `expert.c` makes the hits in registers and writes the shared count once per thread.
 
-One thing differs from the page: the page says a singleton that never changes is read plainly, but `Settings___atomic`
-is 1 too, so `SPITE_SINGLETON_LOAD` reads `step_` with a sequentially consistent `__atomic_load_n`. On x86 that is
-the same plain load, so it costs nothing here; on a machine with a weaker memory order it is an ordered load, slower than a plain one.
+`Settings___atomic` is 0 (in `generated.c`), so that load is a plain one, as the page says of a singleton that never
+changes.
 The four workers' atomic additions on one line are what is left between the Spite and `expert.c`.
 
 ## Timings
@@ -42,11 +41,11 @@ The four workers' atomic additions on one line are what is left between the Spit
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 34 841 | 235 520 |
-| naive C: `naive.c`, `clang -O2` | 159 258 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 377 | 139 264 |
+| Spite: `naive/`, `--optimized` | 34 907 | 236 544 |
+| naive C: `naive.c`, `clang -O2` | 157 826 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 389 | 139 264 |
 
-Spite takes 0.22 times naive C's time and 92.42 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=34841 naive=159258 expert=377 -->
+Spite takes 0.22 times naive C's time and 89.74 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=34907 naive=157826 expert=389 -->
 <!-- /timings -->

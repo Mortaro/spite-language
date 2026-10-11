@@ -1,0 +1,3 @@
+func set_product(left: Matrix4, right: Matrix4) {
+    column_0_row_0 = left.column_0_row_0 * right.column_0_row_0
+}

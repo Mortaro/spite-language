@@ -1,6 +1,19 @@
 # Getting started
 
-## Build the compiler
+## Install the compiler
+
+Download the newest `spite-0.0.<n>-windows.zip` from the repository's
+[releases](https://github.com/Mortaro/spite-language/releases), unzip it anywhere, and put the folder on your `PATH`. The
+folder holds `spite.exe` with the `launcher/` and `library/` it reads, so keep them together. Spite writes C and
+builds it, so you also need a C compiler, named in the `CC` environment variable (for example the clang that ships
+with Visual Studio), or `cc`, `clang` or `gcc` on your `PATH`.
+Then `spite hello_world` compiles and runs the program of the [next section](#hello-world).
+
+Each release also carries `spite_compiler.c`, the C that `spite.exe` was built from, and `SHA256SUMS` for both:
+any C compiler turns that file back into the same compiler. Releases are Windows only for now; on another system,
+build from source.
+
+## Build the compiler from source
 
 Spite compiles itself, so the only thing you need is a C compiler (`cc`, `clang` or `gcc`; on Windows, the
 clang that ships with Visual Studio is found on its own). From the repository root:
@@ -9,18 +22,37 @@ clang that ships with Visual Studio is found on its own). From the repository ro
 bin/spite examples/hello
 ```
 
-`bin/spite` builds the compiler from the seed for your system, `bootstrap/seed/linux/spite_compiler.c` or
-`bootstrap/seed/windows/spite_compiler.c`, into `.spite/` the first time it runs (and again whenever that file is
+`bin/spite` builds the compiler from the seed for your system, `compiler/seed/linux/spite_compiler.c` or
+`compiler/seed/windows/spite_compiler.c`, into `.spite/` the first time it runs (and again whenever that file is
 newer), then compiles and runs the program. The seed is the C the Spite compiler emits for its own sources, so
 building it by hand is one command too:
 
 ```bash
-cc -O2 -Wno-parentheses-equality bootstrap/seed/linux/spite_compiler.c -o spite -lm
+cc -O2 -Wno-parentheses-equality compiler/seed/linux/spite_compiler.c -o spite -lm
 ```
 
 The compiler writes C and builds it with the command in the `CC` environment variable, or the first of `cc`,
 `clang` and `gcc` it finds. `bin/spite` picks that command itself: `SPITE_CC` if it is set, else the first C
 compiler it finds (Visual Studio's clang included), and hands it to the compiler as `CC`.
+
+### Working on Spite itself
+
+`bash check.sh`, run from the repository root, proves the compiler and keeps the compiler of every run that passes in
+`.spite/shared/latest/spite.exe`. Put that folder first on your `PATH` and set `CC`, and `spite` is always the newest
+compiler that passed, reading `launcher/` and `library/` from your checkout:
+
+```bash
+spite examples/hello
+```
+
+The first check builds the compiler. A later one builds it again only when `compiler/`, `launcher/` or `library/`
+changed, and then starts from the kept compiler instead of the seed. When none of them changed, it runs every check
+with the compiler that passed for exactly those files. The compiler is always built with `-O3`, so the one you run is
+the one a release ships.
+
+`bash check.sh --update-seed` is the full check: it also proves the compiler frees everything it takes while compiling
+itself, compiles it for every other system, and rewrites the committed seeds. A push to `master` that changes those
+folders releases the next `0.0.x` on its own, and is refused unless a full check passed with exactly them.
 
 ## Hello world
 

@@ -44,7 +44,7 @@ the release build:
 | `text_building` | 496 976 | 178 327 | 155 558 | 160 818 |
 | `sorting` | 496 780 | 164 525 | 167 291 | 165 973 |
 
-The compiler compiling itself (`spite bootstrap --check`), best of five, in CPU milliseconds (the process's own
+The compiler compiling itself (`spite compiler --check`), best of five, in CPU milliseconds (the process's own
 time, since starting a process took up to two seconds on the loaded machine):
 
 | the compiler built | CPU ms |
@@ -66,11 +66,11 @@ into the frame), so read the table for the ratios between levels, not for today'
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 29 943 | 193 536 |
-| naive C: `naive.c`, `clang -O2` | 39 714 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 39 774 | 139 264 |
+| Spite: `naive/`, `--optimized` | 30 075 | 196 608 |
+| naive C: `naive.c`, `clang -O2` | 39 776 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 39 904 | 139 264 |
 
-Spite takes 0.75 times naive C's time and 0.75 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=29943 naive=39714 expert=39774 -->
+Spite takes 0.76 times naive C's time and 0.75 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=30075 naive=39776 expert=39904 -->
 <!-- /timings -->

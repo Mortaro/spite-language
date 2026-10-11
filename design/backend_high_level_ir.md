@@ -1,10 +1,10 @@
 # The high level of Spite's own backend
 
-What [`bootstrap/source/backend/`](../bootstrap/source/backend) builds of a program before any code is written:
+What [`compiler/source/backend/`](../compiler/source/backend) builds of a program before any code is written:
 the form the compiler's own optimisations run on and, later, the form the low level is lowered from (D560, milestone
 M3 of [own_backend_plan.md](proposals/own_backend_plan.md#m3-the-two-level-ir-and-a-first-lowering-d560), the proposal in
 [high_level_ir.md](proposals/high_level_ir.md) and its review). The C generator keeps its decisions for now: the walk
-built here describes the program before those decisions, and [`generation/overlap_facts.spite`](../bootstrap/source/generation/overlap_facts.spite),
+built here describes the program before those decisions, and [`generation/overlap_facts.spite`](../compiler/source/generation/overlap_facts.spite),
 which reads the generated C, answers for the program after them. While the generator still decides, the two describe
 different programs, so every fact the two give is compared in [What the comparison checks](#what-the-comparison-checks)
 and never in a user's program.

@@ -33,11 +33,11 @@ only for a size larger than the slot, and the free at the end is skipped when th
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 14 944 | 194 048 |
-| naive C: `naive.c`, `clang -O2` | 32 260 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 8 461 | 139 264 |
+| Spite: `naive/`, `--optimized` | 15 029 | 197 120 |
+| naive C: `naive.c`, `clang -O2` | 32 399 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 8 523 | 139 264 |
 
-Spite takes 0.46 times naive C's time and 1.77 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=14944 naive=32260 expert=8461 -->
+Spite takes 0.46 times naive C's time and 1.76 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=15029 naive=32399 expert=8523 -->
 <!-- /timings -->

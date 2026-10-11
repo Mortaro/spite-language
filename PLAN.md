@@ -8,10 +8,10 @@ The compiler is written in Spite and compiles itself, emitting C.
 ## Layout
 
 ```
-bootstrap/bootstrap.spite        entry: the compiler's own entry class, Bootstrap
-bootstrap/source/                the compiler, in Spite
-bootstrap/seed/<system>/         the committed fixpoint C for each system; a C compiler turns it back into the compiler
-bootstrap/COMPILER_PLAN.md       the compiler's own plan and progress log
+compiler/compiler.spite        entry: the compiler's own entry class, Compiler
+compiler/source/                the compiler, in Spite
+compiler/seed/<system>/         the committed fixpoint C for each system; a C compiler turns it back into the compiler
+compiler/COMPILER_PLAN.md       the compiler's own plan and progress log
 library/                         Spite.Class, Spite.Attribute and the rest, as ordinary Spite source
 conformance/                     programs the compiler must handle exactly, checked by check.sh
 examples/                        sample programs, each run by check.sh against its expected output
@@ -31,7 +31,7 @@ and balanced allocations.
      program-wide, and `--final-classes` shows each change with its root, so nothing about it is silent.
      Smaller than 10b (reopening is already implemented for user classes), this mostly needs the "library"
      classes to participate in the discovery pass's merge pass.
-   - **10b. Done.** Its design pass lives in `bootstrap/COMPILER_PLAN.md`, "Milestone 10b: the design pass",
+   - **10b. Done.** Its design pass lives in `compiler/COMPILER_PLAN.md`, "Milestone 10b: the design pass",
      and every step of it is built: `--final-classes` writes the merged program back out as Spite source and
      `check.sh` runs what it printed (done first); the reflection members moved into
      `library/spite/class.spite` as ordinary declared members whose *data* the compiler fills when it writes
@@ -47,7 +47,7 @@ and balanced allocations.
      `class`, `functions`, `Class.instances`, enumerating and calling functions by `Symbol`, respond-to checks, defining
      members from data, and hooks when a class is reopened, all of it resolved at compile time and all emitted as source that
      section 16 item 2 and by milestone 11c below; this entry exists because the manual (now `docs/`) pointed at a milestone that was
-     missing from this list. The design pass it needed is recorded in `bootstrap/COMPILER_PLAN.md`.
+     missing from this list. The design pass it needed is recorded in `compiler/COMPILER_PLAN.md`.
      **D12 sets the shape** (`docs/reflection.md`, "Reflection objects"): the whole family lives in the `Spite`
      namespace: `Spite.Class` (`.name`/`.namespace`/`.attributes`/`.functions`/`.instances`), `Spite.Function`
      (`.name`/`.arguments`/`.returns`), `Spite.Argument` (`.name`/`.class`), `Spite.Attribute`
@@ -114,8 +114,8 @@ and balanced allocations.
     their call sites; `docs/metaprogramming.md` and `skills/spite/reference.md` migrate with it, since
     `check.sh` compiles every sample in them. `examples/dungeon` and `examples/arsenal` keep
     requiring `--serve=`/`--environment=` exactly as they do now, since those are flag-fed and undeclared.
-    **Sequencing:** independent of milestones 10-12, but it is a syntax change, so `bootstrap/`'s Spite front end
-    (`bootstrap/source/syntax/`) changes with it. Mortaro wants to bootstrap as soon as possible
+    **Sequencing:** independent of milestones 10-12, but it is a syntax change, so `compiler/`'s Spite front end
+    (`compiler/source/syntax/`) changes with it. Mortaro wants to bootstrap as soon as possible
     (`mortaros_notes.md`, 2026-09-19: get rid of the old code), so a language change that is decided but not
     landed is rework waiting to happen for 8b; this one is cheap and should go early.
 14. **Done, as D70 (2026-09-23).** Symbols are tree-shakable runtime values from a table the compiler writes, which supersedes the compile-time-only rule below. D10 + D11, symbols and two-level reflection (`docs/values_and_types.md` and `docs/metaprogramming.md`): a symbol literal
@@ -127,7 +127,7 @@ and balanced allocations.
     indexing, and that `person.set_attribute('age', 2)` becomes writable in source at all. Overlaps milestone 10b
     (the class-level mapping's shape is part of that design pass) and should probably land with it.
 15. **Nearly done (2026-09-24).** D14, dissolve the runtime (`docs/standard_library.md`, "Pure Spite"). `runtime/` is
-    deleted: the only hand-written C left is `bootstrap/source/generation/prelude.spite` (the allocator switch, the
+    deleted: the only hand-written C left is `compiler/source/generation/prelude.spite` (the allocator switch, the
     object header, `String`'s layout, and the `Memory`/`DynamicLibrary`/`Arguments` floor), and the generated C
     is tree-shaken so a program carries only what it calls. **D81/D82 done (2026-09-24):** no class is
     registered by hand; the members whose bodies stay C are declarations without a body in the compiler's
@@ -169,7 +169,7 @@ and balanced allocations.
       `conformance/stage6/parallel_work`. **2026-09-25:** `Parallel` runs on `ThreadPool` (D135), `parallel_each_`
       with D35's race rule checked, a handle joins where its value is read (D134), `finished`, reads in a row
       overlap, `ThreadLocal`/`Lock`, `File` bytes. **2026-09-25, D176:** a `Concurrent` is a compile-time state
-      machine (`bootstrap/source/generation/state_machine.spite`); the fibers are gone.
+      machine (`compiler/source/generation/state_machine.spite`); the fibers are gone.
       `conformance/stage6/state_machines`, `conformance/stage6/concurrent_sockets`. **Next:** HTTP and database
       calls through the same waits, and running the Linux and macOS folders.
       Names and mechanism wait on Mortaro (`mortaros_missing_decisions.md` 13-18).
@@ -320,7 +320,7 @@ and balanced allocations.
     does is an error naming the template (`diagnostics/template_walk`). **D172 done (2026-09-25):** a variable
     named like a function of its class is an error (`diagnostics/shadowed_function`). **D169 done (2026-09-25):** a
     call undoes a proof only if, followed through what it calls, it may assign an attribute or shrink a list the
-    proof reads (`diagnostics/call_undoes_proof`; `bootstrap/source/generation/call_effects.spite`).
+    proof reads (`diagnostics/call_undoes_proof`; `compiler/source/generation/call_effects.spite`).
 30. **Done (2026-09-25): D178, D150 and D151: the `Memory` namespace** (`docs/memory.md`, `docs/packages.md` and `docs/standard_library.md`; the
     "implements D178" row). `Memory.Address` is a number class whose reads, writes and atomics are primitives
     the compiler lowers in place, callable only from the standard library's classes; `Memory.Heap` is the

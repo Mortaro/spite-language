@@ -39,13 +39,13 @@ uses 8 bytes. `struct Cell` keeps `row`, `column` and `style` beside the hot fie
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 625 685 | 239 616 |
-| naive C: `naive.c`, `clang -O2` | 585 704 | 141 824 |
-| expert C: `expert.c`, `clang -O2` | 102 526 | 141 312 |
+| Spite: `naive/`, `--optimized` | 620 120 | 243 712 |
+| naive C: `naive.c`, `clang -O2` | 598 079 | 141 824 |
+| expert C: `expert.c`, `clang -O2` | 101 337 | 141 312 |
 
-Spite takes 1.07 times naive C's time and 6.10 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=625685 naive=585704 expert=102526 -->
+Spite takes 1.04 times naive C's time and 6.12 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=620120 naive=598079 expert=101337 -->
 <!-- /timings -->
 
 At other sizes, and with each phase apart: [cases.md](../../design/proposals/data_oriented_layout/cases.md#spreadsheet_recalculation).

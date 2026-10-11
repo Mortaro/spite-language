@@ -138,13 +138,6 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ### Nothing fails silently: still open
 
-- (found 2026-10-09 in the engine package) A program may reopen a library class and add a hand-optimised copy of
-  what the library already does (`Matrix4.set_product`, an in-place multiply beside `*`), and nothing refuses it: the
-  name rule (`diagnostics/named_like_library`) only catches a new class with a library name. That breaks writing it
-  plainly (D564): the hand form competes with the compiler's own (an answer built in the caller's frame). Open: how
-  the compiler could tell a duplicate of library behaviour (a reopening's function whose result an existing
-  operator or function already gives) from a real addition.
-
 - (suspected 2026-10-08, not reproduced) The integer `absolute` macro in `library/maths_primitives.spite` appears
   to answer the smallest value unchanged (`Integer.smallest.absolute()` cannot be represented). The generated C seen
   so far guards `absolute()` with an overflow check, so it may already halt; confirm that every path to it halts
@@ -289,6 +282,9 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
   signature error for `drop`, `to_string` and the other compiler-called functions.
 
 ## [control_flow.md](../docs/control_flow.md)
+
+- D576: a `switch` case of two statements or more is a compile error (the rule is in the spec's "One statement per
+  case"). Not built: about 530 cases in the compiler and `library/` open a block and are rewritten when it is.
 
 - D510 (item 281): a loop that can never leave and whose calls can neither end the program nor wait is a compile
   error. Not documented on the page and not built.
@@ -476,7 +472,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 - Only `library/windows/` runs today; `check.sh` holds the `library/linux/` and `library/mac/` folders to compiling, by writing the compiler out once with each.
 - Not built: a bundle linked anywhere but statically into the one executable (see `load` is a bundle boundary).
-- Not built: the decided end state for compiler-supplied bodies (D147, D178). The bodies of the supplied members (`Console`'s raw writes, `Memory.Heap`, `Memory.Address`, `DynamicLibrary`'s opening and lookup, `TypedMemory`, number casts, the REPL hooks, `HotReload` facts, a `Concurrent`'s state machine, `ThreadPool`, `Scheduler`) are still C or generator-written, and printed bodiless. The compiler's own reopening is Spite source in `bootstrap/source/generation/prelude.spite`, beside the C each body is; a body written per instantiation (`TypedMemory<Integer>`, a number cast) is written by the generator.
+- Not built: the decided end state for compiler-supplied bodies (D147, D178). The bodies of the supplied members (`Console`'s raw writes, `Memory.Heap`, `Memory.Address`, `DynamicLibrary`'s opening and lookup, `TypedMemory`, number casts, the REPL hooks, `HotReload` facts, a `Concurrent`'s state machine, `ThreadPool`, `Scheduler`) are still C or generator-written, and printed bodiless. The compiler's own reopening is Spite source in `compiler/source/generation/prelude.spite`, beside the C each body is; a body written per instantiation (`TypedMemory<Integer>`, a number cast) is written by the generator.
 - Provisional: the name `source_folder` (D228).
 - Removed decision bookkeeping, all built: D7, D8, D38, D76, D80, D82 (Mortaro's quote about `--final-classes` showing the actual content of a class), D130, D155, D166, D177, D180, D181, D182, D186, D193, D195, D205, D211, D227, D244, D283, D293, D176, D178, D81, D147; and the "proposed by Claude, unconfirmed" labels on: the folder-name check scope, name resolution (relative namespaces, folder entry class namespace, nearest type, same-named types, namespaced generics), the unknown-type error and its suggestion (a `type` attribute of an unknown type crashed the compiler when the shape needed a default, fixed 2026-09-26), absolute `load` paths, `load` under an `if`, `source_folder`, the git load spelling and readings, the read-only copy's file comparison by size and modification time, and the bodiless `func` form.
 - `check.sh` builds: a program that loads a folder by its absolute path; a program from a local repository pinned to a commit that is no longer its `HEAD`, from a second compile with no git work, with `--hot-reload`, and fails it on an unknown commit, without git on the `PATH` and after editing the copy.
@@ -520,7 +516,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - A loop that polls `finished` and never calls `run_ready()` is not detected by the scheduler (documented, not caught).
 - Untested gap: a REPL client's `exit` while a helper thread is blocked reading the console may wait on the C runtime's lock on that stream at process exit.
 - `parallel_each_`: D35's race rule is built but still unconfirmed by Mortaro. D35's open questions (shared state across threads, cross-element reads) stay open. A list of a `type` or union is an error "for now" because the element's class is not known.
-- Singleton thread safety was tagged `[partial]`. Built: forms 1 to 4 (nothing, nothing when unchanging, atomics, own lock), reader-writer lock (D266), counted-loop coarse lock (D265), lock skipped while no task is in flight (D267), no lock and no atomic attribute for a singleton the walk over the written-out C finds no other thread touching (D529), loop-that-cannot-end and locked-wait errors (D211, D264), attribute-never-changes read in place (D271, unconfirmed). Not built: D184's buffer per thread for state only appended to, splitting state each thread touches its own part of; D183's compile-time check at `return` that a singleton hands out only numbers, text, copies or other safe singletons; guarding in a `--hot-reload` build; library singletons (`Console`, input, `Clock`) doing better by hand (which D183 allows).
+- Singleton thread safety was tagged `[partial]`. Built: forms 1 to 4 (nothing, nothing when unchanging, atomics, own lock), reader-writer lock (D266), counted-loop coarse lock (D265), lock skipped while no task is in flight (D267), no lock and no atomic attribute for a singleton the walk over the written-out C finds no other thread touching (D529), plain attributes for a locked singleton no other class reads past its lock (D555), one test for tasks in flight per loop of calls that is not counted (D556), loop-that-cannot-end and locked-wait errors (D211, D264), attribute-never-changes read in place (D271, unconfirmed). Not built: D184's buffer per thread for state only appended to, splitting state each thread touches its own part of; D183's compile-time check at `return` that a singleton hands out only numbers, text, copies or other safe singletons; guarding in a `--hot-reload` build; library singletons (`Console`, input, `Clock`) doing better by hand (which D183 allows).
 - Locked-wait check (D264) does not see: a handle that escapes the function and is read by another locked function; calls whose class is unknown (function value, union, unknown receiver); work reaching the singleton only through its attributes from outside; `parallel_each_` passes; generic singletons (`Column<T>`). The exact wording of the error was proposed, unconfirmed.
 - Not built: taking no lock at all where one `Parallel`'s work is provably the only thread touching a singleton while it runs (D207's handover extended to singletons). The game engine package also asked for no lock at all while every `Parallel` reaching a singleton only reads it, with writes between stages; not provable at compile time, so the reader-writer form was built instead.
 - Reads in a row overlap: `Directory` listing is not a waiting call yet (no helper thread), so it is not overlapped.
@@ -834,9 +830,13 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 
 ## [compiler.md](../docs/compiler.md)
 
+- D578: a repository rule, checked while compiling, that crashes the compile on a scripting file that is not Spite,
+  which needs `crash` to run while compiling; the shell scripts become Spite first, and the committed seeds go once
+  Linux and macOS have releases. Not built.
+
 ### Choose the outputs
 - Proposed by Claude, unconfirmed (D348 built): `--check` with `--build` is an error; `--executable` went with `--run` (`--build` is the one way to build without running); `--check --final-classes=folder` writes the classes and nothing else; a build removes the old executable before compiling, and when the program cannot be read it removes the one at the command line's path or the default one, so a program whose own `build.spite` moves `executable_path` keeps its old executable after a read error.
-- Not done: the committed seeds predate `--check` and `--build`, so `bin/spite` cannot build a program until they are written again (`check.sh` puts generation 2 in its place meanwhile); `bootstrap/build.spite` and the old branch of `check.sh`'s `compile_compiler` go with the next seed ([self_hosting.md](self_hosting.md#the-seeds-own-flags)).
+- Not done: the committed seeds predate `--check` and `--build`, so `bin/spite` cannot build a program until they are written again (`check.sh` puts generation 2 in its place meanwhile); `compiler/build.spite` and the old branch of `check.sh`'s `compile_compiler` go with the next seed ([self_hosting.md](self_hosting.md#the-seeds-own-flags)).
 
 ### Inspect merged classes
 - Not built: `--final-classes` output does not show which root supplied each declaration. It cannot be a comment (a comment is only ever a link to a markdown heading), so it needs a form of its own (open question 10, open_questions.md). The paragraph saying so was removed from the page.
@@ -885,6 +885,20 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - `check.sh` stops a ticking loop, reads its locals and lets it go (D242 is the decision).
 
 ## [testing.md](../docs/testing.md)
+
+- D581: `spite compiler --verify` is built (step 1, D582): the compiler compiles itself again and must write the same
+  C (settling one more generation if a change altered it), runs the conformance corpus, the examples, the
+  documentation's programs, the diagnostics and the `tests` package in parallel, and replaces the kept compiler.
+  Step 2 is not built, and `check.sh` still does it: `--release` (prints that it is not built and exits 1), the
+  benchmark cases, the compiler's `--debug-memory` build, the other systems' seeds, the special greps (writing check,
+  seeds), hot reload, REPL, sockets, fast reloads, final classes and the launcher checks, and the repeated crash runs.
+  `--verify` shows its progress on the error output and its summary only when it ends (a run captures the program's
+  output). A hung program's grandchildren are not stopped by the time limit (only the compiler it runs is).
+  D577's tests run while compiling are set aside.
+- D244, open: `Process.run` (and the pipes the compiler reads a program's output through) open the pipe in text
+  mode on Windows, where a byte 0x1A in the output reads as the end of it: the rest is dropped and the child can
+  block writing to a pipe nobody reads. `--verify` writes each program's output to a file instead; the library's
+  `Process` should read it in binary.
 
 ### How testing works
 - Nothing else is unbuilt. The decisions behind it (D46 testing is a package that crashes, D49 `Spite.Class.instances`) were removed from the page as bookkeeping.
@@ -1065,7 +1079,7 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 ### Other optimisations
 
 - The optimisation report (`--optimization-report`, D36, D332, D389) is built (D450; the file format, the sections, the reasons' wording and linking a list type at the line that first needed it are proposed by Claude, unconfirmed). Not reported yet: a temporary or an argument that stays on the heap; a call result `var x = make()` whose function does not return only fresh objects; an `Items<T>` that chose references. The overflow checks that remain are reported (section "Overflow checks kept", every kept `+`, `-`, `*` and `-` in front, with the ranges that did not prove it; the wording is proposed by Claude under D509, unconfirmed); a value put into a narrower name and the smallest value divided by `-1` keep their checks unreported. A list type is linked at the first line that needed it in a function the build keeps, which may be a line of the library.
-- Found by the report: a text literal containing `instances` anywhere in a program makes the compiler treat every class as read with `.instances` (`note_instance_lists`), so no object of any class is placed in the frame. The compiler itself has such a text in `Generation.Generator`, so none of its own objects are framed; `spite bootstrap --check --optimization-report=...` lists about 600.
+- Found by the report: a text literal containing `instances` anywhere in a program makes the compiler treat every class as read with `.instances` (`note_instance_lists`), so no object of any class is placed in the frame. The compiler itself has such a text in `Generation.Generator`, so none of its own objects are framed; `spite compiler --check --optimization-report=...` lists about 600.
 
 ### Arithmetic is checked in every build
 

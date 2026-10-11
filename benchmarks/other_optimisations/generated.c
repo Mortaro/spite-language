@@ -602,6 +602,52 @@ void spite_singleton_made(void);
 #define SPITE_ALLOCATOR_Vector__Velocity(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 static __typeof__(&TypedMemory__Console_Printable___release) spite_folded_TypedMemory__Console_Printable___release = ((__typeof__(&TypedMemory__Console_Printable___release))&Memory_Heap___release);
 static __typeof__(&InlineMemory__Velocity___release) spite_folded_InlineMemory__Velocity___release = ((__typeof__(&InlineMemory__Velocity___release))&Memory_Heap___release);
+static Launcher* Launcher___pool_free = 0;
+static char* Launcher___pool_next = 0;
+static char* Launcher___pool_end = 0;
+static size_t Launcher___pool_count = 0;
+static void Launcher___pool_grow(void) {
+if (Launcher___pool_count == 0) { Launcher___pool_count = 16; } else if (Launcher___pool_count * sizeof(Launcher) < 262144) { Launcher___pool_count = Launcher___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Launcher___pool_count * sizeof(Launcher) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Launcher___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Launcher___pool_end = Launcher___pool_next + Launcher___pool_count * sizeof(Launcher);
+}
+static inline Launcher* Launcher___pool_take(void) {
+Launcher* self = Launcher___pool_free;
+if (self != 0) { Launcher___pool_free = *(Launcher**)self; return self; }
+if (Launcher___pool_next == Launcher___pool_end) Launcher___pool_grow();
+self = (Launcher*)Launcher___pool_next;
+Launcher___pool_next = Launcher___pool_next + sizeof(Launcher);
+return self;
+}
+static inline void Launcher___pool_give(Launcher* self) {
+*(Launcher**)self = Launcher___pool_free;
+Launcher___pool_free = self;
+}
+static Naive* Naive___pool_free = 0;
+static char* Naive___pool_next = 0;
+static char* Naive___pool_end = 0;
+static size_t Naive___pool_count = 0;
+static void Naive___pool_grow(void) {
+if (Naive___pool_count == 0) { Naive___pool_count = 16; } else if (Naive___pool_count * sizeof(Naive) < 262144) { Naive___pool_count = Naive___pool_count * 2; }
+char* chunk = (char*)SPITE_MALLOC(Naive___pool_count * sizeof(Naive) + 63);
+if (chunk == 0) { fflush(stdout); fputs("spite: out of memory making an object\n", stderr); exit(1); }
+Naive___pool_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);
+Naive___pool_end = Naive___pool_next + Naive___pool_count * sizeof(Naive);
+}
+static inline Naive* Naive___pool_take(void) {
+Naive* self = Naive___pool_free;
+if (self != 0) { Naive___pool_free = *(Naive**)self; return self; }
+if (Naive___pool_next == Naive___pool_end) Naive___pool_grow();
+self = (Naive*)Naive___pool_next;
+Naive___pool_next = Naive___pool_next + sizeof(Naive);
+return self;
+}
+static inline void Naive___pool_give(Naive* self) {
+*(Naive**)self = Naive___pool_free;
+Naive___pool_free = self;
+}
 Memory_Heap* spite_singleton_Memory_Heap(void) {
 static Memory_Heap spite_object = { { 1, 96 } };
 return &spite_object;
@@ -642,7 +688,7 @@ void Launcher___init(Launcher* self) {
 self->build_ = spite_singleton_Build();
 }
 Launcher* Launcher___allocate(void) {
-Launcher* self = (Launcher*)SPITE_MALLOC(sizeof(Launcher));
+Launcher* self = Launcher___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 1;
 Launcher___init(self);
@@ -664,7 +710,7 @@ spite_untrack_Launcher(self);
 #ifdef SPITE_WEAK_Launcher
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Launcher___pool_give(self);
 }
 static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) {
 fflush(stdout);
@@ -815,7 +861,7 @@ void Naive___init(Naive* self) {
 self->console_ = spite_singleton_Console();
 }
 Naive* Naive___allocate(void) {
-Naive* self = (Naive*)SPITE_MALLOC(sizeof(Naive));
+Naive* self = Naive___pool_take();
 self->header.ref_count = 1;
 self->header.class_id = 111;
 Naive___init(self);
@@ -837,7 +883,7 @@ spite_untrack_Naive(self);
 #ifdef SPITE_WEAK_Naive
 spite_weak_object_freed(self);
 #endif
-SPITE_FREE(self);
+Naive___pool_give(self);
 }
 InlineMemory__Velocity* spite_singleton_InlineMemory__Velocity(void) {
 static InlineMemory__Velocity spite_object = { { 1, 169 } };
@@ -1390,6 +1436,12 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_string_length, "-\t-", "spite_string_length", 0},
 {(const void*)&spite_string_bytes, "-\t-", "spite_string_bytes", 0},
 {(const void*)&spite_string_code_at, "-\t-", "spite_string_code_at", 0},
+{(const void*)&Launcher___pool_grow, "-\t-", "Launcher___pool_grow", 0},
+{(const void*)&Launcher___pool_take, "-\t-", "Launcher___pool_take", 0},
+{(const void*)&Launcher___pool_give, "-\t-", "Launcher___pool_give", 0},
+{(const void*)&Naive___pool_grow, "-\t-", "Naive___pool_grow", 0},
+{(const void*)&Naive___pool_take, "-\t-", "Naive___pool_take", 0},
+{(const void*)&Naive___pool_give, "-\t-", "Naive___pool_give", 0},
 {(const void*)&spite_singleton_Memory_Heap, "-\t-", "spite_singleton_Memory_Heap", 0},
 {(const void*)&Console_Printable___retain, "-\t-", "Console_Printable___retain", 0},
 {(const void*)&spite_singleton_Build, "-\t-", "spite_singleton_Build", 0},
@@ -1456,14 +1508,14 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
-{(const void*)&Console__write_output, "bootstrap/source/generation/prelude.spite\tConsole", "_write_output", 1},
-{(const void*)&Console__write_error, "bootstrap/source/generation/prelude.spite\tConsole", "_write_error", 2},
-{(const void*)&Console__flush, "bootstrap/source/generation/prelude.spite\tConsole", "_flush", 4},
+{(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
+{(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
+{(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
 {(const void*)&DynamicLibrary_DynamicLibrary, "library/dynamic_library.spite\tDynamicLibrary", "DynamicLibrary", 6},
 {(const void*)&DynamicLibrary_drop, "library/dynamic_library.spite\tDynamicLibrary", "drop", 11},
-{(const void*)&DynamicLibrary_open_library, "bootstrap/source/generation/prelude.spite\tDynamicLibrary", "open_library", 1},
-{(const void*)&DynamicLibrary_find_symbol, "bootstrap/source/generation/prelude.spite\tDynamicLibrary", "find_symbol", 2},
-{(const void*)&DynamicLibrary_close_library, "bootstrap/source/generation/prelude.spite\tDynamicLibrary", "close_library", 3},
+{(const void*)&DynamicLibrary_open_library, "compiler/source/generation/prelude.spite\tDynamicLibrary", "open_library", 1},
+{(const void*)&DynamicLibrary_find_symbol, "compiler/source/generation/prelude.spite\tDynamicLibrary", "find_symbol", 2},
+{(const void*)&DynamicLibrary_close_library, "compiler/source/generation/prelude.spite\tDynamicLibrary", "close_library", 3},
 {(const void*)&SpiteInteger_to_string, "library/integer.spite\tInteger", "to_string", 3},
 {(const void*)&SpiteLong_to_string, "library/long.spite\tLong", "to_string", 3},
 {(const void*)&SpiteString_to_string, "library/string.spite\tString", "to_string", 184},
@@ -1471,15 +1523,15 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Memory_Arena_allocate, "library/memory/arena.spite\tMemory.Arena", "allocate", 11},
 {(const void*)&Memory_Arena_free, "library/memory/arena.spite\tMemory.Arena", "free", 21},
 {(const void*)&Memory_Arena_start_block, "library/memory/arena.spite\tMemory.Arena", "start_block", 23},
-{(const void*)&Memory_Heap_allocate, "bootstrap/source/generation/prelude.spite\tMemory.Heap", "allocate", 1},
-{(const void*)&Memory_Heap_resize, "bootstrap/source/generation/prelude.spite\tMemory.Heap", "resize", 2},
-{(const void*)&Memory_Heap_free, "bootstrap/source/generation/prelude.spite\tMemory.Heap", "free", 3},
+{(const void*)&Memory_Heap_allocate, "compiler/source/generation/prelude.spite\tMemory.Heap", "allocate", 1},
+{(const void*)&Memory_Heap_resize, "compiler/source/generation/prelude.spite\tMemory.Heap", "resize", 2},
+{(const void*)&Memory_Heap_free, "compiler/source/generation/prelude.spite\tMemory.Heap", "free", 3},
 {(const void*)&Naive_Naive, "benchmarks/other_optimisations/naive/naive.spite\tNaive", "Naive", 3},
 {(const void*)&Velocity_Velocity, "benchmarks/other_optimisations/naive/velocity.spite\tVelocity", "Velocity", 4},
 {(const void*)&List_Console_Printable_count, "library/list.spite\tList", "count", 9},
 {(const void*)&List_Console_Printable_get_at, "library/list.spite\tList", "get_at", 41},
 {(const void*)&List_Console_Printable_drop, "library/list.spite\tList", "drop", 830},
-{(const void*)&TypedMemory__Console_Printable_read_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
+{(const void*)&TypedMemory__Console_Printable_read_value, "compiler/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
 {(const void*)&Vector__Velocity_append, "library/vector.spite\tVector", "append", 17},
 {(const void*)&Vector__Velocity_drop, "library/vector.spite\tVector", "drop", 291},
 {(const void*)&Vector__Velocity_make_room, "library/vector.spite\tVector", "make_room", 311},
@@ -1487,13 +1539,13 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Vector__Velocity__resized, "library/vector.spite\tVector", "_resized", 328},
 {(const void*)&Vector__Velocity_sum_across, "library/vector.spite\tVector", "sum_across", 0},
 {(const void*)&Vector__Velocity_sum_down, "library/vector.spite\tVector", "sum_down", 0},
-{(const void*)&InlineMemory__Velocity_item_at, "bootstrap/source/generation/prelude.spite\tInlineMemory", "item_at", 1},
-{(const void*)&InlineMemory__Velocity_write_item, "bootstrap/source/generation/prelude.spite\tInlineMemory", "write_item", 2},
-{(const void*)&InlineMemory__Velocity_block_bytes, "bootstrap/source/generation/prelude.spite\tInlineMemory", "block_bytes", 7},
+{(const void*)&InlineMemory__Velocity_item_at, "compiler/source/generation/prelude.spite\tInlineMemory", "item_at", 1},
+{(const void*)&InlineMemory__Velocity_write_item, "compiler/source/generation/prelude.spite\tInlineMemory", "write_item", 2},
+{(const void*)&InlineMemory__Velocity_block_bytes, "compiler/source/generation/prelude.spite\tInlineMemory", "block_bytes", 7},
 {(const void*)&List_Console_Printable_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&TypedMemory__Console_Printable_release_value, "bootstrap/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
+{(const void*)&TypedMemory__Console_Printable_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&Vector__Velocity_clear, "library/vector.spite\tVector", "clear", 64},
-{(const void*)&InlineMemory__Velocity_release_item, "bootstrap/source/generation/prelude.spite\tInlineMemory", "release_item", 4},
+{(const void*)&InlineMemory__Velocity_release_item, "compiler/source/generation/prelude.spite\tInlineMemory", "release_item", 4},
 {(const void*)&main, "-\t-", "main", 0},
 {0, 0, 0, 0}
 };

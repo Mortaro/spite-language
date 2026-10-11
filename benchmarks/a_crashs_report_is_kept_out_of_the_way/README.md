@@ -44,11 +44,11 @@ overflow ([a range proves it](../../docs/optimizations.md#arithmetic-a-range-pro
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 13 709 | 198 656 |
-| naive C: `naive.c`, `clang -O2` | 13 095 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 9 717 | 139 776 |
+| Spite: `naive/`, `--optimized` | 13 449 | 201 728 |
+| naive C: `naive.c`, `clang -O2` | 13 097 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 9 655 | 139 776 |
 
-Spite takes 1.05 times naive C's time and 1.41 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=13709 naive=13095 expert=9717 -->
+Spite takes 1.03 times naive C's time and 1.39 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=13449 naive=13097 expert=9655 -->
 <!-- /timings -->

@@ -69,7 +69,7 @@ true" is a new analysis layer; and the engine's loop is a counted `while`, which
 
 All of these are far easier on the two-level IR (D560), where control flow and values are explicit; consider
 building the IR first. In this repository's worktrees, a shell command with `source` in a path may be refused by the
-sandbox: use the file tools for `bootstrap/source`.
+sandbox: use the file tools for `compiler/source`.
 
 ## The engine still places memory by hand (D564)
 
@@ -94,7 +94,10 @@ Everything a program must not use directly (the memory floor, `Concurrent`, `Par
 `Atomic`, `ThreadLocal`) moves into `Spite.Internal` (name to confirm); outside `library/` naming it is a compile error
 that names the plain form. Library code above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off memory
 onto `List<Byte>` and plain values. The compiler then reads a `BinaryReader` record from a `List<Byte>` with one check
-and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace, the error.
+and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace. The error
+itself is built (D568): any file outside `library/` and `compiler/` that names `Spite.Internal` is refused, so moving
+a class into `library/spite/internal/` is all the namespace needs. A moved class still named bare (`Memory`) would
+resolve without the prefix: refuse those names when the first class moves.
 
 ## The order of work after that (by what closes the engine gap)
 
@@ -125,7 +128,7 @@ in both repositories: in the language `saved-fx-backup` (singleton lock backoff)
 `saved-concurrencydocs`, `saved-fastbuild`, `saved-mono`, `saved-mono3`, `saved-nomap`, `saved-record`; in the engine
 `saved-cascaded-shadows`, `saved-index-in-cache`, `saved-materials-merge`. Branches merged into master or main were
 deleted. (`saved-checker-d284`, an old "refuse a class that re-creates a library class" by name and attributes, was
-deleted as superseded by D420's stricter name rule; it did not cover reopenings either.) The engine works in `D:\Projects\SlopEngine` (main is the naive engine).
+deleted as superseded by D420's stricter name rule; it did not cover reopenings either.) The engine works in its own repository beside this one (main is the naive engine).
 
 ## How to work here (lessons from this session)
 

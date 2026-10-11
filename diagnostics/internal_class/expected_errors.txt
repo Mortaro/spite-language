@@ -1,0 +1,1 @@
+diagnostics/internal_class/spite/internal/floor.spite: error: Spite.Internal.Floor is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler

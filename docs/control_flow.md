@@ -211,7 +211,8 @@ is checked while compiling. Only a REPL build adds a check point to each loop
 ## `switch` over a union
 
 A `switch` is over a union (or a `T?`, which is the union of a type and `Null`) and must cover every member.
-Inside each case the value is narrowed to that member. A case is one statement on its line, or a block in `{ }`.
+Inside each case the value is narrowed to that member. A case is one statement: when a member needs more than
+that, the case calls a function named for what it does, so a switch reads as a list of what happens to each member.
 
 ```gdscript title=switch_cases/cat.spite
 func sound(): String {
@@ -250,16 +251,20 @@ func SwitchCases() {
 
 func describe(creature: Creature) {
     switch creature {
-        Dog: {
-            var trick = creature.fetch()
-            console.print("a dog that", trick)
-        }
+        Dog: show_trick(creature)
         Fish: console.print("a fish with", creature.fins, "fins")
-        _: {
-            var sound = creature.sound()
-            console.print("something that says", sound)
-        }
+        _: show_sound(creature)
     }
+}
+
+func show_trick(dog: Dog) {
+    var trick = dog.fetch()
+    console.print("a dog that", trick)
+}
+
+func show_sound(cat: Cat) {
+    var sound = cat.sound()
+    console.print("something that says", sound)
 }
 ```
 ```output
@@ -269,8 +274,8 @@ something that says meow
 ```
 
 **`_:` answers for every member without a case of its own.** It is the last case, and it means "this body, written
-once for each remaining member": the value is narrowed to each of them in turn, so `creature.sound()` needs
-`sound()` only on the members `_` answers for (here `Cat`), not on the whole union. A switch stays exhaustive:
+once for each remaining member": the value is narrowed to each of them in turn, so `show_sound(creature)` needs a
+`show_sound` only for the members `_` answers for (here `Cat`), not for the whole union. A switch stays exhaustive:
 `_` is how it covers the rest, not a way to skip it. Two cases that do the same thing are an error naming `_:`,
 and so is a case that does what `_:` already does, or a `_:` that answers for nothing (the exact rules are with
 [unions](../specs/values_and_types.md#unions-in-full)).

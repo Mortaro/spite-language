@@ -1,0 +1,3 @@
+sum 120
+original 30 copy 129
+same false levels 3

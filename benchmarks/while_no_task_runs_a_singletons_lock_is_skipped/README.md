@@ -24,25 +24,30 @@ lock, and a task it starts before it returns takes the lock first, so nothing a 
 
 ## What to look at in highlights.c
 
-`Tally_add` opens with `__atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) == 0`: with no task in flight it
-pushes `&Tally___guard` on `spite_skipped`, calls `Tally_add___unguarded` and pops it, and only otherwise takes
-`spite_guard_enter`. `ThreadPool__task_begun` adds one to `spite_tasks_in_flight` for every task handed out, after
-taking every lock its thread skipped (`spite_enter_skipped`), and `ThreadPool__task_ended` takes it away. So the ten
-million calls each make one load of a counter no thread writes, and no compare-and-swap. The body still adds to
-`total_` and `calls_` with `__atomic_fetch_add`, because `Tally___atomic` is 1 (each is written once by `add`, so
-each is atomic on its own): two locked additions per call are what is left between the Spite and `expert.c`.
-`naive.c` takes and lets go of its mutex on every call.
+`Naive_add_many`'s loop is not counted (its index is what `tally.add` answers), but it calls only `Tally` and can
+start no task, so it [tests for tasks once](../../docs/optimizations.md#a-loop-of-calls-to-one-singleton-tests-for-tasks-once):
+`spite_coarse_1_skip_enter()` finds `spite_tasks_in_flight` zero, pushes `&Tally___guard` on `spite_skipped` and
+answers 1, and every call is then `Tally_add___unguarded`, which the C compiler inlines into the loop it keeps for
+that case; `spite_coarse_1_skip_leave` pops it. With a task in flight the loop would call `Tally_add`, whose own
+test takes `spite_guard_enter`. `ThreadPool__task_begun` adds one to `spite_tasks_in_flight` for every task handed
+out, after taking every lock its thread skipped (`spite_enter_skipped`), and `ThreadPool__task_ended` takes it away.
+The body adds to `total_` and `calls_` plainly: each is written once by `add`, so each is atomic on its own, but no
+other class reads them past the lock, so `Tally___atomic` is 0 (in `generated.c`) and its `if (Tally___atomic)`
+tests fold away ([its section](../../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)).
+What is left between the Spite and `expert.c` is that `total_` and `calls_` are loaded and stored in memory on every
+call, with an overflow test each, where `expert.c` keeps them in registers. `naive.c` takes and lets go of its mutex
+on every call.
 
 ## Timings
 
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 35 589 | 236 032 |
-| naive C: `naive.c`, `clang -O2` | 52 527 | 139 264 |
-| expert C: `expert.c`, `clang -O2` | 2 198 | 139 264 |
+| Spite: `naive/`, `--optimized` | 5 270 | 239 616 |
+| naive C: `naive.c`, `clang -O2` | 52 234 | 139 264 |
+| expert C: `expert.c`, `clang -O2` | 2 219 | 139 264 |
 
-Spite takes 0.68 times naive C's time and 16.19 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=35589 naive=52527 expert=2198 -->
+Spite takes 0.10 times naive C's time and 2.37 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=5270 naive=52234 expert=2219 -->
 <!-- /timings -->

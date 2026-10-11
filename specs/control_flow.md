@@ -78,6 +78,14 @@ branch; and an `if`/`else` inside a `while` or `switch` inside the branch, since
 unit. The message names "a union or an enum", since `switch` takes an enum's values.
 Compile time only.
 
+### One statement per case
+
+A case of a `switch` is one statement: a call, an assignment, a `return` or a `crash`, on the case's line, or the same
+one statement inside `{ }`. A case of two statements or more is an error: "this case runs 2 statements: a case is
+one statement, so move them into a function named for what they do and call it here". Each case reads as one thing
+that happens to its member or value, and a path that needs more is a function with a name. The rule holds for every
+switch, over a union, a `T?`, an enum, a number or a text, and for `_:`.
+
 ### `switch` over values
 
 A `switch` whose subject is an enum value, a whole number or a `String` takes value cases: an enum literal

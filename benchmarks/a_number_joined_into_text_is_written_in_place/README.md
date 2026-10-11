@@ -32,11 +32,11 @@ third; `expert.c` makes none and only writes bytes.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 71 636 | 194 560 |
-| naive C: `naive.c`, `clang -O2` | 304 724 | 142 336 |
-| expert C: `expert.c`, `clang -O2` | 15 240 | 139 776 |
+| Spite: `naive/`, `--optimized` | 70 870 | 197 120 |
+| naive C: `naive.c`, `clang -O2` | 306 942 | 142 336 |
+| expert C: `expert.c`, `clang -O2` | 15 066 | 139 776 |
 
-Spite takes 0.24 times naive C's time and 4.70 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=71636 naive=304724 expert=15240 -->
+Spite takes 0.23 times naive C's time and 4.70 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=70870 naive=306942 expert=15066 -->
 <!-- /timings -->

@@ -38,13 +38,13 @@ of it. In columns the three counts read 1.5 MB of kinds (a byte each) instead of
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 100 710 | 241 664 |
-| naive C: `naive.c`, `clang -O2` | 126 792 | 145 920 |
-| expert C: `expert.c`, `clang -O2` | 72 737 | 145 408 |
+| Spite: `naive/`, `--optimized` | 99 540 | 245 760 |
+| naive C: `naive.c`, `clang -O2` | 127 415 | 145 920 |
+| expert C: `expert.c`, `clang -O2` | 71 622 | 145 408 |
 
-Spite takes 0.79 times naive C's time and 1.38 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=100710 naive=126792 expert=72737 -->
+Spite takes 0.78 times naive C's time and 1.39 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=99540 naive=127415 expert=71622 -->
 <!-- /timings -->
 
 At other sizes, and with each phase apart: [cases.md](../../design/proposals/data_oriented_layout/cases.md#tokens_as_columns).

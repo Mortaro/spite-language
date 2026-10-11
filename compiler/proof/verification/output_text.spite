@@ -1,0 +1,60 @@
+func plain(text: String): String {
+    var unreturned = text.replace("\r", "")
+    return without_final_newlines(unreturned)
+}
+
+func without_final_newlines(text: String): String {
+    var end = text.length()
+    while end > 0 and text.code_at(end - 1) == 10 {
+        end = end - 1
+    }
+    return text.slice(0, end)
+}
+
+func first_lines(text: String, wanted: Integer): String {
+    var lines = text.split("\n")
+    var shown = List<String>()
+    var index = 0
+    while index < lines.count() and index < wanted {
+        shown.append("    {lines[index]}")
+        index = index + 1
+    }
+    return shown.join("\n")
+}
+
+func file_content(path: String): String? {
+    var content = File(path).read()
+    assert content
+    return plain(content)
+}
+
+func words_of(path: String): List<String> {
+    var words = List<String>()
+    var content = File(path).read()
+    if not content {
+        return words
+    }
+    var pieces = content.replace("\r", "").replace("\n", "").split(" ")
+    var index = 0
+    while index < pieces.count() {
+        if not pieces[index].is_empty() {
+            words.append(pieces[index])
+        }
+        index = index + 1
+    }
+    return words
+}
+
+func without_fetch_notes(text: String): String {
+    var lines = text.split("\n")
+    var kept = List<String>()
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        if not (line.starts_with("fetched ") and line.contains(" into ")) {
+            kept.append(line)
+        }
+        index = index + 1
+    }
+    return kept.join("\n")
+}

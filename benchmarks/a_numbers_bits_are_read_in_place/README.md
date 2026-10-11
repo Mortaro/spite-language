@@ -46,11 +46,11 @@ at all: the processor converts eight values in one instruction.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 64 690 | 194 560 |
-| naive C: `naive.c`, `clang -O2` | 87 330 | 140 288 |
-| expert C: `expert.c`, `clang -O2` | 22 694 | 139 264 |
+| Spite: `naive/`, `--optimized` | 64 928 | 198 144 |
+| naive C: `naive.c`, `clang -O2` | 87 171 | 140 288 |
+| expert C: `expert.c`, `clang -O2` | 22 625 | 139 264 |
 
-Spite takes 0.74 times naive C's time and 2.85 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=64690 naive=87330 expert=22694 -->
+Spite takes 0.74 times naive C's time and 2.87 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=64928 naive=87171 expert=22625 -->
 <!-- /timings -->

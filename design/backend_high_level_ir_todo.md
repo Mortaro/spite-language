@@ -7,7 +7,7 @@ in [decisions.md](decisions.md).
 
 ## Where it stands
 
-- The form is built and follows the review, in `bootstrap/source/backend/high_*.spite` (about 1,650 lines):
+- The form is built and follows the review, in `compiler/source/backend/high_*.spite` (about 1,650 lines):
   - the whole program in one `HighProgram`;
   - blocks with explicit edges;
   - loops and list walks as one operation with a body;
@@ -35,7 +35,7 @@ in [decisions.md](decisions.md).
    value; it is recorded as the local it is, not looked up as an object.
 2. **Resolve calls on values.** Find the receiver's class from the typed tree, and the abstract object it is from the
    value's owner. This is why `count_bound_proofs` covers nothing.
-3. **Rename the option** `high_ir_report` to `high_level_report` in `bootstrap/bootstrap.spite` and
+3. **Rename the option** `high_ir_report` to `high_level_report` in `compiler/compiler.spite` and
    `library/build.spite`: names are full words.
 4. **Run the report over the whole conformance corpus and the examples,** and write the coverage (functions covered,
    agreed, differed) into [backend_high_level_ir.md](backend_high_level_ir.md).

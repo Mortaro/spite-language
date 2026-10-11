@@ -40,11 +40,11 @@ is about fifteen milliseconds whatever it draws. `naive.c` pays eight more frame
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 929 323 | 272 384 |
-| naive C: `naive.c`, `clang -O2` | 1 185 375 | 152 064 |
-| expert C: `expert.c`, `clang -O2` | 930 923 | 152 064 |
+| Spite: `naive/`, `--optimized` | 933 233 | 274 944 |
+| naive C: `naive.c`, `clang -O2` | 1 186 557 | 152 064 |
+| expert C: `expert.c`, `clang -O2` | 928 354 | 152 064 |
 
-Spite takes 0.78 times naive C's time and 1.00 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5; the machine was in other use.
-<!-- measured spite=929323 naive=1185375 expert=930923 -->
+Spite takes 0.79 times naive C's time and 1.01 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=933233 naive=1186557 expert=928354 -->
 <!-- /timings -->

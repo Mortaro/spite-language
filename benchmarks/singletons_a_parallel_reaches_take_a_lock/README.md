@@ -30,9 +30,10 @@ You write no lock: the source is the same as in a program with one thread, and t
 `spite_tasks_in_flight`, which is not zero here while the recorders run, so it takes
 `spite_guard_enter(&Registry___guard)`, calls `Registry_record___unguarded` and lets go with `spite_guard_leave`.
 `SpiteGuard` is aligned to 64 bytes, so the lock has a cache line of its own. `Registry` holds a `List`, so it can
-take none of the cheaper forms; its `total` is written once by `record`, so it is also atomic on its own
-(`Registry___atomic` is 1 and the body adds it with `__atomic_fetch_add`), which lets another class read it without
-the lock. The loop is not [one counted loop of calls](../a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/)
+take none of the cheaper forms; its `total` is written once by `record`, so it is atomic on its own, but no other
+class reads it past the lock, so it is a plain number (`Registry___atomic` is 0 in `generated.c`, and the body's
+`if (Registry___atomic)` tests fold away;
+[its section](../../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number)). The loop is not [one counted loop of calls](../a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/)
 because it also calls `weight_of`, a function of the recorder's own, so each call takes the lock.
 
 `spite_guard_enter` takes the lock with one compare-and-swap when it is free. When another thread holds it,
@@ -48,11 +49,11 @@ waits in the system, takes 21.5 ms. `expert.c` takes no lock.
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 7 166 | 238 080 |
-| naive C: `naive.c`, `clang -O2` | 18 807 | 139 776 |
-| expert C: `expert.c`, `clang -O2` | 473 | 139 776 |
+| Spite: `naive/`, `--optimized` | 8 541 | 240 640 |
+| naive C: `naive.c`, `clang -O2` | 18 910 | 139 776 |
+| expert C: `expert.c`, `clang -O2` | 486 | 139 776 |
 
-Spite takes 0.38 times naive C's time and 15.15 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-09, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=7166 naive=18807 expert=473 -->
+Spite takes 0.45 times naive C's time and 17.57 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=8541 naive=18910 expert=486 -->
 <!-- /timings -->
