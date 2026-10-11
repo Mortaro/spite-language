@@ -5,6 +5,7 @@ var walked_functions = List<HighFunction>()
 var classes_made = Dictionary<String, Boolean>()
 var classes_by_qualified = Dictionary<String, Analysis.ClassInfo>()
 var classes_by_c_name = Dictionary<String, Analysis.ClassInfo>()
+var types = Analysis.TypeShape()
 
 func HighProgram(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -75,9 +76,39 @@ func walked_from_source(declared: Analysis.FunctionInfo): Boolean {
 }
 
 func class_with_c_name(c_name: String): Analysis.ClassInfo? {
-    var found = classes_by_c_name[c_name]
-    assert found
+    return classes_by_c_name[c_name]
+}
+
+# ../../../design/backend_high_level_ir.md#abstract-objects
+func class_of_type(given: Analysis.SpiteType?): Analysis.ClassInfo? {
+    var found: Analysis.ClassInfo? = null
+    crash generator
+    var plain = plain_type_of(given)
+    if plain {
+        found = generator.class_of_type(plain)
+    }
     return found
+}
+
+func plain_type_of(given: Analysis.SpiteType?): Analysis.SpiteType? {
+    var plain = given
+    if plain {
+        var nullable = types.as_nullable(plain)
+        if nullable {
+            plain = nullable.inner
+        }
+    }
+    return plain
+}
+
+func is_reference_type(given: Analysis.SpiteType?): Boolean {
+    var answered = false
+    crash generator
+    var plain = plain_type_of(given)
+    if plain {
+        answered = generator.type_is_reference(plain)
+    }
+    return answered
 }
 
 func class_found(name: String, namespace: String): Analysis.ClassInfo? {

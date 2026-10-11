@@ -464,7 +464,12 @@ func walk_own_call(name: String, arguments: List<Integer>): Integer {
         note_unknown("a call through a function value", current_line)
         return constant_value(null, -1)
     }
-    note_unknown("a call to a name this walk does not know", current_line)
+    crash program
+    var named = program.class_found(name, class_information.namespace_dotted)
+    if named {
+        return walk_made_object_of(named)
+    }
+    note_unknown("a call to '{name}', which names no function or class this walk knows", current_line)
     return constant_value(null, -1)
 }
 
@@ -474,7 +479,7 @@ func walk_method_call(member: Syntax.Expressions.MemberExpression, holder: Integ
     }
     var holder_class = class_of_value(holder)
     if not holder_class {
-        note_unknown("a call on a value this walk does not know", current_line)
+        note_unknown("a call to '{member.name}' on a value of no class this walk names", current_line)
         return constant_value(null, -1)
     }
     if holder_class.is_container {
@@ -485,7 +490,7 @@ func walk_method_call(member: Syntax.Expressions.MemberExpression, holder: Integ
     if own {
         return note_call(own, arguments)
     }
-    note_unknown("a call to a name this walk does not know", current_line)
+    note_unknown("a call to '{member.name}', which {holder_class.simple_name} does not declare", current_line)
     return constant_value(null, -1)
 }
 
@@ -497,6 +502,16 @@ func walk_made_object(): Integer {
     var object_number = note_object(class_information.qualified_dotted, "made", place, false)
     operation.passes_object(object_number)
     var made: Analysis.SpiteType = Analysis.Types.ClassRefType(class_information.c_name)
+    return constant_value(made, object_number)
+}
+
+func walk_made_object_of(made_class: Analysis.ClassInfo): Integer {
+    crash recorded
+    recorded.makes_object = true
+    var operation = add_operation("make", current_line)
+    var object_number = note_object(made_class.qualified_dotted, "made", place, false)
+    operation.passes_object(object_number)
+    var made: Analysis.SpiteType = Analysis.Types.ClassRefType(made_class.c_name)
     return constant_value(made, object_number)
 }
 
@@ -513,7 +528,12 @@ func note_call(own: Analysis.FunctionInfo, arguments: List<Integer>): Integer {
 
 func note_passed_value(operation: HighOperation, value_number: Integer) {
     var object_number = points_at_of(value_number)
-    crash object_number >= 0
+    if object_number >= 0 {
+        note_passed_object(operation, object_number)
+    }
+}
+
+func note_passed_object(operation: HighOperation, object_number: Integer) {
     operation.passes_object(object_number)
     crash recorded
     crash program
@@ -636,6 +656,10 @@ func write_value(
 
 func read_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?, at: Integer): Integer {
     crash program
+    if object_number < 0 {
+        note_unknown("a field of an object this walk cannot name", at)
+        return -1
+    }
     var object = program.object_at(object_number)
     if not object {
         note_unknown("a field of an object this walk cannot name", at)
@@ -649,6 +673,10 @@ func read_field(object_number: Integer, field_name: String, declared: Analysis.S
 
 func write_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?, at: Integer) {
     crash program
+    if object_number < 0 {
+        note_unknown("a field of an object this walk cannot name", at)
+        return
+    }
     var object = program.object_at(object_number)
     if not object {
         note_unknown("a field of an object this walk cannot name", at)
@@ -657,7 +685,22 @@ func write_field(object_number: Integer, field_name: String, declared: Analysis.
     object.writes(field_name)
     note_field_owner(object)
     var held = points_at_of_field(object_number, field_name, declared)
+    release_what_the_field_held(object_number, field_name, declared, at, held)
     write_value("field", object_number, field_name, declared, at, held)
+}
+
+# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+func release_what_the_field_held(
+    object_number: Integer,
+    field_name: String,
+    declared: Analysis.SpiteType?,
+    at: Integer,
+    points_at: Integer,
+) {
+    crash program
+    if program.is_reference_type(declared) {
+        read_value("field", object_number, field_name, declared, at, points_at)
+    }
 }
 
 func note_field_owner(object: HighObject) {
@@ -710,29 +753,26 @@ func class_of_value(value_number: Integer): Analysis.ClassInfo? {
 }
 
 func class_of_type(spite_type: Analysis.SpiteType?): Analysis.ClassInfo? {
-    assert spite_type
-    var plain = spite_type
-    var nullable = types.as_nullable(plain)
-    if nullable {
-        plain = nullable.inner
-    }
-    var class_reference = types.as_class_ref(plain)
-    assert class_reference
     crash program
-    return program.class_with_c_name(class_reference.c_name)
+    return program.class_of_type(spite_type)
+}
+
+func plain_type_of(spite_type: Analysis.SpiteType?): Analysis.SpiteType? {
+    crash program
+    return program.plain_type_of(spite_type)
 }
 
 func element_type_of(value_number: Integer): Analysis.SpiteType? {
+    var element: Analysis.SpiteType? = null
     var held = type_of_value(value_number)
-    assert held
-    var plain = held
-    var nullable = types.as_nullable(plain)
-    if nullable {
-        plain = nullable.inner
+    var plain = plain_type_of(held)
+    if plain {
+        var listed = types.as_list(plain)
+        if listed {
+            element = listed.element
+        }
     }
-    var listed = types.as_list(plain)
-    assert listed
-    return listed.element
+    return element
 }
 
 func type_of_integer(): Analysis.SpiteType {

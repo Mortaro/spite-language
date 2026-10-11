@@ -445,7 +445,7 @@ func note_made_classes(name: String) {
 }
 
 func note_made_on_line(line: String, function_name: String) {
-    var suffixes = ["___allocate(", "___make(", "___default("]
+    var suffixes = ["___allocate(", "___make_into(", "___make(", "___default("]
     var index = 0
     while index < suffixes.count() {
         var suffix = suffixes[index]
@@ -820,7 +820,7 @@ func made_here(name: String, lines: List<String>): Boolean {
     while index < lines.count() {
         var line = lines[index]
         if assigns_name(line, name) {
-            var fresh = line.contains("___make(") or line.contains("___default()") or line.contains("___allocate()")
+            var fresh = line.contains("___make_into(") or line.contains("___make(") or line.contains("___default()") or line.contains("___allocate()")
             if not fresh {
                 return false
             }
@@ -1114,7 +1114,7 @@ func made_fresh(line: String, field_end: Integer): Boolean {
     if not rest.starts_with("= ") {
         return false
     }
-    return rest.contains("___make(") or rest.contains("___default()") or rest.contains("___allocate()")
+    return rest.contains("___make_into(") or rest.contains("___make(") or rest.contains("___default()") or rest.contains("___allocate()")
 }
 
 func note_singletons(entry: String) {

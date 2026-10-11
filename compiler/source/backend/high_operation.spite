@@ -17,14 +17,16 @@ func HighOperation(starting_kind: String, starting_line: Integer) {
 }
 
 func reads_value(value_number: Integer) {
-    if not reads.contains(value_number) {
-        reads.append(value_number)
-    }
+    note_once(reads, value_number)
 }
 
 func writes_value(value_number: Integer) {
-    if not writes.contains(value_number) {
-        writes.append(value_number)
+    note_once(writes, value_number)
+}
+
+func note_once(given: List<Integer>, value_number: Integer) {
+    if value_number >= 0 and not given.contains(value_number) {
+        given.append(value_number)
     }
 }
 

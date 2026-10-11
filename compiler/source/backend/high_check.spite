@@ -12,7 +12,7 @@ func compare(program: HighProgram, facts: Generation.OverlapFacts) {
         if function.covered {
             compare_function(program, facts, function)
         } else {
-            note_not_covered(function.not_covered_reason)
+            note_not_covered(function)
         }
         index = index + 1
     }
@@ -117,14 +117,16 @@ func note_difference(function: HighFunction, what: String, key: String, given: S
     differences.append("{function.c_name} {what} {key} {given} {expected}")
 }
 
-func note_not_covered(reason: String) {
+func note_not_covered(function: HighFunction) {
+    var reason = function.not_covered_reason
     assert not reason.is_empty()
-    var seen = not_covered[reason]
+    var named = "{function.c_name}: {reason}"
+    var seen = not_covered[named]
     var count = 0
     if seen {
         count = seen
     }
-    not_covered[reason] = count + 1
+    not_covered[named] = count + 1
 }
 
 func report_text(): String {
