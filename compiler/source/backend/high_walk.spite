@@ -364,6 +364,22 @@ func walk_value(expression: Syntax.Expressions.Expression): Integer {
     if shapes.as_enum_literal(expression) {
         return constant_value(null, -1)
     }
+    var listed = shapes.as_list_literal(expression)
+    if listed {
+        return walk_list_literal(listed)
+    }
+    var made_fields = shapes.as_object_literal(expression)
+    if made_fields {
+        return walk_object_literal(made_fields)
+    }
+    var codegen_name = shapes.as_generic_identifier(expression)
+    if codegen_name {
+        return walk_codegen_value(codegen_name)
+    }
+    var codegen_call = shapes.as_generic_call(expression)
+    if codegen_call {
+        return walk_generic_call(codegen_call)
+    }
     var identifier = shapes.as_identifier(expression)
     if identifier {
         return walk_identifier(identifier)
@@ -390,6 +406,67 @@ func walk_value(expression: Syntax.Expressions.Expression): Integer {
     }
     note_unknown("an expression of a kind this walk does not build yet", current_line)
     return constant_value(null, -1)
+}
+
+func walk_codegen_value(identifier: Syntax.Expressions.GenericIdentifierExpression): Integer {
+    crash program
+    var namespace = class_namespace()
+    var named = program.class_found(identifier.name, namespace)
+    if not named {
+        note_unknown("a codegen value naming no class this walk knows", current_line)
+        return constant_value(null, -1)
+    }
+    var operation = add_operation("call", current_line)
+    operation.call_name = named.c_name
+    var made: Analysis.SpiteType = Analysis.Types.ClassRefType(named.c_name)
+    return constant_value(made, -1)
+}
+
+func walk_generic_call(call: Syntax.Expressions.GenericCallExpression): Integer {
+    call.arguments.each(walk_value)
+    if call.callee {
+        walk_value(call.callee)
+    }
+    note_unknown("a call through a codegen value, which names no function this walk knows", current_line)
+    return constant_value(null, -1)
+}
+
+func walk_list_literal(listed: Syntax.Expressions.ListLiteralExpression): Integer {
+    crash recorded
+    recorded.makes_object = true
+    var operation = add_operation("make", current_line)
+    var object_number = note_object("", "made", place, false)
+    operation.passes_object(object_number)
+    var index = 0
+    while index < listed.elements.count() {
+        var element = listed.elements[index]
+        if element.value {
+            walk_value(element.value)
+        }
+        index = index + 1
+    }
+    return constant_value(null, object_number)
+}
+
+func walk_object_literal(made: Syntax.Expressions.ObjectLiteralExpression): Integer {
+    crash recorded
+    recorded.makes_object = true
+    var operation = add_operation("make", current_line)
+    var object_number = note_object("", "made", place, false)
+    operation.passes_object(object_number)
+    var index = 0
+    while index < made.fields.count() {
+        var field = made.fields[index]
+        crash field.value
+        walk_value(field.value)
+        index = index + 1
+    }
+    return constant_value(null, object_number)
+}
+
+func class_namespace(): String {
+    crash class_information
+    return class_information.namespace_dotted
 }
 
 func walk_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integer {
