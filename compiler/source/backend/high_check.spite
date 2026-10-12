@@ -96,10 +96,25 @@ func names_the_high_level_names(keys: Dictionary<String, Boolean>): Boolean {
 }
 
 func names_one_key(key: String): Boolean {
-    if not key.starts_with("f:") {
+    if not key.starts_with("f:") and not key.starts_with("c:") {
         return false
     }
-    return not key.contains("@")
+    if key.contains("@") {
+        return false
+    }
+    if key.contains("|*") {
+        return false
+    }
+    return not tag_in(key)
+}
+
+func tag_in(key: String): Boolean {
+    var mark = key.index_of("|")
+    if mark < 0 {
+        return false
+    }
+    var key_length = key.length()
+    return key.slice(mark + 1, key_length).contains("#")
 }
 
 func first_key(keys: Dictionary<String, Boolean>): String {
@@ -164,10 +179,35 @@ func written_key_of(program: HighProgram, key: String): String {
         if found {
             var key_length = key.length()
             var field_name = key.slice(mark + 1, key_length)
-            written = "f:{program.class_c_name(found.class_name)}#{field_name}_"
+            written = key_of(program, found, field_name)
         }
     }
     return written
+}
+
+# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+func key_of(program: HighProgram, owner: HighObject, field_name: String): String {
+    var written = "f:{program.class_c_name(owner.class_name)}#{field_name}_"
+    if owner.kind == "items" {
+        var holder_class = class_of_object(program, owner.container_of)
+        var list_class = program.class_c_name(holder_class)
+        if field_name.is_empty() {
+            written = "c:{list_class}|*"
+        } else {
+            var element = program.class_c_name(owner.class_name)
+            written = "c:{list_class}|{element}#{field_name}"
+        }
+    }
+    return written
+}
+
+func class_of_object(program: HighProgram, number: Integer): String {
+    var named = ""
+    var found = program.object_at_or_none(number)
+    if found {
+        named = found.class_name
+    }
+    return named
 }
 
 func note_difference(function: HighFunction, what: String, key: String, given: String, expected: String) {

@@ -224,9 +224,7 @@ func walk_written_slot(indexed: Syntax.Expressions.IndexExpression, declared: An
     crash indexed.index
     var holder = walk_value(indexed.object)
     walk_value(indexed.index)
-    crash recorded
-    recorded.touches_a_container = true
-    var owner = points_at_of(holder)
+    var owner = items_of(holder)
     write_value("slot", owner, "items", declared, current_line, owner)
 }
 
@@ -469,6 +467,27 @@ func class_namespace(): String {
     return class_information.namespace_dotted
 }
 
+func changes_a_container(member_name: String): Boolean {
+    var reads_only = ["count", "is_empty", "get_at", "first", "last", "contains", "index_of", "join"]
+    return not reads_only.contains(member_name)
+}
+
+# ../../../design/backend_high_level_ir.md#abstract-objects
+func items_of(holder: Integer): Integer {
+    var list_number = points_at_of(holder)
+    if list_number < 0 {
+        return -1
+    }
+    var element = element_type_of(holder)
+    var element_class = class_of_type(element)
+    var named = "*"
+    if element_class {
+        named = element_class.qualified_dotted
+    }
+    crash program
+    return program.items_object_of(list_number, named)
+}
+
 func walk_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integer {
     var scope = scopes.last()
     crash scope
@@ -512,11 +531,17 @@ func walk_slot_read(indexed: Syntax.Expressions.IndexExpression): Integer {
     crash indexed.index
     var holder = walk_value(indexed.object)
     walk_value(indexed.index)
-    crash recorded
-    recorded.touches_a_container = true
-    var owner = points_at_of(holder)
+    var owner = items_of(holder)
     var element = element_type_of(holder)
-    return read_value("slot", owner, "items", element, current_line, -1)
+    return slot_item(owner, element, current_line)
+}
+
+func slot_item(owner: Integer, element: Analysis.SpiteType?, at: Integer): Integer {
+    crash recorded
+    var operation = add_operation("slot read", at)
+    var made = recorded.new_value("slot", -1, owner, "", 0, element)
+    operation.reads_value(made)
+    return made
 }
 
 func walk_call(call: Syntax.Expressions.CallExpression): Integer {
@@ -573,7 +598,7 @@ func walk_method_call(member: Syntax.Expressions.MemberExpression, holder: Integ
         note_unknown("a call to '{member.name}' on a value of no class this walk names", current_line)
         return constant_value(null, -1)
     }
-    if holder_class.is_container {
+    if holder_class.is_container and changes_a_container(member.name) {
         crash recorded
         recorded.touches_a_container = true
     }

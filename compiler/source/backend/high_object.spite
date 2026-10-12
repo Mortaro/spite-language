@@ -4,6 +4,7 @@ var class_name = ""
 var kind = ""
 var place = ""
 var through_field = false
+var container_of = -1
 var fields_read = List<String>()
 var fields_written = List<String>()
 

@@ -6,6 +6,7 @@ var classes_made = Dictionary<String, Boolean>()
 var classes_by_qualified = Dictionary<String, Analysis.ClassInfo>()
 var classes_by_c_name = Dictionary<String, Analysis.ClassInfo>()
 var declared_function_names = Dictionary<String, Boolean>()
+var item_objects = Dictionary<String, Integer>()
 var types = Analysis.TypeShape()
 
 func HighProgram(starting_generator: Generation.Generator) {
@@ -153,6 +154,22 @@ func new_object(class_name: String, kind: String, made_at: String, through_field
         classes_made[class_name] = true
     }
     return made
+}
+
+# ../../../design/backend_high_level_ir.md#abstract-objects
+func items_object_of(list_number: Integer, element_class: String): Integer {
+    var key = "items of {list_number}"
+    var known: Integer? = null
+    if item_objects.has(key) {
+        known = item_objects[key]
+    }
+    if known {
+        return known
+    }
+    var made = new_object(element_class, "items", "the items of object {list_number}", false)
+    made.container_of = list_number
+    item_objects[key] = made.number
+    return made.number
 }
 
 func object_at(number: Integer): HighObject? {
