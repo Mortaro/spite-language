@@ -1754,8 +1754,10 @@ echo "breakpoints: a breakpoint compiled into a running loop stopped it with its
 # built from a copy in which docs/ sits there.
 job_formatting() {
 formatting_tool="$work/formatting_tool"
+# design/ is copied because the compiler's own sources link into it (backend_high_level_ir.md), and the formatting
+# tool resolves a comment's link from the folder of the file it is in.
 mkdir -p "$formatting_tool/scripts" "$formatting_tool/compiler"
-cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r compiler/source "$formatting_tool/compiler/" || {
+cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r design "$formatting_tool/design" && cp -r compiler/source "$formatting_tool/compiler/" || {
   echo "FAILED: could not copy scripts/formatting"; exit 1; }
 "$work/generation_two.exe" "$formatting_tool/scripts/formatting" --build --executable-path="$work/formatting.exe" > /dev/null || {
   echo "FAILED: scripts/formatting does not build"; exit 1; }

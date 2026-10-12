@@ -140,6 +140,13 @@ reading each program's `flags.txt` as `check.sh` does, and writes the totals and
 to `.spite/high_level_coverage/summary.txt`. It fails on any difference. `check.sh` runs it as one job
 (`job_high_level`) over the whole corpus, so a difference is a red build.
 
+The report is asked for with `--high-level-report=<path>`, which is a setting of `Build`, and every setting of `Build`
+is a field of every program's C. So adding it moved every benchmark's `generated.c` by one line, which the same
+commit regenerates (`scripts/cases/extract.sh`), and it moved the error `diagnostics/unknown_compiler_flag` holds,
+which lists the settings it knows. There is no way to ask a compiler-only question of a program without a setting of
+its own, so the cost is one field in every program's C until the settings stop being fields (D578's compiler written
+in Spite is where that would be decided).
+
 ## The coverage the corpus reaches
 
 Measured on this branch by `scripts/high_level_coverage.sh` over every program of `conformance/` and `examples/`

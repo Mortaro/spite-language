@@ -377,6 +377,7 @@ bool c_source_;
 SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
+SpiteString high_level_report_;
 bool optimized_;
 bool development_;
 bool repl_;

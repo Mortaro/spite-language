@@ -22,6 +22,9 @@ covers](backend_high_level_ir.md), and decisions D558 to D561, D569 and D583 in 
   comparison of calls comes back when those decisions move onto the high level.
 - `check.sh` runs `scripts/high_level_coverage.sh` as one job (`job_high_level`) over the whole corpus, and a
   difference is a red build.
+- Asking for the report is a setting of `Build`, and every `Build` setting is a field of every program's C, so the
+  option moved all 102 benchmark `generated.c` by one line and the error `diagnostics/unknown_compiler_flag` holds.
+  Both were regenerated in the same commit, as `scripts/cases/extract.sh` and the diagnostic's own text ask.
 - Nothing in `check.sh` runs the comparison yet.
 
 ## To do, in order

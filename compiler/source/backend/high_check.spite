@@ -47,7 +47,18 @@ func compare_fields(program: HighProgram, function: HighFunction, oracle: Genera
     if not writes_named {
         skip(function, "writes", "the C reader names '{first_key(oracle.writes)}', which is not a field of a class")
     }
-    assert reads_named or writes_named
+    if reads_named or writes_named {
+        compare_named_fields(program, function, oracle, reads_named, writes_named)
+    }
+}
+
+func compare_named_fields(
+    program: HighProgram,
+    function: HighFunction,
+    oracle: Generation.OverlapFact,
+    reads_named: Boolean,
+    writes_named: Boolean,
+) {
     kinds_compared = kinds_compared + 1
     if reads_named {
         compare_keys(program, function, "reads", function.fact.reads, oracle.reads)

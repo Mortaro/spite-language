@@ -272,6 +272,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   generator decides a thing, the two walks describe different programs, so the comparison for that thing can only
   wait. The cost to confirm: a kind that is not compared is reported with the key or the call that stopped it, and
   nothing is left out quietly; say if a kind should be compared anyway, naming what the generator decided.
+- **D585, every setting of `Build` is a field of every program's C**: asking a compiler-only question of a program
+  (`--high-level-report`, `--optimization-report`) costs one field in every program, so all 102 benchmark
+  `generated.c` moved by one line when IR-1's option was added. Why: a flag is only accepted when the target
+  program's `Build` declares it, and a declared setting is a field. The cost to confirm: the regenerated benchmark
+  C and the updated `unknown_compiler_flag` error, and whether the settings should stop being fields as part of
+  D578.
 
 ## Open
 
