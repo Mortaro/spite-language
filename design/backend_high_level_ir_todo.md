@@ -17,20 +17,16 @@ covers](backend_high_level_ir.md), and decisions D558 to D561, D569 and D583 in 
 - It runs over the whole conformance corpus and the examples with no program stopping: 413 programs, 541 functions
   the walk built, **541 agreed and 0 differ**. What it reaches is in
   [backend_high_level_ir.md](backend_high_level_ir.md#the-coverage-the-corpus-reaches).
-- **Calls are not compared yet**: the C writes a call as a call, as an inlined body, a folded copy or not at all, and
+- Calls are not compared yet: the C writes a call as a call, as an inlined body, a folded copy or not at all, and
   writes one the program never wrote for a conversion to text. Comparing them would measure the generator, so the
   comparison of calls comes back when those decisions move onto the high level.
-- Nothing in `check.sh` runs the comparison yet (the next to do).
+- `check.sh` runs `scripts/high_level_coverage.sh` as one job (`job_high_level`) over the whole corpus, and a
+  difference is a red build.
+- Nothing in `check.sh` runs the comparison yet.
 
 ## To do, in order
 
-1. **Add a `check.sh` job** that runs the report over the corpus and fails on any difference, naming the function,
-   the kind, the key and both answers.
-   - It is a check of the compiler, never an error in a user's program.
-   - It must not change any generated C: the benchmarks' `generated.c` stay byte-identical.
-   - `scripts/high_level_coverage.sh <compiler>` already does the running and the summary; the job is to call it
-     and to fail on a non-zero `differed`.
-2. **Raise coverage, case by case**, from the summary's reasons, most often first:
+1. **Raise coverage, case by case**, from the summary's reasons, most often first:
    - a call on a value whose class the walk cannot name (17 functions): a value that is a `List` item, a value a
      call returned, a value narrowed by an `assert`;
    - a call to a member a library class does not declare (20 functions): a foreign function reached through a
@@ -40,6 +36,8 @@ covers](backend_high_level_ir.md), and decisions D558 to D561, D569 and D583 in 
    - a container (the `c:` key of a list's items), which is one whole class of functions;
    - the owner tags of D556, which decide whether two keys with the same innermost tag touch;
    - a getter, a setter, a switch, a template, a codegen value used as a type: one function each.
+2. **Calls come back** when the decisions that rename or drop them (inlining, folding, the conversion to text a
+   program never wrote) move onto the high level. Until then the report says so with the count.
 3. **Gate:** `bash check.sh --update-seed`, then `bash check.sh`, last line starting with `OK`.
    - Iterate faster first: build the seed once with `-O1` and run `<seed> compiler --check` from the repository
      root, where no output means it compiled.

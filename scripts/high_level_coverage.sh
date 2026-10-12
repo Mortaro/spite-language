@@ -7,7 +7,7 @@
 #
 # It is a check of the compiler, never an error in a user's program: a program's
 # two answers differing is a bug in the compiler, and each comparison is deleted
-# the day its decision has moved onto the high level.
+# the day its decision has moved onto the high level. It fails on any difference.
 #
 # It compiles each program with --check, so nothing is built and no program runs.
 # The programs are checked side by side, as many at once as there are processors
@@ -74,4 +74,12 @@ awk -f scripts/high_level_summary.awk "$reports"/*.txt > "$out/summary.txt" 2>&1
 
 echo "high level over $total programs, $stopped stopped: see $out/summary.txt"
 head -8 "$out/summary.txt"
+
+# Any difference is a bug in the compiler, never an error in a user's program, and it fails here.
+differing=$(grep -c '^difference ' "$out/summary.txt")
+if [ "$differing" != "0" ]; then
+  echo "FAILED: the high level and the C reader differ on $differing facts, and each one is a bug in one of the two:"
+  grep '^difference ' "$out/summary.txt" | head -20
+  exit 1
+fi
 [ "$stopped" -eq 0 ] || exit 1

@@ -445,6 +445,14 @@ job_launcher() {
   fi
 }
 
+# The high level the compiler builds of a program, compared with what the C of that program says
+# (design/backend_high_level_ir.md#what-the-comparison-checks). It is a check of the compiler, never an error in
+# a user's program: a difference is a bug in the walk or in the C reader, and it names both answers. It compiles each
+# program with --check, so no program is built and no program runs, and it writes nothing beside the repository.
+job_high_level() {
+  COVERAGE_JOBS="$jobs" bash scripts/high_level_coverage.sh "$work/generation_two.exe" "$work/high_level" || exit 1
+}
+
 run_job() {
   local index=$1 kind=$2
   shift 2
@@ -468,6 +476,7 @@ mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
   echo generation_three
   echo launcher
   echo compiler_memory
+  echo high_level
   echo "repeated_crash conformance/stage6/concurrent_wait_cycle 200"
   echo "repeated_crash conformance/stage6/concurrent_wait_cycle_in_place 200"
   for program in .spite/docs/hot_counter conformance/stage6/kept_templates conformance/stage6/items_columns                  conformance/stage6/class_argument conformance/stage6/json_symbols conformance/stage6/attribute_object                  conformance/stage6/foreign_callbacks conformance/stage6/waiting_systems conformance/stage6/allocator_choice                  examples/dungeon conformance/stage6/live_load_order; do
@@ -544,6 +553,7 @@ echo "documentation: $documented passed, $undocumented failed"
 echo "diagnostics: $checked checked, $wrong wrong"
 echo "benchmark cases: $cased compile, keep their generated C and highlights, and answer alike in Spite, naive C and expert C"
 [ "$failures" == "0" ] || { echo "FAILED: $failures jobs failed"; exit 1; }
+[ -f "$work/high_level/summary.txt" ] && sed -n '1,9p' "$work/high_level/summary.txt" | sed 's/^/high level: /'
 echo "generation 3: byte identical to generation 2"
 echo "tests: passed"
 echo "compiler memory: compiling itself frees everything it takes"

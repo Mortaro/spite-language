@@ -137,7 +137,8 @@ bug in the compiler, and each comparison is deleted the day its decision has mov
 
 `scripts/high_level_coverage.sh <compiler>` runs the report over the whole conformance corpus and the examples,
 reading each program's `flags.txt` as `check.sh` does, and writes the totals and every reason a kind was not compared
-to `.spite/high_level_coverage/summary.txt`.
+to `.spite/high_level_coverage/summary.txt`. It fails on any difference. `check.sh` runs it as one job
+(`job_high_level`) over the whole corpus, so a difference is a red build.
 
 ## The coverage the corpus reaches
 
