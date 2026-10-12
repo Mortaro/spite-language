@@ -1,40 +1,107 @@
 # ../../../design/backend_high_level_ir.md#what-the-comparison-checks
-var checked = 0
+var walked = 0
 var agreed = 0
 var differed = 0
 var differences = List<String>()
+var answers = List<String>()
 var not_covered = Dictionary<String, Integer>()
+var kinds_compared = 0
+var kinds_skipped = 0
+var calls_not_compared = 0
 
 func compare(program: HighProgram, facts: Generation.OverlapFacts) {
     var index = 0
     while index < program.walked_functions.count() {
         var function = program.walked_functions[index]
         if function.covered {
+            walked = walked + 1
+            calls_not_compared = calls_not_compared + 1
             compare_function(program, facts, function)
         } else {
-            note_not_covered(function)
+            note_not_covered(function, "walk", function.not_covered_reason)
         }
         index = index + 1
     }
 }
 
 func compare_function(program: HighProgram, facts: Generation.OverlapFacts, function: HighFunction) {
-    assert facts.bodies.has(function.c_name)
     var oracle = facts.facts_of(function.c_name)
-    assert not oracle.container
-    checked = checked + 1
     var before = differences.count()
-    compare_keys(program, function, "reads", function.fact.reads, oracle.reads)
-    compare_keys(program, function, "writes", function.fact.writes, oracle.writes)
-    compare_calls(function, oracle)
-    if function.fact.loops != oracle.loops {
-        note_difference(function, "loops", "a loop in the body", function.fact.loops, oracle.loops)
-    }
+    compare_fields(program, function, oracle)
+    compare_loops(program, function, oracle)
     if differences.count() == before {
         agreed = agreed + 1
         return
     }
     differed = differed + 1
+    var answer = function.facts_text()
+    answers.append(answer)
+}
+
+func compare_fields(program: HighProgram, function: HighFunction, oracle: Generation.OverlapFact) {
+    var reads_named = names_the_high_level_names(oracle.reads)
+    var writes_named = names_the_high_level_names(oracle.writes)
+    if not reads_named {
+        skip(function, "reads", "the C reader names '{first_key(oracle.reads)}', which is not a field of a class")
+    }
+    if not writes_named {
+        skip(function, "writes", "the C reader names '{first_key(oracle.writes)}', which is not a field of a class")
+    }
+    assert reads_named or writes_named
+    kinds_compared = kinds_compared + 1
+    if reads_named {
+        compare_keys(program, function, "reads", function.fact.reads, oracle.reads)
+    }
+    if writes_named {
+        compare_keys(program, function, "writes", function.fact.writes, oracle.writes)
+    }
+}
+
+func compare_loops(program: HighProgram, function: HighFunction, oracle: Generation.OverlapFact) {
+    if calls_the_library(program, function) {
+        skip(function, "loops", "a call into the library, which the C may write a loop of its own for")
+        return
+    }
+    kinds_compared = kinds_compared + 1
+    if function.fact.loops != oracle.loops {
+        note_difference(function, "loops", "a loop in the body", function.fact.loops, oracle.loops)
+    }
+}
+
+func calls_the_library(program: HighProgram, function: HighFunction): Boolean {
+    var asked = function.fact.calls
+    var index = 0
+    while index < asked.count() {
+        if not program.declares_function(asked[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func names_the_high_level_names(keys: Dictionary<String, Boolean>): Boolean {
+    return keys.keys().all(names_one_key)
+}
+
+func names_one_key(key: String): Boolean {
+    if not key.starts_with("f:") {
+        return false
+    }
+    return not key.contains("@")
+}
+
+func first_key(keys: Dictionary<String, Boolean>): String {
+    var named = keys.keys()
+    if named.is_empty() {
+        return "nothing"
+    }
+    return named[0]
+}
+
+func skip(function: HighFunction, kind: String, why: String) {
+    kinds_skipped = kinds_skipped + 1
+    note_not_covered(function, kind, why)
 }
 
 func compare_keys(
@@ -77,50 +144,28 @@ func translated_keys(program: HighProgram, given: Dictionary<String, Boolean>): 
 }
 
 func written_key_of(program: HighProgram, key: String): String {
+    var written = ""
     var mark = key.index_of("#")
-    if mark < 0 {
-        return ""
-    }
-    var asked = key.slice(0, mark).to_integer()
-    if not asked {
-        return ""
-    }
-    var object = program.object_at(asked)
-    if not object {
-        return ""
-    }
-    var key_length = key.length()
-    var field_name = key.slice(mark + 1, key_length)
-    return "f:{program.class_c_name(object.class_name)}#{field_name}_"
-}
-
-func compare_calls(function: HighFunction, oracle: Generation.OverlapFact) {
-    var answered = function.fact.calls
-    var asked = oracle.calls
-    var index = 0
-    while index < answered.count() {
-        if not asked.contains(answered[index]) {
-            note_difference(function, "calls", answered[index], "the high level", "not the C reader")
+    if mark >= 0 {
+        var asked = key.slice(0, mark).to_integer()
+        crash asked
+        var found = program.object_at_or_none(asked)
+        if found {
+            var key_length = key.length()
+            var field_name = key.slice(mark + 1, key_length)
+            written = "f:{program.class_c_name(found.class_name)}#{field_name}_"
         }
-        index = index + 1
     }
-    index = 0
-    while index < asked.count() {
-        if not answered.contains(asked[index]) {
-            note_difference(function, "calls", asked[index], "not the high level", "the C reader")
-        }
-        index = index + 1
-    }
+    return written
 }
 
 func note_difference(function: HighFunction, what: String, key: String, given: String, expected: String) {
     differences.append("{function.c_name} {what} {key} {given} {expected}")
 }
 
-func note_not_covered(function: HighFunction) {
-    var reason = function.not_covered_reason
-    assert not reason.is_empty()
-    var named = "{function.c_name}: {reason}"
+func note_not_covered(function: HighFunction, kind: String, why: String) {
+    assert not why.is_empty()
+    var named = "{function.c_name} {kind}: {why}"
     var seen = not_covered[named]
     var count = 0
     if seen {
@@ -131,10 +176,20 @@ func note_not_covered(function: HighFunction) {
 
 func report_text(): String {
     var lines = List<String>()
-    lines.append("high level checked {checked} agreed {agreed} differed {differed}")
+    lines.append("high level walked {walked} agreed {agreed} differed {differed}")
+    lines.append("kinds compared {kinds_compared} kinds not covered {kinds_skipped}")
+    lines.append("calls not compared {calls_not_compared}: the C writes a call as a call, as an inlined")
+    lines.append("body, as a folded copy or not at all, and writes one the program never wrote for a")
+    lines.append("conversion to text; the high level cannot see any of that, so calls come back when")
+    lines.append("those decisions move onto the high level")
     var index = 0
     while index < differences.count() {
         lines.append("difference {differences[index]}")
+        index = index + 1
+    }
+    index = 0
+    while index < answers.count() {
+        lines.append("answers {answers[index]}")
         index = index + 1
     }
     var reasons = not_covered.keys()

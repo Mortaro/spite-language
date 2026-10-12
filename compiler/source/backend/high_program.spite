@@ -5,6 +5,7 @@ var walked_functions = List<HighFunction>()
 var classes_made = Dictionary<String, Boolean>()
 var classes_by_qualified = Dictionary<String, Analysis.ClassInfo>()
 var classes_by_c_name = Dictionary<String, Analysis.ClassInfo>()
+var declared_function_names = Dictionary<String, Boolean>()
 var types = Analysis.TypeShape()
 
 func HighProgram(starting_generator: Generation.Generator) {
@@ -48,6 +49,20 @@ func note_classes() {
         var information = known[index]
         classes_by_qualified[information.qualified_dotted] = information
         classes_by_c_name[information.c_name] = information
+        if not is_library(information) {
+            note_declared_functions(information)
+        }
+        index = index + 1
+    }
+}
+
+func note_declared_functions(information: Analysis.ClassInfo) {
+    var index = 0
+    while index < information.declared_functions.count() {
+        var declared = information.declared_functions[index]
+        if walked_from_source(declared) and not declared.c_name.is_empty() {
+            declared_function_names[declared.c_name] = true
+        }
         index = index + 1
     }
 }
@@ -143,6 +158,19 @@ func new_object(class_name: String, kind: String, made_at: String, through_field
 func object_at(number: Integer): HighObject? {
     assert number >= 0 and number < objects.count()
     return objects[number]
+}
+
+func object_at_or_none(number: Integer): HighObject? {
+    var found: HighObject? = null
+    if number >= 0 and number < objects.count() {
+        found = objects[number]
+    }
+    return found
+}
+
+# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+func declares_function(c_name: String): Boolean {
+    return declared_function_names.has(c_name)
 }
 
 func class_c_name(qualified: String): String {

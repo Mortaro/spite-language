@@ -59,10 +59,23 @@ func value_at(number: Integer): HighValue {
     return made
 }
 
+# ../../../design/backend_high_level_ir.md#values-and-owners
+func value_or_none_at(number: Integer): HighValue? {
+    var found: HighValue? = null
+    if number >= 0 and number < values.count() {
+        found = values[number]
+    }
+    return found
+}
+
 func note_reason(reason: String) {
     if not_covered_reason.is_empty() {
         not_covered_reason = reason
     }
+}
+
+func facts_text(): String {
+    return "{c_name} {fact.facts_text()}"
 }
 
 # ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations

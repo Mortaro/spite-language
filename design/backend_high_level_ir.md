@@ -37,6 +37,10 @@ with a body: the body is a block of its own, and the edges `body`, `step` and `e
 that holds the loop, so a loop's body can be cut into pieces later (D559). A list walk is one operation with a body
 too, and says whether it is a counted `while`, a plain `while`, or a walk over a list's items.
 
+A block that cannot go on at all has no edges at all, and the walk stops there: a `return` ends it, and so does a
+`crash` whose condition always holds. A `crash` with a condition that may be false ends the block only on that path,
+so what follows it is walked as usual.
+
 Nothing is a block of C text and nothing is a name that means something at one place in a file.
 
 An operation of unknown effect is what a case the walk does not build is recorded as. It says why, and the function
@@ -52,6 +56,15 @@ abstract object.
 There is a new value on every write of a local, a field or a slot, each with its version one above the value it
 replaces. That is the form the first questions need: at a join, the values that are the same on both sides are the
 ones both sides wrote, and a value one side wrote alone is one the other side may not have written at all.
+
+A value number of `-1` is the walk's "no value here". It is what a statement the walk did not build answers, and the
+statement that could not be built says so as an operation of unknown effect, so nothing is ever written from it and no
+fact that would be wrong is. Nothing is asked of a value that is not there: reading the owner, the class or the type
+of `-1` answers nothing rather than reading past the end of the list.
+
+Writing a field whose type is a reference reads the field first, as its own operation: what the field held is
+released before the new value goes in, so the read is a read of that same field. The C writes it in that order and the
+comparison needs both walks to say it in that order.
 
 A join between two blocks records a `HighJoin`: the name it is about, the value each side leaves there, which of them
 is kept, and which is dropped. A join of an `if` joins what each branch leaves with what the condition left; a loop's
@@ -105,16 +118,78 @@ name. A function is not covered when:
   program question, and the C reader's answer names an owner tag the walk does not compute yet;
 - it names a field of a class the program never makes: the C reader leaves such a field out entirely.
 
-For every covered function `generation/overlap_facts.spite` has a body for, the comparison asks it for the function's
-reads, writes, calls and loops and asks the high level for the same, and each key of the high level is named the way
-the C names it (the class by the name the C gives it, a field by its own name with `_` after it). A difference fails
-`check.sh`, naming the function, the field and both answers. The comparison is a check of the compiler and never an
-error in a user's program: a program whose two answers differ is a bug in the compiler, and each comparison is deleted
-the day its decision has moved onto the high level.
+A covered function is compared **one kind of fact at a time**, and each kind has its own rule of what the two walks
+can name the same, because the generator decides some of them and not others:
+
+- **reads and writes** are compared when every key the C reader gives is a field of a class (`f:Class#field_`) with no
+  owner tag on it. A `raw` write, a container key (`c:Class|...`), an `io:` key or a tagged key is one the high level
+  does not build yet, so that kind is not compared and the report names the key.
+- **calls** are not compared at all yet: the C writes a call as a call, as an inlined body, as a folded copy or not
+  at all, and writes one the program never wrote when a value becomes text. See [The coverage the corpus
+  reaches](#the-coverage-the-corpus-reaches).
+- **loops** are compared when the function makes no call into the library, since a variadic call is written as a loop
+  of its own that the program never wrote.
+
+A kind that is compared and the two answers differ fails `check.sh`, naming the function, the kind, the key and both
+answers, and the report also writes what the high level answered in full, so the two can be read side by side. The
+comparison is a check of the compiler and never an error in a user's program: a program whose two answers differ is a
+bug in the compiler, and each comparison is deleted the day its decision has moved onto the high level.
+
+`scripts/high_level_coverage.sh <compiler>` runs the report over the whole conformance corpus and the examples,
+reading each program's `flags.txt` as `check.sh` does, and writes the totals and every reason a kind was not compared
+to `.spite/high_level_coverage/summary.txt`.
+
+## The coverage the corpus reaches
+
+Measured on this branch by `scripts/high_level_coverage.sh` over every program of `conformance/` and `examples/`
+that compiles, each with the flags `check.sh` gives it:
+
+| | |
+|---|---|
+| programs with a report | 413 |
+| functions the walk built | 541 |
+| functions the two answers agree on | 541 |
+| functions that differ | 0 |
+| kinds of fact compared | 987 |
+| kinds of fact not compared, each naming why | 155 |
+| functions whose calls are not compared | 541 |
+| functions the walk did not cover, each naming why | 2,329 |
+
+Every function that differs is a bug in the walk or in the C reader, and it is fixed rather than left out. There are
+none left on this branch.
+
+**Calls are not compared yet, and that is the whole of the 541.** The C writes a call as a call, as an inlined body,
+as a folded copy or not at all, and writes one the program never wrote when a value becomes text; the high level sees
+none of that, so comparing calls would only measure the generator's decisions. The comparison of calls comes back
+when those decisions move onto the high level, which is the migration the review describes.
+
+**Reads and writes are compared**, and that is where the overlap proofs live: a field of a class, keyed by the
+abstract object and the field. They are not compared for the 155 functions where the C reader names something else:
+a `raw` write, a container key (`c:Class|...`), an `io:` key, or a key carrying an owner tag (D556, whose tags the
+walk does not compute yet).
+
+**Loops are compared** for every function that makes no call into the library, since a variadic call is written as a
+loop of its own that the program never wrote.
+
+The 2,329 functions the walk does not cover are its own limits, and the reasons name them. The largest group is an
+operation of unknown effect, and what is not built inside it is:
+
+| What the walk does not build yet | Functions |
+|---|---|
+| a call on a value whose class it cannot name | 17 |
+| a call to a member a library class does not declare (a foreign or a generated one) | 20 |
+| a call to a member of a class of the program that does not declare it | 8 |
+| a call through a function value, or to a name that is no function and no class | 7 |
+| the key of a container's items, which is a `c:` key | 1 whole class of functions |
+| a member read or written through a value it cannot name | 2 |
+| a getter, a setter, a switch, a template, a type, a name, a codegen value, a list, an expression | 1 each |
+
+Every one of them is a case the walk records as an unknown effect that says what it did not build, never as an empty
+effect, so a fact that would be wrong is never written (D244).
 
 ## What it costs
 
 Nothing at run time: the high level is held while compiling and ships nothing, and no fact it carries is checked
-again by the program. A program that never asks a fact about a function does not build that function's high level,
-and a compiler built without the comparison carries none of it. What it costs is compile time and memory per function,
-which `bash check.sh` and the benchmarks show.
+again by the program. Tree shaking does not apply: the whole program's high level exists only while it is being
+compiled, which is what D569 decides (the whole program kept in memory and cached on disk for a later build). What it
+costs is compile time and memory for the whole program, which `bash check.sh` and the benchmarks show.

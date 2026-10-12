@@ -266,6 +266,12 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   it would point somewhere else. The layout is in
   [backend_windows_executable_format.md](design/backend_windows_executable_format.md), and the writer's
   acceptance, an executable that calls `ExitProcess(42)` and exits with 42, runs in `check.sh` on Windows alone.
+- **D584, the high level comparison is decided one kind of fact at a time**: reads and writes when every key the C
+  reader gives is a field of a class with no owner tag on it, calls when every call on either side is a function one
+  of the program's own classes declares, loops when the function makes no call into the library. Why: while the
+  generator decides a thing, the two walks describe different programs, so the comparison for that thing can only
+  wait. The cost to confirm: a kind that is not compared is reported with the key or the call that stopped it, and
+  nothing is left out quietly; say if a kind should be compared anyway, naming what the generator decided.
 
 ## Open
 

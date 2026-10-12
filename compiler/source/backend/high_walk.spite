@@ -307,7 +307,9 @@ func walk_assert(statement: Syntax.Statements.AssertStatement) {
     if statement.is_crash {
         var halting = add_operation("crash", statement.line)
         halting.can_end = true
-        end_the_block("crash")
+        if shapes.is_true_literal(statement.value) {
+            end_the_block("crash")
+        }
         return
     }
     var operation = add_operation("assert", statement.line)
@@ -570,21 +572,14 @@ func note_list_member(member: Syntax.Expressions.MemberExpression, holder: Integ
         return
     }
     var own = element_class.find_function(member_name)
-    if own {
-        var operation = add_operation("call", current_line)
-        operation.call_name = own.c_name
-        return
-    }
+    assert not own
     var field = element_class.find_field(member_name)
     if not field {
         note_unknown("a list walk over items this walk does not know", current_line)
         return
     }
     var owner = points_at_of(holder)
-    var named = read_field(owner, member_name, field.type, current_line)
-    if not named {
-        note_unknown("a field of a list item this walk cannot name", current_line)
-    }
+    read_field(owner, member_name, field.type, current_line)
 }
 
 func walk_computation(binary: Syntax.Expressions.BinaryExpression): Integer {
@@ -736,15 +731,23 @@ func copied_values(): HighValues {
 }
 
 func points_at_of(value_number: Integer): Integer {
+    var pointed_at = -1
     crash recorded
-    var held = recorded.value_at(value_number)
-    return held.points_at
+    var held = recorded.value_or_none_at(value_number)
+    if held {
+        pointed_at = held.points_at
+    }
+    return pointed_at
 }
 
 func type_of_value(value_number: Integer): Analysis.SpiteType? {
+    var held: Analysis.SpiteType? = null
     crash recorded
-    var held = recorded.value_at(value_number)
-    return held.spite_type
+    var found = recorded.value_or_none_at(value_number)
+    if found {
+        held = found.spite_type
+    }
+    return held
 }
 
 func class_of_value(value_number: Integer): Analysis.ClassInfo? {

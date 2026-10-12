@@ -31,3 +31,12 @@ func note_unknown(reason: String) {
         first_unknown_reason = reason
     }
 }
+
+# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+func facts_text(): String {
+    return "reads {keys_text(reads)} writes {keys_text(writes)} calls {calls.join(" ")} loops {loops}"
+}
+
+func keys_text(given: Dictionary<String, Boolean>): String {
+    return given.keys().join(" ")
+}
