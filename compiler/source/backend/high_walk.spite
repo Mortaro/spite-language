@@ -23,15 +23,17 @@ func HighWalk(
     var function = HighFunction(starting_function.name, starting_class.simple_name, starting_function.c_name)
     recorded = function
     var scope = HighScope(null)
+    place = "{starting_class.simple_name}.{starting_function.name}"
     var position = 0
     while position < starting_function.parameters.count() {
         var parameter = starting_function.parameters[position]
-        scope.declare(parameter.name, parameter.type)
+        var object_number = note_object_of(parameter.type, "parameter", "{place} parameter {position}")
+        scope.declare(parameter.name, parameter.type, object_number)
         function.parameter_names.append(parameter.name)
+        function.parameter_objects.append(object_number)
         position = position + 1
     }
     scopes.append(scope)
-    place = "{starting_class.simple_name}.{starting_function.name}"
     receiver = note_object(starting_class.qualified_dotted, "receiver", place, false)
     block = function.new_block("entry")
     walk_statements(starting_function.body)
@@ -41,6 +43,15 @@ func note_object(class_name: String, kind: String, made_at: String, through_fiel
     crash program
     var made = program.new_object(class_name, kind, made_at, through_field)
     return made.number
+}
+
+func note_object_of(declared: Analysis.SpiteType?, kind: String, made_at: String): Integer {
+    var named = class_of_type(declared)
+    var class_name = ""
+    if named {
+        class_name = named.qualified_dotted
+    }
+    return note_object(class_name, kind, made_at, false)
 }
 
 func new_block(block_kind: String): HighBlock {
@@ -132,7 +143,7 @@ func walk_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     write_value("local", -1, declaration.name, declared, current_line, points_at)
     var scope = scopes.last()
     crash scope
-    scope.declare(declaration.name, declared)
+    scope.declare(declaration.name, declared, points_at)
 }
 
 func declared_type(declaration: Syntax.Statements.VariableDeclaration, value: Integer): Analysis.SpiteType? {
@@ -386,7 +397,8 @@ func walk_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integ
     crash scope
     var declared = scope.written_type(identifier.name)
     if declared {
-        return read_value("local", -1, identifier.name, declared, current_line, -1)
+        var points_at = scope.object_of(identifier.name)
+        return read_value("local", -1, identifier.name, declared, current_line, points_at)
     }
     crash class_information
     var field = class_information.find_field(identifier.name)

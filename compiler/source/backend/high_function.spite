@@ -3,6 +3,7 @@ var name = ""
 var class_name = ""
 var c_name = ""
 var parameter_names = List<String>()
+var parameter_objects = List<Integer>()
 var blocks = List<HighBlock>()
 var values = List<HighValue>()
 var fact = HighFact()
