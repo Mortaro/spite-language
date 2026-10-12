@@ -72,6 +72,21 @@ as the proposal's slices say.
   one kind of fact at a time (see the design page).
 - **A call the program declared is compared by the name the program gave it**, not by a name the generator gave a
   copy of it (`___held_0`, `___for_0_Integer`), and not by a function the compiler generated.
+- **`compare_fields` used to assert** when the C reader named neither a readable nor a writable field (both its keys
+  `raw`, say). That crashed the compiler on the user's program, which the design forbids; it now records the reason
+  for each kind and compares neither.
+
+## How to run it
+
+```
+# build the seed once (clang from Visual Studio, or set CC), then the branch's compiler
+<seed> compiler --check                                   # no output means the sources compile
+<seed> compiler --build --executable-path=.spite/ir_compiler.exe
+COVERAGE_JOBS=8 bash scripts/high_level_coverage.sh .spite/ir_compiler.exe
+```
+
+The last line of that script's summary must say `functions differed 0`. `bash check.sh --update-seed` runs the same
+thing as one of its jobs and is the gate; it is green on this branch.
 
 ## Rules (refused by the hook or `check.sh` otherwise)
 
