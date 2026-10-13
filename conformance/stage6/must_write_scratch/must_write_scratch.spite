@@ -1,0 +1,49 @@
+var console = Console()
+
+func MustWriteScratch() {
+    load "scratch"
+    var scratch = Scratch()
+    var prepared = prepare(scratch)
+    console.print("prepared", prepared)
+    var checked = check(scratch)
+    console.print("checked", checked)
+    console.print("after check", scratch.marks, scratch.ready)
+    report(scratch)
+}
+
+func prepare(scratch: Scratch): Boolean {
+    scratch.marks = 3
+    return true
+}
+
+func check(scratch: Scratch): Boolean {
+    if scratch.marks == 0 {
+        return false
+    }
+    scratch.ready = true
+    return true
+}
+
+func often_not(scratch: Scratch, wanted: Boolean): Boolean {
+    if wanted {
+        scratch.marks = 9
+        return true
+    }
+    return false
+}
+
+func counted(scratch: Scratch, times: Integer) {
+    var index = 0
+    while index < times {
+        scratch.marks = scratch.marks + 1
+        index = index + 1
+    }
+}
+
+func report(scratch: Scratch) {
+    var wanted = often_not(scratch, true)
+    var unwanted = often_not(scratch, false)
+    counted(scratch, 4)
+    console.print("flags", wanted, unwanted)
+    console.print("final", scratch.marks, scratch.ready)
+}

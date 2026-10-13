@@ -6,6 +6,23 @@ with what was said on each page before its status was moved here. The docs and t
 language as decided and say nothing about status; this page is where status lives. When something here is built, delete its line;
 when a page gains a rule that is not built yet, add it here.
 
+## The high level of the backend (D560)
+
+Not a docs page, so not here by page: what is built and what is not is on
+[backend_high_level_ir.md](backend_high_level_ir.md), and the order of the work is
+[backend_high_level_ir_todo.md](backend_high_level_ir_todo.md).
+
+- Built: the form (blocks with explicit edges, loops and list walks as one operation, abstract objects, a new value
+  on every write, joins), the walk of a program's own functions, and the comparison against the C reader, which runs
+  over the whole corpus from `check.sh` and fails on any difference.
+- Built, with nothing yet reading it: the conditional must-write summary, what a function surely wrote before it
+  answered `true` or `false`. It is worked out over the high level's own blocks and joins and reported by
+  `--high-level-report`. Its consumer is D559 step 3, and its entry in [proofs.md](../docs/proofs.md) comes with it,
+  since a proof nothing reads is not yet one a program can rely on.
+- Not built: a counted `while` as a band site (D559 steps 2 to 4), a low level, and C emitted from the high level
+  (milestone M3's second half). Every decision the generator still makes (inlining, folding, a call left out, a
+  conversion to text) is why calls are not compared yet.
+
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 
 - D534, learning from a test run: not built (no profiling build, no profile file, no choice reads one).

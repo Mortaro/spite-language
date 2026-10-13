@@ -4,6 +4,7 @@ var agreed = 0
 var differed = 0
 var differences = List<String>()
 var answers = List<String>()
+var must_write_lines = List<String>()
 var not_covered = Dictionary<String, Integer>()
 var kinds_compared = 0
 var kinds_skipped = 0
@@ -29,6 +30,7 @@ func compare_function(program: HighProgram, facts: Generation.OverlapFacts, func
     var before = differences.count()
     compare_fields(program, function, oracle)
     compare_loops(program, function, oracle)
+    note_must_write(function)
     if differences.count() == before {
         agreed = agreed + 1
         return
@@ -36,6 +38,16 @@ func compare_function(program: HighProgram, facts: Generation.OverlapFacts, func
     differed = differed + 1
     var answer = function.facts_text()
     answers.append(answer)
+}
+
+func note_must_write(function: HighFunction) {
+    var summary = HighMustWrite()
+    if function.answers_true_or_false() {
+        summary.summarise(function)
+    }
+    if not summary.may_write.is_empty() {
+        must_write_lines.append("{function.c_name} {summary.summary_text()}")
+    }
 }
 
 func compare_fields(program: HighProgram, function: HighFunction, oracle: Generation.OverlapFact) {
@@ -233,6 +245,12 @@ func report_text(): String {
     lines.append("body, as a folded copy or not at all, and writes one the program never wrote for a")
     lines.append("conversion to text; the high level cannot see any of that, so calls come back when")
     lines.append("those decisions move onto the high level")
+    lines.append("functions with a true or false answer {must_write_lines.count()}")
+    var write_index = 0
+    while write_index < must_write_lines.count() {
+        lines.append("must write {must_write_lines[write_index]}")
+        write_index = write_index + 1
+    }
     var index = 0
     while index < differences.count() {
         lines.append("difference {differences[index]}")

@@ -1,0 +1,214 @@
+# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+var states = List<List<String>>()
+var must_write_true = List<String>()
+var must_write_false = List<String>()
+var must_write_any = List<String>()
+var may_write = List<String>()
+var answered_true = 0
+var answered_false = 0
+var answered_other = 0
+
+func summarise(function: HighFunction) {
+    start_empty(function)
+    settle(function)
+    collect_answers(function)
+    may_write = every_key(function)
+}
+
+func start_empty(function: HighFunction) {
+    var index = 0
+    while index < function.blocks.count() {
+        var empty = List<String>()
+        states.append(empty)
+        index = index + 1
+    }
+}
+
+func settle(function: HighFunction) {
+    var count = function.blocks.count()
+    var rounds = 0
+    var changed = true
+    while changed and rounds < count + 2 {
+        changed = false
+        rounds = rounds + 1
+        var index = 0
+        while index < count {
+            var block = function.blocks[index]
+            var after = state_after(function, block)
+            if not same_fields(after, states[index]) {
+                states[index] = after
+                changed = true
+            }
+            index = index + 1
+        }
+    }
+}
+
+func state_after(function: HighFunction, block: HighBlock): List<String> {
+    var before = List<String>()
+    var first = true
+    var index = 0
+    while index < block.edges.count() {
+        var target = block.edges[index].target
+        var incoming = state_of(function, target)
+        if first {
+            before = incoming
+            first = false
+        } else {
+            before = shared_fields(before, incoming)
+        }
+        index = index + 1
+    }
+    var written = keys_written(function, block)
+    return add_fields(before, written)
+}
+
+func state_of(_function: HighFunction, number: Integer): List<String> {
+    var found = List<String>()
+    if number >= 0 and number < states.count() {
+        found = states[number]
+    }
+    return found
+}
+
+func collect_answers(function: HighFunction) {
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        var reaching = state_of(function, block.number)
+        var answer = answer_given(function, block)
+        if answer == "true" {
+            answered_true = answered_true + 1
+            must_write_true = meet(must_write_true, reaching, answered_true == 1)
+        } else if answer == "false" {
+            answered_false = answered_false + 1
+            must_write_false = meet(must_write_false, reaching, answered_false == 1)
+        } else if ends_in_return(block) {
+            answered_other = answered_other + 1
+            must_write_any = meet(must_write_any, reaching, answered_other == 1)
+        }
+        index = index + 1
+    }
+}
+
+func ends_in_return(block: HighBlock): Boolean {
+    var ends = false
+    var index = 0
+    while index < block.operations.count() {
+        if block.operations[index].kind == "return" {
+            ends = true
+        }
+        index = index + 1
+    }
+    return ends
+}
+
+func meet(already: List<String>, incoming: List<String>, first: Boolean): List<String> {
+    if first {
+        return incoming
+    }
+    return shared_fields(already, incoming)
+}
+
+func answer_given(_function: HighFunction, block: HighBlock): String {
+    var answer = ""
+    var index = 0
+    while index < block.operations.count() {
+        var one = block.operations[index].answers
+        if not one.is_empty() {
+            answer = one
+        }
+        index = index + 1
+    }
+    return answer
+}
+
+func keys_written(function: HighFunction, block: HighBlock): List<String> {
+    var keys = List<String>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind.ends_with(" write") and operation.writes.count() > 0 {
+            var key = key_of(function, operation.writes[0])
+            if not key.is_empty() {
+                keys.append(key)
+            }
+        }
+        index = index + 1
+    }
+    return keys
+}
+
+func every_key(function: HighFunction): List<String> {
+    var keys = List<String>()
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        var written = keys_written(function, block)
+        var position = 0
+        while position < written.count() {
+            if not keys.contains(written[position]) {
+                keys.append(written[position])
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return keys
+}
+
+func key_of(function: HighFunction, value_number: Integer): String {
+    var key = ""
+    if value_number >= 0 {
+        var value = function.value_at(value_number)
+        if value.is_of_an_object() {
+            key = "{value.owner}#{value.name}"
+        }
+    }
+    return key
+}
+
+func add_fields(given: List<String>, extra: List<String>): List<String> {
+    var together = given
+    var index = 0
+    while index < extra.count() {
+        if not together.contains(extra[index]) {
+            together.append(extra[index])
+        }
+        index = index + 1
+    }
+    return together
+}
+
+func shared_fields(left: List<String>, right: List<String>): List<String> {
+    var both = List<String>()
+    var index = 0
+    while index < left.count() {
+        if right.contains(left[index]) {
+            both.append(left[index])
+        }
+        index = index + 1
+    }
+    return both
+}
+
+func same_fields(left: List<String>, right: List<String>): Boolean {
+    if left.count() != right.count() {
+        return false
+    }
+    return shared_fields(left, right).count() == left.count()
+}
+
+func summary_text(): String {
+    var parts = List<String>()
+    if answered_true > 0 {
+        parts.append("when true {must_write_true.count()}")
+    }
+    if answered_false > 0 {
+        parts.append("when false {must_write_false.count()}")
+    }
+    if answered_other > 0 {
+        parts.append("before returning {must_write_any.count()}")
+    }
+    return "it surely wrote {parts.join(", ")} of {may_write.count()} fields it writes at all"
+}

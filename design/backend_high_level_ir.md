@@ -104,6 +104,26 @@ the reads and writes it names, keyed by the abstract object and the field, the c
 the function), and whether it has a loop. A value of the frame (`owner` `-1`) is not a fact: a local lives in the
 frame and is not a field of an object.
 
+## What a function surely wrote
+
+`HighMustWrite` folds a second summary from the same blocks: the fields a function surely wrote before it answered
+`true`, before it answered `false`, and before it returned at all. It is a forward pass over the blocks, so it is a
+summary of the operations and the joins, never a second walk:
+
+- a block's state is the fields both of its predecessors wrote, plus the fields the block itself writes. A join
+  therefore takes only what every side wrote, which is what "surely wrote" means.
+- a loop settles by repetition, and a write inside a body is in the state only once every pass has it: a loop whose
+  body writes a field on some passes does not surely write it, which is the safe answer (a lost write is a wrong
+  answer, D244).
+- the per-answer sets are the intersection over the blocks that return that answer, so a field is in "when true" only
+  if every path that answered `true` wrote it.
+
+The summary is per function and keyed by the abstract object and the field, the same keys the comparison uses. It is
+what D559 step 1 needs: a caller that reads a scratch's field after a `true` answer needs no check, because the callee
+wrote it. Nothing reads the summary yet, so its entry in `docs/proofs.md` waits for its consumer (see
+[design/status.md](status.md)); `--high-level-report` prints it for every function that returns, and
+`conformance/stage6/must_write_scratch` is the program that exercises it.
+
 ## What the comparison checks
 
 A function is **covered** when the walk built all of it and every fact it names is one the high level knows how to
@@ -155,42 +175,41 @@ that compiles, each with the flags `check.sh` gives it:
 | | |
 |---|---|
 | programs with a report | 413 |
-| functions the walk built | 541 |
-| functions the two answers agree on | 541 |
+| functions the walk built | 680 |
+| functions the two answers agree on | 680 |
 | functions that differ | 0 |
-| kinds of fact compared | 987 |
-| kinds of fact not compared, each naming why | 155 |
-| functions whose calls are not compared | 541 |
-| functions the walk did not cover, each naming why | 2,329 |
+| kinds of fact compared | 1,143 |
+| kinds of fact not compared, each naming why | 366 |
+| functions whose calls are not compared | 680 |
+| functions the walk did not cover, each naming why | 2,401 |
 
 Every function that differs is a bug in the walk or in the C reader, and it is fixed rather than left out. There are
 none left on this branch.
 
-**Calls are not compared yet, and that is the whole of the 541.** The C writes a call as a call, as an inlined body,
+**Calls are not compared yet, and that is the whole of the 680.** The C writes a call as a call, as an inlined body,
 as a folded copy or not at all, and writes one the program never wrote when a value becomes text; the high level sees
 none of that, so comparing calls would only measure the generator's decisions. The comparison of calls comes back
 when those decisions move onto the high level, which is the migration the review describes.
 
 **Reads and writes are compared**, and that is where the overlap proofs live: a field of a class, keyed by the
-abstract object and the field. They are not compared for the 155 functions where the C reader names something else:
-a `raw` write, a container key (`c:Class|...`), an `io:` key, or a key carrying an owner tag (D556, whose tags the
-walk does not compute yet).
+abstract object and the field, and a field of a list's items, keyed by the list and the element class. They are not
+compared for the 366 functions where the C reader names something else: a `raw` write, a container key
+(`c:Class|...`), an `io:` key, a key carrying an owner tag (D556, whose tags the walk does not compute yet), or the
+whole-container key of a bounds check, which the generator writes or drops.
 
 **Loops are compared** for every function that makes no call into the library, since a variadic call is written as a
 loop of its own that the program never wrote.
 
-The 2,329 functions the walk does not cover are its own limits, and the reasons name them. The largest group is an
-operation of unknown effect, and what is not built inside it is:
+The 2,401 functions the walk does not cover are its own limits, and the reasons name them. What is not built inside
+them:
 
 | What the walk does not build yet | Functions |
 |---|---|
-| a call on a value whose class it cannot name | 17 |
-| a call to a member a library class does not declare (a foreign or a generated one) | 20 |
-| a call to a member of a class of the program that does not declare it | 8 |
-| a call through a function value, or to a name that is no function and no class | 7 |
-| the key of a container's items, which is a `c:` key | 1 whole class of functions |
-| a member read or written through a value it cannot name | 2 |
-| a getter, a setter, a switch, a template, a type, a name, a codegen value, a list, an expression | 1 each |
+| a name it does not know (a foreign function reached through a handle, a generated accessor) | 478 |
+| a codegen value (a `$T`, a member template's type) | 180 |
+| a construction, where the C writes `___make_into` | 176 |
+| an owner tag (D556) | 91 |
+| a getter, a setter, a switch, a container's own changing function | the rest |
 
 Every one of them is a case the walk records as an unknown effect that says what it did not build, never as an empty
 effect, so a fact that would be wrong is never written (D244).

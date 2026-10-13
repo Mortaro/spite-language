@@ -1,0 +1,6 @@
+var marks = 0
+var ready = false
+
+func to_string(): String {
+    return "scratch"
+}

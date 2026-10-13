@@ -325,13 +325,29 @@ func walk_assert(statement: Syntax.Statements.AssertStatement) {
     operation.can_end = true
 }
 
-func walk_return(statement: Syntax.Statements.ReturnStatement) {
+func walk_return(statement: Syntax.Statements.ReturnStatement): Integer {
+    var answered = -1
     if statement.value {
-        walk_value(statement.value)
+        answered = walk_value(statement.value)
     }
     var operation = add_operation("return", statement.line)
     operation.can_end = true
+    operation.returned_value = answered
+    if statement.value {
+        operation.answers = answer_of(statement.value)
+    }
     end_the_block("return")
+    return answered
+}
+
+func answer_of(expression: Syntax.Expressions.Expression): String {
+    if shapes.is_true_literal(expression) {
+        return "true"
+    }
+    if shapes.is_false_literal(expression) {
+        return "false"
+    }
+    return ""
 }
 
 func walk_expression_statement(statement: Syntax.Statements.ExpressionStatement) {

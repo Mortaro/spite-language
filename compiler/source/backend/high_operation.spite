@@ -8,6 +8,8 @@ var loop_kind = ""
 var loop_condition = -1
 var loop_body = -1
 var can_end = false
+var answers = ""
+var returned_value = -1
 var unknown_reason = ""
 var line = 0
 

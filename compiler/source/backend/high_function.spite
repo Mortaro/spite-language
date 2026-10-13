@@ -79,6 +79,23 @@ func facts_text(): String {
     return "{c_name} {fact.facts_text()}"
 }
 
+func answers_true_or_false(): Boolean {
+    var has_return = false
+    var index = 0
+    while index < blocks.count() {
+        var block = blocks[index]
+        var position = 0
+        while position < block.operations.count() {
+            if block.operations[position].kind == "return" {
+                has_return = true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return has_return
+}
+
 # ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
 func fold_facts() {
     blocks.each(fold_block)
