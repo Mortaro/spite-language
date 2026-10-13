@@ -219,4 +219,11 @@ effect, so a fact that would be wrong is never written (D244).
 Nothing at run time: the high level is held while compiling and ships nothing, and no fact it carries is checked
 again by the program. Tree shaking does not apply: the whole program's high level exists only while it is being
 compiled, which is what D569 decides (the whole program kept in memory and cached on disk for a later build). What it
-costs is compile time and memory for the whole program, which `bash check.sh` and the benchmarks show.
+costs is compile time and memory for the whole program, and only when a fact is asked for: `--high-level-report`
+builds it and an ordinary build does not, so the cost lands on `check.sh`'s one `high_level` job and on a developer
+who runs the report, not on every build. The compiler is its own largest program, so it is where the cost shows:
+building the compiler's high level takes minutes.
+
+For scale on that: the seed compiler, which is optimised, compiles the compiler's sources in under four minutes;
+generation 2, which is built unoptimised, takes far longer for the same work. A high level built on every build would
+multiply that by the cost of the walk on top, which is why it is built only when asked for.

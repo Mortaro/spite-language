@@ -1,4 +1,4 @@
-﻿prepared true
+prepared true
 checked true
 after check 3 true
 flags true false
