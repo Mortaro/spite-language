@@ -5,6 +5,7 @@ var writes_anything_else = 0
 var reaches_unknown = false
 var reached_names = List<String>()
 var writes_nothing = Dictionary<String, Boolean>()
+var built_here = List<String>()
 var keys = List<String>()
 
 func HighBand(starting_program: HighProgram) {
@@ -22,24 +23,35 @@ func answer_for(c_name: String): Boolean {
     while not waiting.is_empty() {
         var name = waiting.remove_last()
         crash name
-        var function = program.walked_function_with_c_name(name)
-        if function {
-            note_writes_of(function)
-            var index = 0
-            while index < function.fact.calls.count() {
-                var called = function.fact.calls[index]
-                if not reached.has(called) {
-                    reached[called] = true
-                    waiting.append(called)
-                }
-                index = index + 1
-            }
-        } else {
-            reaches_unknown = true
-            reached_names.append(name)
-        }
+        note_one(name, reached, waiting)
     }
     return writes_anything_else == 0
+}
+
+func note_one(name: String, reached: Dictionary<String, Boolean>, waiting: List<String>) {
+    crash program
+    var function = program.walked_function_with_c_name(name)
+    if not function {
+        function = program.ensure_walked(name)
+        if function {
+            built_here.append(name)
+        }
+    }
+    if function {
+        note_writes_of(function)
+        var index = 0
+        while index < function.fact.calls.count() {
+            var called = function.fact.calls[index]
+            if not reached.has(called) {
+                reached[called] = true
+                waiting.append(called)
+            }
+            index = index + 1
+        }
+    } else {
+        reaches_unknown = true
+        reached_names.append(name)
+    }
 }
 
 func reset() {
@@ -48,6 +60,7 @@ func reset() {
     reaches_unknown = false
     reached_names = List<String>()
     writes_nothing = Dictionary<String, Boolean>()
+    built_here = List<String>()
     keys = List<String>()
 }
 
@@ -111,4 +124,18 @@ func object_of_key(key: String): HighObject? {
 
 func only_items_text(): String {
     return "writes {writes_an_item} item fields and {writes_anything_else} other fields, {reaches_unknown} it cannot reach"
+}
+
+func keys_text(): String {
+    var text = ""
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        if index > 0 {
+            text = "{text}, "
+        }
+        text = "{text}{key}"
+        index = index + 1
+    }
+    return text
 }

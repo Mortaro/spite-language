@@ -202,6 +202,87 @@ func walked_function_with_c_name(c_name: String): HighFunction? {
     return found
 }
 
+# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+func ensure_walked(c_name: String): HighFunction? {
+    var built: HighFunction? = null
+    var found = walked_function_with_c_name(c_name)
+    if found {
+        built = found
+    } else {
+        var declared = declared_with_c_name(c_name)
+        var with_body = with_a_body(declared)
+        var information: Analysis.ClassInfo? = null
+        if with_body {
+            information = class_of_function(with_body)
+        }
+        if with_body {
+            crash information
+            var walk = HighWalk(this, information, with_body)
+            crash walk.recorded
+            walked_functions.append(walk.recorded)
+            built = walk.recorded
+        }
+    }
+    return built
+}
+
+func with_a_body(declared: Analysis.FunctionInfo?): Analysis.FunctionInfo? {
+    var with_body: Analysis.FunctionInfo? = null
+    var current = declared
+    while current {
+        if not current.body.is_empty() {
+            with_body = current
+        }
+        current = original_of(current)
+    }
+    return with_body
+}
+
+func declared_with_c_name(c_name: String): Analysis.FunctionInfo? {
+    var found: Analysis.FunctionInfo? = null
+    var known_classes = program_classes()
+    var index = 0
+    while index < known_classes.count() {
+        var known = known_classes[index]
+        var position = 0
+        while position < known.declared_functions.count() {
+            var declared = known.declared_functions[position]
+            if declared.c_name == c_name {
+                found = declared
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func original_of(declared: Analysis.FunctionInfo): Analysis.FunctionInfo? {
+    var from: Analysis.FunctionInfo? = null
+    if not declared.specialised_from.is_empty() {
+        from = declared_with_c_name(declared.specialised_from)
+    }
+    return from
+}
+
+func class_of_function(declared: Analysis.FunctionInfo): Analysis.ClassInfo? {
+    var found: Analysis.ClassInfo? = null
+    var known_classes = program_classes()
+    var index = 0
+    while index < known_classes.count() {
+        var known = known_classes[index]
+        var position = 0
+        while position < known.declared_functions.count() {
+            if known.declared_functions[position] == declared {
+                found = known
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return found
+}
+
 func class_c_name(qualified: String): String {
     var found = classes_by_qualified[qualified]
     if not found {

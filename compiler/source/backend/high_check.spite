@@ -8,6 +8,8 @@ var must_write_lines = List<String>()
 var band_lines = List<String>()
 var band_sites = 0
 var item_only_band_sites = 0
+var band_blind_spots = 0
+var names = List<String>()
 var not_covered = Dictionary<String, Integer>()
 var kinds_compared = 0
 var kinds_skipped = 0
@@ -44,6 +46,20 @@ func compare_function(program: HighProgram, facts: Generation.OverlapFacts, func
     answers.append(answer)
 }
 
+func joined(names: List<String>): String {
+    var text = ""
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if index > 0 {
+            text = "{text}, "
+        }
+        text = "{text}{name}"
+        index = index + 1
+    }
+    return text
+}
+
 func compare_band(program: HighProgram, facts: Generation.OverlapFacts, function: HighFunction) {
     var asked = function.has_counted_loop() and facts.bodies.has(function.c_name)
     if asked {
@@ -52,10 +68,26 @@ func compare_band(program: HighProgram, facts: Generation.OverlapFacts, function
         var known = not band.reaches_unknown
         var merged = facts.band_fact(function.c_name)
         var expected = facts.item_only(merged)
-        if not known {
+        var unseen = unseen_calls(merged)
+        if not unseen.is_empty() {
+            band_blind_spots = band_blind_spots + 1
+            band_lines.append(
+                "blind {function.c_name} the C reader follows calls it has no body for, {unseen}, so it answers no for everything; the high level reads them and answers {answered}",
+            )
+        } else if merged.writes.has("unknown") {
+            skip(
+                function,
+                "a band site",
+                "the C reader follows a function it has no body for, a library one folded away, so it records a write it does not know",
+            )
+        } else if not known {
             var why = band.cannot_say_because()
             skip(function, "a band site", why)
         } else if answered != expected {
+            var keys = merged.writes.keys()
+            var seen = joined(keys)
+            var mine = band.keys_text()
+            band_lines.append("writes {function.c_name} the C reader merges {seen}, the high level writes {mine}")
             note_difference(function, "a band site's writes", "only its own item", answered, expected)
             return
         } else {
@@ -65,6 +97,19 @@ func compare_band(program: HighProgram, facts: Generation.OverlapFacts, function
             }
             band_lines.append("{function.c_name} {band.only_items_text()}")
         }
+    }
+}
+
+# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+func unseen_calls(merged: Generation.OverlapFact): String {
+    names = List<String>()
+    merged.writes.keys().each(note_unseen)
+    return joined(names)
+}
+
+func note_unseen(key: String) {
+    if key.starts_with("io:") {
+        names.append(key)
     }
 }
 
@@ -276,6 +321,9 @@ func report_text(): String {
     lines.append("functions with a true or false answer {must_write_lines.count()}")
     lines.append(
         "counted loops asked whether their passes write only their own item: {band_sites}, of which {item_only_band_sites} do",
+    )
+    lines.append(
+        "counted loops where the C reader is blind to a folded library call the high level reads: {band_blind_spots}",
     )
     var band_index = 0
     while band_index < band_lines.count() {
