@@ -3,21 +3,18 @@ var key = ""
 var entry_value = -1
 var taken_value = -1
 var dropped_value = -1
-var retained_value = -1
-var released_value = -1
+var merged_value = -1
 
 func HighJoin(
     starting_key: String,
     starting_entry_value: Integer,
     starting_taken_value: Integer,
     starting_dropped_value: Integer,
-    starting_retained_value: Integer,
-    starting_released_value: Integer,
+    starting_merged_value: Integer,
 ) {
     key = starting_key
     entry_value = starting_entry_value
     taken_value = starting_taken_value
     dropped_value = starting_dropped_value
-    retained_value = starting_retained_value
-    released_value = starting_released_value
+    merged_value = starting_merged_value
 }

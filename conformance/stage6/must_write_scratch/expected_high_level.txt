@@ -1,0 +1,6 @@
+must write MustWriteScratch_early it surely wrote when true 1 (marks), when false 1 (marks), before returning 1 (marks) of 1 fields it writes at all
+must write MustWriteScratch_both_ways it surely wrote when true 1 (marks), before returning 1 (marks) of 2 fields it writes at all
+must write MustWriteScratch_guarded it surely wrote before returning 0 () of 2 fields it writes at all
+must write MustWriteScratch_prepare it surely wrote when true 1 (marks), before returning 1 (marks) of 1 fields it writes at all
+must write MustWriteScratch_check it surely wrote when true 1 (ready), when false 0 (), before returning 0 () of 1 fields it writes at all
+must write MustWriteScratch_often_not it surely wrote when true 1 (marks), when false 0 (), before returning 0 () of 1 fields it writes at all

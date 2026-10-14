@@ -3,6 +3,9 @@ var program: HighProgram? = null
 var recorded: HighFunction? = null
 var class_information: Analysis.ClassInfo? = null
 var values: HighValues? = null
+var initial = HighValues()
+var loop_frames = List<HighLoopFrame>()
+var answers_boolean = false
 var block: HighBlock? = null
 var scopes = List<HighScope>()
 var slot_objects = Dictionary<String, Integer>()
@@ -24,6 +27,7 @@ func HighWalk(
     recorded = function
     var scope = HighScope(null)
     place = "{starting_class.simple_name}.{starting_function.name}"
+    answers_boolean = is_boolean(starting_function.return_type)
     var position = 0
     while position < starting_function.parameters.count() {
         var parameter = starting_function.parameters[position]
@@ -239,22 +243,31 @@ func walk_if(statement: Syntax.Statements.IfStatement) {
     add_edge("dropped", dropped_block)
     block = then_block
     walk_statements(statement.then_branch)
-    if not block_ended() {
+    var taken_reaches = not block_ended()
+    if taken_reaches {
         add_edge("fallthrough", join_block)
     }
     var after_taken = copied_values()
     block = dropped_block
+    values = condition.copied()
     if statement.has_else_branch {
         walk_statements(statement.else_branch)
-        if not block_ended() {
-            add_edge("fallthrough", join_block)
-        }
-    } else {
+    }
+    var dropped_reaches = not block_ended()
+    if dropped_reaches {
         add_edge("fallthrough", join_block)
     }
     var after_dropped = copied_values()
     block = join_block
-    note_join(join_block, condition, after_taken, after_dropped)
+    if taken_reaches and dropped_reaches {
+        note_join(join_block, condition, after_taken, after_dropped)
+    } else if taken_reaches {
+        values = after_taken
+    } else if dropped_reaches {
+        values = after_dropped
+    } else {
+        end_the_block("unreachable")
+    }
 }
 
 func walk_while(statement: Syntax.Statements.WhileStatement) {
@@ -268,19 +281,70 @@ func walk_while(statement: Syntax.Statements.WhileStatement) {
     operation.loop_condition = condition_block.number
     operation.loop_body = body_block.number
     add_edge("condition", condition_block)
+    var entering = before.copied()
+    var frame = HighLoopFrame(entering, condition_block.number)
+    loop_frames.append(frame)
+    values = HighValues()
     block = condition_block
     walk_value(statement.condition)
+    var at_condition = copied_values()
     add_edge("body", body_block)
     add_edge("exit", after_block)
     block = body_block
     walk_statements(statement.body)
-    if not block_ended() {
+    var steps = not block_ended()
+    if steps {
         add_edge("step", condition_block)
     }
     var after_body = copied_values()
+    close_loop(frame, condition_block, after_body, steps)
+    loop_frames.remove_last()
     block = after_block
     values = before
-    note_loop_join(after_block, before, after_body)
+    overlay(frame.merged)
+    overlay(at_condition)
+}
+
+# ../../../design/backend_high_level_ir.md#values-and-owners
+func close_loop(frame: HighLoopFrame, condition_block: HighBlock, after_body: HighValues, steps: Boolean) {
+    var depth = loop_frames.count() - 1
+    if steps {
+        var written = after_body.names()
+        var index = 0
+        while index < written.count() {
+            var key = written[index]
+            var sample = after_body.value_of(key)
+            if known_outside(frame.entering, key) and not frame.merged.held(key) {
+                value_like(depth, key, sample)
+            }
+            index = index + 1
+        }
+    }
+    var position = 0
+    while position < frame.order.count() {
+        var key = frame.order[position]
+        var merged = frame.merged.value_of(key)
+        var entering = frame.entering.value_of(key)
+        var back = -1
+        if steps {
+            back = after_body.value_or(key, merged)
+        }
+        var join = HighJoin(key, entering, back, -1, merged)
+        condition_block.add_join(join)
+        position = position + 1
+    }
+}
+
+func overlay(given: HighValues) {
+    crash values
+    var names = given.names()
+    var index = 0
+    while index < names.count() {
+        var key = names[index]
+        var given_value = given.value_of(key)
+        values.put(key, given_value)
+        index = index + 1
+    }
 }
 
 func loop_kind_of(condition: Syntax.Expressions.Expression?): String {
@@ -330,13 +394,25 @@ func walk_assert(statement: Syntax.Statements.AssertStatement) {
     if statement.is_crash {
         var halting = add_operation("crash", statement.line)
         halting.can_end = true
-        if shapes.is_true_literal(statement.value) {
+        if shapes.is_false_literal(statement.value) {
             end_the_block("crash")
         }
         return
     }
     var operation = add_operation("assert", statement.line)
     operation.can_end = true
+    var fails = new_block("assert fails")
+    var holds = new_block("assert holds")
+    add_edge("fails", fails)
+    add_edge("holds", holds)
+    block = fails
+    var giving_up = add_operation("return", statement.line)
+    giving_up.can_end = true
+    if answers_boolean {
+        giving_up.answers = "false"
+    }
+    end_the_block("assert")
+    block = holds
 }
 
 func walk_return(statement: Syntax.Statements.ReturnStatement): Integer {
@@ -768,7 +844,8 @@ func read_value(
     var key = "{value_owner}#{value_name}"
     var held = values.value_or(key, -1)
     if held < 0 {
-        held = recorded.new_value(value_kind, value_owner, points_at, value_name, 0, declared)
+        var depth = loop_frames.count() - 1
+        held = outer_value(depth, key, value_kind, value_owner, value_name, declared, points_at)
         values.put(key, held)
     }
     var operation = add_operation("{value_kind} read", at)
@@ -789,6 +866,9 @@ func write_value(
     var key = "{value_owner}#{value_name}"
     var version = 0
     var before = values.value_or(key, -1)
+    if before < 0 {
+        before = known_value(key)
+    }
     if before >= 0 {
         version = recorded.value_at(before).version + 1
     }
@@ -957,58 +1037,130 @@ func type_of_nothing(): Analysis.SpiteType {
 
 # ../../../design/backend_high_level_ir.md#values-and-owners
 func note_join(join_block: HighBlock, before: HighValues, after_taken: HighValues, after_dropped: HighValues) {
-    crash values
+    crash recorded
+    var joined = before.copied()
+    var depth = loop_frames.count() - 1
     var names = names_of(before, after_taken, after_dropped)
     var index = 0
     while index < names.count() {
         var key = names[index]
-        var entry = before.value_or(key, -1)
-        var taken = after_taken.value_or(key, entry)
-        var dropped = after_dropped.value_or(key, entry)
-        if taken != entry or dropped != entry {
-            var retained = retained_of(entry, taken, dropped)
-            var join = HighJoin(key, entry, taken, dropped, retained, entry)
-            join_block.add_join(join)
-            var left = value_left_at_join(taken, entry, dropped)
-            values.put(key, left)
+        if known_outside(before, key) {
+            var dropped_sample = after_dropped.value_or(key, -1)
+            var sample = after_taken.value_or(key, dropped_sample)
+            if sample < 0 {
+                sample = before.value_of(key)
+            }
+            var entry = before.value_or(key, -1)
+            if entry < 0 {
+                entry = value_like(depth, key, sample)
+            }
+            var taken = after_taken.value_or(key, entry)
+            var dropped = after_dropped.value_or(key, entry)
+            if taken == dropped {
+                joined.put(key, taken)
+            } else {
+                var merged = merged_value(sample, taken, dropped)
+                var join = HighJoin(key, entry, taken, dropped, merged)
+                join_block.add_join(join)
+                joined.put(key, merged)
+            }
         }
         index = index + 1
     }
+    values = joined
 }
 
-func retained_of(entry: Integer, taken: Integer, dropped: Integer): Integer {
-    if taken != entry and dropped != entry {
-        return -1
+func merged_value(sample: Integer, taken: Integer, dropped: Integer): Integer {
+    crash recorded
+    var like = recorded.value_at(sample)
+    var version = recorded.value_at(taken).version
+    var other = recorded.value_at(dropped).version
+    if other > version {
+        version = other
     }
-    if taken != entry {
-        return taken
-    }
-    if dropped != entry {
-        return dropped
-    }
-    return entry
+    return recorded.new_value(like.kind, like.owner, like.points_at, like.name, version + 1, like.spite_type)
 }
 
-func value_left_at_join(taken: Integer, entry: Integer, dropped: Integer): Integer {
-    if taken != entry {
-        return taken
-    }
-    return dropped
-}
-
-func note_loop_join(join_block: HighBlock, before: HighValues, after_body: HighValues) {
-    var names = after_body.names()
-    var index = 0
-    while index < names.count() {
-        var key = names[index]
-        var entry = before.value_or(key, -1)
-        var written = after_body.value_or(key, entry)
-        if written != entry {
-            var join = HighJoin(key, entry, -1, written, -1, -1)
-            join_block.add_join(join)
+# ../../../design/backend_high_level_ir.md#values-and-owners
+func outer_value(
+    depth: Integer,
+    key: String,
+    value_kind: String,
+    value_owner: Integer,
+    value_name: String,
+    declared: Analysis.SpiteType?,
+    points_at: Integer,
+): Integer {
+    crash recorded
+    if depth < 0 {
+        var first = initial.value_or(key, -1)
+        if first < 0 {
+            first = recorded.new_value(value_kind, value_owner, points_at, value_name, 0, declared)
+            initial.put(key, first)
         }
-        index = index + 1
+        return first
     }
+    var frame = loop_frames[depth]
+    crash frame
+    var merged = frame.merged.value_or(key, -1)
+    if merged >= 0 {
+        return merged
+    }
+    var entering = frame.entering.value_or(key, -1)
+    if entering < 0 {
+        entering = outer_value(depth - 1, key, value_kind, value_owner, value_name, declared, points_at)
+        frame.entering.put(key, entering)
+    }
+    var version = recorded.value_at(entering).version + 1
+    merged = recorded.new_value(value_kind, value_owner, points_at, value_name, version, declared)
+    frame.note_merged(key, merged)
+    return merged
+}
+
+func value_like(depth: Integer, key: String, sample: Integer): Integer {
+    crash recorded
+    var like = recorded.value_at(sample)
+    return outer_value(depth, key, like.kind, like.owner, like.name, like.spite_type, like.points_at)
+}
+
+# ../../../design/backend_high_level_ir.md#values-and-owners
+func known_value(key: String): Integer {
+    var depth = loop_frames.count() - 1
+    while depth >= 0 {
+        var frame = loop_frames[depth]
+        crash frame
+        var merged = frame.merged.value_or(key, -1)
+        if merged >= 0 {
+            return merged
+        }
+        var entering = frame.entering.value_or(key, -1)
+        if entering >= 0 {
+            return entering
+        }
+        depth = depth - 1
+    }
+    return initial.value_or(key, -1)
+}
+
+func known_outside(before: HighValues, key: String): Boolean {
+    if not key.starts_with("-1#") {
+        return true
+    }
+    if before.held(key) {
+        return true
+    }
+    return known_value(key) >= 0
+}
+
+func is_boolean(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var scalar = types.as_scalar(spite_type)
+    if not scalar {
+        return false
+    }
+    return scalar.kind == 'boolean_kind'
 }
 
 func names_of(first: HighValues, second: HighValues, third: HighValues): List<String> {

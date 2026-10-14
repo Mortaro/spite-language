@@ -83,3 +83,22 @@ if [ "$differing" != "0" ]; then
   exit 1
 fi
 [ "$stopped" -eq 0 ] || exit 1
+
+# A program that holds expected_high_level.txt names lines its report must hold, word for word: what the high level
+# proves about it (what a function surely wrote, say), so a proof that drifts fails here and is not only printed.
+missing=0
+for expected in conformance/*/*/expected_high_level.txt; do
+  [ -f "$expected" ] || continue
+  program=$(dirname "$expected")/
+  name=$(echo "$program" | tr '/' '_')
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    [ -z "$line" ] && continue
+    if ! grep -qxF -- "$line" "$reports/$name.txt"; then
+      missing=$((missing + 1))
+      echo "FAILED: the high level report of '$program' does not hold: $line"
+      grep -F -- "${line%% it *}" "$reports/$name.txt" | head -3
+    fi
+  done < "$expected"
+done
+[ "$missing" -eq 0 ] || exit 1

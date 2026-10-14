@@ -1,0 +1,15 @@
+# ../../../design/backend_high_level_ir.md#values-and-owners
+var entering = HighValues()
+var merged = HighValues()
+var order = List<String>()
+var condition_block = -1
+
+func HighLoopFrame(starting_entering: HighValues, starting_condition_block: Integer) {
+    entering = starting_entering
+    condition_block = starting_condition_block
+}
+
+func note_merged(key: String, value_number: Integer) {
+    merged.put(key, value_number)
+    order.append(key)
+}

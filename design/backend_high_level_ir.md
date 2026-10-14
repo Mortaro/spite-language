@@ -38,8 +38,16 @@ that holds the loop, so a loop's body can be cut into pieces later (D559). A lis
 too, and says whether it is a counted `while`, a plain `while`, or a walk over a list's items.
 
 A block that cannot go on at all has no edges at all, and the walk stops there: a `return` ends it, and so does a
-`crash` whose condition always holds. A `crash` with a condition that may be false ends the block only on that path,
-so what follows it is walked as usual.
+bare `crash` (which is `crash false`, the one that always halts). A `crash` whose condition may hold halts only on the
+path where it is false, so what follows it is walked as usual; a `crash true` never halts.
+
+An `assert` whose condition is false returns the function's default and goes on nowhere, so it is a way out of the
+function like a `return`: the walk ends the block with the `assert`, gives it a `fails` edge to a block holding that
+`return` (answering `false` in a function that answers a `Boolean`) and a `holds` edge to the block the walk goes on
+in. A question about what the function did before it answered sees that way out like any other.
+
+An `if` whose two branches both end (each returns or halts) leaves nothing to walk after it: its join block is ended
+as `unreachable`, and the statements after it are not walked, because nothing runs them.
 
 Nothing is a block of C text and nothing is a name that means something at one place in a file.
 
@@ -66,10 +74,26 @@ Writing a field whose type is a reference reads the field first, as its own oper
 released before the new value goes in, so the read is a read of that same field. The C writes it in that order and the
 comparison needs both walks to say it in that order.
 
-A join between two blocks records a `HighJoin`: the name it is about, the value each side leaves there, which of them
-is kept, and which is dropped. A join of an `if` joins what each branch leaves with what the condition left; a loop's
-exit joins what its body left with what the walk entered the loop with, since the body may run no times. A value that
-is a reference is kept or dropped there, so the low level has an ownership to record and never has to guess one.
+Where two paths meet, a name that holds a different value on each records a `HighJoin` with a **merged value** of its
+own (the phi of an SSA form): the name, the value it held before, the value each side leaves there, and the merged
+value every later read sees. Nothing after a join reads a value only one side wrote.
+
+- **An `if`** joins what its branches leave, each starting from what the condition left. A branch that ends (it
+  returns or halts) does not reach the join and has no say in it: after an `if` whose `then` returns, the values are
+  the `else` branch's, unmerged.
+- **A loop** merges at its condition block, since the condition is where every pass starts and where the loop is
+  left. The merged value is made the first time the body or the condition reads the name, so a read in the body sees
+  the value of the pass before, not the one the loop was entered with; a name the body writes and never reads before
+  writing is merged when the body ends. Each merge records the value the loop was entered with and the value the body
+  leaves (none when the body never steps back). After the loop, every name holds its merged value: the body may have
+  run any number of times, none included.
+- **A local declared inside** a branch or a body is not joined: nothing outside it can read it.
+- **A value read before anything wrote it** in the function is the value the function was entered with, one per name,
+  shared by every path, so two paths that only read a name never make a join for it.
+
+A join moves values and never drops one: each side's value is taken into the merged value. What a write replaces is
+released at the write (the read before a reference write, above), so a join needs no release of its own, and the low
+level lowers a merged value of a reference type as a move from whichever side ran.
 
 ## Abstract objects
 
@@ -110,19 +134,24 @@ frame and is not a field of an object.
 `true`, before it answered `false`, and before it returned at all. It is a forward pass over the blocks, so it is a
 summary of the operations and the joins, never a second walk:
 
-- a block's state is the fields both of its predecessors wrote, plus the fields the block itself writes. A join
-  therefore takes only what every side wrote, which is what "surely wrote" means.
-- a loop settles by repetition, and a write inside a body is in the state only once every pass has it: a loop whose
-  body writes a field on some passes does not surely write it, which is the safe answer (a lost write is a wrong
-  answer, D244).
+- what a block starts with is what every block that leads into it ended with (the fields all its predecessors wrote),
+  and what it ends with adds the fields the block itself writes. Where paths meet, only what every path wrote is
+  kept, which is what "surely wrote" means. The entry block, and a block nothing leads into, start with nothing.
+- it is a must question, so every block starts from "wrote everything" and the pass only ever takes away, until
+  nothing changes. A loop's condition block then settles at what the loop was entered with, since a body that may run
+  no times surely writes nothing: a write inside a body is never surely written after the loop.
+- every list it holds is its own copy: one block's state is never the same list as another's, so adding a block's
+  writes can never add them to a block that did not make them.
 - the per-answer sets are the intersection over the blocks that return that answer, so a field is in "when true" only
-  if every path that answered `true` wrote it.
+  if every path that answered `true` wrote it. A failed `assert` is one of those blocks.
 
 The summary is per function and keyed by the abstract object and the field, the same keys the comparison uses. It is
 what D559 step 1 needs: a caller that reads a scratch's field after a `true` answer needs no check, because the callee
 wrote it. Nothing reads the summary yet, so its entry in `docs/proofs.md` waits for its consumer (see
-[design/status.md](status.md)); `--high-level-report` prints it for every function that returns, and
-`conformance/stage6/must_write_scratch` is the program that exercises it.
+[design/status.md](status.md)); `--high-level-report` prints it for every function that returns, with the fields it names, and
+`conformance/stage6/must_write_scratch` is the program that exercises it: its `expected_high_level.txt` holds the
+summaries the report must print word for word, and `scripts/high_level_coverage.sh` fails when one is missing, so the
+summary is a checked answer and not only printed.
 
 ## What a band site needs
 

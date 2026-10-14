@@ -9,6 +9,38 @@ func MustWriteScratch() {
     console.print("checked", checked)
     console.print("after check", scratch.marks, scratch.ready)
     report(scratch)
+    var early_answer = early(scratch, false)
+    var both = both_ways(scratch, true)
+    guarded(scratch, 2)
+    console.print("more", early_answer, both, scratch.marks, scratch.ready)
+}
+
+func early(scratch: Scratch, wanted: Boolean): Boolean {
+    scratch.marks = 3
+    if wanted {
+        return true
+    }
+    return false
+}
+
+func both_ways(scratch: Scratch, wanted: Boolean): Boolean {
+    if wanted {
+        scratch.marks = 5
+        scratch.ready = true
+    } else {
+        scratch.marks = 6
+    }
+    return true
+}
+
+func guarded(scratch: Scratch, times: Integer) {
+    assert times > 0
+    var index = 0
+    while index < times {
+        scratch.ready = false
+        index = index + 1
+    }
+    scratch.marks = times
 }
 
 func prepare(scratch: Scratch): Boolean {
