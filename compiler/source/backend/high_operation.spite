@@ -3,6 +3,7 @@ var kind = ""
 var reads = List<Integer>()
 var writes = List<Integer>()
 var call_name = ""
+var reads_only = false
 var passed = List<Integer>()
 var loop_kind = ""
 var loop_condition = -1

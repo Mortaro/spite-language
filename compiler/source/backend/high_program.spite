@@ -190,6 +190,18 @@ func declares_function(c_name: String): Boolean {
     return declared_function_names.has(c_name)
 }
 
+func walked_function_with_c_name(c_name: String): HighFunction? {
+    var found: HighFunction? = null
+    var index = 0
+    while index < walked_functions.count() {
+        if walked_functions[index].c_name == c_name {
+            found = walked_functions[index]
+        }
+        index = index + 1
+    }
+    return found
+}
+
 func class_c_name(qualified: String): String {
     var found = classes_by_qualified[qualified]
     if not found {

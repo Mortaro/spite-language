@@ -124,6 +124,42 @@ wrote it. Nothing reads the summary yet, so its entry in `docs/proofs.md` waits 
 [design/status.md](status.md)); `--high-level-report` prints it for every function that returns, and
 `conformance/stage6/must_write_scratch` is the program that exercises it.
 
+## What a band site needs
+
+D559's answer for the naive engine is that a loop whose passes may write different slots runs in chunks, after one
+check per loop that the slots are distinct. That is a band site, and it needs three questions answered, all of which
+`generation/overlap_facts.spite` answers today by reading the C:
+
+- **do the passes write only their own item?** Every write the function makes, and every write of everything it
+  reaches, goes to a list's items, and to nothing else. On the high level this is a question about abstract objects:
+  every write's owner is an object of kind `items`, and nothing else is written. A function that reaches something
+  the walk did not build answers no, so an unknown effect can never be read as a band site.
+- **does anything it calls count references?** A retain, a release, a box's count, a counted attribute. While the
+  count lives in the C this is a marker in the C's text; on the high level it is a write of a field or a slot whose
+  type is a reference, or a call of a function that does one.
+- **is it worth banding?** A weight from the C's line count with a multiplier per loop, compared with a minimum.
+
+`HighBand` answers the first of them over the high level, following the same calls the C reader follows, so it is a
+question about the same program and not about the C that was written from it. The comparison asks both and fails on a
+difference, as it does for the reads and writes; when they agree everywhere, the question moves off the C reader and
+onto the high level, and the other two follow.
+
+Two things had to be true before it could be asked at all. A counted loop is one the walk now recognises by the
+generator's own rule (the operator is `less`, one side is a counter and the other a `count`), where before it looked
+for a bare `count` call that a program almost never writes. And the walk records which of a container's own functions
+only read it, so that when a function's answer is unknown the report can say *why*: 48 of the corpus's counted loops
+are unanswered, 44 of them for one reason, a list's `count()` whose own writes the walk cannot see. Closing that is
+the next step, and until it is closed the question cannot move off the C reader, because the C reader does see into
+those calls.
+
+What the corpus reaches today: 8 counted loops answered, 3 of them writing only their own item, and no difference
+against the C reader on any of them.
+
+The loop itself is already one operation with a body: `loop_kind` is `counted` when its condition compares against a
+count, the body is a block of its own, and `body`, `step` and `exit` are the edges that join it to the block holding
+the loop. Cutting that body into a piece function is what makes each pass a function the compiler can give to another
+thread, and the distinctness check is a run-time test over what the passes wrote.
+
 ## What the comparison checks
 
 A function is **covered** when the walk built all of it and every fact it names is one the high level knows how to

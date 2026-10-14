@@ -2,6 +2,7 @@
 var reads = Dictionary<String, Boolean>()
 var writes = Dictionary<String, Boolean>()
 var calls = List<String>()
+var read_only_calls = List<String>()
 var loops = false
 var unknown_operations = 0
 var first_unknown_reason = ""
@@ -22,6 +23,12 @@ func call(name: String) {
     assert not name.is_empty()
     if not calls.contains(name) {
         calls.append(name)
+    }
+}
+
+func read_only_call(name: String) {
+    if not read_only_calls.contains(name) {
+        read_only_calls.append(name)
     }
 }
 

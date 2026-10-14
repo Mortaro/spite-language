@@ -7,6 +7,7 @@ var parameter_objects = List<Integer>()
 var blocks = List<HighBlock>()
 var values = List<HighValue>()
 var fact = HighFact()
+var counted_loops = 0
 var covered = false
 var not_covered_reason = ""
 var makes_object = false
@@ -121,9 +122,19 @@ func fold_operation(operation: HighOperation) {
         index = index + 1
     }
     fact.call(operation.call_name)
+    if operation.reads_only {
+        fact.read_only_call(operation.call_name)
+    }
     if operation.kind == "loop" or operation.kind == "list walk" {
         fact.loops = true
     }
+    if operation.kind == "loop" and operation.loop_kind == "counted" {
+        counted_loops = counted_loops + 1
+    }
+}
+
+func has_counted_loop(): Boolean {
+    return counted_loops > 0
 }
 
 func note_value_read(value_number: Integer) {

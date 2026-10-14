@@ -291,10 +291,24 @@ func loop_kind_of(condition: Syntax.Expressions.Expression?): String {
     }
     crash binary.left
     crash binary.right
-    if counts_of(binary.right) or counts_of(binary.left) {
-        return "counted"
+    if binary.operator != 'less' {
+        return "plain"
     }
-    return "plain"
+    if not counted_side(binary.left) or not counted_side(binary.right) {
+        return "plain"
+    }
+    return "counted"
+}
+
+func counted_side(expression: Syntax.Expressions.Expression): Boolean {
+    if counts_of(expression) {
+        return true
+    }
+    var identifier = shapes.as_identifier(expression)
+    if identifier {
+        return true
+    }
+    return false
 }
 
 func counts_of(expression: Syntax.Expressions.Expression): Boolean {
@@ -303,11 +317,11 @@ func counts_of(expression: Syntax.Expressions.Expression): Boolean {
         return false
     }
     crash call.callee
-    var identifier = shapes.as_identifier(call.callee)
-    if not identifier {
+    var member = shapes.as_member(call.callee)
+    if not member {
         return false
     }
-    return identifier.name == "count"
+    return member.name == "count"
 }
 
 func walk_assert(statement: Syntax.Statements.AssertStatement) {
@@ -590,7 +604,7 @@ func walk_own_call(name: String, arguments: List<Integer>): Integer {
     }
     var own = class_information.find_function(name)
     if own {
-        return note_call(own, arguments)
+        return note_call(own, arguments, false)
     }
     if class_information.find_field(name) {
         note_unknown("a call through a function value", current_line)
@@ -614,13 +628,17 @@ func walk_method_call(member: Syntax.Expressions.MemberExpression, holder: Integ
         note_unknown("a call to '{member.name}' on a value of no class this walk names", current_line)
         return constant_value(null, -1)
     }
-    if holder_class.is_container and changes_a_container(member.name) {
-        crash recorded
-        recorded.touches_a_container = true
+    var changes = false
+    if holder_class.is_container {
+        changes = changes_a_container(member.name)
+        if changes {
+            crash recorded
+            recorded.touches_a_container = true
+        }
     }
     var own = holder_class.find_function(member.name)
     if own {
-        return note_call(own, arguments)
+        return note_call(own, arguments, not changes)
     }
     note_unknown("a call to '{member.name}', which {holder_class.simple_name} does not declare", current_line)
     return constant_value(null, -1)
@@ -647,9 +665,10 @@ func walk_made_object_of(made_class: Analysis.ClassInfo): Integer {
     return constant_value(made, object_number)
 }
 
-func note_call(own: Analysis.FunctionInfo, arguments: List<Integer>): Integer {
+func note_call(own: Analysis.FunctionInfo, arguments: List<Integer>, only_reads: Boolean): Integer {
     var operation = add_operation("call", current_line)
     operation.call_name = own.c_name
+    operation.reads_only = only_reads
     var index = 0
     while index < arguments.count() {
         note_passed_value(operation, arguments[index])

@@ -16,12 +16,14 @@ Not a docs page, so not here by page: what is built and what is not is on
   on every write, joins), the walk of a program's own functions, and the comparison against the C reader, which runs
   over the whole corpus from `check.sh` and fails on any difference.
 - Built, with nothing yet reading it: the conditional must-write summary, what a function surely wrote before it
-  answered `true` or `false`. It is worked out over the high level's own blocks and joins and reported by
-  `--high-level-report`. Its consumer is D559 step 3, and its entry in [proofs.md](../docs/proofs.md) comes with it,
-  since a proof nothing reads is not yet one a program can rely on.
-- Not built: a counted `while` as a band site (D559 steps 2 to 4), a low level, and C emitted from the high level
-  (milestone M3's second half). Every decision the generator still makes (inlining, folding, a call left out, a
-  conversion to text) is why calls are not compared yet.
+  answered `true` or `false`, and a band's first question, whether a counted loop's passes write only their own item.
+  Both are worked out over the high level's own blocks, joins and abstract objects and reported by
+  `--high-level-report`, and the band's answer is compared with the C reader's and agrees. Their consumers are D559
+  steps 3 and 4, and their entries in [proofs.md](../docs/proofs.md) come with them, since a proof nothing reads is
+  not yet one a program can rely on.
+- Not built: a counted `while` actually cut into band pieces and run at once (D559 steps 2 to 4), a low level, and C
+  emitted from the high level (milestone M3's second half). Every decision the generator still makes (inlining,
+  folding, a call left out, a conversion to text) is why calls are not compared yet.
 
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 
