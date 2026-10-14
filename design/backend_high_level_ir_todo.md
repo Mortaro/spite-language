@@ -22,33 +22,42 @@ covers](backend_high_level_ir.md), and decisions D558 to D561, D569, D583 to D58
   answered `true`, before it answered `false`, and before it returned. It is a forward pass over the high level's own
   blocks and joins, so it is a fold of the operations, never a second walk. Nothing reads it yet, so its entry in
   `docs/proofs.md` waits for its consumer.
+- **IR-3's first question is built** (`HighBand`): do a counted loop's passes write only their own item? It is
+  answered over the high level, following the same calls the C reader follows, and compared with it. Over the corpus
+  8 counted loops are answered, 3 of them item-only, with no difference. For this to be asked at all the walk had to
+  recognise a counted `while`, which it now does by the generator's own rule; before that it looked for a bare
+  `count` call that a program almost never writes.
 - `check.sh` runs `scripts/high_level_coverage.sh` as one job (`job_high_level`), and a difference is a red build.
-- `bash check.sh --update-seed` was green before IR-2; **run it again before pushing** (see the gate below).
+- `bash check.sh --update-seed` was green after IR-2; **run it again before pushing** (see the gate below).
 
 ## To do, in order
 
 1. **Gate the branch.** `bash check.sh --update-seed`, then `bash check.sh`, last line starting with `OK`.
-   - IR-2 changed the compiler's own C, so the seeds are stale until that run rewrites them.
-   - Iterate faster first: build the seed once with `-O1` and run `<seed> compiler --check` from the repository root,
-     where no output means the sources compile. Then build this branch's compiler with
-     `<seed> compiler --build --executable-path=.spite/ir_compiler.exe` and run it on single programs.
-2. **IR-3: a counted `while` as a band site** (D559 steps 2 to 4), the first consumer of the must-write summary and
-   the first proof that reads the high level instead of the C. What it needs, and what is ready:
-   - a function that fills a scratch on every path but the one that answers `false` is now summarised, so the
-     caller-side proof (read only after `true`) has what it reads;
-   - a counted `while` is already one loop operation with a body block and `body`, `step` and `exit` edges, so the
-     body can be cut into a piece function;
-   - the gate the generator asks today is `band_condition`'s `item_only` and `band_counts` on the C reader
-     (`compiler/source/generation/generator.spite:37552`). That is the question to answer from the IR instead.
-   - a list's items now have an object, so "the passes write different slots" is a question about objects, which is
-     what the band check needs.
-3. **The low level, and C emitted from the IR for the smallest useful subset, function by function** (milestone
+2. **Close IR-3's gap, then move the decision.** 48 of the corpus's counted loops are not answered yet, and 44 of
+   those are one reason: the loop calls a list's `count()`, whose own writes the walk cannot see, because the walk
+   does not build library classes. The C reader does see into them, so the question cannot move off it until the IR
+   answers too. Two ways, in order of cost:
+   - **build the library's own read-only container functions** in the high level (`count`, `is_empty`, and the rest of
+     the set `changes_a_container` already names), so following a call into one ends in a function with no writes.
+     This walks library code per program, so it wants D569's cache, and it is the whole of the remaining gap.
+   - or teach `HighBand` that a call the walk recorded as reading a container writes nothing of the program's
+     objects, and prove it against the C reader over the corpus. **A first attempt at this refuted itself**: it made
+     8 more functions answer "item-only" where the C reader says no, so the rule is not a fact about the library the
+     IR can see, and it is not claimed.
+   Once the answers agree everywhere, `band_condition` (`compiler/source/generation/generator.spite:37552`) asks the
+   IR instead of the C reader, which is the decision this whole migration exists to move.
+3. **A band's other two questions**, on the IR: does anything it calls count references (a retain, a release, a
+   box's count, a counted attribute), and is it worth banding (a weight against a minimum). Both are C text today
+   (the markers `___retain(`, `SPITE_COUNT_UP(` and a line count with a multiplier per loop).
+4. **Then actually band**: cut a counted loop's body into a piece function, clone the scratch on the submitting
+   thread, and check once per loop that the passes wrote different slots (D559 steps 2 to 4).
+5. **The low level, and C emitted from the IR for the smallest useful subset, function by function** (milestone
    M3's second half, `proposals/own_backend_plan.md#m3-the-two-level-ir-and-a-first-lowering-d560`). Nothing of this
    is built. The first slice worth trying is the simplest one: a function with no call, no container and no object
    made in it, which is straight-line field reads, field writes and computations, emitted and checked against what
    the generator writes for that function.
-4. **Raise coverage further**, from the summary's reasons: a name it does not know (478), a codegen value (180), a
-   construction (176, a generator decision), an owner tag of D556 (91), and a getter, a setter or a switch.
+6. **Raise coverage further**, from the summary's reasons: a name it does not know, a codegen value, a construction
+   (a generator decision), an owner tag of D556, and a getter, a setter or a switch.
 
 ## What was already fixed (so it is not looked for again)
 
