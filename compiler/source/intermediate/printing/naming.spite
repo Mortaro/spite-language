@@ -29,10 +29,10 @@ func c_type(spite_type: Analysis.SpiteType?): String {
     }
     var listed = shape.as_list(spite_type)
     if listed {
-        return "{label(spite_type)}*"
+        return held_c_type(spite_type)
     }
     if shape.as_dictionary(spite_type) {
-        return "{label(spite_type)}*"
+        return held_c_type(spite_type)
     }
     var united = shape.as_union(spite_type)
     if united {
@@ -50,10 +50,21 @@ func c_type(spite_type: Analysis.SpiteType?): String {
 
 func class_c_type(c_name: String): String {
     var layout = lowered.layout_named(c_name)
-    if layout and layout.is_value {
+    if not layout {
+        return "void*"
+    }
+    if layout.is_value {
         return value_c_type(layout)
     }
     return "{c_name}*"
+}
+
+func held_c_type(spite_type: Analysis.SpiteType): String {
+    var named = label(spite_type)
+    if not lowered.layout_named(named) {
+        return "void*"
+    }
+    return "{named}*"
 }
 
 func value_c_type(layout: Layout): String {
@@ -233,13 +244,17 @@ func counted_name(spite_type: Analysis.SpiteType): String {
     }
     var class_ref = shape.as_class_ref(spite_type)
     if class_ref {
-        if is_value_class(class_ref.c_name) {
+        if is_value_class(class_ref.c_name) or not lowered.layout_named(class_ref.c_name) {
             return ""
         }
         return class_ref.c_name
     }
     if shape.as_list(spite_type) or shape.as_dictionary(spite_type) {
-        return label(spite_type)
+        var named = label(spite_type)
+        if not lowered.layout_named(named) {
+            return ""
+        }
+        return named
     }
     if shape.is_arguments(spite_type) {
         return "SpiteArguments"
