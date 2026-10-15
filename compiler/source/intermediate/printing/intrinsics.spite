@@ -1214,6 +1214,10 @@ func nullable_has(body: Body, operation: Operation) {
 }
 
 func presence(tested: String, inner: Analysis.SpiteType): String {
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return presence(tested, nested.inner)
+    }
     if shape.as_string(inner) or shape.is_symbol(inner) {
         return "(!SPITE_STRING_IS_NULL({tested}))"
     }
@@ -1240,7 +1244,7 @@ func nullable_value(body: Body, operation: Operation) {
     assert inner
     var present = presence(tested, inner)
     checked_value(body, operation, present)
-    if naming.is_reference(inner) {
+    if naming.is_reference(inner) or shape.as_nullable(inner) {
         body.assign(operation.result, tested)
         return
     }
@@ -1257,7 +1261,7 @@ func nullable_wrap(body: Body, operation: Operation) {
         return
     }
     var inner = nullable.inner
-    if naming.is_reference(inner) {
+    if naming.is_reference(inner) or shape.as_nullable(inner) {
         body.assign(operation.result, wrapped)
         return
     }

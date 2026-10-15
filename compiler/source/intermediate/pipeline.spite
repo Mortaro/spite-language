@@ -136,6 +136,7 @@ func roots_of_runtime(): List<String> {
         note_roots("DynamicLibrary", ["DynamicLibrary", "find_symbol", "open_library", "close_library", "drop"], roots)
     }
     lowered.concrete_functions.each(note_placed_roots)
+    lowered.concrete_functions.each(note_serving_roots)
     placed_allocators.each(roots.append)
     if generator.scheduler_used {
         note_roots(
@@ -145,6 +146,17 @@ func roots_of_runtime(): List<String> {
         )
     }
     return roots
+}
+
+func note_serving_roots(function: Function) {
+    crash generator
+    assert function.name == "entry_address"
+    var owner = generator.find_class_by_c_name(function.owner)
+    assert owner
+    var serving = owner.find_function("_serve")
+    if serving and not placed_allocators.contains(serving.c_name) {
+        placed_allocators.append(serving.c_name)
+    }
 }
 
 func note_placed_roots(function: Function) {

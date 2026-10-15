@@ -21,6 +21,7 @@ func print(lowered: Lowered): String {
     output.printed_text = "{macros} {bodies}"
     lowered.enums.each(layouts.print_enum_names)
     lowered.layouts.each(layouts.print)
+    note_nothing_default()
     note_maths()
     var written = assembled(lowered)
     note_reached(written)
@@ -186,6 +187,21 @@ func foreign_prototypes(): String {
         index = index + 1
     }
     return lines.join("\n")
+}
+
+func note_nothing_default() {
+    assert output.printed_text.contains("Nothing___default(")
+    var nothing = naming.lowered.layout_named("Nothing")
+    if not nothing {
+        output.refuse("a concurrent call answers Nothing, and the program holds no Nothing layout")
+        return
+    }
+    var made = "Nothing___allocate()"
+    if nothing.is_singleton {
+        made = "{runtime.maker_of("Nothing")}()"
+    }
+    output.prototypes.append("static Nothing* Nothing___default(void);")
+    output.supports.append("static Nothing* Nothing___default(void) \{ return {made}; }")
 }
 
 func note_maths() {

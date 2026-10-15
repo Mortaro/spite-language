@@ -77,6 +77,10 @@ func value_c_type(layout: Layout): String {
 
 func nullable_c_type(nullable: Analysis.Types.NullableType): String {
     var inner = nullable.inner
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return nullable_c_type(nested)
+    }
     if is_reference(inner) {
         return c_type(inner)
     }
@@ -317,6 +321,10 @@ func scalar_zero(kind: Analysis.Types.NumericKind): String {
 
 func null_value(nullable: Analysis.Types.NullableType): String {
     var inner = nullable.inner
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return null_value(nested)
+    }
     if shape.as_string(inner) or shape.is_symbol(inner) {
         return "SPITE_STRING_NULL"
     }

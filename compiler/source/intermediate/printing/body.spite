@@ -391,6 +391,9 @@ func note_parameters() {
 }
 
 func print_supplied() {
+    if function.name == "entry_address" {
+        thread_entry()
+    }
     if not function.source {
         output.refuse("the supplied function '{function.c_name}' has no source, so its body is not known")
         return
@@ -427,6 +430,21 @@ func print_supplied() {
     output.prototypes.append("{heading};")
     output.bodies.append("{heading} \{\n{supplied}\n}")
     note_place(function.c_name)
+}
+
+func thread_entry() {
+    var owner = function.owner
+    var entry = "{owner}___thread_entry"
+    var serving = "{owner}__serve"
+    if not lowered.function_named(serving) {
+        refuse("it starts threads that run '{serving}', which the program does not hold")
+        return
+    }
+    output.prototypes.append("static void* {entry}(void* pool);")
+    output.supports.append(
+        "static void* {entry}(void* pool) \{\nspite_fault_thread();\n{serving}(({owner}*)pool);\nreturn 0;\n}",
+    )
+    output.runtime_place(entry)
 }
 
 func held_inline(memory: Function): String {
