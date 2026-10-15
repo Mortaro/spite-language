@@ -151,6 +151,8 @@ func may_hold(function: Function): Boolean {
 
 func settle(function: Function): Boolean {
     var changed = false
+    crash consumption
+    consumption.current = function
     var uses = Facts.Uses(function)
     var index = 0
     while index < function.parameters.count() {

@@ -75,6 +75,11 @@ func classified(value: Integer): String {
     }
     if defining.kind == "load" {
         note_sources(value, defining)
+        var object = defining.operands.first()
+        crash object
+        if consumption.is_row_value(function, object) {
+            return "lent"
+        }
         return "borrowed"
     }
     if consumption.is_projection(defining) {

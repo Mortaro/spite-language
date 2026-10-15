@@ -57,6 +57,7 @@ func count_function(function: Function) {
     crash effects
     crash kinds
     crash consumption
+    consumption.current = function
     split_critical_edges(function)
     var flow = Facts.Flow(function)
     var uses = Facts.Uses(function)

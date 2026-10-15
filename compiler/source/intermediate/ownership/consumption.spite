@@ -2,6 +2,7 @@
 var lowered: Lowered? = null
 var intrinsics: Facts.Intrinsics? = null
 var returns_lent = Dictionary<String, Boolean>()
+var current: Function? = null
 
 func Consumption(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -98,6 +99,26 @@ func traces_lent(uses: Facts.Uses, value: Integer): Boolean {
     return answer == "lent"
 }
 
+# ../../../../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame
+func into_row(operation: Operation): Boolean {
+    var object = operation.operands.first()
+    if not current or not object {
+        return false
+    }
+    return is_row_value(current, object)
+}
+
+func is_row_value(function: Function, value: Integer): Boolean {
+    crash lowered
+    var value_type = function.value_at(value).spite_type
+    var kinds = Facts.ValueKinds(lowered)
+    var layout = kinds.layout_of(value_type)
+    if not layout {
+        return false
+    }
+    return layout.kind == "row"
+}
+
 func is_projection(operation: Operation): Boolean {
     var projections = ["Nullable.value", "Union.value", "Symbol.text"]
     return operation.kind == "call" and projections.contains(operation.callee)
@@ -120,7 +141,7 @@ func consumes(operation: Operation, value: Integer): Boolean {
 
 func consumes_position(operation: Operation, position: Integer): Boolean {
     if operation.kind == "store" {
-        return position == 1
+        return position == 1 and not into_row(operation)
     }
     if operation.kind == "call value" {
         return position > 0

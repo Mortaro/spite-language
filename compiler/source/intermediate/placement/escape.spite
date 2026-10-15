@@ -52,6 +52,8 @@ func parameter_value(callee: Function, position: Integer): Integer {
 }
 
 func escapes(function: Function, value: Integer): Boolean {
+    crash consumption
+    consumption.current = function
     var uses = Facts.Uses(function)
     return escapes_through(function, uses, value, 0)
 }
