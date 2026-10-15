@@ -1,0 +1,358 @@
+# ../../../../docs/proofs.md#indices-and-numbers
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var effects: Facts.Effects? = null
+var intrinsics: Facts.Intrinsics? = null
+var kinds: Facts.ValueKinds? = null
+var folding: ConstantFolding? = null
+var inside: InsideCopies? = null
+var unchecked_count = 0
+var kept = List<String>()
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_effects = Facts.Effects(starting_lowered)
+    effects = made_effects
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_folding = ConstantFolding(starting_lowered)
+    folding = made_folding
+    var made_inside = InsideCopies(starting_lowered)
+    inside = made_inside
+    var listed = ListedValues(starting_lowered)
+    var functions = starting_lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if not function.blocks.is_empty() {
+            prove_function(function, listed)
+        }
+        index = index + 1
+    }
+}
+
+func prove_function(function: Function, listed: ListedValues) {
+    crash lowered
+    crash folding
+    folding.fold_function(function)
+    var branches = BranchFolding()
+    branches.fold(function)
+    crash effects
+    var first_flow = Facts.Flow(function)
+    var first_uses = Facts.Uses(function)
+    var hoisting = Hoisting(function, first_flow, first_uses, effects)
+    hoisting.hoist()
+    var flow = Facts.Flow(function)
+    var uses = Facts.Uses(function)
+    var spans = Spans(function, flow, uses, lowered)
+    var relations = Relations(function, flow, uses, effects, spans, lowered)
+    var index = 0
+    while index < flow.order.count() {
+        var block_number = flow.order[index]
+        prove_block(function, block_number, spans, relations, listed)
+        index = index + 1
+    }
+    folding.fold_function(function)
+    branches.fold(function)
+}
+
+func prove_block(function: Function, block_number: Integer, spans: Spans, relations: Relations, listed: ListedValues) {
+    var block = function.block_at(block_number)
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var place = Facts.Place(block_number, index)
+        if operation.kind == "call" {
+            prove_call(function, operation, place, spans, relations, listed)
+        }
+        index = index + 1
+    }
+}
+
+func prove_call(
+    function: Function,
+    operation: Operation,
+    place: Facts.Place,
+    spans: Spans,
+    relations: Relations,
+    listed: ListedValues,
+) {
+    crash intrinsics
+    var callee = operation.callee
+    if intrinsics.is_checked_arithmetic(callee) or intrinsics.is_narrowing(callee) {
+        prove_arithmetic(function, operation, place, spans, relations)
+        return
+    }
+    if intrinsics.is_comparison(callee) {
+        decide_comparison(function, operation, place, spans, relations, listed)
+        return
+    }
+    if callee == "Nullable.has" {
+        decide_presence(function, operation, place, relations)
+        return
+    }
+    if callee == "Nullable.value" and operation.site >= 0 {
+        prove_present_value(operation, place, relations)
+        return
+    }
+    prove_read(function, operation, place, spans, relations)
+}
+
+# ../../../../docs/proofs.md#arithmetic-that-does-not-fit-halts
+func prove_arithmetic(
+    function: Function,
+    operation: Operation,
+    place: Facts.Place,
+    spans: Spans,
+    relations: Relations,
+) {
+    crash intrinsics
+    crash lowered
+    assert operation.site >= 0 and operation.form.is_empty()
+    if not lowered.proves_ranges() {
+        note_kept(
+            operation,
+            "a --repl, --repl-port or --hot-reload build proves no ranges, since code may run between two steps",
+        )
+        return
+    }
+    var meaning = intrinsics.operation_part(operation.callee)
+    if meaning == "divide" or meaning == "remainder" {
+        prove_division(function, operation, place, spans, relations, meaning)
+        return
+    }
+    if spans.fits(operation, place.block) {
+        operation.form = "unchecked"
+        unchecked_count = unchecked_count + 1
+        return
+    }
+    note_kept(operation, "nothing proves the answer fits its type")
+}
+
+# ../../../../docs/proofs.md#a-proven-divisor-is-not-checked
+func prove_division(
+    function: Function,
+    operation: Operation,
+    place: Facts.Place,
+    spans: Spans,
+    relations: Relations,
+    meaning: String,
+) {
+    crash kinds
+    assert operation.operands.count() == 2
+    var dividend = operation.operands[0]
+    var divisor = operation.operands[1]
+    var nonzero = spans.is_nonzero_at(divisor, place.block) or relations.proves_nonzero(divisor, place)
+    var no_overflow = meaning == "remainder" or cannot_overflow(function, dividend, divisor, place, spans)
+    if nonzero and no_overflow {
+        operation.form = "unchecked"
+    } else if nonzero {
+        operation.form = "nonzero"
+    } else if no_overflow {
+        operation.form = "no_overflow"
+    }
+}
+
+func cannot_overflow(
+    function: Function,
+    dividend: Integer,
+    divisor: Integer,
+    place: Facts.Place,
+    spans: Spans,
+): Boolean {
+    crash kinds
+    var dividend_type = function.value_at(dividend).spite_type
+    if not dividend_type {
+        return false
+    }
+    var scalar = types.as_scalar(dividend_type)
+    if not scalar {
+        return false
+    }
+    if not kinds.is_signed_kind(scalar.kind) {
+        return true
+    }
+    var divisor_span = spans.span_at(divisor, place.block)
+    if divisor_span and divisor_span.excludes(-1) {
+        return true
+    }
+    var limits = spans.kind_span(scalar.kind)
+    var dividend_span = spans.span_at(dividend, place.block)
+    if not limits or not dividend_span {
+        return false
+    }
+    return dividend_span.lowest > limits.lowest
+}
+
+func note_kept(operation: Operation, reason: String) {
+    operation.kept_because = reason
+    kept.append(reason)
+}
+
+# ../../../../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling
+func decide_comparison(
+    function: Function,
+    operation: Operation,
+    place: Facts.Place,
+    spans: Spans,
+    relations: Relations,
+    listed: ListedValues,
+) {
+    crash intrinsics
+    crash folding
+    assert operation.operands.count() == 2 and operation.result >= 0
+    var left = operation.operands[0]
+    var right = operation.operands[1]
+    var meaning = intrinsics.operation_part(operation.callee)
+    var answer = compared(meaning, left, right, place, spans, relations)
+    if answer.is_empty() and meaning == "equals" {
+        answer = listed.decided_equality(function, left, right)
+    }
+    assert not answer.is_empty()
+    var result_type = function.value_at(operation.result).spite_type
+    folding.become_constant(operation, answer, result_type)
+}
+
+func compared(
+    meaning: String,
+    left: Integer,
+    right: Integer,
+    place: Facts.Place,
+    spans: Spans,
+    relations: Relations,
+): String {
+    var left_span = spans.span_at(left, place.block)
+    var right_span = spans.span_at(right, place.block)
+    if meaning == "less_than" {
+        return ordered(left, right, left_span, right_span, place, relations)
+    }
+    if meaning == "greater_than" {
+        return ordered(right, left, right_span, left_span, place, relations)
+    }
+    if not left_span or not right_span {
+        return ""
+    }
+    if left_span.highest < right_span.lowest or right_span.highest < left_span.lowest {
+        return "false"
+    }
+    return ""
+}
+
+func ordered(
+    smaller: Integer,
+    larger: Integer,
+    smaller_span: NumberSpan?,
+    larger_span: NumberSpan?,
+    place: Facts.Place,
+    relations: Relations,
+): String {
+    if smaller_span and larger_span and smaller_span.highest < larger_span.lowest {
+        return "true"
+    }
+    if smaller_span and larger_span and smaller_span.lowest >= larger_span.highest {
+        return "false"
+    }
+    if relations.proves_less(smaller, larger, place) {
+        return "true"
+    }
+    if relations.proves_not_less(smaller, larger, place) {
+        return "false"
+    }
+    return ""
+}
+
+# ../../../../docs/proofs.md#narrowing-a-t
+func decide_presence(function: Function, operation: Operation, place: Facts.Place, relations: Relations) {
+    crash folding
+    var tested = operation.operands.first()
+    crash tested
+    assert operation.result >= 0
+    var proven = relations.proves_present(tested, place) or read_is_present(function, tested, relations)
+    assert proven
+    var result_type = function.value_at(operation.result).spite_type
+    folding.become_constant(operation, "true", result_type)
+}
+
+func read_is_present(function: Function, tested: Integer, relations: Relations): Boolean {
+    crash kinds
+    crash relations.uses
+    var defining = relations.uses.definition_of(tested)
+    if not defining or defining.kind != "call" or not defining.callee.ends_with("___inside") {
+        return false
+    }
+    var callee = relations.lowered_function(defining.callee)
+    if not callee or callee.name != "get_at" {
+        return false
+    }
+    var element = element_of(function, defining)
+    return element and not kinds.is_nullable(element)
+}
+
+func element_of(function: Function, read: Operation): Analysis.SpiteType? {
+    assert read.result >= 0
+    var answer = function.value_at(read.result).spite_type
+    assert answer
+    var nullable = types.as_nullable(answer)
+    assert nullable
+    return nullable.inner
+}
+
+func prove_present_value(operation: Operation, place: Facts.Place, relations: Relations) {
+    var tested = operation.operands.first()
+    crash tested
+    assert relations.proves_present(tested, place)
+    operation.form = "unchecked"
+}
+
+# ../../../../docs/optimizations.md#a-proven-read-tests-only-its-bounds
+func prove_read(function: Function, operation: Operation, place: Facts.Place, spans: Spans, relations: Relations) {
+    crash lowered
+    crash kinds
+    var callee = lowered.function_named(operation.callee)
+    assert callee and operation.form.is_empty() and operation.operands.count() >= 2
+    assert kinds.is_library_layout(callee.owner) and not callee.c_name.ends_with("___inside")
+    var width = read_width(callee.name)
+    assert width > 0
+    var container = operation.operands[0]
+    var index = operation.operands[1]
+    var index_span = spans.span_at(index, place.block)
+    assert index_span and index_span.lowest >= 0
+    var count_field = relations.count_field_of(container)
+    assert not count_field.is_empty()
+    if relations.proves_inside(index, width - 1, container, count_field, place, spans) {
+        crash inside
+        operation.callee = inside.inside_of(callee, width)
+        unchecked_count = unchecked_count + 1
+    }
+}
+
+func read_width(name: String): Integer {
+    var plain = name
+    if name.ends_with("_big_endian") {
+        var length = name.length()
+        plain = name.slice(0, length - 11)
+    }
+    var widths = {
+        "get_at": 1
+        "read_tiny": 1
+        "read_short": 2
+        "read_unsigned_short": 2
+        "read_integer": 4
+        "read_unsigned_integer": 4
+        "read_float": 4
+        "read_long": 8
+        "read_unsigned_long": 8
+        "read_double": 8
+    }
+    if widths.has(plain) {
+        crash widths[plain]
+        return widths[plain]
+    }
+    return 0
+}
+
+func kept_checks(): List<String> {
+    return kept
+}

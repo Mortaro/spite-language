@@ -1,0 +1,187 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-passes-in-order
+var caller: Function? = null
+var callee: Function? = null
+var mapped_values = Dictionary<Integer, Integer>()
+var first_block = -1
+
+func InlineCopy(into: Function, from: Function) {
+    caller = into
+    callee = from
+}
+
+func inline_at(block_number: Integer, position: Integer) {
+    crash caller
+    crash callee
+    var block = caller.block_at(block_number)
+    crash block.operations[position]
+    var call = block.operations[position]
+    map_arguments(call)
+    var continuing = split_after(block, position, call)
+    first_block = caller.blocks.count()
+    copy_blocks(continuing.number)
+    var entry = Target(first_block)
+    var jump = Terminator("jump")
+    jump.to(entry)
+    block.terminator = jump
+}
+
+func map_arguments(call: Operation) {
+    crash callee
+    var receiver = call.operands.first()
+    crash receiver
+    mapped_values[callee.receiver] = receiver
+    var index = 0
+    while index < callee.parameters.count() {
+        var parameter = callee.parameters[index]
+        crash call.operands[index + 1]
+        mapped_values[parameter.value] = call.operands[index + 1]
+        index = index + 1
+    }
+}
+
+func split_after(block: Block, position: Integer, call: Operation): Block {
+    crash caller
+    var continuing = caller.new_block()
+    if call.result >= 0 {
+        continuing.parameters.append(call.result)
+        caller.value_at(call.result).block = continuing.number
+        caller.value_at(call.result).origin = "block parameter"
+    }
+    var kept = List<Operation>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if index < position {
+            kept.append(operation)
+        } else if index > position {
+            continuing.add(operation)
+            move_result(operation, continuing.number)
+        }
+        index = index + 1
+    }
+    continuing.terminator = block.terminator
+    block.operations = kept
+    return continuing
+}
+
+func move_result(operation: Operation, block_number: Integer) {
+    crash caller
+    assert operation.result >= 0
+    caller.value_at(operation.result).block = block_number
+}
+
+func copy_blocks(continuing: Integer) {
+    crash caller
+    crash callee
+    var offset = caller.blocks.count()
+    var index = 0
+    while index < callee.blocks.count() {
+        var made = caller.new_block()
+        crash made.number == offset + index
+        index = index + 1
+    }
+    index = 0
+    while index < callee.blocks.count() {
+        var source = callee.blocks[index]
+        var made = caller.block_at(offset + index)
+        copy_block(source, made, offset, continuing)
+        index = index + 1
+    }
+}
+
+func copy_block(source: Block, made: Block, offset: Integer, continuing: Integer) {
+    var index = 0
+    while index < source.parameters.count() {
+        var parameter = value_for(source.parameters[index], made.number)
+        made.parameters.append(parameter)
+        index = index + 1
+    }
+    index = 0
+    while index < source.operations.count() {
+        var operation = source.operations[index]
+        var copied = copy_operation(operation, made.number)
+        made.add(copied)
+        index = index + 1
+    }
+    made.terminator = copy_terminator(source.terminator, offset, continuing, made.number)
+}
+
+func value_for(value: Integer, block_number: Integer): Integer {
+    crash caller
+    crash callee
+    if mapped_values.has(value) {
+        crash mapped_values[value]
+        return mapped_values[value]
+    }
+    var original = callee.value_at(value)
+    var made = caller.new_value(original.spite_type, original.origin)
+    caller.value_at(made).name = original.name
+    caller.value_at(made).block = block_number
+    mapped_values[value] = made
+    return made
+}
+
+func copy_operation(operation: Operation, block_number: Integer): Operation {
+    var copied = Operation(operation.kind, operation.line)
+    copied.callee = operation.callee
+    copied.layout = operation.layout
+    copied.field = operation.field
+    copied.literal = operation.literal
+    copied.spite_type = operation.spite_type
+    copied.site = operation.site
+    copied.form = operation.form
+    var index = 0
+    while index < operation.operands.count() {
+        var operand = value_for(operation.operands[index], block_number)
+        copied.takes(operand)
+        index = index + 1
+    }
+    if operation.result >= 0 {
+        copied.result = value_for(operation.result, block_number)
+    }
+    return copied
+}
+
+func copy_terminator(terminator: Terminator, offset: Integer, continuing: Integer, block_number: Integer): Terminator {
+    if terminator.kind == "return" {
+        return returning(terminator, continuing, block_number)
+    }
+    var copied = Terminator(terminator.kind)
+    copied.site = terminator.site
+    var index = 0
+    while index < terminator.operands.count() {
+        var operand = value_for(terminator.operands[index], block_number)
+        copied.operands.append(operand)
+        index = index + 1
+    }
+    index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var moved = Target(target.block + offset)
+        moved.tag = target.tag
+        var argument_index = 0
+        while argument_index < target.arguments.count() {
+            var argument = value_for(target.arguments[argument_index], block_number)
+            moved.arguments.append(argument)
+            argument_index = argument_index + 1
+        }
+        copied.to(moved)
+        index = index + 1
+    }
+    return copied
+}
+
+func returning(terminator: Terminator, continuing: Integer, block_number: Integer): Terminator {
+    crash caller
+    var jump = Terminator("jump")
+    var target = Target(continuing)
+    var continued = caller.block_at(continuing)
+    if not continued.parameters.is_empty() {
+        var returned = terminator.operands.first()
+        crash returned
+        var answer = value_for(returned, block_number)
+        target.arguments.append(answer)
+    }
+    jump.to(target)
+    return jump
+}

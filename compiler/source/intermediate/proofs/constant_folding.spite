@@ -1,0 +1,270 @@
+# ../../../../docs/optimizations.md#maths-on-constants-is-worked-out-while-compiling
+var types = Analysis.TypeShape()
+var maths = Generation.MathsPrimitives()
+var intrinsics: Facts.Intrinsics? = null
+var kinds: Facts.ValueKinds? = null
+var folded_count = 0
+
+func ConstantFolding(lowered: Lowered) {
+    var made_intrinsics = Facts.Intrinsics(lowered)
+    intrinsics = made_intrinsics
+    var made_kinds = Facts.ValueKinds(lowered)
+    kinds = made_kinds
+}
+
+func fold_function(function: Function) {
+    var changed = true
+    var rounds = 0
+    while changed and rounds < 8 {
+        var uses = Facts.Uses(function)
+        changed = fold_once(function, uses)
+        rounds = rounds + 1
+    }
+}
+
+func fold_once(function: Function, uses: Facts.Uses): Boolean {
+    var changed = false
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and fold_operation(function, uses, operation) {
+                changed = true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return changed
+}
+
+func fold_operation(function: Function, uses: Facts.Uses, operation: Operation): Boolean {
+    crash intrinsics
+    if operation.result < 0 or operation.operands.is_empty() {
+        return false
+    }
+    var literals = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var defining = uses.definition_of(operation.operands[index])
+        if not defining or defining.kind != "constant" {
+            return false
+        }
+        literals.append(defining.literal)
+        index = index + 1
+    }
+    var result_type = function.value_at(operation.result).spite_type
+    var answer = folded_text(operation, literals, result_type)
+    if answer.is_empty() {
+        return false
+    }
+    become_constant(operation, answer, result_type)
+    if is_decimal(result_type) {
+        operation.form = "exact"
+    }
+    return true
+}
+
+func is_decimal(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var scalar = types.as_scalar(spite_type)
+    if not scalar {
+        return false
+    }
+    return scalar.kind == 'float_kind' or scalar.kind == 'double_kind'
+}
+
+func become_constant(operation: Operation, literal: String, spite_type: Analysis.SpiteType?) {
+    operation.kind = "constant"
+    operation.literal = literal
+    operation.operands = List<Integer>()
+    operation.callee = ""
+    operation.site = -1
+    operation.spite_type = spite_type
+    folded_count = folded_count + 1
+}
+
+func folded_text(operation: Operation, literals: List<String>, result_type: Analysis.SpiteType?): String {
+    crash intrinsics
+    if operation.callee == "Boolean.not" {
+        return negated_truth(literals)
+    }
+    var owner = intrinsics.type_part(operation.callee)
+    var kind = intrinsics.kind_named(owner)
+    if not kind {
+        return maths_text(operation, literals)
+    }
+    if kind == 'float_kind' or kind == 'double_kind' {
+        return decimal_text(operation, literals, kind)
+    }
+    crash kinds
+    if not kinds.is_whole_kind(kind) {
+        return ""
+    }
+    return whole_text(operation, literals, kind, result_type)
+}
+
+func negated_truth(literals: List<String>): String {
+    var first = literals.first()
+    if first == "true" {
+        return "false"
+    }
+    if first == "false" {
+        return "true"
+    }
+    return ""
+}
+
+func whole_text(
+    operation: Operation,
+    literals: List<String>,
+    kind: Analysis.Types.NumericKind,
+    result_type: Analysis.SpiteType?,
+): String {
+    crash intrinsics
+    var meaning = intrinsics.operation_part(operation.callee)
+    crash literals[0]
+    var left: Long? = literals[0]
+    if not left {
+        return ""
+    }
+    var right: Long = 0
+    if literals.count() > 1 {
+        var parsed: Long? = literals[1]
+        if not parsed {
+            return ""
+        }
+        right = parsed
+    }
+    var left_span = NumberSpan(left, left)
+    var right_span = NumberSpan(right, right)
+    var compared = compared_text(meaning, left, right)
+    if not compared.is_empty() {
+        return compared
+    }
+    var computed = whole_span(meaning, left_span, right_span)
+    if not computed or not computed.is_exact() {
+        return ""
+    }
+    var target = kind
+    if meaning.starts_with("to_") {
+        var converted = intrinsics.target_kind(operation.callee)
+        if not converted {
+            return ""
+        }
+        target = converted
+    }
+    if not fits(computed, target) {
+        return ""
+    }
+    return computed.lowest
+}
+
+func compared_text(meaning: String, left: Long, right: Long): String {
+    switch meaning {
+        "equals": return truth(left == right)
+        "less_than": return truth(left < right)
+        "greater_than": return truth(left > right)
+        _: return ""
+    }
+}
+
+func whole_span(meaning: String, left: NumberSpan, right: NumberSpan): NumberSpan? {
+    switch meaning {
+        "sum": return left.plus(right)
+        "subtract": return left.minus(right)
+        "multiply": return left.times(right)
+        "negate": return left.negated()
+        _: return converted_or_divided(meaning, left, right)
+    }
+}
+
+func converted_or_divided(meaning: String, left: NumberSpan, right: NumberSpan): NumberSpan? {
+    if meaning.starts_with("to_") and not meaning.ends_with("float") and not meaning.ends_with("double") {
+        return left
+    }
+    assert right.lowest != 0
+    if meaning == "divide" {
+        return left.divided_by(right)
+    }
+    if meaning == "remainder" {
+        var quotient = left.lowest / right.lowest
+        var rest = left.lowest - quotient * right.lowest
+        return NumberSpan(rest, rest)
+    }
+    return null
+}
+
+func fits(span: NumberSpan, kind: Analysis.Types.NumericKind): Boolean {
+    switch kind {
+        'integer_kind': return span.within(-2147483648, 2147483647)
+        'tiny_kind': return span.within(-128, 127)
+        'short_kind': return span.within(-32768, 32767)
+        'byte_kind': return span.within(0, 255)
+        'unsigned_short_kind': return span.within(0, 65535)
+        'unsigned_integer_kind': return span.within(0, 4294967295)
+        'unsigned_long_kind': return span.lowest >= 0
+        'long_kind': return true
+        _: return false
+    }
+}
+
+func truth(answer: Boolean): String {
+    if answer {
+        return "true"
+    }
+    return "false"
+}
+
+func decimal_text(operation: Operation, literals: List<String>, kind: Analysis.Types.NumericKind): String {
+    crash intrinsics
+    var meaning = intrinsics.operation_part(operation.callee)
+    var comparisons = ["equals", "less_than", "greater_than"]
+    if comparisons.contains(meaning) {
+        return ""
+    }
+    return folded_maths(meaning, literals, kind == 'float_kind')
+}
+
+func maths_text(operation: Operation, literals: List<String>): String {
+    crash intrinsics
+    var callee = intrinsics.callee_named(operation.callee)
+    if not callee or callee.intrinsic != "supplied" {
+        return ""
+    }
+    var owner = callee.owner
+    var is_float = owner == "Float"
+    if not is_float and owner != "Double" {
+        return ""
+    }
+    return folded_maths(callee.name, literals, is_float)
+}
+
+func folded_maths(name: String, literals: List<String>, is_float: Boolean): String {
+    if not maths.is_member(name) or maths.is_constant(name) or maths.is_predicate(name) {
+        return ""
+    }
+    if literals.count() != maths.operand_count(name) + 1 {
+        return ""
+    }
+    var operands = List<Double>()
+    var index = 0
+    while index < literals.count() {
+        var parsed: Double? = literals[index]
+        if not parsed {
+            return ""
+        }
+        operands.append(parsed)
+        index = index + 1
+    }
+    while operands.count() < 3 {
+        operands.append(0.0)
+    }
+    crash operands.count() >= 3
+    var result = maths.folded(name, is_float, operands[0], operands[1], operands[2])
+    return maths.decimal_literal(result, is_float)
+}

@@ -1,0 +1,128 @@
+# ../../../../docs/optimizations.md#a-proven-read-tests-only-its-bounds
+var lowered: Lowered? = null
+var intrinsics: Facts.Intrinsics? = null
+var made = Dictionary<String, String>()
+
+func InsideCopies(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+}
+
+func inside_of(callee: Function, width: Integer): String {
+    crash lowered
+    var name = "{callee.c_name}___inside"
+    if made.has(callee.c_name) {
+        return name
+    }
+    if callee.blocks.is_empty() or callee.parameters.is_empty() {
+        return callee.c_name
+    }
+    var copy = Facts.FunctionCopy().copied(callee, name)
+    copy.specialised_from = callee.c_name
+    assume_inside(copy, width)
+    var folding = ConstantFolding(lowered)
+    folding.fold_function(copy)
+    var branches = BranchFolding()
+    branches.fold(copy)
+    lowered.add_function(copy)
+    made[callee.c_name] = name
+    return name
+}
+
+func assume_inside(copy: Function, width: Integer) {
+    var uses = Facts.Uses(copy)
+    var block_index = 0
+    while block_index < copy.blocks.count() {
+        var block = copy.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            decide(copy, uses, operation, width)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func decide(copy: Function, uses: Facts.Uses, operation: Operation, width: Integer) {
+    crash intrinsics
+    crash lowered
+    assert operation.kind == "call" and intrinsics.is_comparison(operation.callee) and operation.operands.count() == 2
+    var meaning = intrinsics.operation_part(operation.callee)
+    assert meaning == "less_than" or meaning == "greater_than"
+    var left = operation.operands.first()
+    var right = operation.operands.last()
+    assert left and right
+    var smaller = left
+    var larger = right
+    if meaning == "greater_than" {
+        smaller = right
+        larger = left
+    }
+    var small = term_of(copy, uses, smaller)
+    var large = term_of(copy, uses, larger)
+    assert small and large
+    var answer = decided(small, large, width)
+    assert not answer.is_empty()
+    var truth = copy.value_at(operation.result).spite_type
+    var folding = ConstantFolding(lowered)
+    folding.become_constant(operation, answer, truth)
+}
+
+func term_of(copy: Function, uses: Facts.Uses, value: Integer): InsideTerm? {
+    crash intrinsics
+    var index_parameter = copy.parameters.first()
+    assert index_parameter
+    if value == index_parameter.value {
+        return InsideTerm("index", 0)
+    }
+    var defining = uses.definition_of(value)
+    assert defining
+    if defining.kind == "constant" {
+        var parsed: Long? = defining.literal
+        assert parsed
+        return InsideTerm("zero", parsed)
+    }
+    if defining.kind == "load" and defining.field == "item_count" and defining.operands.first() == copy.receiver {
+        return InsideTerm("count", 0)
+    }
+    assert defining.kind == "call" and defining.operands.count() == 2
+    var meaning = intrinsics.operation_part(defining.callee)
+    assert meaning == "sum" or meaning == "subtract"
+    var inner = defining.operands.first()
+    var amount = defining.operands.last()
+    assert inner and amount
+    var base = term_of(copy, uses, inner)
+    var step = term_of(copy, uses, amount)
+    assert base and step and step.base == "zero"
+    if meaning == "sum" {
+        return InsideTerm(base.base, base.offset + step.offset)
+    }
+    return InsideTerm(base.base, base.offset - step.offset)
+}
+
+func decided(small: InsideTerm, large: InsideTerm, width: Integer): String {
+    if small.base == "index" and large.base == "count" {
+        if small.offset - large.offset < width {
+            return "true"
+        }
+        return ""
+    }
+    if small.base == "count" and large.base == "index" {
+        if small.offset + width >= large.offset {
+            return "false"
+        }
+        return ""
+    }
+    if small.base == "index" and large.base == "zero" {
+        if small.offset >= large.offset {
+            return "false"
+        }
+        return ""
+    }
+    if small.base == "zero" and large.base == "index" and small.offset < large.offset {
+        return "true"
+    }
+    return ""
+}

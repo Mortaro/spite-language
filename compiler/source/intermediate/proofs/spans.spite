@@ -1,0 +1,489 @@
+# ../../../../docs/proofs.md#a-range-proves-arithmetic-fits
+var types = Analysis.TypeShape()
+var function: Function? = null
+var flow: Facts.Flow? = null
+var uses: Facts.Uses? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var spans = Dictionary<Integer, NumberSpan>()
+var refined_values = Dictionary<Integer, List<Integer>>()
+var refined_spans = Dictionary<Integer, List<NumberSpan>>()
+var nonzero_values = Dictionary<Integer, List<Integer>>()
+var changes = Dictionary<Integer, Integer>()
+
+func Spans(studied: Function, studied_flow: Facts.Flow, studied_uses: Facts.Uses, lowered: Lowered) {
+    function = studied
+    flow = studied_flow
+    uses = studied_uses
+    var made_kinds = Facts.ValueKinds(lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(lowered)
+    intrinsics = made_intrinsics
+    settle()
+}
+
+func settle() {
+    crash flow
+    var round = 0
+    var changed = true
+    while changed and round < 64 {
+        changed = false
+        refined_values = Dictionary<Integer, List<Integer>>()
+        refined_spans = Dictionary<Integer, List<NumberSpan>>()
+        nonzero_values = Dictionary<Integer, List<Integer>>()
+        var index = 0
+        while index < flow.order.count() {
+            var block_number = flow.order[index]
+            if visit_block(block_number, round) {
+                changed = true
+            }
+            index = index + 1
+        }
+        round = round + 1
+    }
+}
+
+func visit_block(block_number: Integer, round: Integer): Boolean {
+    crash function
+    var block = function.block_at(block_number)
+    refine_from_edge(block_number)
+    var changed = false
+    var index = 0
+    while index < block.parameters.count() {
+        var parameter = block.parameters[index]
+        var joined = parameter_span(block_number, index)
+        if record(parameter, joined, round) {
+            changed = true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.result >= 0 {
+            var computed = operation_span(operation, block_number)
+            if record(operation.result, computed, round) {
+                changed = true
+            }
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func record(value: Integer, computed: NumberSpan?, round: Integer): Boolean {
+    var chosen = computed
+    if spans.has(value) {
+        crash spans[value]
+        var before = spans[value]
+        if chosen and before.same(chosen) {
+            return false
+        }
+        if chosen and round > 8 {
+            chosen = widened(value, before, chosen)
+        }
+    }
+    if not chosen {
+        var had = spans.has(value)
+        spans.remove(value)
+        return had
+    }
+    spans[value] = chosen
+    return true
+}
+
+func widened(value: Integer, before: NumberSpan, after: NumberSpan): NumberSpan? {
+    var count = 0
+    if changes.has(value) {
+        crash changes[value]
+        count = changes[value]
+    }
+    changes[value] = count + 1
+    if count < 4 {
+        return before.joined(after)
+    }
+    return kind_span_of(value)
+}
+
+func kind_span_of(value: Integer): NumberSpan? {
+    crash function
+    var spite_type = function.value_at(value).spite_type
+    assert spite_type
+    var scalar = types.as_scalar(spite_type)
+    assert scalar
+    return kind_span(scalar.kind)
+}
+
+func kind_span(kind: Analysis.Types.NumericKind): NumberSpan? {
+    switch kind {
+        'integer_kind': return NumberSpan(-2147483648, 2147483647)
+        'tiny_kind': return NumberSpan(-128, 127)
+        'short_kind': return NumberSpan(-32768, 32767)
+        'byte_kind': return NumberSpan(0, 255)
+        'unsigned_short_kind': return NumberSpan(0, 65535)
+        'unsigned_integer_kind': return NumberSpan(0, 4294967295)
+        'boolean_kind': return NumberSpan(0, 1)
+        _: return null
+    }
+}
+
+func fits_kind(span: NumberSpan, kind: Analysis.Types.NumericKind): Boolean {
+    if kind == 'long_kind' {
+        return true
+    }
+    if kind == 'unsigned_long_kind' {
+        return span.lowest >= 0
+    }
+    var limits = kind_span(kind)
+    if not limits {
+        return false
+    }
+    return span.within(limits.lowest, limits.highest)
+}
+
+func span_at(value: Integer, block_number: Integer): NumberSpan? {
+    crash flow
+    var walked = block_number
+    var steps = 0
+    while walked >= 0 and steps < 10000 {
+        var found = refinement(walked, value)
+        if found {
+            return found
+        }
+        if walked == 0 {
+            walked = -1
+        } else {
+            walked = flow.dominator_of(walked)
+        }
+        steps = steps + 1
+    }
+    if spans.has(value) {
+        return spans[value]
+    }
+    return null
+}
+
+func refinement(block_number: Integer, value: Integer): NumberSpan? {
+    assert refined_values.has(block_number)
+    crash refined_values[block_number]
+    crash refined_spans[block_number]
+    var values = refined_values[block_number]
+    var found: NumberSpan? = null
+    var index = 0
+    while index < values.count() {
+        if values[index] == value {
+            found = refined_spans[block_number][index]
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func is_nonzero_at(value: Integer, block_number: Integer): Boolean {
+    crash flow
+    var known = span_at(value, block_number)
+    if known and known.excludes(0) {
+        return true
+    }
+    var walked = block_number
+    var steps = 0
+    while walked >= 0 and steps < 10000 {
+        if nonzero_values.has(walked) {
+            crash nonzero_values[walked]
+            if nonzero_values[walked].contains(value) {
+                return true
+            }
+        }
+        if walked == 0 {
+            walked = -1
+        } else {
+            walked = flow.dominator_of(walked)
+        }
+        steps = steps + 1
+    }
+    return false
+}
+
+func refine(block_number: Integer, value: Integer, span: NumberSpan) {
+    if not refined_values.has(block_number) {
+        var values = List<Integer>()
+        refined_values[block_number] = values
+        var made = List<NumberSpan>()
+        refined_spans[block_number] = made
+    }
+    crash refined_values[block_number]
+    crash refined_spans[block_number]
+    refined_values[block_number].append(value)
+    refined_spans[block_number].append(span)
+}
+
+func note_nonzero(block_number: Integer, value: Integer) {
+    if not nonzero_values.has(block_number) {
+        var values = List<Integer>()
+        nonzero_values[block_number] = values
+    }
+    crash nonzero_values[block_number]
+    nonzero_values[block_number].append(value)
+}
+
+func refine_from_edge(block_number: Integer) {
+    crash flow
+    crash function
+    var empty_values = List<Integer>()
+    refined_values[block_number] = empty_values
+    var empty_spans = List<NumberSpan>()
+    refined_spans[block_number] = empty_spans
+    var coming = flow.predecessors_of(block_number)
+    assert coming.count() == 1
+    var from = coming[0]
+    var deciding = function.block_at(from).terminator
+    assert deciding.kind == "branch" and deciding.targets.count() == 2
+    var taken = deciding.targets[0].block
+    var other = deciding.targets[1].block
+    assert taken != other
+    var condition = deciding.operands.first()
+    crash condition
+    refine_condition(condition, taken == block_number, from, block_number, 0)
+}
+
+func refine_condition(condition: Integer, holds: Boolean, from: Integer, into: Integer, depth: Integer) {
+    crash uses
+    crash intrinsics
+    assert depth < 8
+    var defining = uses.definition_of(condition)
+    assert defining
+    assert defining.kind == "call"
+    var meaning = intrinsics.operation_part(defining.callee)
+    if defining.callee == "Boolean.not" {
+        var negated = defining.operands.first()
+        crash negated
+        refine_condition(negated, not holds, from, into, depth + 1)
+        return
+    }
+    assert intrinsics.is_comparison(defining.callee) and defining.operands.count() == 2
+    var left = defining.operands[0]
+    var right = defining.operands[1]
+    if meaning == "less_than" {
+        refine_less(left, right, holds, from, into)
+    } else if meaning == "greater_than" {
+        refine_less(right, left, holds, from, into)
+    } else {
+        refine_equal(left, right, holds, from, into)
+    }
+}
+
+func refine_less(left: Integer, right: Integer, holds: Boolean, from: Integer, into: Integer) {
+    var left_span = span_at(left, from)
+    var right_span = span_at(right, from)
+    assert left_span and right_span
+    var limit = reach()
+    if holds {
+        var lower_left = left_span.narrowed(-limit, right_span.highest - 1)
+        refine(into, left, lower_left)
+        var raised_right = right_span.narrowed(left_span.lowest + 1, limit)
+        refine(into, right, raised_right)
+        return
+    }
+    var raised_left = left_span.narrowed(right_span.lowest, limit)
+    refine(into, left, raised_left)
+    var lowered_right = right_span.narrowed(-limit, left_span.highest)
+    refine(into, right, lowered_right)
+}
+
+func refine_equal(left: Integer, right: Integer, holds: Boolean, from: Integer, into: Integer) {
+    var left_span = span_at(left, from)
+    var right_span = span_at(right, from)
+    assert left_span and right_span
+    if holds {
+        var both = left_span.narrowed(right_span.lowest, right_span.highest)
+        refine(into, left, both)
+        refine(into, right, both)
+        return
+    }
+    if right_span.is_exact() and right_span.lowest == 0 {
+        note_nonzero(into, left)
+    }
+    if left_span.is_exact() and left_span.lowest == 0 {
+        note_nonzero(into, right)
+    }
+    assert right_span.is_exact()
+    if left_span.lowest == right_span.lowest {
+        var above = left_span.narrowed(right_span.lowest + 1, left_span.highest)
+        refine(into, left, above)
+    } else if left_span.highest == right_span.lowest {
+        var below = left_span.narrowed(left_span.lowest, right_span.lowest - 1)
+        refine(into, left, below)
+    }
+}
+
+func parameter_span(block_number: Integer, position: Integer): NumberSpan? {
+    crash flow
+    crash function
+    var counted = counter_span(block_number, position)
+    if counted {
+        return counted
+    }
+    var coming = flow.predecessors_of(block_number)
+    var joined: NumberSpan? = null
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        var argument = argument_into(from, block_number, position)
+        assert argument >= 0
+        var known = span_at(argument, from)
+        assert known
+        if joined {
+            joined = joined.joined(known)
+        } else {
+            joined = known
+        }
+        index = index + 1
+    }
+    return joined
+}
+
+func argument_into(from: Integer, into: Integer, position: Integer): Integer {
+    crash function
+    var targets = function.block_at(from).terminator.targets
+    var found = -1
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        if target.block == into and position < target.arguments.count() {
+            found = target.arguments[position]
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func counter_span(block_number: Integer, position: Integer): NumberSpan? {
+    crash flow
+    assert flow.is_loop_header(block_number)
+    var loop = LoopShape(block_number, position, this)
+    return loop.parameter_span()
+}
+
+func operation_span(operation: Operation, block_number: Integer): NumberSpan? {
+    crash function
+    crash intrinsics
+    var result_type = function.value_at(operation.result).spite_type
+    assert result_type
+    var scalar = types.as_scalar(result_type)
+    assert scalar
+    var kind = scalar.kind
+    if operation.kind == "constant" {
+        return constant_span(operation.literal, kind)
+    }
+    var limits = kind_span(kind)
+    if operation.kind != "call" {
+        return limits
+    }
+    var computed = call_span(operation, block_number, kind)
+    if computed and fits_kind(computed, kind) {
+        return computed
+    }
+    return limits
+}
+
+func constant_span(literal: String, kind: Analysis.Types.NumericKind): NumberSpan? {
+    crash kinds
+    assert kinds.is_whole_kind(kind)
+    var parsed: Long? = literal
+    assert parsed
+    var limit = reach()
+    assert parsed >= -limit and parsed <= limit
+    return NumberSpan(parsed, parsed)
+}
+
+func reach(): Long {
+    return 4611686018427387903
+}
+
+func operand_span(operation: Operation, position: Integer, block_number: Integer): NumberSpan? {
+    assert position < operation.operands.count()
+    var operand = operation.operands[position]
+    return span_at(operand, block_number)
+}
+
+func call_span(operation: Operation, block_number: Integer, kind: Analysis.Types.NumericKind): NumberSpan? {
+    crash intrinsics
+    var meaning = intrinsics.meaning(operation.callee)
+    if meaning == "count" or meaning == "length" {
+        return NumberSpan(0, 2147483647)
+    }
+    var first = operand_span(operation, 0, block_number)
+    if meaning.starts_with("to_") {
+        return first
+    }
+    if meaning == "negate" {
+        assert first
+        return first.negated()
+    }
+    if meaning == "absolute" {
+        assert first
+        return first.absolute_span()
+    }
+    var second: NumberSpan? = null
+    if operation.operands.count() > 1 {
+        second = operand_span(operation, 1, block_number)
+    }
+    if meaning == "remainder" {
+        assert first
+        return first.remainder_by(second)
+    }
+    assert first
+    if meaning == "divide" {
+        return first.divided_by(second)
+    }
+    return paired_span(meaning, first, second, operation, block_number)
+}
+
+func paired_span(
+    meaning: String,
+    first: NumberSpan,
+    second: NumberSpan?,
+    operation: Operation,
+    block_number: Integer,
+): NumberSpan? {
+    assert second
+    switch meaning {
+        "sum": return first.plus(second)
+        "subtract": return first.minus(second)
+        "multiply": return first.times(second)
+        "minimum": return first.minimum_with(second)
+        "maximum": return first.maximum_with(second)
+        _: return clamped_span(meaning, second, operation, block_number)
+    }
+}
+
+func clamped_span(meaning: String, second: NumberSpan, operation: Operation, block_number: Integer): NumberSpan? {
+    assert meaning == "clamp"
+    var third = operand_span(operation, 2, block_number)
+    assert third
+    var low = second.lowest.minimum(third.lowest)
+    return NumberSpan(low, third.highest)
+}
+
+func fits(operation: Operation, block_number: Integer): Boolean {
+    var answer = fitting(operation, block_number)
+    return answer == true
+}
+
+func fitting(operation: Operation, block_number: Integer): Boolean? {
+    crash function
+    crash intrinsics
+    var operand_type = function.value_at(operation.result).spite_type
+    assert operand_type
+    var scalar = types.as_scalar(operand_type)
+    assert scalar
+    var meaning = intrinsics.meaning(operation.callee)
+    var computed = call_span(operation, block_number, scalar.kind)
+    assert computed
+    if meaning.starts_with("to_") {
+        var target = intrinsics.target_kind(operation.callee)
+        assert target
+        return fits_kind(computed, target)
+    }
+    return fits_kind(computed, scalar.kind)
+}

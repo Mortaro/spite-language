@@ -1,0 +1,178 @@
+# ../../../../docs/proofs.md#no-other-thread-counts-a-class
+var lowered: Lowered? = null
+var effects: Effects? = null
+var taken = Dictionary<String, Boolean>()
+var entries = Dictionary<String, Boolean>()
+var reached = Dictionary<String, Boolean>()
+var value_arities = Dictionary<Integer, Boolean>()
+
+func ThreadReach(starting_lowered: Lowered, starting_effects: Effects) {
+    lowered = starting_lowered
+    effects = starting_effects
+    var functions = starting_lowered.concrete_functions
+    functions.each(note_taken)
+    if starting_lowered.makes_threads or starting_lowered.is_inspectable() {
+        functions.each(note_started)
+        settle()
+    }
+}
+
+func note_taken(function: Function) {
+    crash lowered
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "constant" and lowered.function_named(operation.literal) {
+                taken[operation.literal] = true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func is_thread_class(c_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    if not layout {
+        return false
+    }
+    var starting = ["Parallel", "ThreadPool", "ParallelCall", "ThreadPoolJob", "ForeignCallback"]
+    return starting.contains(layout.qualified)
+}
+
+func note_started(function: Function) {
+    crash lowered
+    var uses = Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and starts_thread(operation.callee) {
+                note_passed(function, uses, operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func starts_thread(callee: String): Boolean {
+    crash lowered
+    if callee.starts_with("Parallel.") or callee.starts_with("ThreadPool.") {
+        return true
+    }
+    var found = lowered.function_named(callee)
+    if not found {
+        return false
+    }
+    return is_thread_class(found.owner)
+}
+
+func note_passed(function: Function, uses: Uses, operation: Operation) {
+    var index = 0
+    while index < operation.operands.count() {
+        note_function_value(function, uses, operation.operands[index], 0)
+        index = index + 1
+    }
+}
+
+func note_function_value(function: Function, uses: Uses, value: Integer, depth: Integer) {
+    assert depth < 4
+    var defining = uses.definition_of(value)
+    assert defining
+    if defining.kind == "constant" and taken.has(defining.literal) {
+        entries[defining.literal] = true
+        return
+    }
+    assert defining.kind == "make" and defining.result >= 0
+    var reached_uses = uses.uses_of(defining.result)
+    var index = 0
+    while index < reached_uses.count() {
+        note_stored_value(function, uses, reached_uses[index], depth)
+        index = index + 1
+    }
+}
+
+func note_stored_value(function: Function, uses: Uses, place: Place, depth: Integer) {
+    assert place.position >= 0
+    var stored = stored_at(function, place)
+    assert stored >= 0
+    note_function_value(function, uses, stored, depth + 1)
+}
+
+func stored_at(function: Function, place: Place): Integer {
+    var block = function.block_at(place.block)
+    if place.position >= block.operations.count() {
+        return -1
+    }
+    var operation = block.operations[place.position]
+    if operation.kind != "store" {
+        return -1
+    }
+    var stored = operation.operands.last()
+    if not stored {
+        return -1
+    }
+    return stored
+}
+
+func settle() {
+    crash lowered
+    crash effects
+    var waiting = entries.keys()
+    while not waiting.is_empty() {
+        var taken_name = waiting.remove_last()
+        crash taken_name
+        if not reached.has(taken_name) {
+            reached[taken_name] = true
+            var summary = effects.of(taken_name)
+            summary.callees.each(waiting.append)
+            note_value_calls(taken_name, waiting)
+        }
+    }
+}
+
+func note_value_calls(c_name: String, waiting: List<String>) {
+    crash lowered
+    var function = lowered.function_named(c_name)
+    assert function
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call value" {
+                var arity = operation.operands.count() - 1
+                add_arity(arity, waiting)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func add_arity(arity: Integer, waiting: List<String>) {
+    crash lowered
+    assert not value_arities.has(arity)
+    value_arities[arity] = true
+    var names = taken.keys()
+    var index = 0
+    while index < names.count() {
+        var function = lowered.function_named(names[index])
+        if function and function.parameters.count() == arity {
+            waiting.append(function.c_name)
+        }
+        index = index + 1
+    }
+}
+
+func runs_on_threads(c_name: String): Boolean {
+    return reached.has(c_name)
+}

@@ -1,0 +1,144 @@
+# ../../../../docs/proofs.md#objects-that-never-leave-their-function-live-in-the-frame
+var lowered: Lowered? = null
+var intrinsics: Facts.Intrinsics? = null
+var consumption: Ownership.Consumption? = null
+var keeps_receiver = Dictionary<String, Boolean>()
+var keeps_parameter = Dictionary<String, Boolean>()
+var studying = Dictionary<String, Boolean>()
+
+func Escape(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_consumption = Ownership.Consumption(starting_lowered)
+    consumption = made_consumption
+}
+
+func function_keeps(c_name: String, position: Integer): Boolean {
+    crash lowered
+    var key = "{c_name}#{position}"
+    if keeps_parameter.has(key) {
+        return keeps_parameter[key] == true
+    }
+    if studying.has(key) {
+        return true
+    }
+    var callee = lowered.function_named(c_name)
+    if not callee {
+        return true
+    }
+    if callee.is_intrinsic() {
+        return supplied_keeps(callee, position)
+    }
+    if callee.blocks.is_empty() {
+        return true
+    }
+    studying[key] = true
+    var value = callee.receiver
+    if position >= 0 {
+        value = parameter_value(callee, position)
+    }
+    var answer = value < 0 or escapes(callee, value)
+    studying.remove(key)
+    keeps_parameter[key] = answer
+    return answer
+}
+
+func parameter_value(callee: Function, position: Integer): Integer {
+    if position >= callee.parameters.count() {
+        return -1
+    }
+    return callee.parameters[position].value
+}
+
+func escapes(function: Function, value: Integer): Boolean {
+    var uses = Facts.Uses(function)
+    return escapes_through(function, uses, value, 0)
+}
+
+func escapes_through(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+    if depth > 8 {
+        return true
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        if escapes_at(function, uses, reached[index], value, depth) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func escapes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value: Integer, depth: Integer): Boolean {
+    crash consumption
+    var block = function.block_at(place.block)
+    if place.at_terminator() {
+        var terminator = block.terminator
+        return terminator.kind == "return" or terminator.kind == "halt" or not terminator.targets.is_empty()
+    }
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    if operation.kind == "retain" or operation.kind == "release" or operation.kind == "load" {
+        return false
+    }
+    if consumption.is_projection(operation) and operation.result >= 0 {
+        return escapes_through(function, uses, operation.result, depth + 1)
+    }
+    if operation.kind == "store" {
+        return operation.operands.last() == value
+    }
+    if operation.kind != "call" {
+        return true
+    }
+    return call_keeps(function, uses, operation, value, depth)
+}
+
+func call_keeps(function: Function, uses: Facts.Uses, operation: Operation, value: Integer, depth: Integer): Boolean {
+    crash intrinsics
+    crash consumption
+    if intrinsics.is_dotted(operation.callee) {
+        return derived_escapes(function, uses, operation, depth)
+    }
+    var index = 0
+    while index < operation.operands.count() {
+        if operation.operands[index] == value and position_keeps(operation, index) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func derived_escapes(function: Function, uses: Facts.Uses, operation: Operation, depth: Integer): Boolean {
+    crash intrinsics
+    var meaning = intrinsics.operation_part(operation.callee)
+    var owner = intrinsics.type_part(operation.callee)
+    if owner == "Address" and (meaning == "sum" or meaning == "subtract") and operation.result >= 0 {
+        return escapes_through(function, uses, operation.result, depth + 1)
+    }
+    return false
+}
+
+func position_keeps(operation: Operation, position: Integer): Boolean {
+    crash consumption
+    if consumption.consumes_position(operation, position) {
+        return true
+    }
+    return function_keeps(operation.callee, position - 1)
+}
+
+func supplied_keeps(callee: Function, position: Integer): Boolean {
+    crash intrinsics
+    if position < 0 {
+        return false
+    }
+    if intrinsics.is_reading_name(callee.name) {
+        return false
+    }
+    if not intrinsics.is_memory_write_name(callee.name) or position >= callee.parameters.count() {
+        return true
+    }
+    return callee.parameters[position].name == "value"
+}

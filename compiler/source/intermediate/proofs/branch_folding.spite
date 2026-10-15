@@ -1,0 +1,89 @@
+# ../../../../docs/optimizations.md#deciding-conditions-at-compile-time
+var folded_count = 0
+
+func fold(function: Function) {
+    assert not function.blocks.is_empty()
+    var uses = Facts.Uses(function)
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        fold_block(block, uses)
+        index = index + 1
+    }
+    drop_unreachable(function)
+}
+
+func fold_block(block: Block, uses: Facts.Uses) {
+    var terminator = block.terminator
+    assert terminator.kind == "branch" and terminator.targets.count() == 2
+    var condition = terminator.operands.first()
+    crash condition
+    var defining = uses.definition_of(condition)
+    assert defining and defining.kind == "constant"
+    assert defining.literal == "true" or defining.literal == "false"
+    var chosen = 1
+    if defining.literal == "true" {
+        chosen = 0
+    }
+    crash terminator.targets[chosen]
+    var target = terminator.targets[chosen]
+    var jump = Terminator("jump")
+    jump.to(target)
+    block.terminator = jump
+    folded_count = folded_count + 1
+}
+
+func drop_unreachable(function: Function) {
+    var flow = Facts.Flow(function)
+    var renumbered = List<Integer>()
+    var kept = List<Block>()
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        if flow.is_reachable(index) {
+            var kept_count = kept.count()
+            renumbered.append(kept_count)
+            kept.append(block)
+        } else {
+            renumbered.append(-1)
+        }
+        index = index + 1
+    }
+    assert kept.count() < function.blocks.count()
+    index = 0
+    while index < kept.count() {
+        var block = kept[index]
+        block.number = index
+        retarget(block, renumbered)
+        renumber_values(function, block)
+        index = index + 1
+    }
+    function.blocks = kept
+}
+
+func retarget(block: Block, renumbered: List<Integer>) {
+    var targets = block.terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        crash renumbered[target.block]
+        target.block = renumbered[target.block]
+        index = index + 1
+    }
+}
+
+func renumber_values(function: Function, block: Block) {
+    var index = 0
+    while index < block.parameters.count() {
+        function.value_at(block.parameters[index]).block = block.number
+        index = index + 1
+    }
+    index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.result >= 0 {
+            function.value_at(operation.result).block = block.number
+        }
+        index = index + 1
+    }
+}

@@ -1,0 +1,169 @@
+# ../../../../docs/optimizations.md#objects-of-one-class-sit-together
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var made = Dictionary<String, Boolean>()
+var listed = Dictionary<String, Boolean>()
+var touched_on_threads = Dictionary<String, Boolean>()
+var counts_allocations = false
+var pooled_count = 0
+
+func Pools(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+}
+
+func choose() {
+    crash lowered
+    assert not lowered.is_inspectable() and not lowered.debug_memory
+    var functions = lowered.concrete_functions
+    functions.each(study)
+    assert not counts_allocations
+    learn_lists()
+    learn_threads()
+    var layouts = lowered.layouts
+    var index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        if qualifies(layout) {
+            layout.pooled = true
+            pooled_count = pooled_count + 1
+        }
+        index = index + 1
+    }
+}
+
+func study(function: Function) {
+    crash intrinsics
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "make" and operation.form != "frame" {
+                made[operation.layout] = true
+            }
+            if operation.kind == "call" {
+                var meaning = intrinsics.meaning(operation.callee)
+                if meaning == "live_allocations" or meaning == "live_bytes" {
+                    counts_allocations = true
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func learn_lists() {
+    crash lowered
+    crash kinds
+    var layouts = lowered.layouts
+    var index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        var keeps_items = layout.qualified == "List" or layout.qualified == "TypedMemory"
+        if keeps_items and layout.information {
+            var element = layout.information.codegen_types.first()
+            var element_layout = kinds.layout_of(element)
+            if element_layout {
+                listed[element_layout.c_name] = true
+            }
+        }
+        index = index + 1
+    }
+}
+
+# ../../../../docs/proofs.md#objects-of-a-class-made-on-one-thread
+func learn_threads() {
+    crash lowered
+    assert lowered.makes_threads
+    var effects = Facts.Effects(lowered)
+    var reach = Facts.ThreadReach(lowered, effects)
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if reach.runs_on_threads(function.c_name) {
+            note_touched(function)
+        }
+        index = index + 1
+    }
+}
+
+func note_touched(function: Function) {
+    crash kinds
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "make" {
+                touched_on_threads[operation.layout] = true
+            }
+            var counts = operation.kind == "retain" or operation.kind == "release" or operation.kind == "store"
+            if counts {
+                note_type(operation.spite_type, 0)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_type(spite_type: Analysis.SpiteType?, depth: Integer) {
+    crash kinds
+    assert spite_type and depth < 8 and kinds.is_counted(spite_type)
+    assert not types.as_string(spite_type) and not types.is_symbol(spite_type)
+    var listed_type = types.as_list(spite_type)
+    if listed_type {
+        note_type(listed_type.element, depth + 1)
+        return
+    }
+    var layout = kinds.layout_of(spite_type)
+    if not layout {
+        touched_on_threads["*"] = true
+        return
+    }
+    assert not touched_on_threads.has(layout.c_name)
+    touched_on_threads[layout.c_name] = true
+    var index = 0
+    while index < layout.stored_fields.count() {
+        note_type(layout.stored_fields[index].spite_type, depth + 1)
+        index = index + 1
+    }
+}
+
+func qualifies(layout: Layout): Boolean {
+    if layout.is_singleton or layout.is_value or not made.has(layout.c_name) {
+        return false
+    }
+    if touched_on_threads.has(layout.c_name) or touched_on_threads.has("*") {
+        return false
+    }
+    if holds_memory(layout) {
+        return listed.has(layout.c_name)
+    }
+    return true
+}
+
+func holds_memory(layout: Layout): Boolean {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field_type = layout.stored_fields[index].spite_type
+        if field_type {
+            var scalar = types.as_scalar(field_type)
+            if scalar and scalar.kind == 'address_kind' {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}

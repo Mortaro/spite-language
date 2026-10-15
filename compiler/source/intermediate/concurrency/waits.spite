@@ -1,0 +1,312 @@
+# ../../../../docs/proofs.md#which-calls-suspend-a-concurrent
+var lowered: Lowered? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var overlap_groups = 0
+var started_count = 0
+var resumable_count = 0
+
+func Waits(starting_lowered: Lowered, starting_effects: Facts.Effects) {
+    lowered = starting_lowered
+    effects = starting_effects
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
+
+func note_waiting(function: Function) {
+    crash effects
+    var summary = effects.of(function.c_name)
+    function.waits = summary.waits
+}
+
+func waiting_read(operation: Operation): Boolean {
+    crash lowered
+    if operation.kind != "call" or operation.result < 0 {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    var layout = lowered.layout_named(callee.owner)
+    if not layout {
+        return false
+    }
+    var file_read = layout.qualified == "File" and callee.name == "read"
+    var line_read = layout.qualified == "Socket" and callee.name == "read_line"
+    return file_read or line_read
+}
+
+# ../../../../docs/optimizations.md#reads-in-a-row-overlap
+func overlap_reads(function: Function) {
+    assert not function.blocks.is_empty()
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        overlap_block(function, block)
+        index = index + 1
+    }
+}
+
+func overlap_block(function: Function, block: Block) {
+    var group = List<Operation>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if waiting_read(operation) and joins_group(function, group, operation) {
+            group.append(operation)
+        } else if not is_receiver_step(operation) {
+            close_group(group)
+            group = List<Operation>()
+            if waiting_read(operation) and joins_group(function, group, operation) {
+                group.append(operation)
+            }
+        }
+        index = index + 1
+    }
+    close_group(group)
+}
+
+func is_receiver_step(operation: Operation): Boolean {
+    return operation.kind == "load" or operation.kind == "constant"
+}
+
+func joins_group(function: Function, group: List<Operation>, operation: Operation): Boolean {
+    var described = function.value_at(operation.result)
+    if described.name.is_empty() or named_twice(function, described.name) {
+        return false
+    }
+    var index = 0
+    while index < group.count() {
+        var earlier = group[index].result
+        if operation.operands.contains(earlier) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func named_twice(function: Function, name: String): Boolean {
+    var count = 0
+    var index = 0
+    while index < function.values.count() {
+        if function.values[index].name == name {
+            count = count + 1
+        }
+        index = index + 1
+    }
+    return count > 1
+}
+
+func close_group(group: List<Operation>) {
+    crash lowered
+    assert group.count() > 1
+    overlap_groups = overlap_groups + 1
+    var index = 0
+    while index < group.count() {
+        var operation = group[index]
+        operation.form = "overlap"
+        operation.literal = overlap_groups
+        index = index + 1
+    }
+    lowered.makes_concurrents = true
+}
+
+# ../../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func start_frame_waits(function: Function) {
+    crash kinds
+    assert not function.blocks.is_empty() and not kinds.is_library_layout(function.owner)
+    var flow = Facts.Flow(function)
+    var headers = flow.loop_headers.keys()
+    var index = 0
+    while index < headers.count() {
+        var body = flow.body_of(headers[index])
+        if sleeps_in(function, body) {
+            start_calls(function, body)
+        }
+        index = index + 1
+    }
+}
+
+func sleeps_in(function: Function, body: List<Integer>): Boolean {
+    crash lowered
+    var index = 0
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var callee = lowered.function_named(operation.callee)
+            if operation.kind == "call" and callee and sleeps(callee, function, 0) {
+                return true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func sleeps(callee: Function, caller: Function, depth: Integer): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(callee.owner)
+    if layout and layout.qualified == "Program" and callee.name == "sleep" {
+        return true
+    }
+    if callee.owner != caller.owner or depth > 4 or callee.blocks.is_empty() {
+        return false
+    }
+    var block_index = 0
+    while block_index < callee.blocks.count() {
+        var block = callee.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var inner = lowered.function_named(operation.callee)
+            if operation.kind == "call" and inner and sleeps(inner, caller, depth + 1) {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func start_calls(function: Function, body: List<Integer>) {
+    var index = 0
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if startable(function, operation) {
+                operation.form = "started"
+                started_count = started_count + 1
+                crash lowered
+                lowered.makes_concurrents = true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func startable(function: Function, operation: Operation): Boolean {
+    crash lowered
+    crash effects
+    crash kinds
+    if operation.kind != "call" or operation.operands.count() != 1 or operation.result >= 0 or not operation.form.is_empty() {
+        return false
+    }
+    if operation.operands.first() == function.receiver {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() or kinds.is_library_layout(callee.owner) {
+        return false
+    }
+    var summary = effects.of(callee.c_name)
+    if not summary.waits or summary.calls_values {
+        return false
+    }
+    return not carries_back(summary)
+}
+
+func carries_back(summary: Facts.Summary): Boolean {
+    var written = summary.writes.keys()
+    var index = 0
+    while index < written.count() {
+        if summary.reads.has(written[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return summary.unknown and written.count() > 0
+}
+
+# ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+func mark_resumable(entries: List<String>) {
+    crash lowered
+    crash effects
+    var waiting = List<String>()
+    entries.each(waiting.append)
+    var seen = Dictionary<String, Boolean>()
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not seen.has(taken) {
+            seen[taken] = true
+            var function = lowered.function_named(taken)
+            var summary = effects.of(taken)
+            if function and summary.waits and not function.is_intrinsic() {
+                function.resumable = true
+                resumable_count = resumable_count + 1
+                summary.callees.each(waiting.append)
+            }
+        }
+    }
+}
+
+func concurrent_entries(): List<String> {
+    crash lowered
+    var found = List<String>()
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        note_concurrent_entries(function, found)
+        index = index + 1
+    }
+    return found
+}
+
+func note_concurrent_entries(function: Function, found: List<String>) {
+    crash lowered
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and starts_concurrent(operation) {
+                note_passed_functions(uses, operation, found)
+            }
+            if operation.form == "started" or operation.form == "overlap" {
+                found.append(operation.callee)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func starts_concurrent(operation: Operation): Boolean {
+    crash lowered
+    if operation.callee.starts_with("Concurrent.") {
+        return true
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    var layout = lowered.layout_named(callee.owner)
+    if not layout {
+        return false
+    }
+    return layout.qualified == "Concurrent"
+}
+
+func note_passed_functions(uses: Facts.Uses, operation: Operation, found: List<String>) {
+    crash lowered
+    var index = 0
+    while index < operation.operands.count() {
+        var defining = uses.definition_of(operation.operands[index])
+        if defining and defining.kind == "constant" and lowered.function_named(defining.literal) {
+            found.append(defining.literal)
+        }
+        index = index + 1
+    }
+}

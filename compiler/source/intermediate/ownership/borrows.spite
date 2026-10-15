@@ -1,0 +1,300 @@
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+var function: Function? = null
+var flow: Facts.Flow? = null
+var uses: Facts.Uses? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var consumption: Consumption? = null
+var drop_effects: Facts.Summary? = null
+var origins = Dictionary<Integer, String>()
+var sources = Dictionary<Integer, List<Integer>>()
+
+func Borrows(
+    studied: Function,
+    studied_flow: Facts.Flow,
+    studied_uses: Facts.Uses,
+    studied_effects: Facts.Effects,
+    studied_kinds: Facts.ValueKinds,
+    studied_consumption: Consumption,
+    studied_drops: Facts.Summary,
+) {
+    function = studied
+    flow = studied_flow
+    uses = studied_uses
+    effects = studied_effects
+    kinds = studied_kinds
+    consumption = studied_consumption
+    drop_effects = studied_drops
+}
+
+func origin_of(value: Integer): String {
+    if origins.has(value) {
+        crash origins[value]
+        return origins[value]
+    }
+    var found = classified(value)
+    origins[value] = found
+    return found
+}
+
+func classified(value: Integer): String {
+    crash function
+    crash uses
+    crash kinds
+    crash consumption
+    var described = function.value_at(value)
+    if not kinds.is_counted(described.spite_type) {
+        return "plain"
+    }
+    if value == function.receiver {
+        return "held"
+    }
+    var parameter_kind = parameter_ownership(value)
+    if not parameter_kind.is_empty() {
+        return parameter_kind
+    }
+    var defining = uses.definition_of(value)
+    if not defining {
+        return "owned"
+    }
+    if defining.kind == "constant" {
+        return "static"
+    }
+    if defining.kind == "load" {
+        note_sources(value, defining)
+        return "borrowed"
+    }
+    if consumption.is_projection(defining) {
+        note_sources(value, defining)
+        var inner = defining.operands.first()
+        crash inner
+        if origin_of(inner) == "lent" {
+            return "lent"
+        }
+        return "borrowed"
+    }
+    if consumption.is_lending_read(defining) or consumption.is_lending_call(defining) {
+        note_sources(value, defining)
+        return "lending"
+    }
+    return "owned"
+}
+
+func parameter_ownership(value: Integer): String {
+    crash function
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if parameter.value == value {
+            return parameter.ownership
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func note_sources(value: Integer, defining: Operation) {
+    var found = List<Integer>()
+    var index = 0
+    while index < defining.operands.count() {
+        var operand = defining.operands[index]
+        var operand_origin = origin_of(operand)
+        if operand_origin != "plain" or is_address_read(operand) {
+            found.append(operand)
+        }
+        index = index + 1
+    }
+    sources[value] = found
+}
+
+func is_address_read(value: Integer): Boolean {
+    crash uses
+    var defining = uses.definition_of(value)
+    if not defining or defining.kind != "load" {
+        return false
+    }
+    var object = defining.operands.first()
+    if not object {
+        return false
+    }
+    if not sources.has(value) {
+        var found = List<Integer>()
+        found.append(object)
+        sources[value] = found
+    }
+    return true
+}
+
+func sources_of(value: Integer): List<Integer> {
+    if sources.has(value) {
+        crash sources[value]
+        return sources[value]
+    }
+    return List<Integer>()
+}
+
+func effective_uses(value: Integer, depth: Integer): List<Facts.Place> {
+    crash uses
+    var found = List<Facts.Place>()
+    var direct = uses.uses_of(value)
+    direct.each(found.append)
+    assert depth < 12
+    var index = 0
+    while index < direct.count() {
+        var place = direct[index]
+        var derived = derived_at(place, value)
+        if derived >= 0 {
+            var more = effective_uses(derived, depth + 1)
+            more.each(found.append)
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func derived_at(place: Facts.Place, value: Integer): Integer {
+    crash function
+    if place.position < 0 {
+        return -1
+    }
+    var block = function.block_at(place.block)
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    if operation.result < 0 {
+        return -1
+    }
+    var derived_origin = origin_of(operation.result)
+    var derives = derived_origin == "borrowed" or derived_origin == "lending" or derived_origin == "lent"
+    if derives and sources_of(operation.result).contains(value) {
+        return operation.result
+    }
+    return -1
+}
+
+func is_consumed(value: Integer): Boolean {
+    crash uses
+    crash function
+    crash consumption
+    var direct = uses.uses_of(value)
+    var index = 0
+    while index < direct.count() {
+        var place = direct[index]
+        if consumed_at(place, value) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func consumed_at(place: Facts.Place, value: Integer): Boolean {
+    crash function
+    crash consumption
+    var block = function.block_at(place.block)
+    if place.at_terminator() {
+        var terminator = block.terminator
+        if terminator.kind == "return" {
+            return not function.lends_answer
+        }
+        return targets_take(terminator, value)
+    }
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    if consumption.is_projection(operation) and operation.result >= 0 {
+        return is_consumed(operation.result)
+    }
+    return consumption.consumes(operation, value)
+}
+
+func targets_take(terminator: Terminator, value: Integer): Boolean {
+    var index = 0
+    while index < terminator.targets.count() {
+        if terminator.targets[index].arguments.contains(value) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../docs/proofs.md#an-item-used-at-once-is-not-counted
+func stays_valid(value: Integer): Boolean {
+    crash uses
+    var start = uses.place_of(value)
+    var reached = effective_uses(value, 0)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if not valid_until(value, start, place) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func valid_until(value: Integer, start: Facts.Place, at: Facts.Place): Boolean {
+    crash function
+    crash flow
+    var between = Facts.Between().operations_between(function, flow, start, at)
+    var index = 0
+    while index < between.count() {
+        if disturbs(between[index], value) {
+            return false
+        }
+        index = index + 1
+    }
+    if at.position < 0 {
+        return true
+    }
+    var block = function.block_at(at.block)
+    crash block.operations[at.position]
+    var used_in = block.operations[at.position]
+    return used_in.kind != "call" or not disturbs(used_in, value)
+}
+
+func disturbs(operation: Operation, value: Integer): Boolean {
+    crash effects
+    crash function
+    crash drop_effects
+    var summary = effects.operation_summary(function, operation)
+    if summary.unknown or summary.calls_values {
+        return true
+    }
+    var field_key = read_field(value)
+    if origin_of(value) == "lending" {
+        return summary.writes_memory or summary.releases and drop_effects.writes_memory
+    }
+    if field_key.is_empty() {
+        return false
+    }
+    var dot = field_key.index_of(".")
+    crash dot >= 0
+    var length = field_key.length()
+    var layout = field_key.slice(0, dot)
+    var field = field_key.slice(dot + 1, length)
+    if summary.may_write(layout, field) {
+        return true
+    }
+    return summary.releases and drop_effects.may_write(layout, field)
+}
+
+func read_field(value: Integer): String {
+    crash uses
+    crash function
+    crash kinds
+    var defining = uses.definition_of(value)
+    if not defining or defining.kind != "load" {
+        return ""
+    }
+    var object = defining.operands.first()
+    if not object {
+        return ""
+    }
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    if not layout {
+        return "*.{defining.field}"
+    }
+    return "{layout.c_name}.{defining.field}"
+}

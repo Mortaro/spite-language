@@ -2,6 +2,8 @@
 var name = ""
 var spite_type: Analysis.SpiteType? = null
 var default_value = -1
+var atomic = false
+var changes = false
 
 func Field(starting_name: String, starting_type: Analysis.SpiteType) {
     name = starting_name

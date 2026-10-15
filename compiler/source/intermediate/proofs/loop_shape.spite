@@ -1,0 +1,316 @@
+# ../../../../docs/proofs.md#a-range-proves-arithmetic-fits
+var header = -1
+var position = -1
+var spans: Spans? = null
+
+func LoopShape(starting_header: Integer, starting_position: Integer, starting_spans: Spans) {
+    header = starting_header
+    position = starting_position
+    spans = starting_spans
+}
+
+func parameter_value(at: Integer): Integer {
+    crash spans
+    crash spans.function
+    var block = spans.function.block_at(header)
+    crash block.parameters[at]
+    return block.parameters[at]
+}
+
+func latches(): List<Integer> {
+    crash spans
+    crash spans.flow
+    var found = List<Integer>()
+    var coming = spans.flow.predecessors_of(header)
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        if spans.flow.is_back_edge(from, header) {
+            found.append(from)
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func entries(): List<Integer> {
+    crash spans
+    crash spans.flow
+    var found = List<Integer>()
+    var coming = spans.flow.predecessors_of(header)
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        if not spans.flow.is_back_edge(from, header) {
+            found.append(from)
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func entry_span(at: Integer): NumberSpan? {
+    crash spans
+    var from = entries()
+    assert not from.is_empty()
+    var joined: NumberSpan? = null
+    var index = 0
+    while index < from.count() {
+        var argument = spans.argument_into(from[index], header, at)
+        assert argument >= 0
+        var known = spans.span_at(argument, from[index])
+        assert known
+        if joined {
+            joined = joined.joined(known)
+        } else {
+            joined = known
+        }
+        index = index + 1
+    }
+    return joined
+}
+
+func step_of(at: Integer): Integer {
+    crash spans
+    crash spans.uses
+    crash spans.intrinsics
+    var parameter = parameter_value(at)
+    var back = latches()
+    if back.is_empty() {
+        return 0
+    }
+    var step = 0
+    var index = 0
+    while index < back.count() {
+        var argument = spans.argument_into(back[index], header, at)
+        var found = single_step(parameter, argument)
+        if found == 0 or step != 0 and found != step {
+            return 0
+        }
+        step = found
+        index = index + 1
+    }
+    return step
+}
+
+func single_step(parameter: Integer, argument: Integer): Integer {
+    crash spans
+    crash spans.uses
+    crash spans.intrinsics
+    if argument < 0 {
+        return 0
+    }
+    var defining = spans.uses.definition_of(argument)
+    if not defining or defining.kind != "call" or defining.operands.count() != 2 {
+        return 0
+    }
+    if defining.operands[0] != parameter {
+        return 0
+    }
+    var amount = constant_of(defining.operands[1])
+    var meaning = spans.intrinsics.operation_part(defining.callee)
+    if amount != 1 or not spans.intrinsics.is_number_operation(defining.callee) {
+        return 0
+    }
+    if meaning == "sum" {
+        return 1
+    }
+    if meaning == "subtract" {
+        return -1
+    }
+    return 0
+}
+
+func constant_of(value: Integer): Long {
+    crash spans
+    crash spans.uses
+    var defining = spans.uses.definition_of(value)
+    if not defining or defining.kind != "constant" {
+        return 0
+    }
+    var parsed: Long? = defining.literal
+    if not parsed {
+        return 0
+    }
+    return parsed
+}
+
+func staying_condition(): Integer {
+    crash spans
+    crash spans.function
+    crash spans.flow
+    var deciding = spans.function.block_at(header).terminator
+    if deciding.kind != "branch" or deciding.targets.count() != 2 {
+        return -1
+    }
+    var condition = deciding.operands.first()
+    crash condition
+    return condition
+}
+
+func stays_when_true(): Boolean {
+    crash spans
+    crash spans.function
+    crash spans.flow
+    var deciding = spans.function.block_at(header).terminator
+    crash deciding.targets[0]
+    var body = spans.flow.body_of(header)
+    return body.contains(deciding.targets[0].block)
+}
+
+func bound_span(parameter: Integer, step: Integer): NumberSpan? {
+    crash spans
+    crash spans.uses
+    var condition = staying_condition()
+    assert condition >= 0
+    var holds = stays_when_true()
+    var compared = condition
+    var defining = spans.uses.definition_of(compared)
+    assert defining
+    if defining.callee == "Boolean.not" {
+        holds = not holds
+        var inner = defining.operands.first()
+        crash inner
+        defining = spans.uses.definition_of(inner)
+    }
+    assert defining and defining.operands.count() == 2
+    var left = defining.operands[0]
+    var right = defining.operands[1]
+    crash spans.intrinsics
+    var meaning = spans.intrinsics.operation_part(defining.callee)
+    return limit_of(parameter, step, left, right, meaning, holds)
+}
+
+func limit_of(
+    parameter: Integer,
+    step: Integer,
+    left: Integer,
+    right: Integer,
+    meaning: String,
+    holds: Boolean,
+): NumberSpan? {
+    crash spans
+    var below = meaning == "less_than" and left == parameter or meaning == "greater_than" and right == parameter
+    var above = meaning == "greater_than" and left == parameter or meaning == "less_than" and right == parameter
+    var other = right
+    if right == parameter {
+        other = left
+    }
+    var bound = spans.span_at(other, header)
+    assert bound
+    if step > 0 and below and holds {
+        return NumberSpan(bound.lowest, bound.highest)
+    }
+    if step > 0 and above and not holds {
+        return NumberSpan(bound.lowest, bound.highest + 1)
+    }
+    if step < 0 and above and holds {
+        return NumberSpan(bound.lowest, bound.highest)
+    }
+    if step < 0 and below and not holds {
+        return NumberSpan(bound.lowest - 1, bound.highest)
+    }
+    return null
+}
+
+func counter_span(at: Integer): NumberSpan? {
+    var parameter = parameter_value(at)
+    var step = step_of(at)
+    assert step != 0
+    var start = entry_span(at)
+    assert start
+    var limit = bound_span(parameter, step)
+    assert limit
+    if step > 0 {
+        var high = start.highest.maximum(limit.highest)
+        return NumberSpan(start.lowest, high)
+    }
+    var low = start.lowest.minimum(limit.lowest)
+    return NumberSpan(low, start.highest)
+}
+
+func passes(): NumberSpan? {
+    crash spans
+    crash spans.function
+    var count = spans.function.block_at(header).parameters.count()
+    var at = 0
+    while at < count {
+        var counted = counter_span(at)
+        var start = entry_span(at)
+        if counted and start {
+            var most = counted.highest - start.lowest
+            if step_of(at) < 0 {
+                most = start.highest - counted.lowest
+            }
+            var positive = most.maximum(0)
+            return NumberSpan(0, positive)
+        }
+        at = at + 1
+    }
+    return null
+}
+
+func summed_span(): NumberSpan? {
+    crash spans
+    var parameter = parameter_value(position)
+    var terms = terms_span(parameter)
+    assert terms
+    var start = entry_span(position)
+    assert start
+    var most = passes()
+    assert most
+    var added = most.times(terms)
+    assert added
+    return start.plus(added)
+}
+
+func terms_span(parameter: Integer): NumberSpan? {
+    var back = latches()
+    assert not back.is_empty()
+    var joined: NumberSpan? = null
+    var index = 0
+    while index < back.count() {
+        crash spans
+        var argument = spans.argument_into(back[index], header, position)
+        var found = chain_span(parameter, argument, back[index], 0)
+        assert found
+        if joined {
+            joined = joined.joined(found)
+        } else {
+            joined = found
+        }
+        index = index + 1
+    }
+    return joined
+}
+
+func chain_span(parameter: Integer, value: Integer, block_number: Integer, depth: Integer): NumberSpan? {
+    crash spans
+    crash spans.uses
+    crash spans.intrinsics
+    if value == parameter {
+        return NumberSpan(0, 0)
+    }
+    assert depth < 16 and value >= 0
+    var defining = spans.uses.definition_of(value)
+    assert defining and defining.kind == "call" and defining.operands.count() == 2
+    var meaning = spans.intrinsics.operation_part(defining.callee)
+    assert meaning == "sum" or meaning == "subtract"
+    assert defining.operands[1] != parameter
+    var before = chain_span(parameter, defining.operands[0], block_number, depth + 1)
+    assert before
+    var term = spans.span_at(defining.operands[1], block_number)
+    assert term
+    if meaning == "sum" {
+        return before.plus(term)
+    }
+    return before.minus(term)
+}
+
+func parameter_span(): NumberSpan? {
+    var counted = counter_span(position)
+    if counted {
+        return counted
+    }
+    return summed_span()
+}

@@ -1,0 +1,70 @@
+# ../../../../docs/proofs.md#a-call-keeps-a-proof-it-cannot-change
+func operations_between(function: Function, flow: Flow, from: Place, to: Place): List<Operation> {
+    var found = List<Operation>()
+    var start = from.first_operation_after()
+    var end = to.last_operation_before()
+    if from.before(to) {
+        add_range(function, from.block, start, end, found)
+        return found
+    }
+    add_range(function, from.block, start, 1000000000, found)
+    add_range(function, to.block, 0, end, found)
+    var middle = blocks_between(flow, from.block, to.block)
+    var index = 0
+    while index < middle.count() {
+        add_range(function, middle[index], 0, 1000000000, found)
+        index = index + 1
+    }
+    return found
+}
+
+func add_range(function: Function, block_number: Integer, start: Integer, end: Integer, found: List<Operation>) {
+    var block = function.block_at(block_number)
+    var operation_count = block.operations.count()
+    var last = end.minimum(operation_count)
+    var index = start
+    while index < last {
+        crash block.operations[index]
+        found.append(block.operations[index])
+        index = index + 1
+    }
+}
+
+func blocks_between(flow: Flow, from: Integer, to: Integer): List<Integer> {
+    var forward = reached(flow, from, to, true)
+    var backward = reached(flow, to, from, false)
+    var middle = List<Integer>()
+    var index = 0
+    while index < forward.count() {
+        var block = forward[index]
+        if backward.contains(block) and block != from and block != to {
+            middle.append(block)
+        }
+        index = index + 1
+    }
+    return middle
+}
+
+func reached(flow: Flow, start: Integer, stop: Integer, going_forward: Boolean): List<Integer> {
+    var seen = List<Integer>()
+    var waiting = List<Integer>()
+    var first = neighbours(flow, start, going_forward)
+    first.each(waiting.append)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not seen.contains(taken) and taken != start and taken != stop {
+            seen.append(taken)
+            var next = neighbours(flow, taken, going_forward)
+            next.each(waiting.append)
+        }
+    }
+    return seen
+}
+
+func neighbours(flow: Flow, block: Integer, going_forward: Boolean): List<Integer> {
+    if going_forward {
+        return flow.successors_of(block)
+    }
+    return flow.predecessors_of(block)
+}

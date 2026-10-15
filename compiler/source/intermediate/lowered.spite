@@ -5,6 +5,14 @@ var concrete_functions = List<Function>()
 var functions_by_name = Dictionary<String, Function>()
 var sites = List<Site>()
 var entry = ""
+var hot_reload = false
+var read_evaluate_print_loop = false
+var remote_loop = false
+var development = false
+var debug_memory = false
+var optimized = false
+var makes_threads = false
+var makes_concurrents = false
 
 func add_layout(layout: Layout) {
     crash not layouts_by_name.has(layout.c_name)
@@ -38,4 +46,12 @@ func add_site(site: Site): Integer {
     site.number = sites.count()
     sites.append(site)
     return site.number
+}
+
+func proves_ranges(): Boolean {
+    return not hot_reload and not read_evaluate_print_loop and not remote_loop
+}
+
+func is_inspectable(): Boolean {
+    return hot_reload or read_evaluate_print_loop or remote_loop or development
 }

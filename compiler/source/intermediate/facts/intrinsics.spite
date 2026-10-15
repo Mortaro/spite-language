@@ -1,0 +1,250 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-intrinsics
+var lowered: Lowered? = null
+var members = Dictionary<String, Function>()
+
+func Intrinsics(starting_lowered: Lowered) {
+    lowered = starting_lowered
+}
+
+func member_of(layout: String, name: String): Function? {
+    crash lowered
+    if members.count() == 0 {
+        lowered.concrete_functions.each(learn_member)
+    }
+    var key = "{layout}#{name}"
+    if members.has(key) {
+        return members[key]
+    }
+    return null
+}
+
+func getter_field(callee: Function): String {
+    if callee.blocks.count() != 1 {
+        return ""
+    }
+    var block = callee.blocks[0]
+    if block.operations.count() != 1 or block.terminator.kind != "return" {
+        return ""
+    }
+    var read = block.operations[0]
+    var returned = block.terminator.operands.first()
+    var object = read.operands.first()
+    if read.kind != "load" or not returned or not object {
+        return ""
+    }
+    if returned != read.result or object != callee.receiver {
+        return ""
+    }
+    return read.field
+}
+
+func learn_member(function: Function) {
+    members["{function.owner}#{function.name}"] = function
+}
+
+func is_dotted(callee: String): Boolean {
+    return callee.contains(".")
+}
+
+func type_part(callee: String): String {
+    var at = callee.index_of(".")
+    if at < 0 {
+        return ""
+    }
+    return callee.slice(0, at)
+}
+
+func operation_part(callee: String): String {
+    var at = callee.index_of(".")
+    if at < 0 {
+        return callee
+    }
+    var length = callee.length()
+    return callee.slice(at + 1, length)
+}
+
+func callee_named(callee: String): Function? {
+    crash lowered
+    return lowered.function_named(callee)
+}
+
+func meaning(callee: String): String {
+    if is_dotted(callee) {
+        return operation_part(callee)
+    }
+    var found = callee_named(callee)
+    if not found {
+        return ""
+    }
+    return found.name
+}
+
+func is_number_type(name: String): Boolean {
+    var numbers = [
+        "Integer"
+        "Long"
+        "Tiny"
+        "Short"
+        "Byte"
+        "UnsignedShort"
+        "UnsignedInteger"
+        "UnsignedLong"
+        "Float"
+        "Double"
+        "Address"
+        "Boolean"
+    ]
+    return numbers.contains(name)
+}
+
+func is_number_operation(callee: String): Boolean {
+    var owner = type_part(callee)
+    return is_dotted(callee) and is_number_type(owner)
+}
+
+func is_checked_arithmetic(callee: String): Boolean {
+    var operation = operation_part(callee)
+    var checked = ["sum", "subtract", "multiply", "negate", "divide", "remainder"]
+    return is_number_operation(callee) and checked.contains(operation)
+}
+
+func is_narrowing(callee: String): Boolean {
+    var operation = operation_part(callee)
+    return is_number_operation(callee) and operation.starts_with("to_")
+}
+
+func is_comparison(callee: String): Boolean {
+    var operation = operation_part(callee)
+    var compared = ["equals", "less_than", "greater_than"]
+    return is_dotted(callee) and compared.contains(operation)
+}
+
+func kind_named(name: String): Analysis.Types.NumericKind? {
+    switch name {
+        "Integer": return 'integer_kind'
+        "Long": return 'long_kind'
+        "Tiny": return 'tiny_kind'
+        "Short": return 'short_kind'
+        "Byte": return 'byte_kind'
+        "UnsignedShort": return 'unsigned_short_kind'
+        "UnsignedInteger": return 'unsigned_integer_kind'
+        "UnsignedLong": return 'unsigned_long_kind'
+        "Float": return 'float_kind'
+        "Double": return 'double_kind'
+        "Address": return 'address_kind'
+        "Boolean": return 'boolean_kind'
+        _: return null
+    }
+}
+
+func target_kind(callee: String): Analysis.Types.NumericKind? {
+    var operation = operation_part(callee)
+    switch operation {
+        "to_integer": return 'integer_kind'
+        "to_long": return 'long_kind'
+        "to_tiny": return 'tiny_kind'
+        "to_short": return 'short_kind'
+        "to_byte": return 'byte_kind'
+        "to_unsigned_short": return 'unsigned_short_kind'
+        "to_unsigned_integer": return 'unsigned_integer_kind'
+        "to_unsigned_long": return 'unsigned_long_kind'
+        "to_float": return 'float_kind'
+        "to_double": return 'double_kind'
+        _: return null
+    }
+}
+
+func is_reading_name(name: String): Boolean {
+    var exact = [
+        "count"
+        "length"
+        "is_empty"
+        "equals"
+        "less_than"
+        "greater_than"
+        "sum"
+        "subtract"
+        "multiply"
+        "divide"
+        "remainder"
+        "negate"
+        "minimum"
+        "maximum"
+        "clamp"
+        "absolute"
+        "contains"
+        "index_of"
+        "join"
+        "slice"
+        "character_at"
+        "code_at"
+        "compare_bytes"
+        "hash"
+        "first"
+        "last"
+        "get_at"
+        "has"
+        "keys"
+        "values"
+        "split"
+        "trim"
+        "upper_case"
+        "lower_case"
+        "square_root"
+        "sine"
+        "cosine"
+        "tangent"
+        "power"
+        "exponential"
+        "logarithm"
+        "floor"
+        "ceiling"
+        "round"
+        "truncate"
+        "bits"
+        "read_value"
+        "value_bytes"
+        "terminated_text"
+        "text"
+        "copy"
+        "to_debug"
+    ]
+    if exact.contains(name) {
+        return true
+    }
+    var prefixes = [
+        "read_"
+        "to_"
+        "is_"
+        "has_"
+        "get_"
+        "bits_"
+        "shifted_"
+        "wrapping_"
+        "arc_"
+        "logarithm_"
+        "starts_with"
+        "ends_with"
+        "set_bit"
+        "leading_"
+        "trailing_"
+    ]
+    var index = 0
+    while index < prefixes.count() {
+        if name.starts_with(prefixes[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_memory_write_name(name: String): Boolean {
+    var exact = ["write_value", "release_value", "swap_values", "copy_to", "free", "resize", "allocate"]
+    return exact.contains(name) or name.starts_with("write_")
+}
+
+func is_release_name(name: String): Boolean {
+    var exact = ["release_value", "free"]
+    return exact.contains(name)
+}

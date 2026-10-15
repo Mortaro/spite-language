@@ -12,6 +12,11 @@ var intrinsic = ""
 var is_constructor = false
 var specialised_from = ""
 var not_lowered = ""
+var locking = ""
+var resumable = false
+var lends_answer = false
+var waits = false
+var folded_into = ""
 
 func Function(starting_c_name: String, starting_name: String, starting_owner: String) {
     c_name = starting_c_name

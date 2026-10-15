@@ -1,0 +1,328 @@
+# ../../../../docs/optimizations.md#a-loop-whose-passes-write-only-their-own-item-runs-in-bands
+var lowered: Lowered? = null
+var intrinsics: Facts.Intrinsics? = null
+var kinds: Facts.ValueKinds? = null
+var own_writers = Dictionary<String, Boolean>()
+var studying = Dictionary<String, Boolean>()
+var weights = Dictionary<String, Integer>()
+var banded_count = 0
+
+func Bands(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
+
+func study(function: Function) {
+    crash lowered
+    assert not lowered.hot_reload and not lowered.read_evaluate_print_loop and not lowered.development
+    assert not function.blocks.is_empty() and not function.is_intrinsic()
+    var flow = Facts.Flow(function)
+    var headers = flow.loop_headers.keys()
+    var index = 0
+    while index < headers.count() {
+        band_loop(function, flow, headers[index])
+        index = index + 1
+    }
+}
+
+func band_loop(function: Function, flow: Facts.Flow, header: Integer) {
+    var uses = Facts.Uses(function)
+    var block = function.block_at(header)
+    assert block.parameters.count() == 1
+    var counter = block.parameters.first()
+    crash counter
+    var list = walked_list(function, uses, block, counter)
+    assert list >= 0
+    var body = flow.body_of(header)
+    var called = element_call(function, uses, body, header, list)
+    assert not called.is_empty() and writes_only_own(called, 0)
+    var weight = weight_of(called, 0)
+    assert weight >= 256
+    var edges = Facts.LoopEdges()
+    var preheader = edges.preheader_of(flow, header)
+    var exit = edges.exit_of(function, flow, body)
+    assert preheader >= 0 and exit >= 0 and not uses_loop_values(function, uses, exit, body)
+    var threshold = 1000000 / weight + 1
+    run_in_bands(function, preheader, header, exit, list, called, threshold)
+    banded_count = banded_count + 1
+}
+
+func walked_list(function: Function, uses: Facts.Uses, block: Block, counter: Integer): Integer {
+    crash intrinsics
+    var condition = block.terminator.operands.first()
+    if block.terminator.kind != "branch" or not condition {
+        return -1
+    }
+    var compared = uses.definition_of(condition)
+    if not compared or compared.callee != "Integer.less_than" or compared.operands.first() != counter {
+        return -1
+    }
+    var bound = compared.operands.last()
+    crash bound
+    var counting = uses.definition_of(bound)
+    if not counting {
+        return -1
+    }
+    var list = counting.operands.first()
+    if not list {
+        return -1
+    }
+    var is_count = counting.kind == "call" and intrinsics.meaning(counting.callee) == "count"
+    var is_field = counting.kind == "load" and counting.field == "item_count"
+    if not is_count and not is_field {
+        return -1
+    }
+    return list
+}
+
+func element_call(function: Function, uses: Facts.Uses, body: List<Integer>, header: Integer, list: Integer): String {
+    crash lowered
+    var found = ""
+    var index = 0
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var called = pass_operation(operation, list)
+            if called == "!" {
+                return ""
+            }
+            if not called.is_empty() {
+                if not found.is_empty() {
+                    return ""
+                }
+                found = called
+            }
+            position = position + 1
+        }
+        if block.terminator.kind == "return" {
+            return ""
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func pass_operation(operation: Operation, list: Integer): String {
+    crash lowered
+    crash intrinsics
+    crash kinds
+    var kind = operation.kind
+    if kind == "store" or kind == "make" or kind == "call value" or kind == "retain" or kind == "release" {
+        return "!"
+    }
+    if kind != "call" or intrinsics.is_number_operation(operation.callee) or operation.callee.starts_with("Nullable.") {
+        return ""
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return "!"
+    }
+    var reading = ["get_at", "count", "read_value"]
+    if kinds.is_library_layout(callee.owner) and reading.contains(callee.name) {
+        return ""
+    }
+    if kinds.is_library_layout(callee.owner) or operation.operands.count() != 1 {
+        return "!"
+    }
+    return callee.c_name
+}
+
+func writes_only_own(c_name: String, depth: Integer): Boolean {
+    crash lowered
+    if own_writers.has(c_name) {
+        return own_writers[c_name] == true
+    }
+    if depth > 8 or studying.has(c_name) {
+        return false
+    }
+    var function = lowered.function_named(c_name)
+    if not function or function.blocks.is_empty() or function.is_intrinsic() {
+        return false
+    }
+    studying[c_name] = true
+    var answer = function_writes_only_own(function, depth)
+    studying.remove(c_name)
+    own_writers[c_name] = answer
+    return answer
+}
+
+func function_writes_only_own(function: Function, depth: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if not own_operation(function, operation, depth) {
+                return false
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return true
+}
+
+func own_operation(function: Function, operation: Operation, depth: Integer): Boolean {
+    crash intrinsics
+    crash lowered
+    var kind = operation.kind
+    if kind == "constant" {
+        return true
+    }
+    if kind == "load" or kind == "store" {
+        return operation.operands.first() == function.receiver
+    }
+    if kind != "call" {
+        return false
+    }
+    if intrinsics.is_number_operation(operation.callee) {
+        return true
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    if callee.is_intrinsic() {
+        var maths = Generation.MathsPrimitives()
+        return maths.is_member(callee.name) and not intrinsics.is_memory_write_name(callee.name)
+    }
+    return operation.operands.first() == function.receiver and writes_only_own(callee.c_name, depth + 1)
+}
+
+func weight_of(c_name: String, depth: Integer): Integer {
+    crash lowered
+    if weights.has(c_name) {
+        crash weights[c_name]
+        return weights[c_name]
+    }
+    var function = lowered.function_named(c_name)
+    if not function or depth > 8 {
+        return 1
+    }
+    weights[c_name] = 1
+    var flow = Facts.Flow(function)
+    var uses = Facts.Uses(function)
+    var total = 0
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var repeats = repeats_of(function, flow, uses, block_index)
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var each = 1
+            if operation.kind == "call" and lowered.function_named(operation.callee) {
+                each = weight_of(operation.callee, depth + 1)
+            }
+            total = total + each * repeats
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    weights[c_name] = total
+    return total
+}
+
+func repeats_of(function: Function, flow: Facts.Flow, uses: Facts.Uses, block: Integer): Integer {
+    var repeats = 1
+    var headers = flow.loop_headers.keys()
+    var index = 0
+    while index < headers.count() {
+        var header = headers[index]
+        var body = flow.body_of(header)
+        if body.contains(block) {
+            var bound = constant_bound(function, uses, header)
+            repeats = repeats * bound.minimum(100000)
+        }
+        index = index + 1
+    }
+    return repeats.minimum(100000000)
+}
+
+func constant_bound(function: Function, uses: Facts.Uses, header: Integer): Integer {
+    var block = function.block_at(header)
+    var condition = block.terminator.operands.first()
+    if not condition {
+        return 8
+    }
+    var compared = uses.definition_of(condition)
+    if not compared or compared.callee != "Integer.less_than" {
+        return 8
+    }
+    var bound = compared.operands.last()
+    if not bound {
+        return 8
+    }
+    var defining = uses.definition_of(bound)
+    if not defining or defining.kind != "constant" {
+        return 8
+    }
+    var parsed: Integer? = defining.literal
+    if not parsed or parsed < 1 {
+        return 8
+    }
+    return parsed
+}
+
+func uses_loop_values(function: Function, uses: Facts.Uses, exit: Integer, body: List<Integer>): Boolean {
+    var block = function.block_at(exit)
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var position = 0
+        while position < operation.operands.count() {
+            var place = uses.place_of(operation.operands[position])
+            if body.contains(place.block) {
+                return true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func run_in_bands(
+    function: Function,
+    preheader: Integer,
+    header: Integer,
+    exit: Integer,
+    list: Integer,
+    called: String,
+    threshold: Integer,
+) {
+    var limit = Operation("constant", 0)
+    var integer_type: Analysis.SpiteType = Analysis.Types.ScalarType('integer_kind')
+    limit.literal = threshold
+    limit.spite_type = integer_type
+    limit.result = function.new_value(integer_type, "operation")
+    function.value_at(limit.result).block = preheader
+    var truth: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
+    var run = Operation("call", 0)
+    run.callee = "Bands.run"
+    run.literal = called
+    run.takes(list)
+    run.takes(limit.result)
+    run.spite_type = truth
+    run.result = function.new_value(truth, "operation")
+    function.value_at(run.result).block = preheader
+    var block = function.block_at(preheader)
+    var entering = block.terminator.targets.first()
+    crash entering
+    block.add(limit)
+    block.add(run)
+    var branch = Terminator("branch")
+    branch.operands.append(run.result)
+    var done = Target(exit)
+    branch.to(done)
+    var looping = Target(header)
+    entering.arguments.each(looping.arguments.append)
+    branch.to(looping)
+    block.terminator = branch
+}

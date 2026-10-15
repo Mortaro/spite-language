@@ -1,0 +1,262 @@
+# ../../../../docs/optimizations.md#a-counted-loop-of-calls-to-one-singleton-takes-its-lock-once
+var lowered: Lowered? = null
+var intrinsics: Facts.Intrinsics? = null
+var kinds: Facts.ValueKinds? = null
+var effects: Facts.Effects? = null
+var coarse_count = 0
+var skipping_count = 0
+
+func LockedLoops(starting_lowered: Lowered, starting_effects: Facts.Effects) {
+    lowered = starting_lowered
+    effects = starting_effects
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
+
+func study(function: Function) {
+    crash lowered
+    assert not lowered.hot_reload and not lowered.read_evaluate_print_loop and not lowered.remote_loop
+    assert not function.blocks.is_empty()
+    var flow = Facts.Flow(function)
+    var headers = flow.loop_headers.keys()
+    var index = 0
+    while index < headers.count() {
+        var header = headers[index]
+        study_loop(function, flow, header)
+        index = index + 1
+    }
+}
+
+func study_loop(function: Function, flow: Facts.Flow, header: Integer) {
+    var body = flow.body_of(header)
+    var singleton = called_singleton(function, body)
+    assert not singleton.is_empty()
+    var edges = Facts.LoopEdges()
+    var preheader = edges.preheader_of(flow, header)
+    var exit = edges.exit_of(function, flow, body)
+    assert preheader >= 0 and exit >= 0
+    var uses = Facts.Uses(function)
+    var counted = is_counted(function, flow, uses, header) and inner_loops_counted(function, flow, uses, header, body)
+    var form = "skipping"
+    if counted {
+        form = "unguarded"
+    }
+    mark_calls(function, body, singleton, form)
+    insert_markers(function, preheader, exit, singleton, counted)
+    if counted {
+        coarse_count = coarse_count + 1
+    } else {
+        skipping_count = skipping_count + 1
+    }
+}
+
+func called_singleton(function: Function, body: List<Integer>): String {
+    crash lowered
+    var found = ""
+    var locks = false
+    var index = 0
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        if block.terminator.kind == "return" {
+            return ""
+        }
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var owner = singleton_called(operation)
+            if owner == "!" {
+                return ""
+            }
+            if not owner.is_empty() {
+                if not found.is_empty() and found != owner {
+                    return ""
+                }
+                found = owner
+                locks = locks or locking_call(operation)
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    if not locks {
+        return ""
+    }
+    return found
+}
+
+func locking_call(operation: Operation): Boolean {
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return not callee.locking.is_empty()
+}
+
+func singleton_called(operation: Operation): String {
+    crash lowered
+    crash intrinsics
+    crash effects
+    var kind = operation.kind
+    if kind == "make" or kind == "call value" or kind == "store" {
+        return "!"
+    }
+    if kind != "call" {
+        return ""
+    }
+    if intrinsics.is_number_operation(operation.callee) or operation.callee.starts_with("Nullable.") {
+        return ""
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return "!"
+    }
+    var owner = lowered.layout_named(callee.owner)
+    if not owner {
+        return "!"
+    }
+    if owner.is_singleton and owner.thread_form != "" and owner.thread_form != "read_only" {
+        var summary = effects.of(callee.c_name)
+        if summary.unknown or summary.calls_values or summary.starts_threads {
+            return "!"
+        }
+        return owner.c_name
+    }
+    if owner.qualified == "List" and plain_list_call(callee) {
+        return ""
+    }
+    return "!"
+}
+
+func plain_list_call(callee: Function): Boolean {
+    crash intrinsics
+    crash kinds
+    var allowed = ["count", "get_at", "set_at", "append", "contains", "index_of", "is_empty"]
+    if not allowed.contains(callee.name) {
+        return false
+    }
+    var owner_layout = callee.owner
+    var receiver_type: Analysis.SpiteType = Analysis.Types.ClassRefType(owner_layout)
+    var element = kinds.element_of_list(receiver_type)
+    if not element {
+        return false
+    }
+    return not kinds.is_counted(element)
+}
+
+func is_counted(function: Function, flow: Facts.Flow, uses: Facts.Uses, header: Integer): Boolean {
+    var block = function.block_at(header)
+    var terminator = block.terminator
+    if terminator.kind != "branch" {
+        return false
+    }
+    var condition = terminator.operands.first()
+    if not condition {
+        return false
+    }
+    var compared = uses.definition_of(condition)
+    if not compared or compared.callee != "Integer.less_than" or compared.operands.count() != 2 {
+        return false
+    }
+    var counter = compared.operands.first()
+    if not counter or not block.parameters.contains(counter) {
+        return false
+    }
+    return steps_by_one(function, flow, uses, header, counter)
+}
+
+func steps_by_one(function: Function, flow: Facts.Flow, uses: Facts.Uses, header: Integer, counter: Integer): Boolean {
+    var position = function.block_at(header).parameters.index_of(counter)
+    if not position {
+        return false
+    }
+    var coming = flow.predecessors_of(header)
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        if flow.is_back_edge(from, header) and not latch_steps(function, uses, from, header, position, counter) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func latch_steps(
+    function: Function,
+    uses: Facts.Uses,
+    from: Integer,
+    header: Integer,
+    position: Integer,
+    counter: Integer,
+): Boolean {
+    var targets = function.block_at(from).terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        if target.block == header and position < target.arguments.count() {
+            var argument = target.arguments[position]
+            var step = uses.definition_of(argument)
+            if not step or step.callee != "Integer.sum" or step.operands.first() != counter {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func inner_loops_counted(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    header: Integer,
+    body: List<Integer>,
+): Boolean {
+    var index = 0
+    while index < body.count() {
+        var block = body[index]
+        if block != header and flow.is_loop_header(block) and not is_counted(function, flow, uses, block) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func mark_calls(function: Function, body: List<Integer>, singleton: String, form: String) {
+    crash lowered
+    var index = 0
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var callee = lowered.function_named(operation.callee)
+            if operation.kind == "call" and callee and callee.owner == singleton and operation.form.is_empty() {
+                operation.form = form
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func insert_markers(function: Function, preheader: Integer, exit: Integer, singleton: String, counted: Boolean) {
+    var entering = "Singleton.enter_coarse"
+    var leaving = "Singleton.leave_coarse"
+    if not counted {
+        entering = "Singleton.enter_skipping"
+        leaving = "Singleton.leave_skipping"
+    }
+    var enter = Operation("call", 0)
+    enter.callee = entering
+    enter.literal = singleton
+    function.block_at(preheader).add(enter)
+    var leave = Operation("call", 0)
+    leave.callee = leaving
+    leave.literal = singleton
+    function.block_at(exit).operations.prepend(leave)
+}

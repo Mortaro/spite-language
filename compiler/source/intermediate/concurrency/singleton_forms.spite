@@ -1,0 +1,588 @@
+# ../../../../docs/optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var reach: Facts.ThreadReach? = null
+var touching = Dictionary<String, Boolean>()
+var outside_reads = Dictionary<String, Boolean>()
+var outside_writes = Dictionary<String, Boolean>()
+var reached_layouts = Dictionary<String, Boolean>()
+var locked_count = 0
+
+func SingletonForms(starting_lowered: Lowered, starting_effects: Facts.Effects, starting_reach: Facts.ThreadReach) {
+    lowered = starting_lowered
+    effects = starting_effects
+    reach = starting_reach
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+}
+
+func decide() {
+    crash lowered
+    assert lowered.makes_threads
+    var functions = lowered.concrete_functions
+    functions.each(note_accesses)
+    var layouts = lowered.layouts
+    var index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        if layout.is_singleton and not kinds_library(layout) {
+            decide_layout(layout)
+        }
+        index = index + 1
+    }
+    functions.each(mark_accesses)
+    crash effects
+    var loops = LockedLoops(lowered, effects)
+    functions.each(loops.study)
+}
+
+func kinds_library(layout: Layout): Boolean {
+    crash kinds
+    return kinds.is_library_layout(layout.c_name)
+}
+
+func singleton_of(function: Function, value: Integer): Layout? {
+    crash kinds
+    var value_type = function.value_at(value).spite_type
+    var layout = kinds.layout_of(value_type)
+    assert layout and layout.is_singleton
+    return layout
+}
+
+func note_accesses(function: Function) {
+    crash reach
+    var on_threads = reach.runs_on_threads(function.c_name)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            note_access(function, operation, on_threads)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_access(function: Function, operation: Operation, on_threads: Boolean) {
+    crash lowered
+    if operation.kind == "call" and on_threads {
+        var callee = lowered.function_named(operation.callee)
+        if callee {
+            reached_layouts[callee.owner] = true
+        }
+    }
+    assert operation.kind == "load" or operation.kind == "store"
+    var object = operation.operands.first()
+    crash object
+    var layout = singleton_of(function, object)
+    assert layout
+    var key = "{layout.c_name}.{operation.field}"
+    if on_threads {
+        reached_layouts[layout.c_name] = true
+    }
+    assert function.owner != layout.c_name
+    if operation.kind == "load" {
+        outside_reads[key] = true
+    } else {
+        outside_writes[key] = true
+    }
+}
+
+func changing(layout: Layout, field: Field): Boolean {
+    crash effects
+    var key = "{layout.c_name}.{field.name}"
+    if outside_writes.has(key) or written_after_construction(layout, field.name) {
+        return true
+    }
+    return holds_changing(field.spite_type, 0)
+}
+
+func written_after_construction(layout: Layout, field: String): Boolean {
+    crash lowered
+    crash effects
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var summary = effects.of(function.c_name)
+        if summary.writes.has("{layout.c_name}.{field}") or summary.grows.has("{layout.c_name}.{field}") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func holds_changing(spite_type: Analysis.SpiteType?, depth: Integer): Boolean {
+    crash kinds
+    if not spite_type or depth > 8 {
+        return true
+    }
+    if not kinds.is_counted(spite_type) or types.as_string(spite_type) {
+        return false
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return holds_changing(nullable.inner, depth + 1)
+    }
+    var layout = kinds.layout_of(spite_type)
+    if not layout or layout.qualified == "List" or layout.qualified == "Dictionary" or layout.is_singleton {
+        return true
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        if written_after_construction(layout, field.name) or holds_changing(field.spite_type, depth + 1) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func decide_layout(layout: Layout) {
+    var any_changing = false
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        field.changes = changing(layout, field)
+        if field.changes {
+            any_changing = true
+        }
+        index = index + 1
+    }
+    if not reached_layouts.has(layout.c_name) {
+        layout.thread_form = ""
+        return
+    }
+    if not any_changing {
+        layout.thread_form = "read_only"
+        return
+    }
+    if fits_atomics(layout) {
+        layout.thread_form = "atomics"
+        mark_atomic_fields(layout)
+        return
+    }
+    choose_lock(layout)
+}
+
+func own_functions(layout: Layout): List<Function> {
+    crash lowered
+    var found = List<Function>()
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.owner == layout.c_name and not function.is_constructor and not function.blocks.is_empty() {
+            found.append(function)
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func touches_of(layout: Layout, function: Function): Integer {
+    var flow = Facts.Flow(function)
+    var uses = Facts.Uses(function)
+    var count = 0 - fused_pairs(function, uses)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var weight = touch_weight(layout, function, operation)
+            if weight > 0 and flow.in_any_loop(block_index) {
+                weight = weight + 2
+            }
+            count = count + weight
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return count
+}
+
+func fused_pairs(function: Function, uses: Facts.Uses): Integer {
+    var count = 0
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var fused = fused_load(function, uses, operation)
+            if fused {
+                count = count + 1
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return count
+}
+
+func fused_load(function: Function, uses: Facts.Uses, store: Operation): Operation? {
+    crash intrinsics
+    assert store.kind == "store" and store.operands.first() == function.receiver
+    var stored = store.operands.last()
+    crash stored
+    var arithmetic = uses.definition_of(stored)
+    assert arithmetic and arithmetic.kind == "call" and arithmetic.operands.count() == 2
+    var meaning = intrinsics.operation_part(arithmetic.callee)
+    assert meaning == "sum" or meaning == "subtract"
+    var loaded = arithmetic.operands.first()
+    crash loaded
+    var read = uses.definition_of(loaded)
+    assert read and read.kind == "load" and read.field == store.field and read.operands.first() == function.receiver
+    assert uses.use_count(loaded) == 1
+    return read
+}
+
+func touch_weight(layout: Layout, function: Function, operation: Operation): Integer {
+    if operation.kind == "load" or operation.kind == "store" {
+        var field = layout.field_named(operation.field)
+        var through_self = operation.operands.first() == function.receiver
+        if field and field.changes and through_self {
+            return 1
+        }
+        return 0
+    }
+    if operation.kind == "call" and calls_own_toucher(layout, operation) {
+        return 2
+    }
+    return 0
+}
+
+func calls_own_toucher(layout: Layout, operation: Operation): Boolean {
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.owner != layout.c_name or callee.is_constructor {
+        return false
+    }
+    return touches_state(layout, callee)
+}
+
+func touches_state(layout: Layout, function: Function): Boolean {
+    crash effects
+    var key = function.c_name
+    if touching.has(key) {
+        return touching[key] == true
+    }
+    touching[key] = false
+    var answer = direct_touch(layout, function) or calls_back(layout, function)
+    touching[key] = answer
+    return answer
+}
+
+func direct_touch(layout: Layout, function: Function): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if touch_weight(layout, function, operation) > 0 {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func calls_back(layout: Layout, function: Function): Boolean {
+    crash effects
+    crash lowered
+    var summary = effects.of(function.c_name)
+    if summary.unknown or summary.calls_values {
+        return true
+    }
+    var index = 0
+    while index < summary.callees.count() {
+        var callee = lowered.function_named(summary.callees[index])
+        if callee and callee.owner == layout.c_name and callee.c_name != function.c_name and direct_touch(layout, callee) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../docs/proofs.md#read-only-and-atomic-singletons
+func fits_atomics(layout: Layout): Boolean {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var key = "{layout.c_name}.{field.name}"
+        if field.changes and (not is_plain_number(field.spite_type) or outside_writes.has(key)) {
+            return false
+        }
+        index = index + 1
+    }
+    var functions = own_functions(layout)
+    index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if touches_of(layout, function) > 1 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_plain_number(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var scalar = types.as_scalar(spite_type)
+    if not scalar {
+        return false
+    }
+    return scalar.kind != 'float_kind' and scalar.kind != 'double_kind' and scalar.kind != 'address_kind'
+}
+
+func mark_atomic_fields(layout: Layout) {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        field.atomic = field.changes
+        index = index + 1
+    }
+}
+
+# ../../../../docs/proofs.md#reading-functions-share-the-lock
+func choose_lock(layout: Layout) {
+    crash reach
+    layout.thread_form = "lock"
+    locked_count = locked_count + 1
+    var functions = own_functions(layout)
+    var readers = 0
+    var writes_from_threads = false
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if not touches_state(layout, function) {
+            function.locking = ""
+        } else if is_reading(layout, function) {
+            function.locking = "reading"
+            readers = readers + 1
+        } else {
+            function.locking = "locked"
+            if reach.runs_on_threads(function.c_name) {
+                writes_from_threads = true
+            }
+        }
+        index = index + 1
+    }
+    if readers > 0 and not writes_from_threads and not written_from_threads(layout) {
+        layout.thread_form = "readers"
+    }
+    mark_lone_atomics(layout, functions)
+}
+
+func written_from_threads(layout: Layout): Boolean {
+    crash lowered
+    crash reach
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.owner != layout.c_name and reach.runs_on_threads(function.c_name) and stores_into(layout, function) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func stores_into(layout: Layout, function: Function): Boolean {
+    crash kinds
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "store" {
+                var object = operation.operands.first()
+                crash object
+                var object_type = function.value_at(object).spite_type
+                var stored_layout = kinds.layout_of(object_type)
+                if stored_layout and stored_layout.c_name == layout.c_name {
+                    return true
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func is_reading(layout: Layout, function: Function): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if not reads_only(layout, operation) {
+                return false
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return true
+}
+
+func reads_only(layout: Layout, operation: Operation): Boolean {
+    crash intrinsics
+    crash lowered
+    var kind = operation.kind
+    if kind == "store" or kind == "make" or kind == "call value" {
+        return false
+    }
+    if kind != "call" {
+        return true
+    }
+    if intrinsics.is_number_operation(operation.callee) {
+        return true
+    }
+    var callee = lowered.function_named(operation.callee)
+    var meaning = intrinsics.meaning(operation.callee)
+    if not callee {
+        return intrinsics.is_dotted(operation.callee) and meaning != "join"
+    }
+    if callee.owner == layout.c_name {
+        return is_reading(layout, callee)
+    }
+    return intrinsics.is_reading_name(meaning) and not meaning.starts_with("write_") and meaning != "copy_to"
+}
+
+# ../../../../docs/optimizations.md#an-attribute-read-only-under-its-singletons-lock-is-a-plain-number
+func mark_lone_atomics(layout: Layout, functions: List<Function>) {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var key = "{layout.c_name}.{field.name}"
+        var lone = field.changes and is_plain_number(field.spite_type) and outside_reads.has(key)
+        field.atomic = lone and written_once_by_each(field, functions)
+        index = index + 1
+    }
+}
+
+func written_once_by_each(field: Field, functions: List<Function>): Boolean {
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if stores_of(function, field.name) > 1 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func stores_of(function: Function, field: String): Integer {
+    var flow = Facts.Flow(function)
+    var count = 0
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var own = operation.operands.first() == function.receiver
+            if operation.kind == "store" and operation.field == field and own {
+                count = count + 1
+                if flow.in_any_loop(block_index) {
+                    count = count + 2
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return count
+}
+
+func mark_accesses(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            mark_access(function, operation)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func mark_access(function: Function, operation: Operation) {
+    crash lowered
+    if operation.kind == "call" {
+        mark_own_call(function, operation)
+        return
+    }
+    assert operation.kind == "load" or operation.kind == "store"
+    assert operation.form.is_empty()
+    var object = operation.operands.first()
+    crash object
+    var layout = singleton_of(function, object)
+    assert layout and not layout.thread_form.is_empty()
+    var field = layout.field_named(operation.field)
+    assert field and field.changes
+    if field.atomic and layout.thread_form == "atomics" and operation.kind == "store" {
+        mark_fused(function, operation)
+        return
+    }
+    if field.atomic {
+        if operation.form.is_empty() {
+            operation.form = "atomic"
+        }
+        return
+    }
+    if function.owner != layout.c_name and layout.thread_form != "read_only" {
+        operation.form = "locked"
+    }
+}
+
+func mark_fused(function: Function, store: Operation) {
+    crash intrinsics
+    var uses = Facts.Uses(function)
+    var read = fused_load(function, uses, store)
+    if not read {
+        store.form = "atomic"
+        return
+    }
+    var stored = store.operands.last()
+    crash stored
+    var arithmetic = uses.definition_of(stored)
+    crash arithmetic
+    var meaning = intrinsics.operation_part(arithmetic.callee)
+    store.form = "atomic_{meaning}"
+    read.form = "atomic_fused"
+}
+
+func mark_own_call(function: Function, operation: Operation) {
+    crash lowered
+    assert function.locking == "locked" or function.locking == "reading"
+    var callee = lowered.function_named(operation.callee)
+    assert callee and callee.owner == function.owner and operation.operands.first() == function.receiver
+    assert not callee.locking.is_empty() and operation.form.is_empty()
+    operation.form = "unguarded"
+}

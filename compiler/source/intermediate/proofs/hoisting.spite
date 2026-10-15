@@ -1,0 +1,165 @@
+# ../../../../docs/optimizations.md#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked
+var function: Function? = null
+var flow: Facts.Flow? = null
+var uses: Facts.Uses? = null
+var effects: Facts.Effects? = null
+var intrinsics: Facts.Intrinsics? = null
+var kinds: Facts.ValueKinds? = null
+var hoisted_count = 0
+
+func Hoisting(studied: Function, studied_flow: Facts.Flow, studied_uses: Facts.Uses, studied_effects: Facts.Effects) {
+    function = studied
+    flow = studied_flow
+    uses = studied_uses
+    effects = studied_effects
+    crash studied_effects.lowered
+    var made_intrinsics = Facts.Intrinsics(studied_effects.lowered)
+    intrinsics = made_intrinsics
+    var made_kinds = Facts.ValueKinds(studied_effects.lowered)
+    kinds = made_kinds
+}
+
+func hoist() {
+    crash flow
+    var headers = flow.loop_headers.keys()
+    headers.each(hoist_loop)
+}
+
+func preheader_of(header: Integer): Integer {
+    crash flow
+    crash function
+    var coming = flow.predecessors_of(header)
+    var found = -1
+    var entries = 0
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        if not flow.is_back_edge(from, header) {
+            found = from
+            entries = entries + 1
+        }
+        index = index + 1
+    }
+    if entries != 1 {
+        return -1
+    }
+    var going = flow.successors_of(found)
+    if going.count() != 1 {
+        return -1
+    }
+    return found
+}
+
+func hoist_loop(header: Integer) {
+    crash function
+    crash flow
+    var preheader = preheader_of(header)
+    assert preheader >= 0
+    var body = flow.body_of(header)
+    var block = function.block_at(header)
+    var moved = List<Operation>()
+    var kept = List<Operation>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if moved.count() == index and can_hoist(operation, body) {
+            moved.append(operation)
+        } else {
+            kept.append(operation)
+        }
+        index = index + 1
+    }
+    assert not moved.is_empty()
+    block.operations = kept
+    var target = function.block_at(preheader)
+    var position = 0
+    while position < moved.count() {
+        var operation = moved[position]
+        target.add(operation)
+        if operation.result >= 0 {
+            function.value_at(operation.result).block = preheader
+        }
+        hoisted_count = hoisted_count + 1
+        position = position + 1
+    }
+}
+
+func can_hoist(operation: Operation, body: List<Integer>): Boolean {
+    if operation.kind != "load" and not is_getter_call(operation) {
+        return false
+    }
+    var object = operation.operands.first()
+    if not object {
+        return false
+    }
+    if not defined_outside(object, body) {
+        return false
+    }
+    var field = read_field(operation)
+    if field.is_empty() {
+        return false
+    }
+    return not written_in_loop(object, field, body)
+}
+
+func is_getter_call(operation: Operation): Boolean {
+    crash effects
+    crash effects.lowered
+    if operation.kind != "call" or operation.operands.count() != 1 {
+        return false
+    }
+    var callee = effects.lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    crash intrinsics
+    var field = intrinsics.getter_field(callee)
+    return not field.is_empty()
+}
+
+func read_field(operation: Operation): String {
+    crash effects
+    crash effects.lowered
+    if operation.kind == "load" {
+        return operation.field
+    }
+    var callee = effects.lowered.function_named(operation.callee)
+    if not callee {
+        return ""
+    }
+    crash intrinsics
+    return intrinsics.getter_field(callee)
+}
+
+func defined_outside(value: Integer, body: List<Integer>): Boolean {
+    crash uses
+    var place = uses.place_of(value)
+    return place.block >= 0 and not body.contains(place.block)
+}
+
+func written_in_loop(object: Integer, field: String, body: List<Integer>): Boolean {
+    crash function
+    crash effects
+    crash kinds
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    var owner = "*"
+    if layout {
+        owner = layout.c_name
+    }
+    var index = 0
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var summary = effects.operation_summary(function, operation)
+            if summary.unknown or summary.calls_values or summary.may_write(owner, field) or summary.grows.has("{owner}.{field}") {
+                return true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return false
+}

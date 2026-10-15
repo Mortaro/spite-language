@@ -1,0 +1,508 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var function: Function? = null
+var flow: Facts.Flow? = null
+var uses: Facts.Uses? = null
+var borrows: Borrows? = null
+var consumption: Consumption? = null
+var kinds: Facts.ValueKinds? = null
+var tracked = Dictionary<Integer, Boolean>()
+var live_in = Dictionary<Integer, LiveSet>()
+var live_out = Dictionary<Integer, LiveSet>()
+var pseudo_uses = Dictionary<Integer, List<Integer>>()
+var terminator_pseudo_uses = Dictionary<Integer, List<Integer>>()
+var dominator_children = Dictionary<Integer, List<Integer>>()
+var retained_count = 0
+var released_count = 0
+
+func Counting(
+    studied: Function,
+    studied_borrows: Borrows,
+    studied_consumption: Consumption,
+    studied_kinds: Facts.ValueKinds,
+) {
+    function = studied
+    borrows = studied_borrows
+    consumption = studied_consumption
+    kinds = studied_kinds
+    crash studied_borrows.flow
+    crash studied_borrows.uses
+    flow = studied_borrows.flow
+    uses = studied_borrows.uses
+}
+
+func count() {
+    crash function
+    choose_tracked()
+    find_children()
+    var index = 0
+    while index < function.values.count() {
+        if tracked.has(index) {
+            bind_name(index)
+        }
+        index = index + 1
+    }
+    settle_liveness()
+    var blocks = function.blocks.count()
+    index = 0
+    while index < blocks {
+        place_block(index)
+        index = index + 1
+    }
+}
+
+func choose_tracked() {
+    crash function
+    crash borrows
+    var index = 0
+    while index < function.values.count() {
+        var origin = borrows.origin_of(index)
+        if origin == "owned" {
+            tracked[index] = true
+        }
+        index = index + 1
+    }
+}
+
+func find_children() {
+    crash flow
+    var index = 1
+    while index < flow.order.count() {
+        var block = flow.order[index]
+        var parent = flow.dominator_of(block)
+        if not dominator_children.has(parent) {
+            var started = List<Integer>()
+            dominator_children[parent] = started
+        }
+        crash dominator_children[parent]
+        dominator_children[parent].append(block)
+        index = index + 1
+    }
+}
+
+func children_of(block: Integer): List<Integer> {
+    if dominator_children.has(block) {
+        crash dominator_children[block]
+        return dominator_children[block]
+    }
+    return List<Integer>()
+}
+
+# ../../../../docs/optimizations.md#the-compiler-places-memory
+func bind_name(value: Integer) {
+    crash function
+    crash uses
+    var described = function.value_at(value)
+    assert not described.name.is_empty()
+    var place = uses.place_of(value)
+    assert place.block >= 0
+    var waiting = List<Integer>()
+    var first_position = place.order() + 1
+    if bind_in_block(value, described.name, place.block, first_position) {
+        var first_children = children_of(place.block)
+        first_children.each(waiting.append)
+    }
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if bind_from_entry(value, described.name, taken) {
+            var more = children_of(taken)
+            more.each(waiting.append)
+        }
+    }
+}
+
+func bind_from_entry(value: Integer, name: String, block_number: Integer): Boolean {
+    crash function
+    var block = function.block_at(block_number)
+    var index = 0
+    while index < block.parameters.count() {
+        if function.value_at(block.parameters[index]).name == name {
+            return false
+        }
+        index = index + 1
+    }
+    return bind_in_block(value, name, block_number, 0)
+}
+
+func bind_in_block(value: Integer, name: String, block_number: Integer, start: Integer): Boolean {
+    crash function
+    var block = function.block_at(block_number)
+    var index = start.maximum(0)
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.result >= 0 and operation.result != value and function.value_at(operation.result).name == name {
+            add_pseudo_use(pseudo_uses, block_number * 100000 + index, value)
+            return false
+        }
+        index = index + 1
+    }
+    if block.terminator.kind == "halt" {
+        return false
+    }
+    add_pseudo_use(terminator_pseudo_uses, block_number, value)
+    return true
+}
+
+func add_pseudo_use(table: Dictionary<Integer, List<Integer>>, key: Integer, value: Integer) {
+    if not table.has(key) {
+        var started = List<Integer>()
+        table[key] = started
+    }
+    crash table[key]
+    if not table[key].contains(value) {
+        table[key].append(value)
+    }
+}
+
+func pseudo_at(block_number: Integer, position: Integer): List<Integer> {
+    if position < 0 {
+        if terminator_pseudo_uses.has(block_number) {
+            crash terminator_pseudo_uses[block_number]
+            return terminator_pseudo_uses[block_number]
+        }
+        return List<Integer>()
+    }
+    var key = block_number * 100000 + position
+    if pseudo_uses.has(key) {
+        crash pseudo_uses[key]
+        return pseudo_uses[key]
+    }
+    return List<Integer>()
+}
+
+func tracked_users(value: Integer, depth: Integer, found: List<Integer>) {
+    crash borrows
+    assert depth < 12
+    if tracked.has(value) {
+        if not found.contains(value) {
+            found.append(value)
+        }
+        return
+    }
+    var origin = borrows.origin_of(value)
+    assert origin == "borrowed" or origin == "lending" or borrows.sources.has(value)
+    var from = borrows.sources_of(value)
+    var index = 0
+    while index < from.count() {
+        tracked_users(from[index], depth + 1, found)
+        index = index + 1
+    }
+}
+
+func operation_users(operation: Operation, block_number: Integer, position: Integer): List<Integer> {
+    var found = List<Integer>()
+    var index = 0
+    while index < operation.operands.count() {
+        tracked_users(operation.operands[index], 0, found)
+        index = index + 1
+    }
+    var pseudo = pseudo_at(block_number, position)
+    pseudo.each(found.append)
+    return found
+}
+
+func terminator_users(block_number: Integer): List<Integer> {
+    crash function
+    var found = List<Integer>()
+    var terminator = function.block_at(block_number).terminator
+    var index = 0
+    while index < terminator.operands.count() {
+        tracked_users(terminator.operands[index], 0, found)
+        index = index + 1
+    }
+    index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var argument_index = 0
+        while argument_index < target.arguments.count() {
+            tracked_users(target.arguments[argument_index], 0, found)
+            argument_index = argument_index + 1
+        }
+        index = index + 1
+    }
+    var pseudo = pseudo_at(block_number, -1)
+    pseudo.each(found.append)
+    return found
+}
+
+func settle_liveness() {
+    crash function
+    crash flow
+    var index = 0
+    while index < function.blocks.count() {
+        var empty_in = LiveSet()
+        live_in[index] = empty_in
+        var empty_out = LiveSet()
+        live_out[index] = empty_out
+        index = index + 1
+    }
+    var changed = true
+    while changed {
+        changed = false
+        var position = flow.order.count() - 1
+        while position >= 0 {
+            crash flow.order[position]
+            if settle_block(flow.order[position]) {
+                changed = true
+            }
+            position = position - 1
+        }
+    }
+}
+
+func settle_block(block_number: Integer): Boolean {
+    crash flow
+    crash function
+    var after = LiveSet()
+    var going = flow.successors_of(block_number)
+    var index = 0
+    while index < going.count() {
+        var entering = set_of(live_in, going[index])
+        var names = entering.held()
+        names.each(after.add)
+        index = index + 1
+    }
+    live_out[block_number] = after
+    var live = after.copied()
+    var users = terminator_users(block_number)
+    users.each(live.add)
+    var block = function.block_at(block_number)
+    var position = block.operations.count() - 1
+    while position >= 0 {
+        crash block.operations[position]
+        var operation = block.operations[position]
+        if operation.result >= 0 {
+            live.remove(operation.result)
+        }
+        var operation_uses = operation_users(operation, block_number, position)
+        operation_uses.each(live.add)
+        position = position - 1
+    }
+    block.parameters.each(live.remove)
+    var before = set_of(live_in, block_number)
+    var grew = live.count() != before.count()
+    live_in[block_number] = live
+    return grew
+}
+
+func set_of(table: Dictionary<Integer, LiveSet>, block_number: Integer): LiveSet {
+    if table.has(block_number) {
+        crash table[block_number]
+        return table[block_number]
+    }
+    return LiveSet()
+}
+
+func place_block(block_number: Integer) {
+    crash function
+    crash flow
+    var block = function.block_at(block_number)
+    var leaving = set_of(live_out, block_number)
+    var live = leaving.copied()
+    var halting = block.terminator.kind == "halt"
+    if halting {
+        var everything = tracked.keys()
+        everything.each(live.add)
+    }
+    var before_terminator = List<Operation>()
+    place_terminator(block_number, live, before_terminator)
+    var rebuilt = List<Operation>()
+    var position = block.operations.count() - 1
+    while position >= 0 {
+        crash block.operations[position]
+        var operation = block.operations[position]
+        var after = List<Operation>()
+        var before = List<Operation>()
+        place_operation(operation, block_number, position, live, before, after)
+        prepend_all(rebuilt, after)
+        rebuilt.prepend(operation)
+        prepend_all(rebuilt, before)
+        position = position - 1
+    }
+    if not halting {
+        var at_entry = List<Operation>()
+        entry_releases(block_number, live, at_entry)
+        prepend_all(rebuilt, at_entry)
+    }
+    before_terminator.each(rebuilt.append)
+    block.operations = rebuilt
+}
+
+func prepend_all(rebuilt: List<Operation>, added: List<Operation>) {
+    var index = added.count() - 1
+    while index >= 0 {
+        crash added[index]
+        rebuilt.prepend(added[index])
+        index = index - 1
+    }
+}
+
+func place_terminator(block_number: Integer, live: LiveSet, before_terminator: List<Operation>) {
+    crash function
+    var terminator = function.block_at(block_number).terminator
+    assert terminator.kind != "halt"
+    var moved = List<Integer>()
+    if terminator.kind == "return" and not function.lends_answer {
+        var returned = terminator.operands.first()
+        if returned {
+            hand_on(returned, live, moved, before_terminator)
+        }
+    }
+    var index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var argument_index = 0
+        while argument_index < target.arguments.count() {
+            hand_on(target.arguments[argument_index], live, moved, before_terminator)
+            argument_index = argument_index + 1
+        }
+        index = index + 1
+    }
+    var users = terminator_users(block_number)
+    var dying = List<Integer>()
+    index = 0
+    while index < users.count() {
+        var user = users[index]
+        if not live.has(user) and not moved.contains(user) and not dying.contains(user) {
+            dying.append(user)
+        }
+        index = index + 1
+    }
+    release_all(dying, before_terminator)
+    users.each(live.add)
+}
+
+func hand_on(value: Integer, live: LiveSet, moved: List<Integer>, placed: List<Operation>) {
+    crash borrows
+    var origin = borrows.origin_of(value)
+    assert origin != "plain" and origin != "lent"
+    if tracked.has(value) and not live.has(value) and not moved.contains(value) {
+        moved.append(value)
+        return
+    }
+    var retain = counted("retain", value)
+    placed.append(retain)
+    retained_count = retained_count + 1
+}
+
+func counted(kind: String, value: Integer): Operation {
+    crash function
+    var described = function.value_at(value)
+    var made = Operation(kind, 0)
+    made.takes(value)
+    made.spite_type = described.spite_type
+    return made
+}
+
+func release_all(values: List<Integer>, placed: List<Operation>) {
+    var ordered = List<Integer>()
+    values.each(ordered.append)
+    var sorted = ordered.sort_by(descending)
+    var index = 0
+    while index < sorted.count() {
+        var release = counted("release", sorted[index])
+        placed.append(release)
+        released_count = released_count + 1
+        index = index + 1
+    }
+}
+
+func descending(value: Integer): Integer {
+    return -value
+}
+
+func place_operation(
+    operation: Operation,
+    block_number: Integer,
+    position: Integer,
+    live: LiveSet,
+    before: List<Operation>,
+    after: List<Operation>,
+) {
+    crash consumption
+    var dead_result = List<Integer>()
+    if operation.result >= 0 and tracked.has(operation.result) and not live.has(operation.result) {
+        dead_result.append(operation.result)
+    }
+    if operation.result >= 0 {
+        live.remove(operation.result)
+    }
+    var moved = List<Integer>()
+    var retained_any = false
+    var index = 0
+    while index < operation.operands.count() {
+        var operand = operation.operands[index]
+        if consumption.consumes_position(operation, index) {
+            var retained_before = before.count()
+            hand_on(operand, live, moved, before)
+            if before.count() > retained_before {
+                retained_any = true
+            }
+        }
+        index = index + 1
+    }
+    if not moved.is_empty() and not retained_any and operation.form.is_empty() {
+        operation.form = "moved"
+    }
+    var users = operation_users(operation, block_number, position)
+    var dying = List<Integer>()
+    index = 0
+    while index < users.count() {
+        var user = users[index]
+        if not live.has(user) and not moved.contains(user) and not dying.contains(user) {
+            dying.append(user)
+        }
+        index = index + 1
+    }
+    release_all(dead_result, after)
+    release_all(dying, after)
+    users.each(live.add)
+}
+
+func entry_releases(block_number: Integer, live: LiveSet, at_entry: List<Operation>) {
+    crash function
+    crash flow
+    var block = function.block_at(block_number)
+    var dead = List<Integer>()
+    var index = 0
+    while index < block.parameters.count() {
+        var parameter = block.parameters[index]
+        if tracked.has(parameter) and not live.has(parameter) {
+            dead.append(parameter)
+        }
+        index = index + 1
+    }
+    if block_number == 0 {
+        dead_parameters(live, dead)
+    }
+    edge_releases(block_number, live, dead)
+    release_all(dead, at_entry)
+}
+
+func dead_parameters(live: LiveSet, dead: List<Integer>) {
+    crash function
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if tracked.has(parameter.value) and not live.has(parameter.value) {
+            dead.append(parameter.value)
+        }
+        index = index + 1
+    }
+}
+
+func edge_releases(block_number: Integer, live: LiveSet, dead: List<Integer>) {
+    crash flow
+    var coming = flow.predecessors_of(block_number)
+    assert coming.count() == 1
+    var leaving = set_of(live_out, coming[0])
+    var names = leaving.held()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if not live.has(name) and not dead.contains(name) {
+            dead.append(name)
+        }
+        index = index + 1
+    }
+}

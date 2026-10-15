@@ -1,0 +1,29 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var members = Dictionary<Integer, Boolean>()
+
+func add(value: Integer) {
+    members[value] = true
+}
+
+func has(value: Integer): Boolean {
+    return members.has(value)
+}
+
+func remove(value: Integer) {
+    members.remove(value)
+}
+
+func count(): Integer {
+    return members.count()
+}
+
+func held(): List<Integer> {
+    return members.keys()
+}
+
+func copied(): LiveSet {
+    var made = LiveSet()
+    var names = members.keys()
+    names.each(made.add)
+    return made
+}
