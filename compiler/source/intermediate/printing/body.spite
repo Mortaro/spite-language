@@ -72,7 +72,7 @@ func print(printed: Function) {
 # ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
 func waits_as_primitive(printed: Function): Boolean {
     var kind = printed.waiting_kind
-    return not kind.is_empty() and kind != "join" and machines.scheduler_present()
+    return not kind.is_empty() and kind != "join" and lowered.makes_concurrents and machines.scheduler_present()
 }
 
 func print_waiting_lowered() {
