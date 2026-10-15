@@ -177,8 +177,142 @@ func print_foreign(body: Body, operation: Operation, word: String) {
         "library": foreign_library(body, operation)
         "constant": foreign_constant(body, operation)
         "call": foreign_call(body, operation)
+        "callback": foreign_callback(body, operation)
         _: body.refuse("it calls 'Foreign.{word}', which the printer does not write yet")
     }
+}
+
+func callback_type(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        return ""
+    }
+    var scalar = shape.as_scalar(spite_type)
+    if not scalar {
+        return ""
+    }
+    if scalar.kind == 'boolean_kind' {
+        return "int32_t"
+    }
+    return naming.scalar_c_type(scalar.kind)
+}
+
+func foreign_callback(body: Body, operation: Operation) {
+    var handle = body.operand(operation, 0)
+    var target = lowered.function_named(operation.target)
+    if not target {
+        body.refuse("it hands C '{operation.target}', which the program does not hold")
+        return
+    }
+    var position = operation.literal.replace("'", "")
+    var owner = lowered.layout_named(target.owner)
+    var shown = target.owner
+    if owner {
+        shown = owner.qualified
+    }
+    var place = body.source_place(operation)
+    var called = naming.escape_c("'{shown}.{target.name}' ({place})")
+    var parameters = List<String>()
+    var passed = List<String>()
+    var pointer_types = ["void*"]
+    if position == "context_first" {
+        parameters.append("void* spite_context")
+    }
+    var index = 0
+    while index < target.parameters.count() {
+        var parameter = target.parameters[index]
+        var crossing = callback_type(parameter.spite_type)
+        if crossing.is_empty() {
+            body.refuse("it hands C '{target.c_name}', which takes a value that cannot come from C")
+            return
+        }
+        parameters.append("{crossing} spite_argument_{index}")
+        var argument_written = naming.c_type(parameter.spite_type)
+        pointer_types.append(argument_written)
+        if crossing == "int32_t" and argument_written == "bool" {
+            passed.append("spite_argument_{index} != 0")
+        } else {
+            passed.append("spite_argument_{index}")
+        }
+        index = index + 1
+    }
+    if position == "context_last" {
+        parameters.append("void* spite_context")
+    }
+    if parameters.is_empty() {
+        parameters.append("void")
+    }
+    var returned = "void"
+    if target.answer and not shape.is_void(target.answer) and naming.c_type(target.answer) != "Nothing*" {
+        returned = callback_type(target.answer)
+        if returned.is_empty() {
+            body.refuse("it hands C '{target.c_name}', which answers a value that cannot go back to C")
+            return
+        }
+    }
+    output.need("callbacks")
+    if position == "no_context" {
+        no_context_callback(body, handle, target, called, parameters, passed, returned)
+        return
+    }
+    output.need("callback contexts")
+    var trampoline = "spite_callback_with_context_{output.forwarders.count()}"
+    output.forwarders.append(trampoline)
+    var answered_c = "void"
+    if returned != "void" {
+        answered_c = naming.c_type(target.answer)
+    }
+    var call = "(({answered_c} (*)({pointer_types.join(", ")}))spite_function->spite_typed_call)({joined_arguments("spite_function->spite_owner", passed)})"
+    var fetch = "Spite_Function* spite_function = (Spite_Function*)spite_callback_context_function(spite_context);\nif (spite_function == 0) spite_callback_late(\"{called}\", \"after its ForeignCallback was dropped: keep the ForeignCallback for as long as C may call it\");"
+    trampoline_text(trampoline, parameters, returned, fetch, call)
+    body.emit(
+        "\{ int64_t* spite_ticket = spite_callback_context_register(({handle})->_function_); ({handle})->_context_ = *spite_ticket; ({handle})->_registration_ = (int64_t)(intptr_t)spite_ticket; ({handle})->_address_ = (int64_t)(intptr_t)&{trampoline}; }",
+    )
+}
+
+func joined_arguments(first: String, rest: List<String>): String {
+    if rest.is_empty() {
+        return first
+    }
+    return "{first}, {rest.join(", ")}"
+}
+
+func no_context_callback(
+    body: Body,
+    handle: String,
+    target: Function,
+    called: String,
+    parameters: List<String>,
+    passed: List<String>,
+    returned: String,
+) {
+    var trampoline = "{target.c_name}___from_c"
+    var slot = "{trampoline}_owner"
+    if not output.forwarders.contains(trampoline) {
+        output.forwarders.append(trampoline)
+        output.literal_lines.append("static void* {slot} = 0;")
+        var owner_type = "void*"
+        if target.receiver >= 0 {
+            var receiver = target.value_at(target.receiver)
+            owner_type = naming.c_type(receiver.spite_type)
+        }
+        var fetch = "void* spite_owner = __atomic_load_n(&{slot}, __ATOMIC_ACQUIRE);\nif (spite_owner == 0) spite_callback_late(\"{called}\", \"after its ForeignCallback was dropped: keep the ForeignCallback for as long as C may call it\");"
+        var call = "{target.c_name}({joined_arguments("({owner_type})spite_owner", passed)})"
+        trampoline_text(trampoline, parameters, returned, fetch, call)
+    }
+    body.emit("spite_callback_register(&{slot}, ((Spite_Function*)({handle})->_function_)->spite_owner, \"{called}\");")
+    body.emit("({handle})->_registration_ = (int64_t)(intptr_t)&{slot};")
+    body.emit("({handle})->_address_ = (int64_t)(intptr_t)&{trampoline};")
+}
+
+func trampoline_text(trampoline: String, parameters: List<String>, returned: String, fetch: String, call: String) {
+    var answer = "{call};"
+    if returned != "void" {
+        answer = "return ({returned})({call});"
+    }
+    var header = "static {returned} {trampoline}({parameters.join(", ")})"
+    output.prototypes.append("{header};")
+    output.supports.append("{header} \{\n{fetch}\n{answer}\n}")
+    output.runtime_place(trampoline)
 }
 
 func library_number(body: Body, written: String): Integer {
