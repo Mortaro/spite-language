@@ -414,13 +414,20 @@ func memory_read(body: Body, operation: Operation) {
         bytes = "spite_string_length({object})"
         section = "(SPITE_STRING_IS_HEAP({object}) ? Spite_Memory_Section_heap : SPITE_STRING_IS_INLINE({object}) ? {inline_section} : Spite_Memory_Section_constant)"
     } else if shape.as_scalar(object_type) or shape.as_enum(object_type) {
+        var read_field = body.field_read_of(number)
+        if not read_field.is_empty() {
+            named = true
+            object = read_field
+        }
         if not named {
             body.refuse("it reads where a value lives that has no name, and only a named value has memory of its own")
             return
         }
         address = "(int64_t)(intptr_t)&({object})"
         bytes = number_bytes(object_type)
-        section = "Spite_Memory_Section_stack"
+        if read_field.is_empty() {
+            section = "Spite_Memory_Section_stack"
+        }
     } else if naming.counted_name(object_type).is_empty() or shape.as_nullable(object_type) or shape.as_union(object_type) {
         body.refuse("it reads where a value lives that has no memory of its own")
         return
