@@ -187,6 +187,17 @@ What the lowering writes, for the passes and the printer:
 - `Foreign.library` (the library's number in `target`; its file, naming and header are in `Lowered.foreign_*`),
   `Foreign.call` (the symbol in `target`, the library's number in `literal`), `Foreign.constant`.
 - `Arguments.program`, `Arguments.count`, `Arguments.get`, `Arguments.flag`.
+- A call on a `type` is a `switch` on `Union.tag` with a target per member class and a default target that halts
+  (its site says the value's class was not compiled for the call), so a `type` no class fits still lowers. A
+  required function of a `type` read as a value binds `<type>___call_<name>`, a function the lowering writes whose
+  body is that switch, to the `type` value with `Function.bind`. `to_string` and `to_debug` dispatch on any `type`
+  without being required, falling back from `to_string` to `to_debug` per member.
+- `Type.size` answers the C size of a `type` whose attributes are all numbers, with the `type` in `target` and its
+  C struct in `literal`.
+- What the generator folds while compiling is written as its answer: a dictionary local only read by literal keys
+  is its entries, read where they are named; a chain of element templates is one call of the fused template the
+  generator registers (`filter_is_active_then_sum_price`); `"word".pluralize()` is the inflected text; a maths
+  call on constants is its value; a local bound to a reflection object is no local at all.
 - `assert` returns the function's default; `crash` is a `halt` whose operands are the text, number and enum
   locals in scope, named in the site's `shown`.
 

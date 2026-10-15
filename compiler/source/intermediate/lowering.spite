@@ -244,8 +244,8 @@ func lower_supplied(
         generator.supply_body(information, declared)
     }
     var answer = declared.return_type
-    if declared.name == "to_debug" and declared.supplied_body.contains("Spite_Debug") {
-        reach_debug_text(instances, information)
+    if declared.name == "to_debug" and declared.supplied_body.contains("* spite_debug = ") {
+        reach_debug_text(instances, declared.supplied_body)
     }
     if declared.name == "entry_address" {
         reach_served(instances, information)
@@ -346,6 +346,12 @@ func write_reflection(instances: Instances, position: Integer) {
         write_class_maker(instances, name, described)
         return
     }
+    if kind == "shape_caller" {
+        crash instances.reflection_texts[position]
+        var called = instances.reflection_texts[position]
+        write_shape_caller(instances, name, described, called)
+        return
+    }
     if kind == "namespace_object" {
         crash instances.reflection_texts[position]
         var dotted = instances.reflection_texts[position]
@@ -422,10 +428,13 @@ func synthetic_body(information: Analysis.ClassInfo, declared: Analysis.Function
     declared.supplied_body = "return spite_string_from_cstring_owned({information.c_name}___name(self));"
 }
 
-func reach_debug_text(instances: Instances, information: Analysis.ClassInfo) {
+func reach_debug_text(instances: Instances, body: String) {
     var made = instances.front()
-    var debugged_type = made.instance_type_of(information)
-    var debug_class = made.debug_class_of(debugged_type)
+    var end = body.index_of("* spite_debug")
+    crash end >= 0
+    var debug_name = body.slice(0, end)
+    var debug_class = made.find_class_by_c_name(debug_name)
+    crash debug_class
     var no_arguments = List<Syntax.Expressions.Expression>()
     instances.singleton_maker(debug_class, no_arguments, "")
     var text = made.find_or_instantiate_function(debug_class, "text")
@@ -487,6 +496,45 @@ func write_reflect(instances: Instances, name: String, described: Analysis.Class
     var reflection = ReflectionLowering(expressions)
     var attribute = reflection.reflect_body(name_value, held_value)
     emitter.returns(attribute)
+    finish_body(function, emitter)
+}
+
+func write_shape_caller(instances: Instances, name: String, described: Analysis.ClassInfo, called: String) {
+    var made = instances.front()
+    var pieces = called.split(" ")
+    var union_name = pieces[0]
+    crash union_name
+    var member_name = pieces[1]
+    crash member_name
+    var described_union = made.find_union_by_c_name(union_name)
+    crash described_union
+    var wanted = made.find_required_function(described_union, member_name)
+    crash wanted
+    var function = synthetic_function(name, member_name, described)
+    var parameter_types = made.required_parameter_types(described_union, wanted)
+    var answer = made.required_return_type(described_union, wanted)
+    function.answer = answer
+    var union_type = made.union_type_of(described_union)
+    var owner = function.new_value(union_type, "parameter")
+    function.value_at(owner).name = "owner"
+    var owner_parameter = Parameter("owner", union_type, owner)
+    function.parameters.append(owner_parameter)
+    var values = List<Integer>()
+    var index = 0
+    while index < parameter_types.count() {
+        var parameter_name = "argument_{index}"
+        var value = function.new_value(parameter_types[index], "parameter")
+        function.value_at(value).name = parameter_name
+        var parameter = Parameter(parameter_name, parameter_types[index], value)
+        function.parameters.append(parameter)
+        values.append(value)
+        index = index + 1
+    }
+    var described_function = synthetic_description(member_name, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var result = expressions.dispatched(described_union, member_name, true, owner, values, answer)
+    emitter.returns(result)
     finish_body(function, emitter)
 }
 
