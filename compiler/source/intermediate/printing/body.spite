@@ -1488,18 +1488,24 @@ func note_placements() {
 }
 
 func print_placed_make(operation: Operation, layout: Layout) {
-    var allocator_number = placements[operation.result]
+    var head = placement_head(operation.result, layout)
+    assert not head.is_empty()
+    assign(operation.result, "{layout.c_name}___allocate_in({head})")
+}
+
+func placement_head(placed: Integer, layout: Layout): String {
+    var allocator_number = placements[placed]
     crash allocator_number
-    if position_of(allocator_number) > position_of(operation.result) {
+    if position_of(allocator_number) > position_of(placed) {
         refuse("it places an object in an allocator that is made after it")
-        return
+        return ""
     }
     var allocator = name_of(allocator_number)
     var allocator_type = type_of(allocator_number)
     var allocator_layout = naming.layout_of(allocator_type)
     if not allocator_layout {
         refuse("it places '{layout.c_name}' in an allocator that is not an object")
-        return
+        return ""
     }
     var allocating = allocator_function(allocator_layout, "allocate")
     var freeing = allocator_function(allocator_layout, "free")
@@ -1507,7 +1513,7 @@ func print_placed_make(operation: Operation, layout: Layout) {
         refuse(
             "it places '{layout.c_name}' in '{allocator_layout.qualified}', whose allocate and free the program does not hold",
         )
-        return
+        return ""
     }
     if not output.placed_layouts.contains(layout.c_name) {
         output.placed_layouts.append(layout.c_name)
@@ -1523,7 +1529,24 @@ func print_placed_make(operation: Operation, layout: Layout) {
     }
     var held = "(void*){allocator_layout.c_name}___retain({allocator})"
     var address = "{allocating}({allocator}, (int64_t)sizeof({layout.c_name}))"
-    assign(operation.result, "{layout.c_name}___allocate_in({held}, {given}, {address})")
+    return "{held}, {given}, {address}"
+}
+
+func made_here(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number {
+                return operation.kind == "make" or operation.callee == "Object.copy"
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
 }
 
 func position_of(number: Integer): Integer {

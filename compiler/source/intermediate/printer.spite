@@ -22,6 +22,7 @@ func print(lowered: Lowered): String {
     lowered.enums.each(layouts.print_enum_names)
     lowered.layouts.each(layouts.print)
     note_nothing_default()
+    note_loop_tables(lowered)
     note_maths()
     var written = assembled(lowered)
     note_reached(written)
@@ -101,9 +102,6 @@ func wire(lowered: Lowered) {
 func refuse_unbuilt(lowered: Lowered) {
     if lowered.hot_reload {
         output.refuse("a --hot-reload build swaps code in a running program, which the printer does not write yet")
-    }
-    if lowered.read_evaluate_print_loop {
-        output.refuse("a REPL build answers questions about the running program, which the printer does not write yet")
     }
     if lowered.remote_loop {
         output.refuse("the program serves a REPL port, which the printer does not write yet")
@@ -188,6 +186,25 @@ func foreign_prototypes(): String {
     return lines.join("\n")
 }
 
+func note_loop_tables(lowered: Lowered) {
+    assert output.printed_text.contains("spite_loop_class_names") or output.printed_text.contains("spite_loop_enum_names") or output.printed_text.contains("spite_loop_class_descriptions")
+    var class_names = naming.escape_c(lowered.loop_class_names)
+    var enum_names = naming.escape_c(lowered.loop_enum_names)
+    var descriptions = naming.escape_c(lowered.loop_class_descriptions)
+    output.prototypes.append("SpiteString spite_loop_class_names(void);")
+    output.prototypes.append("SpiteString spite_loop_enum_names(void);")
+    output.prototypes.append("SpiteString spite_loop_class_descriptions(void);")
+    output.supports.append(
+        "SpiteString spite_loop_class_names(void) \{ return spite_string_from_cstring_owned(\"{class_names}\"); }",
+    )
+    output.supports.append(
+        "SpiteString spite_loop_enum_names(void) \{ return spite_string_from_cstring_owned(\"{enum_names}\"); }",
+    )
+    output.supports.append(
+        "SpiteString spite_loop_class_descriptions(void) \{ return spite_string_from_cstring_owned(\"{descriptions}\"); }",
+    )
+}
+
 func note_nothing_default() {
     assert output.printed_text.contains("Nothing___default(")
     var nothing = naming.lowered.layout_named("Nothing")
@@ -251,4 +268,24 @@ func note_reached(written: String) {
     if output.weak_classes.is_empty() and written.contains("spite_weak_box_of") {
         output.refuse("the program reaches a Weak reference whose layout it does not hold")
     }
+    var declared = output.prototypes.join("\n")
+    var rest = written
+    while rest.contains("___make(") {
+        var at = rest.index_of("___make(")
+        var start = at
+        while start > 0 and is_name_at(rest, start - 1) {
+            start = start - 1
+        }
+        var made = rest.slice(start, at)
+        if not declared.contains(" {made}___make(") and not declared.contains("*{made}___make(") {
+            output.refuse("a supplied body makes '{made}' through '{made}___make', which the lowering does not write")
+        }
+        var rest_length = rest.length()
+        rest = rest.slice(at + 8, rest_length)
+    }
+}
+
+func is_name_at(text: String, index: Integer): Boolean {
+    var code = text.code_at(index)
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
