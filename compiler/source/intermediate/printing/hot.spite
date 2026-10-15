@@ -15,6 +15,10 @@ var problems = List<String>()
 var local_names = Dictionary<String, Boolean>()
 var installed = List<String>()
 var redirected = List<String>()
+var migrates = false
+var remote_serve = ""
+var remote_pause = ""
+var remote_locals = ""
 
 func hash_of(text: String): String {
     var hash = facts.text_hash(text)
@@ -580,6 +584,7 @@ func library(
     hash_pieces()
     note_changed_owners(reload, owners)
     grow_owners(reload, owners)
+    note_moved_layouts(owners)
     note_stale(reload)
     note_shared_state()
     note_layout_changes(reload)
@@ -593,11 +598,22 @@ func library(
     }
     note_installs(reload, owners)
     note_local_names(reload)
+    var migration = migration_text()
     var kept_supports = included(output.supports, output.support_tags, output.support_pure)
     var bodies = included(output.bodies, output.body_tags, output.body_pure)
     var redirects = redirect_lines()
     var bind = bind_function()
-    var parts = ["#define SPITE_RELOADED", types, declared, redirects, runtime_text, kept_supports, bodies, bind]
+    var parts = [
+        "#define SPITE_RELOADED"
+        types
+        declared
+        redirects
+        runtime_text
+        kept_supports
+        bodies
+        migration
+        bind
+    ]
     var text = parts.join("\n")
     return "{text}\n"
 }
@@ -680,7 +696,7 @@ func note_stale(reload: Generation.HotReloadLibrary) {
     var index = 0
     while index < names.count() {
         var name = names[index]
-        var slotted = slot_names.contains(name) or name.ends_with("___hot")
+        var slotted = slot_names.contains(name) or name.ends_with("___hot") or is_moved_piece(name)
         var exported = exported_prototypes.has(name)
         var kept_static = not exported and reload.host_hashes.has(name)
         if not slotted and exported and keeps_prototype(reload, name) and is_changed(reload, name) {
@@ -746,7 +762,12 @@ func note_layout_changes(reload: Generation.HotReloadLibrary) {
         var flat = layout_texts[name].replace("\n", " ")
         var known = reload.host_layouts.has(name)
         var enumerated = flat.starts_with("typedef enum")
-        if known and not enumerated and reload.host_layouts[name] != flat {
+        var moved = false
+        var changed_layout = lowered.layout_named(name)
+        if changed_layout {
+            moved = changed_layout.changing
+        }
+        if known and not enumerated and not moved and reload.host_layouts[name] != flat {
             problems.append(
                 "the attributes of '{name}' changed, and moving the running objects to new attributes is not printed from the high IR yet: restart the program to take the change",
             )
@@ -816,6 +837,24 @@ func note_local_names(reload: Generation.HotReloadLibrary) {
     }
     redirected = kept
     redirected.append("spite_check_point_wanted")
+    index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.changing {
+            var descriptor = "{layout.c_name}___layout"
+            local_names[descriptor] = true
+            var unbound = List<String>()
+            var redirect_index = 0
+            while redirect_index < redirected.count() {
+                if redirected[redirect_index] != descriptor {
+                    unbound.append(redirected[redirect_index])
+                }
+                redirect_index = redirect_index + 1
+            }
+            redirected = unbound
+        }
+        index = index + 1
+    }
 }
 
 func included(pieces: List<String>, tags: List<String>, pure: List<Boolean>): String {
@@ -917,6 +956,9 @@ func bind_function(): String {
         )
         index = index + 1
     }
+    if migrates {
+        lines.append("\{ const char* refused = spite_migrate_all(1); if (refused != 0) return refused; }")
+    }
     index = 0
     while index < installed.count() {
         var checked = installed[index]
@@ -929,7 +971,11 @@ func bind_function(): String {
         lines.append("install(\"{name}\", (void*)&{name}___hot);")
         index = index + 1
     }
-    lines.append("return 0;")
+    if migrates {
+        lines.append("return spite_migrate_all(0);")
+    } else {
+        lines.append("return 0;")
+    }
     lines.append("}")
     var swapped = List<String>()
     index = 0
@@ -947,5 +993,247 @@ func bind_function(): String {
     lines.append("static const char* const spite_names[] = \{ {swapped.join(", ")} };")
     lines.append("return spite_names[index];")
     lines.append("}")
+    return lines.join("\n")
+}
+
+# ../../../../docs/repl.md#changing-a-classs-attributes
+func note_moved_layouts(owners: List<String>) {
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.changing {
+            migrates = true
+            if not owners.contains(layout.c_name) {
+                owners.append(layout.c_name)
+            }
+            if layout.storage_change != "references" {
+                problems.append(
+                    "the objects of '{layout.qualified}' are kept in an Items' own memory, and moving them to new attributes is not printed from the high IR yet: restart the program to take the change",
+                )
+            }
+            note_touching(layout, owners)
+        }
+        index = index + 1
+    }
+}
+
+func note_touching(layout: Layout, owners: List<String>) {
+    assert output.touches.has(layout.c_name)
+    crash output.touches[layout.c_name]
+    var touching = output.touches[layout.c_name]
+    var index = 0
+    while index < touching.count() {
+        var toucher = lowered.function_named(touching[index])
+        if toucher and toucher.slotted {
+            if not owners.contains(toucher.owner) {
+                owners.append(toucher.owner)
+            }
+        } else {
+            stale(touching[index])
+        }
+        index = index + 1
+    }
+}
+
+func is_moved_piece(name: String): Boolean {
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.changing and name.starts_with("{layout.c_name}___") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func migration_text(): String {
+    if not migrates {
+        return ""
+    }
+    var lines = List<String>()
+    lines.append(
+        "typedef struct SpiteMoving \{ void** places; void (**releases)(void*); int64_t count; int64_t capacity; void** blocks; int64_t block_count; int64_t block_capacity; } SpiteMoving;",
+    )
+    lines.append(
+        "typedef struct SpitePlan \{ const SpiteLayout** now; const SpiteLayout* old; const SpiteLayout* fresh; int64_t* from; int32_t* taken; void** objects; int64_t count; void** holders; int64_t holder_count; } SpitePlan;",
+    )
+    var helpers = moving_helpers()
+    lines.append(helpers)
+    var prepares = List<String>()
+    var moves = List<String>()
+    var plans = List<String>()
+    var finishes = List<String>()
+    var number = 0
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.changing {
+            var migration = class_migration(layout)
+            lines.append(migration)
+            plans.append("SpitePlan spite_plan_{number} = \{ 0 };")
+            prepares.append("const char* spite_refused_{number} = {layout.c_name}___prepare(&spite_plan_{number});")
+            prepares.append("if (spite_refused_{number} != 0) return spite_refused_{number};")
+            moves.append("{layout.c_name}___move_all(&spite_plan_{number}, &moving);")
+            finishes.append("spite_plan_finish(&spite_plan_{number});")
+            number = number + 1
+        }
+        index = index + 1
+    }
+    lines.append(
+        "static const char* spite_migrate_all(int32_t checking) \{\nif (checking) return 0;\n{plans.join("\n")}\n{prepares.join("\n")}\nSpiteMoving moving = \{ 0 };\n{moves.join("\n")}\n{finishes.join("\n")}\nspite_moving_finish(&moving);\nreturn 0;\n}",
+    )
+    return lines.join("\n")
+}
+
+func class_migration(layout: Layout): String {
+    var name = layout.c_name
+    var renamed = List<String>()
+    var fill = List<String>()
+    fill.append("static void {name}___fill({name}* fresh, char* was, const SpitePlan* plan) \{")
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        crash field.spite_type
+        var old_name = ""
+        if index < layout.renamed_from.count() {
+            old_name = layout.renamed_from[index]
+        }
+        if old_name.is_empty() {
+            renamed.append("0")
+        } else {
+            renamed.append("\"{old_name}\"")
+        }
+        var counted = naming.counted_name(field.spite_type)
+        var released = ""
+        if not counted.is_empty() {
+            released = "{counted}___release(fresh->{field.name}_);"
+        }
+        fill.append(
+            "if (plan->from[{index}] >= 0) \{ {released} memcpy(&fresh->{field.name}_, was + plan->old->fields[plan->from[{index}]].offset, sizeof(fresh->{field.name}_)); }",
+        )
+        index = index + 1
+    }
+    fill.append("(void)fresh; (void)was; (void)plan;")
+    fill.append("}")
+    renamed.append("0")
+    var prepare = [
+        "static const char* {name}___prepare(SpitePlan* plan) \{"
+        "static const char* const renamed[] = \{ {renamed.join(", ")} };"
+        "const char* refused = spite_plan(plan, {name}___layout_now(), {name}___layout(), renamed, {name}___live());"
+        "if (refused != 0) return refused;"
+        "return 0;"
+        "}"
+    ]
+    var move = [
+        "static void {name}___move_all(SpitePlan* plan, SpiteMoving* moving) \{"
+        "if (plan->from == 0) return;"
+        "for (int64_t index = 0; index < plan->count; index = index + 1) \{"
+        "{name}* object = ({name}*)plan->objects[index];"
+        "char* was = object->spite_moved != 0 ? (char*)object->spite_moved : (char*)object;"
+        "{name}* fresh = ({name}*)SPITE_MALLOC(sizeof({name}));"
+        "memset(fresh, 0, sizeof({name}));"
+        "{name}___init___hot(fresh);"
+        "{name}___fill(fresh, was, plan);"
+        "spite_forget_fields(was, plan, moving);"
+        "if (object->spite_moved != 0) spite_moving_free(moving, object->spite_moved);"
+        "object->spite_moved = fresh;"
+        "}"
+        "}"
+    ]
+    var fill_text = fill.join("\n")
+    var prepare_text = prepare.join("\n")
+    var move_text = move.join("\n")
+    return "{fill_text}\n{prepare_text}\n{move_text}"
+}
+
+func moving_helpers(): String {
+    var lines = [
+        "static void spite_moving_release(SpiteMoving* moving, void (*release)(void*), void* place) \{"
+        "if (moving->count == moving->capacity) \{ moving->capacity = moving->capacity == 0 ? 64 : moving->capacity * 2; moving->places = (void**)realloc(moving->places, (size_t)moving->capacity * sizeof(void*)); moving->releases = (void (**)(void*))realloc(moving->releases, (size_t)moving->capacity * sizeof(void (*)(void*))); }"
+        "if (moving->places == 0 || moving->releases == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory moving objects to new attributes\\n\"); exit(1); }"
+        "moving->places[moving->count] = place; moving->releases[moving->count] = release; moving->count = moving->count + 1;"
+        "}"
+        "static void spite_moving_free(SpiteMoving* moving, void* block) \{"
+        "if (moving->block_count == moving->block_capacity) \{ moving->block_capacity = moving->block_capacity == 0 ? 64 : moving->block_capacity * 2; moving->blocks = (void**)realloc(moving->blocks, (size_t)moving->block_capacity * sizeof(void*)); }"
+        "if (moving->blocks == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory moving objects to new attributes\\n\"); exit(1); }"
+        "moving->blocks[moving->block_count] = block; moving->block_count = moving->block_count + 1;"
+        "}"
+        "static void spite_moving_finish(SpiteMoving* moving) \{"
+        "for (int64_t index = 0; index < moving->count; index = index + 1) moving->releases[index](moving->places[index]);"
+        "for (int64_t index = 0; index < moving->block_count; index = index + 1) SPITE_FREE(moving->blocks[index]);"
+        "free(moving->places); free(moving->releases); free(moving->blocks);"
+        "}"
+        "static int32_t spite_same_layout(const SpiteLayout* old, const SpiteLayout* fresh) \{"
+        "if (old->size != fresh->size || old->count != fresh->count || old->fits != fresh->fits) return 0;"
+        "for (int64_t index = 0; index < old->count; index = index + 1) \{"
+        "const SpiteLayoutField* was = &old->fields[index]; const SpiteLayoutField* is = &fresh->fields[index];"
+        "if (strcmp(was->name, is->name) != 0 || strcmp(was->type, is->type) != 0 || was->offset != is->offset || was->size != is->size) return 0;"
+        "}"
+        "return 1;"
+        "}"
+        "static int64_t spite_old_field(const SpiteLayout* old, const char* name, const char* type) \{"
+        "if (name == 0) return -1;"
+        "for (int64_t index = 0; index < old->count; index = index + 1) if (strcmp(old->fields[index].name, name) == 0 && strcmp(old->fields[index].type, type) == 0) return index;"
+        "return -1;"
+        "}"
+        "static const char* spite_plan(SpitePlan* plan, const SpiteLayout** now, const SpiteLayout* fresh, const char* const* renamed, SpiteLiveSet* live) \{"
+        "plan->now = now; plan->old = *now; plan->fresh = fresh;"
+        "if (spite_same_layout(plan->old, fresh)) return 0;"
+        "plan->from = (int64_t*)calloc((size_t)fresh->count + 1, sizeof(int64_t));"
+        "plan->taken = (int32_t*)calloc((size_t)plan->old->count + 1, sizeof(int32_t));"
+        "plan->objects = (void**)malloc((size_t)(live->count + 1) * sizeof(void*));"
+        "if (plan->from == 0 || plan->taken == 0 || plan->objects == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory moving objects to new attributes\\n\"); exit(1); }"
+        "for (int64_t index = 0; index < fresh->count; index = index + 1) \{"
+        "int64_t found = spite_old_field(plan->old, renamed[index], fresh->fields[index].type);"
+        "if (found < 0 || plan->taken[found]) found = spite_old_field(plan->old, fresh->fields[index].name, fresh->fields[index].type);"
+        "if (found >= 0 && plan->taken[found]) found = -1;"
+        "plan->from[index] = found;"
+        "if (found >= 0) plan->taken[found] = 1;"
+        "}"
+        "plan->count = live->count;"
+        "for (int64_t index = 0; index < live->count; index = index + 1) plan->objects[index] = live->objects[index];"
+        "return 0;"
+        "}"
+        "static void spite_plan_finish(SpitePlan* plan) \{"
+        "if (plan->from != 0) *plan->now = plan->fresh;"
+        "free(plan->from); free(plan->taken); free(plan->objects); free(plan->holders);"
+        "}"
+        "static void spite_forget_fields(char* was, const SpitePlan* plan, SpiteMoving* moving) \{"
+        "for (int64_t index = 0; index < plan->old->count; index = index + 1) if (!plan->taken[index] && plan->old->fields[index].release != 0) spite_moving_release(moving, plan->old->fields[index].release, was + plan->old->fields[index].offset);"
+        "}"
+    ]
+    return lines.join("\n")
+}
+
+# ../../../../docs/repl.md#remote---repl-port
+func remote_prototypes(): String {
+    var lines = List<String>()
+    if not lowered.hot_reload {
+        lines.append("static int32_t spite_check_point_wanted = 0;")
+    }
+    if output.needs("remote loop") {
+        lines.append("static ReadEvaluatePrintLoop* spite_remote_loop = 0;")
+        lines.append("static Spite_Attribute* spite_remote_program = 0;")
+        lines.append("static void* spite_remote_loop_thread(void* unused);")
+    }
+    if not remote_pause.is_empty() {
+        lines.append("void spite_breakpoint(SpiteString site, {remote_locals}* locals);")
+    }
+    return lines.join("\n")
+}
+
+func remote_supports(): String {
+    var lines = List<String>()
+    if not remote_serve.is_empty() {
+        lines.append(
+            "static void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\n{remote_serve}(spite_remote_loop, Spite_Attribute___retain(spite_remote_program));\nreturn 0;\n}",
+        )
+    }
+    if not remote_pause.is_empty() {
+        lines.append(
+            "void spite_breakpoint(SpiteString site, {remote_locals}* locals) \{\nif (spite_remote_loop == 0) \{ SpiteString___release(site); {remote_locals}___release(locals); return; }\n{remote_pause}(spite_remote_loop, site, locals);\n}",
+        )
+    }
     return lines.join("\n")
 }

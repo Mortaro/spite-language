@@ -89,6 +89,10 @@ func prove_call(
         decide_comparison(function, operation, place, spans, relations, listed)
         return
     }
+    if callee == "Enum.equals" and operation.operands.count() == 2 and operation.result >= 0 {
+        decide_listed(function, operation, listed)
+        return
+    }
     if callee == "Nullable.has" {
         decide_presence(function, operation, place, relations)
         return
@@ -210,6 +214,18 @@ func decide_comparison(
     if answer.is_empty() and meaning == "equals" {
         answer = listed.decided_equality(function, left, right)
     }
+    assert not answer.is_empty()
+    var result_type = function.value_at(operation.result).spite_type
+    folding.become_constant(operation, answer, result_type)
+}
+
+# ../../../../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling
+func decide_listed(function: Function, operation: Operation, listed: ListedValues) {
+    crash folding
+    var left = operation.operands.first()
+    var right = operation.operands.last()
+    assert left and right
+    var answer = listed.decided_equality(function, left, right)
     assert not answer.is_empty()
     var result_type = function.value_at(operation.result).spite_type
     folding.become_constant(operation, answer, result_type)

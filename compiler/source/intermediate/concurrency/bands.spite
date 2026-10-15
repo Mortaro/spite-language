@@ -45,7 +45,8 @@ func band_loop(function: Function, flow: Facts.Flow, header: Integer) {
     var preheader = edges.preheader_of(flow, header)
     var exit = edges.exit_of(function, flow, body)
     assert preheader >= 0 and exit >= 0 and not uses_loop_values(function, uses, exit, body)
-    var threshold = 1000000 / weight + 1
+    var counted = 1000000 / weight + 1
+    var threshold = counted.maximum(2)
     run_in_bands(function, preheader, header, exit, list, called, threshold)
     banded_count = banded_count + 1
 }

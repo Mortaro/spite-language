@@ -115,7 +115,7 @@ func row_call(function: Function, uses: Facts.Uses, operation: Operation): Boole
     if summary.writes_memory or summary.makes.count() > 0 or touches_singletons(summary) {
         return false
     }
-    return bands.weight_of(callee.c_name, 0) >= 256
+    return true
 }
 
 func touches_singletons(summary: Facts.Summary): Boolean {

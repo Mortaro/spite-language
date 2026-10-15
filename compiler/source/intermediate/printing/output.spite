@@ -42,6 +42,7 @@ var foreign_headers = List<String>()
 var table_names = List<String>()
 var defined = Dictionary<String, Boolean>()
 var hot_start = ""
+var touches = Dictionary<String, List<String>>()
 var support_tags = List<String>()
 var body_tags = List<String>()
 var last_piece = ""
@@ -86,6 +87,17 @@ func uses(name: String): Boolean {
         index = index + 1
     }
     return false
+}
+
+func touch(layout: String, function: String) {
+    if not touches.has(layout) {
+        touches[layout] = List<String>()
+    }
+    crash touches[layout]
+    var touching = touches[layout]
+    if not touching.contains(function) {
+        touching.append(function)
+    }
 }
 
 func support(text: String) {
