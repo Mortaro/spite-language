@@ -214,12 +214,23 @@ func returns_read(uses: Facts.Uses, terminator: Terminator): Boolean {
     if not returned {
         return false
     }
-    var defining = uses.definition_of(returned)
-    if not defining {
+    return returns_read_value(uses, returned, 0)
+}
+
+func returns_read_value(uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+    var defining = uses.definition_of(value)
+    if not defining or depth > 4 {
         return false
     }
     if defining.kind == "constant" {
         return true
+    }
+    if is_wrap(defining) {
+        var wrapped = defining.operands.first()
+        if not wrapped {
+            return false
+        }
+        return returns_read_value(uses, wrapped, depth + 1)
     }
     return is_lending_read(defining)
 }

@@ -109,9 +109,14 @@ func settle_value(
     }
     borrows.origins[value] = "owned"
     counted_reads = counted_reads + 1
-    if origin == "borrowed" {
+    if origin == "borrowed" and not consumption_wraps(defining) {
         inserted[value] = true
     }
+}
+
+func consumption_wraps(defining: Operation): Boolean {
+    crash consumption
+    return consumption.is_wrap(defining)
 }
 
 func lend(defining: Operation): Boolean {

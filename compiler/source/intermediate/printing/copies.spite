@@ -131,7 +131,7 @@ func element_of(layout: Layout, position: Integer): Analysis.SpiteType? {
 func list_copy(layout: Layout, function_name: String) {
     var name = layout.c_name
     if layout.arrangement == "slots" {
-        output.refuse("a deep copy of '{name}', whose lists live in its slots, which the printer does not copy yet")
+        slots_copy(layout, function_name)
         return
     }
     var element = element_of(layout, 0)
@@ -156,6 +156,48 @@ func list_copy(layout: Layout, function_name: String) {
         "return copied;"
         "}"
     ]
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
+}
+
+func slots_copy(layout: Layout, function_name: String) {
+    var name = layout.c_name
+    var element = element_of(layout, 0)
+    assert element
+    var inner_layout = naming.layout_of(element)
+    if not inner_layout {
+        output.refuse("a deep copy of '{name}', whose slots hold lists with no layout")
+        return
+    }
+    var inner = inner_layout.c_name
+    var inner_copy = ensure(inner_layout)
+    var kept = kept_fields(layout, ["items", "item_count", "capacity"])
+    var lines = [
+        "{name}* {function_name}({name}* self) \{"
+        "if (self == 0) return 0;"
+        "{name}* copied = {name}___allocate();"
+        kept
+        "copied->item_count_ = self->item_count_;"
+        "copied->capacity_ = self->item_count_;"
+        "copied->items_ = 0;"
+        "if (self->item_count_ > 0) \{"
+        "{inner}* spite_slots = ({inner}*)SPITE_MALLOC(sizeof({inner}) * (size_t)self->item_count_);"
+        "if (spite_slots == 0) \{ fflush(stdout); fputs(\"spite: out of memory copying a list\\n\", stderr); exit(1); }"
+        "for (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) \{"
+        "{inner}* spite_made = {inner_copy}(&(({inner}*)(intptr_t)self->items_)[spite_index]);"
+        "memcpy(&spite_slots[spite_index], spite_made, sizeof({inner}));"
+        "spite_slots[spite_index].header.ref_count = SPITE_FRAMED_COUNT;"
+        "spite_made->items_ = 0;"
+        "spite_made->item_count_ = 0;"
+        "spite_made->capacity_ = 0;"
+        "{inner}___release(spite_made);"
+        "}"
+        "copied->items_ = (int64_t)(intptr_t)spite_slots;"
+        "}"
+        "return copied;"
+        "}"
+    ]
+    output.need("framed")
     var copy_text = lines.join("\n")
     output.supports.append(copy_text)
 }
