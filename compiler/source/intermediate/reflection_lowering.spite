@@ -28,9 +28,7 @@ func class_object(name: String): Integer {
         return lowering().not_lowered(null, "a class object the generator never described")
     }
     crash made.class_object_displays[position]
-    crash made.class_object_labels[position]
     var display = made.class_object_displays[position]
-    var label = made.class_object_labels[position]
     var class_class = made.find_class_by_c_name("Spite_Class")
     if not class_class {
         return lowering().not_lowered(null, "a class object with no Spite.Class")
@@ -42,11 +40,16 @@ func class_object(name: String): Integer {
     if made.run_time_kinds_used and kind {
         flag(object, "_{kind}")
     }
-    var described = made.find_class_by_c_name(label)
-    if described {
-        describe_class(object, described)
-    }
     return object
+}
+
+func described_by_class_object(name: String): Analysis.ClassInfo? {
+    var made = lowering().front()
+    var position = position_of(made.class_object_names, name)
+    assert position >= 0
+    var label = made.class_object_labels[position]
+    assert label
+    return made.find_class_by_c_name(label)
 }
 
 func position_of(names: List<String>, name: String): Integer {
@@ -258,6 +261,9 @@ func function_of(
     if made.run_time_kinds_used and made.literal_body(function) {
         store_literal(made_function, function)
     }
+    if made.wait_facts.may_wait(function.c_name) {
+        flag(made_function, "_waits")
+    }
     if owner < 0 {
         return made_function
     }
@@ -306,6 +312,9 @@ func bound_caller(
         store_index(argument, index)
         lowering().call_two_function(appender, arguments, argument)
         index = index + 1
+    }
+    if made.wait_facts.may_wait(caller) {
+        flag(made_function, "_waits")
     }
     var operands = [made_function, owner]
     var binding = lowering().emitter.call_operation("Function.bind", operands, null)

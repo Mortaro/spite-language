@@ -15,7 +15,7 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
-- **D590, a `T?` passed where a `union` or `type` is wanted is an error**, with the text every other `T?` gets.
+- **D591, a `T?` passed where a `union` or `type` is wanted is an error**, with the text every other `T?` gets.
   It was silently accepted before. Easy to change: the text, or narrowing `not x or f(x)` on the right side so
   fewer `crash` lines are needed.
 - **D589, choices made building the desugared IR**: the namespace name `Intermediate`; hot reload driven by the IR
