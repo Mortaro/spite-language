@@ -156,7 +156,35 @@ in SSA form. A local is a value; where two paths meet, a local that differs arri
 `while` carries every local its body assigns as a parameter of the block that tests the condition. A narrowed name
 or path is read through `Nullable.value` (or `Union.value` for a union narrowed to one member) each time it is read.
 
-The conventions the passes and the printer rely on are listed with the coverage in the lowering's report.
+What the lowering writes, for the passes and the printer:
+
+- A call lists the receiver first; a store's operands are the object, then the value, with the field in `field`;
+  a branch goes to its first target when its condition is true. A local's values and the block parameters that
+  carry it are named after it.
+- Making an object is `make`, a store for every attribute's default, then the constructor's call. A singleton is a
+  call of a function the lowering writes, `spite_singleton_<class>` (or `..._with_<n>` for one keyed by literal
+  arguments), with `singleton_of` set: it makes the object, and every call answers the one object.
+- Numbers: `<Type>.sum`, `subtract`, `multiply`, `divide`, `remainder`, `negate`, `equals`, `less_than`,
+  `greater_than`, and `<From>.to_<to>` for every conversion; a check that can fail carries its site (`overflow`,
+  `division`, `narrowing`). `!=`, `<=` and `>=` are `Boolean.not` of `equals`, `greater_than` and `less_than`,
+  except on `Float` and `Double`, where `<=` and `>=` are `less_than_or_equal` and `greater_than_or_equal`, since
+  the negation is wrong for not-a-number. A literal that fits is a constant of the wanted type, never a conversion.
+- `Boolean.not`, `Boolean.and`, `Boolean.equals`; `Enum.equals`, `Enum.to_integer`, `Enum.from_text`; `Symbol.equals`,
+  `Symbol.text`; `String.join` (the parts already text), `String.equals`, `String.less_than`, `String.greater_than`,
+  and inside the String class `String.bytes` and `String.stored_length`; `Reference.equals` for identity.
+- `Nullable.has`, `Nullable.value` (trusted, after a narrowing the lowering restated; with a `presence` site when
+  only the generator's proof says the value is there), `Nullable.wrap`; `Union.tag` (a `Symbol`, compared with a
+  constant naming the member class, or switched on with targets tagged by member class), `Union.value` (with an
+  `unlike` site when two values of a `type` must be of one class), `Union.wrap` (into a union or a `type`).
+- `Object.copy`, `Object.deep_copy`, `Object.allocator` (the object, then the heap singleton);
+  `Reflection.class`, `Reflection.attributes`, `Reflection.functions`, `Reflection.memory`, and
+  `Reflection.class_object` with the class in `target`; a function value is `make Spite_Function` then
+  `Function.bind(made, owner)` with the bound function in `literal` and `target`; a call through it is `call value`.
+- `Foreign.library` (the library's number in `target`; its file, naming and header are in `Lowered.foreign_*`),
+  `Foreign.call` (the symbol in `target`, the library's number in `literal`), `Foreign.constant`.
+- `Arguments.program`, `Arguments.count`, `Arguments.get`, `Arguments.flag`.
+- `assert` returns the function's default; `crash` is a `halt` whose operands are the text, number and enum
+  locals in scope, named in the site's `shown`.
 
 ## Monomorphisation
 

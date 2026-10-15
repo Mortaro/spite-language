@@ -152,6 +152,9 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
         return constant_from_text(result.constant_text, result.spite_type)
     }
     var made = front()
+    if result.code.starts_with("spite_class_object_") and result.code.ends_with("()") {
+        return class_object_named(result.code, result.spite_type)
+    }
     if made.constant_texts.has(result.code) {
         crash made.constant_texts[result.code]
         return emitter.constant(result.spite_type, made.constant_texts[result.code])
@@ -563,7 +566,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
 }
 
 func reflected_member(member: Syntax.Expressions.MemberExpression): Integer {
-    var reflection_names = ["memory", "instances", "size"]
+    var reflection_names = ["memory", "instances"]
     if not reflection_names.contains(member.name) {
         return -1
     }
@@ -572,6 +575,9 @@ func reflected_member(member: Syntax.Expressions.MemberExpression): Integer {
     var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
     if folded {
         return folded_constant(folded)
+    }
+    if member.name == "memory" {
+        return memory_read(member)
     }
     return not_lowered(null, "the reflection read '{source_text(expression)}'")
 }
@@ -585,6 +591,15 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
     var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
     if folded {
         return folded_constant(folded)
+    }
+    var class_reflected = member.name == "attributes" or member.name == "functions" or member.name == "instances"
+    if class_reflected {
+        var static_type = known().class_type(static_class)
+        var class_object = class_object_of(static_type)
+        if member.name == "instances" {
+            return class_reflection(member.name, class_object, member)
+        }
+        return class_member_named("Spite_Class", member, class_object)
     }
     return not_lowered(
         null,
@@ -1289,8 +1304,9 @@ func function_value(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, 
 
 func own_call(name: String, arguments: List<Syntax.Expressions.Expression>): Integer {
     var made = front()
-    if made.passed_template(lowered_class, name) {
-        return not_lowered(null, "'{name}', a template passed a walked member")
+    var passed_template = made.passed_template(lowered_class, name)
+    if passed_template {
+        return passed_symbol_call(passed_template, arguments)
     }
     var found = made.find_or_instantiate_function(lowered_class, name)
     if found {
@@ -1333,6 +1349,12 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
     if compile_time.contains(member.name) {
         return not_lowered(null, "'{member.name}()', asked while compiling")
     }
+    if member.name == "class" {
+        var walked_made = walked_default(member, call.arguments)
+        if walked_made != -2 {
+            return walked_made
+        }
+    }
     if member.name == "each" or member.name == "map" {
         var unrolled = unrolled_walk(member, call.arguments)
         if unrolled != -2 {
@@ -1368,7 +1390,9 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     }
     var static_class = made.try_resolve_static_path(member.object, lowered_class.qualified_dotted)
     if static_class {
-        return not_lowered(null, "'{static_class.qualified_dotted}.{name}()', a call on a class object")
+        var static_type = known().class_type(static_class)
+        var class_object = class_object_of(static_type)
+        return class_call("Spite_Class", name, class_object, arguments)
     }
     if shapes.as_generic_identifier(member.object) {
         return not_lowered(null, "a call on a codegen class object")
@@ -2972,4 +2996,106 @@ func enum_from_text(name: String, object: Integer): Integer {
     var enum_type: Analysis.SpiteType = read_enum
     var maybe_enum = known().nullable_of(enum_type)
     return emitter.emit_call_one("Enum.from_text", object, maybe_enum)
+}
+
+func class_object_named(code: String, class_type: Analysis.SpiteType): Integer {
+    var length = code.length()
+    var c_name = code.slice(19, length - 2)
+    var no_operands = List<Integer>()
+    var described = emitter.call_operation("Reflection.class_object", no_operands, class_type)
+    described.target = c_name
+    return described.result
+}
+
+func class_reflection(name: String, class_object: Integer, member: Syntax.Expressions.MemberExpression): Integer {
+    crash member.object
+    var made = front()
+    var class_type = made.spite_class_type()
+    var probe = Generation.ExpressionResult("spite_reflected", class_type)
+    var result = made.generate_reflection_read(name, probe, member.object)
+    if name == "instances" or not result or not result.spite_type {
+        return not_lowered(null, "the reflection read '{name}' of a class object")
+    }
+    return emitter.emit_call_one("Reflection.{name}", class_object, result.spite_type)
+}
+
+func memory_read(member: Syntax.Expressions.MemberExpression): Integer {
+    crash member.object
+    var made = front()
+    var memory_class = made.find_class_by_qualified("Spite.Memory")
+    if not memory_class {
+        return not_lowered(null, "a memory read with no Spite.Memory class")
+    }
+    known().reach_layout(memory_class)
+    var memory_type = known().class_type(memory_class)
+    var object = lower(member.object)
+    return emitter.emit_call_one("Reflection.memory", object, memory_type)
+}
+
+func walked_default(
+    member: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+): Integer {
+    crash member.object
+    var made = front()
+    var symbol = shapes.as_identifier(member.object)
+    if not symbol or made.bound_symbol_name.is_empty() or symbol.name != made.bound_symbol_name {
+        return -2
+    }
+    if not made.bound_field_type {
+        return -2
+    }
+    var made_type = made.bound_field_type
+    var class_ref = types.as_class_ref(made_type)
+    if class_ref {
+        var target = made.find_class_by_c_name(class_ref.c_name)
+        if target {
+            return construct(target, arguments)
+        }
+    }
+    return default_of(made_type)
+}
+
+func passed_symbol_call(template: Analysis.TemplateInfo, arguments: List<Syntax.Expressions.Expression>): Integer {
+    var made = front()
+    var declaration = template.declaration
+    var symbol_position = -1
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        if parameter.name == template.symbol_parameter {
+            symbol_position = index
+        }
+        index = index + 1
+    }
+    var remaining = List<Syntax.Expressions.Expression>()
+    var passed_name = ""
+    index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var passed_identifier = shapes.as_identifier(argument)
+        if index == symbol_position and passed_identifier {
+            passed_name = passed_identifier.name
+        }
+        if index != symbol_position {
+            remaining.append(argument)
+        }
+        index = index + 1
+    }
+    var range = made.range_text(template)
+    if passed_name.is_empty() or passed_name != made.bound_symbol_name or range != made.bound_range {
+        return not_lowered(null, "a template passed a member it is not walking")
+    }
+    var registered_name = made.passed_instance_name(
+        lowered_class,
+        template,
+        made.bound_field_name,
+        made.bound_pattern,
+        made.bound_function_name,
+    )
+    var instance = made.passed_instance(lowered_class, template, registered_name)
+    var values = lower_arguments(remaining, instance.parameters)
+    var operands = [receiver]
+    values.each(operands.append)
+    return call_reached(lowered_class, instance, operands)
 }
