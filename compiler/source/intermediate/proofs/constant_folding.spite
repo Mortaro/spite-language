@@ -236,9 +236,13 @@ func maths_text(operation: Operation, literals: List<String>): String {
     if not callee or callee.intrinsic != "supplied" {
         return ""
     }
-    var owner = callee.owner
-    var is_float = owner == "Float"
-    if not is_float and owner != "Double" {
+    crash kinds
+    var owner_layout = kinds.lowered_layout(callee.owner)
+    if not owner_layout {
+        return ""
+    }
+    var is_float = owner_layout.qualified == "Float"
+    if not is_float and owner_layout.qualified != "Double" {
         return ""
     }
     return folded_maths(callee.name, literals, is_float)

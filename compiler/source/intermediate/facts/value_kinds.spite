@@ -21,6 +21,11 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
     return null
 }
 
+func lowered_layout(c_name: String): Layout? {
+    crash lowered
+    return lowered.layout_named(c_name)
+}
+
 func is_counted(spite_type: Analysis.SpiteType?): Boolean {
     if not spite_type {
         return false
@@ -116,8 +121,7 @@ func may_run_drop(spite_type: Analysis.SpiteType?): Boolean {
 
 func class_may_run_drop(c_name: String): Boolean {
     if dropping.has(c_name) {
-        crash dropping[c_name]
-        return dropping[c_name]
+        return dropping[c_name] == true
     }
     dropping[c_name] = false
     var answer = layout_may_run_drop(c_name)

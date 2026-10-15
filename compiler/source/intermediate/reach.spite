@@ -53,6 +53,7 @@ func reach_function(c_name: String) {
     while index < function.blocks.count() {
         var block = function.blocks[index]
         block.operations.each(reach_operation)
+        reach_tags(block)
         index = index + 1
     }
 }
@@ -66,6 +67,10 @@ func reach_operation(operation: Operation) {
         waiting.append(operation.callee)
     }
     reach_type(operation.spite_type, 0)
+    reach_named_layout(operation.target)
+    if operation.kind == "constant" {
+        reach_named_layout(operation.literal)
+    }
     var named = operation.literal.split(",")
     var index = 0
     while index < named.count() {
@@ -73,6 +78,21 @@ func reach_operation(operation: Operation) {
         if not name.is_empty() and lowered.function_named(name) {
             waiting.append(name)
         }
+        index = index + 1
+    }
+}
+
+func reach_named_layout(c_name: String) {
+    crash lowered
+    assert lowered.layout_named(c_name)
+    reach_layout(c_name)
+}
+
+func reach_tags(block: Block) {
+    var targets = block.terminator.targets
+    var index = 0
+    while index < targets.count() {
+        reach_named_layout(targets[index].tag)
         index = index + 1
     }
 }
@@ -87,6 +107,10 @@ func reach_layout(c_name: String) {
     while index < layout.stored_fields.count() {
         reach_type(layout.stored_fields[index].spite_type, 0)
         index = index + 1
+    }
+    layout.members.each(reach_layout)
+    if layout.value_type {
+        reach_type(layout.value_type, 0)
     }
     assert layout.information
     var held = layout.information.codegen_types
@@ -115,9 +139,41 @@ func reach_type(spite_type: Analysis.SpiteType?, depth: Integer) {
         reach_type(dictionary.element, depth + 1)
         return
     }
+    var united = types.as_union(spite_type)
+    if united {
+        reach_layout(united.c_name)
+        return
+    }
+    if types.as_string(spite_type) or types.is_symbol(spite_type) {
+        reach_layout("SpiteString")
+        return
+    }
+    var scalar = types.as_scalar(spite_type)
+    if scalar {
+        var boxed = box_name(scalar.kind)
+        reach_layout(boxed)
+        return
+    }
     var class_ref = types.as_class_ref(spite_type)
     assert class_ref
     reach_layout(class_ref.c_name)
+}
+
+func box_name(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "SpiteInteger"
+        'long_kind': return "SpiteLong"
+        'tiny_kind': return "SpiteTiny"
+        'short_kind': return "SpiteShort"
+        'byte_kind': return "SpiteByte"
+        'unsigned_short_kind': return "SpiteUnsignedShort"
+        'unsigned_integer_kind': return "SpiteUnsignedInteger"
+        'unsigned_long_kind': return "SpiteUnsignedLong"
+        'address_kind': return "SpiteMemory_Address"
+        'float_kind': return "SpiteFloat"
+        'double_kind': return "SpiteDouble"
+        _: return "SpiteBoolean"
+    }
 }
 
 func reach_hooks(): Boolean {

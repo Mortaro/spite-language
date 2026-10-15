@@ -98,8 +98,8 @@ func number_blocks(count: Integer) {
 }
 
 func visit_child(target: Integer, visited: List<Boolean>, stack: List<Integer>, next_child: List<Integer>) {
-    crash visited[target]
-    assert not visited[target]
+    crash target >= 0 and target < visited.count()
+    assert visited[target] == false
     visited[target] = true
     stack.append(target)
     next_child.append(0)
