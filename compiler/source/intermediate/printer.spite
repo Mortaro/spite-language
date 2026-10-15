@@ -83,6 +83,7 @@ func print_pieces(lowered: Lowered) {
     lowered.enums.each(layouts.print_enum)
     lowered.layouts.each(note_slots)
     lowered.layouts.each(note_weak)
+    lowered.concrete_functions.each(note_placed)
     lowered.concrete_functions.each(body.print)
     lowered.enums.each(layouts.print_enum_names)
     lowered.layouts.each(layouts.print)
@@ -101,6 +102,28 @@ func note_symbol_names(lowered: Lowered) {
             output.symbol_literals.append(symbol)
         }
         index = index + 1
+    }
+}
+
+# ../../../docs/memory.md#an-object-reads-its-own-allocator
+func note_placed(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == "Object.place" and operation.operands.count() == 2 {
+                var placed = operation.operands[0]
+                var placed_type = function.value_at(placed).spite_type
+                var layout = naming.layout_of(placed_type)
+                if layout and not output.placed_layouts.contains(layout.c_name) {
+                    output.placed_layouts.append(layout.c_name)
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
     }
 }
 

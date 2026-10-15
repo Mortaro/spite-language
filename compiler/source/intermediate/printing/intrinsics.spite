@@ -40,6 +40,23 @@ func print(body: Body, operation: Operation) {
     }
 }
 
+func singleton_instance(body: Body, tracked: Layout, filled: String, appending: String) {
+    var getter = hot.getter_of(tracked.qualified)
+    if getter.is_empty() {
+        body.refuse(
+            "it lists the instance of the singleton '{tracked.qualified}', whose maker the program does not hold",
+        )
+        return
+    }
+    if tracked.arrangement == "static" {
+        body.emit("{appending}({filled}, {getter}());")
+        return
+    }
+    body.emit(
+        "\{ {tracked.c_name}* spite_made = {getter}_peek(); if (spite_made != 0) {appending}({filled}, spite_made); }",
+    )
+}
+
 func print_singleton_peek(body: Body, operation: Operation) {
     var maker = lowered.function_named(operation.target)
     if not maker or maker.singleton_of.is_empty() {
@@ -359,10 +376,14 @@ func print_instances(body: Body, operation: Operation, word: String) {
         return
     }
     var name = tracked.c_name
+    var filled = body.operand(operation, 0)
+    if tracked.is_singleton {
+        singleton_instance(body, tracked, filled, appending.c_name)
+        return
+    }
     if not output.tracked_layouts.contains(name) {
         output.tracked_layouts.append(name)
     }
-    var filled = body.operand(operation, 0)
     var registry = "spite_instances_{name}"
     body.emit(
         "for (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) {appending.c_name}({filled}, {name}___retain({registry}[spite_index]));",
@@ -1258,9 +1279,19 @@ func print_arguments(body: Body, operation: Operation, word: String) {
 }
 
 func object_allocator(body: Body, operation: Operation) {
+    var object = body.operand(operation, 0)
     var heap = body.operand(operation, 1)
     var made = body.type_of(operation.result)
     var written = naming.c_type(made)
+    var object_type = body.operand_type(operation, 0)
+    var layout = naming.layout_of(object_type)
+    if layout and output.placed_layouts.contains(layout.c_name) {
+        body.assign(
+            operation.result,
+            "(({object})->spite_allocator != 0 ? (({written})(({object})->spite_allocator)) : (({written})({heap})))",
+        )
+        return
+    }
     body.assign(operation.result, "(({written})({heap}))")
 }
 
