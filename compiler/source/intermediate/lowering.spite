@@ -4,6 +4,7 @@ var lowered = Lowered()
 var types = Analysis.TypeShape()
 var made_singletons = 0
 var made_layouts = 0
+var foreign_written = false
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -30,6 +31,11 @@ func lower(): Lowered {
         while made_singletons < instances.singleton_names.count() {
             write_singleton(instances, made_singletons)
             made_singletons = made_singletons + 1
+            settled = false
+        }
+        if instances.opens_foreign and not foreign_written {
+            foreign_written = true
+            write_foreign_runtime(instances)
             settled = false
         }
         while made_layouts < instances.layout_classes.count() {
@@ -269,6 +275,24 @@ func write_scheduler(instances: Instances) {
         var found = made.find_or_instantiate_function(scheduler, wanted[index])
         if found {
             instances.reach(scheduler, found)
+        }
+        index = index + 1
+    }
+}
+
+func write_foreign_runtime(instances: Instances) {
+    var made = instances.front()
+    var library = made.find_class_by_c_name("DynamicLibrary")
+    assert library
+    if library.constructor {
+        instances.reach(library, library.constructor)
+    }
+    var wanted = ["find_symbol", "open_library", "close_library", "drop"]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(library, wanted[index])
+        if found {
+            instances.reach(library, found)
         }
         index = index + 1
     }
