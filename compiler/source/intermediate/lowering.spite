@@ -3,6 +3,7 @@ var generator: Generation.Generator? = null
 var lowered = Lowered()
 var types = Analysis.TypeShape()
 var made_singletons = 0
+var made_layouts = 0
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -13,6 +14,7 @@ func lower(): Lowered {
     var made = generator
     var instances = Instances(made)
     write_main(instances)
+    write_debug_memory(instances)
     var settled = false
     while not settled {
         settled = true
@@ -29,8 +31,13 @@ func lower(): Lowered {
             made_singletons = made_singletons + 1
             settled = false
         }
+        while made_layouts < instances.layout_classes.count() {
+            var information = instances.layout_classes[made_layouts]
+            write_layout(instances, information)
+            made_layouts = made_layouts + 1
+            settled = false
+        }
     }
-    write_layouts(instances)
     lowered.foreign_files = made.foreign_library_files
     lowered.foreign_namings = made.foreign_library_namings
     lowered.foreign_headers = made.foreign_library_headers
@@ -121,8 +128,10 @@ func lower_reached(instances: Instances, information: Analysis.ClassInfo, declar
     function.answer = declared.return_type
     function.is_constructor = declared.is_constructor
     function.specialised_from = declared.specialised_from
-    var receiver_type = instances.receiver_type(information)
-    function.receiver = function.new_value(receiver_type, "receiver")
+    if not receiver_less(information, declared) {
+        var receiver_type = instances.receiver_type(information)
+        function.receiver = function.new_value(receiver_type, "receiver")
+    }
     var index = 0
     while index < declared.parameters.count() {
         var declared_parameter = declared.parameters[index]
@@ -136,7 +145,7 @@ func lower_reached(instances: Instances, information: Analysis.ClassInfo, declar
     lowered.add_function(function)
     var supplied = not declared.has_body or not declared.supplied_body.is_empty()
     if supplied {
-        function.intrinsic = "supplied"
+        lower_supplied(instances, information, declared, function)
         return
     }
     lower_body(instances, information, declared, function)
@@ -171,15 +180,6 @@ func fall_off_end(expressions: ExpressionLowering, declared: Analysis.FunctionIn
     expressions.emitter.returns(defaulted)
 }
 
-func write_layouts(instances: Instances) {
-    var index = 0
-    while index < instances.layout_classes.count() {
-        var information = instances.layout_classes[index]
-        write_layout(instances, information)
-        index = index + 1
-    }
-}
-
 func write_layout(instances: Instances, information: Analysis.ClassInfo) {
     assert not lowered.layout_named(information.c_name)
     var layout = Layout(information.c_name, information.qualified_dotted)
@@ -196,4 +196,50 @@ func write_layout(instances: Instances, information: Analysis.ClassInfo) {
         index = index + 1
     }
     lowered.add_layout(layout)
+}
+
+func receiver_less(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo): Boolean {
+    crash generator
+    if not information.is_value_class or not generator.maths.is_constant(declared.name) {
+        return false
+    }
+    return generator.is_inline_supplied(declared)
+}
+
+func lower_supplied(
+    instances: Instances,
+    information: Analysis.ClassInfo,
+    declared: Analysis.FunctionInfo,
+    function: Function,
+) {
+    crash generator
+    if declared.supplied_body.is_empty() and not declared.has_body {
+        generator.supply_body(information, declared)
+    }
+    var answer = declared.return_type
+    if not declared.supplied_body.is_empty() or not types.is_void(answer) {
+        function.intrinsic = "supplied"
+        return
+    }
+    var emitter = start_body(function, information, declared, instances)
+    emitter.returns(-1)
+    finish_body(function, emitter)
+}
+
+func write_debug_memory(instances: Instances) {
+    var made = instances.front()
+    assert made.debug_memory
+    var table = made.find_class_by_qualified("AllocationTable")
+    assert table
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    instances.singleton_maker(table, no_arguments, "")
+    var wanted = ["resize", "free", "register_object", "name_classes", "report", "live_allocations", "live_bytes"]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(table, wanted[index])
+        if found {
+            instances.reach(table, found)
+        }
+        index = index + 1
+    }
 }

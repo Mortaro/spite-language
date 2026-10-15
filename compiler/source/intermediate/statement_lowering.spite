@@ -4,6 +4,7 @@ var expressions: ExpressionLowering? = null
 var lowered_class = Analysis.ClassInfo("", "", "", "", 0)
 var shapes = Analysis.AstShape()
 var types = Analysis.TypeShape()
+var site_ordinal = 0
 
 func StatementLowering(starting_expressions: ExpressionLowering) {
     expressions = starting_expressions
@@ -424,7 +425,7 @@ func note_assigned(target: Syntax.Expressions.Expression?, assigned: List<String
 
 func assert_statement(statement: Syntax.Statements.AssertStatement) {
     if not statement.value {
-        fail_check(statement)
+        fail_check(statement, statement.condition_text)
         return
     }
     var sides = List<Syntax.Expressions.Expression>()
@@ -432,17 +433,22 @@ func assert_statement(statement: Syntax.Statements.AssertStatement) {
     made.collect_and_sides(statement.value, sides)
     var index = 0
     while index < sides.count() and emitter.reachable() and not emitter.lowering_failed() {
-        assert_side(statement, sides[index])
+        var side = sides[index]
+        var side_text = statement.condition_text
+        if sides.count() > 1 {
+            side_text = lowering().source_text(side)
+        }
+        assert_side(statement, side, side_text)
         index = index + 1
     }
 }
 
-func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expressions.Expression) {
+func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expressions.Expression, side_text: String) {
     var made = front()
     var decided = made.folded_check(side, emitter.scope, lowered_class)
     assert decided != true
     if decided == false {
-        fail_check(statement)
+        fail_check(statement, side_text)
         return
     }
     var condition = lowering().lower_condition(side)
@@ -451,58 +457,74 @@ func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expr
     var fail_block = emitter.new_block()
     emitter.branch(condition.value, pass_block, fail_block)
     emitter.enter_block(fail_block)
-    fail_check(statement)
+    fail_check(statement, side_text)
     emitter.enter_block(pass_block)
     lowering().apply(condition.when_true, condition.true_types)
     made.narrow_proven_indices(side, emitter.scope, lowered_class)
 }
 
-func fail_check(statement: Syntax.Statements.AssertStatement) {
+func fail_check(statement: Syntax.Statements.AssertStatement, text: String) {
+    var made = front()
+    site_ordinal = site_ordinal + 1
+    var described = lowering().lowered_function()
+    var owner_name = made.version_free_owner(made.current_owner)
+    var identity = made.content_hash("{owner_name}/{described.name}/{site_ordinal}/{text}")
     if statement.is_crash {
-        halt_here("crash", statement.condition_text)
+        halt_here(text, identity)
         return
     }
-    var described = lowering().lowered_function()
+    var site_number = emitter.site("assert", text)
+    var site = emitter.lowered.sites[site_number]
+    crash site
+    site.identity = identity
     var answer = described.return_type
     var defaulted = lowering().default_of(answer)
-    emitter.returns(defaulted)
+    emitter.returns_at(defaulted, site_number)
 }
 
-func halt_here(kind: String, text: String) {
-    var site_number = emitter.site(kind, text)
+func halt_here(text: String, identity: String) {
+    var made = front()
     var shown = List<Integer>()
     var labels = List<String>()
     var position = emitter.floor
-    while position < emitter.locals.count() {
+    while position < emitter.locals.count() and shown.count() < 12 {
         var held = emitter.local_at(position)
-        if shown_type(held.declared) {
-            shown.append(held.value)
-            labels.append(held.name)
+        var held_type = emitter.scope.written_type(held.name)
+        var hidden = labels.contains(held.name) or made.mentions_word(text, held.name)
+        if held_type and not hidden and made.is_scope_value_type(held_type) {
+            show_name(held.name, shown, labels)
         }
         position = position + 1
     }
+    show_fields(text, shown, labels)
+    var site_number = emitter.site("crash", text)
     var site = emitter.lowered.sites[site_number]
     crash site
     site.shown = labels
+    site.identity = identity
     emitter.halt(site_number, shown)
 }
 
-func shown_type(spite_type: Analysis.SpiteType?): Boolean {
-    if not spite_type {
-        return false
+func show_fields(text: String, shown: List<Integer>, labels: List<String>) {
+    var made = front()
+    assert lowering().receiver >= 0 and not lowered_class.is_value_class
+    var index = 0
+    while index < lowered_class.fields.count() and shown.count() < 12 {
+        var field = lowered_class.fields[index]
+        var hidden = labels.contains(field.name) or made.mentions_word(text, field.name)
+        var held = emitter.local_named(field.name)
+        if not hidden and not held and field.name != "_namespace" and made.is_scope_value_type(field.type) {
+            show_name(field.name, shown, labels)
+        }
+        index = index + 1
     }
-    var plain = spite_type
-    var nullable = types.as_nullable(spite_type)
-    if nullable {
-        plain = nullable.inner
-    }
-    if types.as_string(plain) or types.as_enum(plain) {
-        return true
-    }
-    if types.as_scalar(plain) {
-        return true
-    }
-    return false
+}
+
+func show_name(name: String, shown: List<Integer>, labels: List<String>) {
+    var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
+    var value = lowering().lower(named)
+    shown.append(value)
+    labels.append(name)
 }
 
 func switch_statement(statement: Syntax.Statements.SwitchStatement) {
@@ -519,7 +541,16 @@ func switch_statement(statement: Syntax.Statements.SwitchStatement) {
         return
     }
     if types.as_string(subject_type) {
-        text_switch(statement, subject)
+        equality_switch(statement, subject, "String.equals")
+        return
+    }
+    if types.is_symbol(subject_type) {
+        equality_switch(statement, subject, "Symbol.equals")
+        return
+    }
+    var boolean = known().typed_boolean()
+    if known().same(subject_type, boolean) {
+        equality_switch(statement, subject, "Boolean.equals")
         return
     }
     value_switch(statement, subject)
@@ -555,6 +586,22 @@ func lower_switch_case(
 func nullable_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer) {
     crash statement.subject
     var subject_expression = statement.subject
+    var null_cases = 0
+    var value_cases = 0
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        if case_names(switch_case) == "Null" {
+            null_cases = null_cases + 1
+        } else {
+            value_cases = value_cases + 1
+        }
+        index = index + 1
+    }
+    if null_cases > 1 or value_cases > 1 {
+        emitter.fail_lowering("a switch over a value that may be null with two cases for one side")
+        return
+    }
     var count = emitter.locals.count()
     var before = emitter.snapshot(count)
     var boolean = known().typed_boolean()
@@ -565,7 +612,7 @@ func nullable_switch(statement: Syntax.Statements.SwitchStatement, subject: Inte
     var subject_type = lowering().type_of(subject)
     var inner = lowering().without_nullable(subject_type)
     var incomings = List<Incoming>()
-    var index = 0
+    index = 0
     while index < statement.cases.count() {
         var switch_case = statement.cases[index]
         var named = case_names(switch_case)
@@ -580,6 +627,48 @@ func nullable_switch(statement: Syntax.Statements.SwitchStatement, subject: Inte
         }
         lower_switch_case(switch_case.body, count, before, incomings)
         index = index + 1
+    }
+    if null_cases == 0 {
+        pass_through(null_block, count, before, incomings)
+    }
+    if value_cases == 0 {
+        pass_through(value_block, count, before, incomings)
+    }
+    emitter.arrive(incomings, count)
+}
+
+func pass_through(block: Integer, count: Integer, before: List<Integer>, incomings: List<Incoming>) {
+    emitter.restore(before)
+    emitter.enter_block(block)
+    var arrives = emitter.incoming(count)
+    if arrives {
+        incomings.append(arrives)
+    }
+    emitter.current = -1
+}
+
+func equality_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer, equality: String) {
+    var count = emitter.locals.count()
+    var before = emitter.snapshot(count)
+    var incomings = List<Incoming>()
+    var boolean = known().typed_boolean()
+    var subject_type = lowering().type_of(subject)
+    var index = 0
+    while index < statement.cases.count() and emitter.reachable() {
+        var switch_case = statement.cases[index]
+        if not switch_case.value {
+            emitter.push_frame()
+            lower_switch_case(switch_case.body, count, before, incomings)
+        } else {
+            var written = lowering().lower_toward(switch_case.value, subject_type)
+            var same = emitter.emit_call_two(equality, subject, written, boolean)
+            text_case(same, switch_case.body, count, before, incomings)
+        }
+        index = index + 1
+    }
+    var falls = emitter.incoming(count)
+    if falls {
+        incomings.append(falls)
     }
     emitter.arrive(incomings, count)
 }
