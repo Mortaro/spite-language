@@ -38,15 +38,90 @@ func print(printed: Function) {
         output.refuse("'{printed.c_name}' ({printed.owner}.{printed.name}) cannot be written: {printed.not_lowered}")
         return
     }
-    if not printed.locking.is_empty() or printed.resumable or printed.waits {
-        refuse("it locks its singleton or waits on concurrent work, which the printer does not write yet")
+    if printed.resumable or printed.waits {
+        refuse("it waits on concurrent work, whose state machine the printer does not write yet")
         return
     }
     if not printed.singleton_of.is_empty() {
         print_singleton_maker()
         return
     }
+    if not printed.locking.is_empty() {
+        print_locked()
+        return
+    }
     print_lowered(printed.c_name, "")
+}
+
+func guard_of(owner: String): String {
+    output.need("guards")
+    if not output.guards.contains(owner) {
+        output.guards.append(owner)
+    }
+    if is_read_guarded(owner) and not output.read_guards.contains(owner) {
+        output.read_guards.append(owner)
+        output.need("readers")
+    }
+    return "&{owner}___guard"
+}
+
+func is_read_guarded(owner: String): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        if candidate.owner == owner and candidate.locking == "reading" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func guard_enter(owner: String): String {
+    var guard = guard_of(owner)
+    if output.read_guards.contains(owner) {
+        return "spite_guard_enter_writing({guard}, {owner}___readers);"
+    }
+    return "spite_guard_enter({guard});"
+}
+
+func print_locked() {
+    var unguarded = "{function.c_name}___unguarded"
+    print_lowered(unguarded, "")
+    var heading = signature(function.c_name)
+    var arguments = List<String>()
+    if function.receiver >= 0 {
+        arguments.append("self")
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append("{function.parameters[index].name}_")
+        index = index + 1
+    }
+    var called = "{unguarded}({arguments.join(", ")})"
+    var guard = guard_of(function.owner)
+    var enter = guard_enter(function.owner)
+    var leave = "spite_guard_leave({guard});"
+    if function.locking == "reading" {
+        enter = "int64_t* spite_reading = spite_read_enter({guard}, {function.owner}___readers);"
+        leave = "spite_read_leave(spite_reading);"
+    }
+    var opening = "{heading} \{"
+    var lines = [opening, enter]
+    if answers_nothing() {
+        lines.append("{called};")
+        lines.append(leave)
+    } else {
+        var answered = answer_type()
+        lines.append("{answered} spite_guarded = {called};")
+        lines.append(leave)
+        lines.append("return spite_guarded;")
+    }
+    lines.append("}")
+    output.prototypes.append("{heading};")
+    var wrapper = lines.join("\n")
+    output.bodies.append(wrapper)
+    output.runtime_place(function.c_name)
 }
 
 func print_lowered(c_name: String, storage: String) {
@@ -647,7 +722,7 @@ func print_known_call(operation: Operation, callee: Function) {
         intrinsics.print(this, operation)
         return
     }
-    var forms = ["", "moved", "borrowed", "in_place", "frame"]
+    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping"]
     if not forms.contains(operation.form) {
         refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
         return
@@ -676,7 +751,56 @@ func print_known_call(operation: Operation, callee: Function) {
         print_kept_store_call(operation, callee.c_name)
         return
     }
+    if operation.form == "unguarded" and not callee.locking.is_empty() {
+        print_plain_call(operation, "{callee.c_name}___unguarded")
+        return
+    }
+    if operation.form == "skipping" and not callee.locking.is_empty() {
+        print_skipping_call(operation, callee)
+        return
+    }
     print_plain_call(operation, callee.c_name)
+}
+
+func print_skipping_call(operation: Operation, callee: Function) {
+    var arguments = call_arguments(operation)
+    var flag = "spite_skipping_{callee.owner}"
+    assign(operation.result, "({flag} ? {callee.c_name}___unguarded({arguments}) : {callee.c_name}({arguments}))")
+}
+
+func enter_skipping(owner: String) {
+    var flag = "spite_skipping_{owner}"
+    var declared = "int32_t {flag} = 0;"
+    if not declarations.contains(declared) {
+        declarations.append(declared)
+    }
+    var guard = guard_of(owner)
+    output.need("skip")
+    lines.append("{flag} = spite_skip_enter((void*){guard});")
+}
+
+func leave_skipping(owner: String) {
+    var guard = guard_of(owner)
+    lines.append("spite_skip_leave(spite_skipping_{owner}, {guard});")
+}
+
+func enter_coarse(owner: String) {
+    var enter = guard_enter(owner)
+    lines.append(enter)
+}
+
+func leave_coarse(owner: String) {
+    var guard = guard_of(owner)
+    lines.append("spite_guard_leave({guard});")
+}
+
+func holder_owner(operation: Operation): String {
+    var holding = operand_type(operation, 0)
+    var layout = naming.layout_of(holding)
+    if not layout {
+        return ""
+    }
+    return layout.c_name
 }
 
 func print_borrowed_read(operation: Operation) {
@@ -820,19 +944,117 @@ func print_plain_call(operation: Operation, c_name: String) {
 }
 
 func print_load(operation: Operation) {
+    var place = field_place(operation)
+    if operation.form == "atomic" or operation.form == "atomic_fused" {
+        assign(operation.result, "__atomic_load_n(&{place}, __ATOMIC_ACQUIRE)")
+        return
+    }
+    if operation.form == "locked" {
+        var owner = holder_owner(operation)
+        var enter = guard_enter(owner)
+        var guard = guard_of(owner)
+        lines.append(enter)
+        assign(operation.result, place)
+        lines.append("spite_guard_leave({guard});")
+        return
+    }
     if not operation.form.is_empty() {
         refuse("it reads '{operation.field}' in the form '{operation.form}', which the printer does not write yet")
         return
     }
-    var place = field_place(operation)
     assign(operation.result, place)
 }
 
+func fused_change(operation: Operation): String {
+    var stored = operand_number(operation, 1)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var defining = block.operations[index]
+            if defining.result == stored and defining.operands.count() == 2 {
+                return fused_operand(defining)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return ""
+}
+
+func fused_operand(defining: Operation): String {
+    var first = defining.operands[0]
+    var second = defining.operands[1]
+    crash first and second
+    if is_fused_load(first) {
+        return name_of(second)
+    }
+    if is_fused_load(second) {
+        return name_of(first)
+    }
+    return ""
+}
+
+func is_fused_load(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number and operation.form == "atomic_fused" {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
 func print_store(operation: Operation) {
+    if operation.form == "atomic_sum" or operation.form == "atomic_subtract" {
+        print_fused_store(operation)
+        return
+    }
+    if operation.form == "atomic" {
+        var atomic_place = field_place(operation)
+        var atomic_value = operand(operation, 1)
+        lines.append("__atomic_store_n(&{atomic_place}, {atomic_value}, __ATOMIC_RELEASE);")
+        return
+    }
+    if operation.form == "locked" {
+        var owner = holder_owner(operation)
+        var enter = guard_enter(owner)
+        var guard = guard_of(owner)
+        lines.append(enter)
+        print_plain_store(operation)
+        lines.append("spite_guard_leave({guard});")
+        return
+    }
     if not operation.form.is_empty() {
         refuse("it writes '{operation.field}' in the form '{operation.form}', which the printer does not write yet")
         return
     }
+    print_plain_store(operation)
+}
+
+func print_fused_store(operation: Operation) {
+    var place = field_place(operation)
+    var change = fused_change(operation)
+    if change.is_empty() {
+        refuse("it changes '{operation.field}' atomically, and the change cannot be traced to the value it adds")
+        return
+    }
+    var builtin = "__atomic_add_fetch"
+    if operation.form == "atomic_subtract" {
+        builtin = "__atomic_sub_fetch"
+    }
+    lines.append("{builtin}(&{place}, {change}, __ATOMIC_ACQ_REL);")
+}
+
+func print_plain_store(operation: Operation) {
     var place = field_place(operation)
     var stored = operand(operation, 1)
     var stored_type = operand_type(operation, 1)

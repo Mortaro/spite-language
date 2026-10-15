@@ -120,8 +120,12 @@ func supports_text(lowered: Lowered): String {
     }
     var supports = output.supports.join("\n")
     var libraries = runtime.foreign_libraries()
+    var guards = ""
+    if output.needs("guards") {
+        guards = runtime.guard_runtime()
+    }
     var library_prototypes = foreign_prototypes()
-    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{singletons}\n{table}\n{library_prototypes}\n{supports}\n{libraries}"
+    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{singletons}\n{table}\n{guards}\n{library_prototypes}\n{supports}\n{libraries}"
 }
 
 func foreign_prototypes(): String {

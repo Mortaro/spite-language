@@ -30,8 +30,19 @@ func print(body: Body, operation: Operation) {
         "Reflection": print_reflection(body, operation, word)
         "Bands": body.refuse("it runs a loop in bands on threads, which the printer does not write yet")
         "Rows": body.refuse("it runs rows of work on threads, which the printer does not write yet")
-        "Singleton": body.refuse("it takes a singleton's lock around a loop, which the printer does not write yet")
+        "Singleton": print_singleton_lock(body, operation, word)
         _: print_number(body, operation, word)
+    }
+}
+
+func print_singleton_lock(body: Body, operation: Operation, word: String) {
+    var owner = operation.literal
+    switch word {
+        "enter_coarse": body.enter_coarse(owner)
+        "leave_coarse": body.leave_coarse(owner)
+        "enter_skipping": body.enter_skipping(owner)
+        "leave_skipping": body.leave_skipping(owner)
+        _: body.refuse("it calls 'Singleton.{word}', which is no intrinsic")
     }
 }
 
