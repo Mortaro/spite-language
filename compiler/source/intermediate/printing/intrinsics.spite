@@ -66,25 +66,141 @@ func print_function_value(body: Body, operation: Operation, word: String) {
     var owner = body.operand(operation, 1)
     var owner_type = body.operand_type(operation, 1)
     assert owner_type
-    var counted = naming.counted_name(owner_type)
     var called = lowered.function_named(operation.literal)
-    if counted.is_empty() or not called {
-        body.refuse(
-            "it binds '{operation.literal}' to an owner that is not a counted object, or to a function the program does not hold",
-        )
+    if not called {
+        body.refuse("it binds '{operation.literal}', which the program does not hold")
+        return
+    }
+    if shape.as_string(owner_type) or shape.as_scalar(owner_type) {
+        bind_value_owner(body, bound, owner, owner_type, called)
+        return
+    }
+    var counted = naming.counted_name(owner_type)
+    if counted.is_empty() {
+        body.refuse("it binds '{called.c_name}' to an owner that is neither an object nor a value it can box")
         return
     }
     body.emit("({bound})->spite_owner = (void*){counted}___retain({owner});")
     body.emit("({bound})->spite_release_owner = (void (*)(void*)){counted}___release;")
     body.emit("({bound})->spite_typed_call = (void*){called.c_name};")
+    var dropping = dropping_call(called, "")
+    body.emit("({bound})->spite_call = {dropping};")
+}
+
+func bind_value_owner(body: Body, bound: String, owner: String, owner_type: Analysis.SpiteType, called: Function) {
+    var box = "SpiteBox_SpiteString"
+    var boxed = "spite_box_SpiteString(SpiteString___retain({owner}))"
+    var release = "spite_string_box_release"
+    if shape.as_string(owner_type) {
+        output.need("string box")
+    } else {
+        var label = naming.label(owner_type)
+        var written = naming.c_type(owner_type)
+        box = "SpiteBox_{label}"
+        boxed = "spite_box_{label}({owner})"
+        release = "spite_value_box_release"
+        note_value_box(label, written)
+    }
+    var forwarder = value_forwarder(called, box)
+    body.emit("({bound})->spite_owner = {boxed};")
+    body.emit("({bound})->spite_release_owner = {release};")
+    body.emit("({bound})->spite_typed_call = (void*){forwarder};")
+    var dropping = dropping_call(called, forwarder)
+    body.emit("({bound})->spite_call = {dropping};")
+}
+
+func note_value_box(label: String, written: String) {
+    assert not output.value_boxes.contains(label)
+    output.value_boxes.append(label)
+    output.need("value box")
+    output.nullable_types.append(
+        "typedef struct SpiteBox_{label} \{ SpiteHeader header; {written} value; } SpiteBox_{label};",
+    )
+    output.supports.append(
+        "static void* spite_box_{label}({written} value) \{\nSpiteBox_{label}* self = (SpiteBox_{label}*)SPITE_MALLOC(sizeof(SpiteBox_{label}));\nif (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = 0;\nself->value = value;\nreturn self;\n}",
+    )
+}
+
+func value_forwarder(called: Function, box: String): String {
+    var forwarder = "spite_forward_{called.c_name}"
+    if output.forwarders.contains(forwarder) {
+        return forwarder
+    }
+    output.forwarders.append(forwarder)
+    var parameters = ["void* owner"]
+    var forwarded = ["(({box}*)owner)->value"]
+    var index = 0
+    while index < called.parameters.count() {
+        var parameter = called.parameters[index]
+        var written = naming.c_type(parameter.spite_type)
+        parameters.append("{written} spite_argument_{index}")
+        forwarded.append("spite_argument_{index}")
+        index = index + 1
+    }
+    var returned = answered_c_type(called)
+    var body_text = "return {called.c_name}({forwarded.join(", ")});"
+    if returned == "void" {
+        body_text = "{called.c_name}({forwarded.join(", ")});"
+    }
+    output.supports.append("static {returned} {forwarder}({parameters.join(", ")}) \{\n{body_text}\n}")
+    output.runtime_place(forwarder)
+    return forwarder
+}
+
+func answered_c_type(called: Function): String {
+    if not called.answer or shape.is_void(called.answer) {
+        return "void"
+    }
+    return naming.c_type(called.answer)
+}
+
+func dropping_call(called: Function, forwarder: String): String {
+    if not called.parameters.is_empty() {
+        return "0"
+    }
+    var target = forwarder
+    if target.is_empty() {
+        target = called.c_name
+    }
+    var dropping = "spite_dropping_{target}"
+    if output.forwarders.contains(dropping) {
+        return dropping
+    }
+    output.forwarders.append(dropping)
+    var returned = answered_c_type(called)
+    var receiving = "owner"
+    if forwarder.is_empty() and called.receiver >= 0 {
+        var receiver = called.value_at(called.receiver)
+        var receiver_type = naming.c_type(receiver.spite_type)
+        receiving = "({receiver_type})owner"
+    }
+    var call = "{target}({receiving})"
+    var released = "(void){call};"
+    if returned != "void" and called.answer {
+        var counted = naming.counted_name(called.answer)
+        if not counted.is_empty() {
+            released = "{counted}___release({call});"
+        }
+    }
+    output.supports.append("static void {dropping}(void* owner) \{\n{released}\n}")
+    output.runtime_place(dropping)
+    return dropping
 }
 
 func print_symbol(body: Body, operation: Operation, word: String) {
     switch word {
         "text": symbol_text(body, operation)
         "equals": symbol_equals(body, operation)
+        "from_text": symbol_from_text(body, operation)
         _: body.refuse("it calls 'Symbol.{word}', which is no intrinsic")
     }
+}
+
+func symbol_from_text(body: Body, operation: Operation) {
+    var text = body.operand(operation, 0)
+    output.need("string same")
+    output.need("symbol find")
+    body.assign(operation.result, "spite_symbol_find({text})")
 }
 
 func symbol_text(body: Body, operation: Operation) {
@@ -131,8 +247,12 @@ func print_reference(body: Body, operation: Operation, word: String) {
 }
 
 func print_object(body: Body, operation: Operation, word: String) {
+    if word == "allocator" {
+        object_allocator(body, operation)
+        return
+    }
     if word != "copy" {
-        body.refuse("it calls 'Object.{word}', which is no intrinsic")
+        body.refuse("it calls 'Object.{word}', which the printer does not write yet")
         return
     }
     var copied = body.operand(operation, 0)
@@ -149,6 +269,10 @@ func print_object(body: Body, operation: Operation, word: String) {
 }
 
 func print_arguments(body: Body, operation: Operation, word: String) {
+    if word == "program" {
+        body.assign(operation.result, "spite_program_arguments")
+        return
+    }
     var arguments = body.operand(operation, 0)
     switch word {
         "count": body.assign(operation.result, "((int32_t)SpiteArguments_count(&{arguments}))")
@@ -156,6 +280,13 @@ func print_arguments(body: Body, operation: Operation, word: String) {
         "flag": arguments_flag(body, operation, arguments)
         _: body.refuse("it calls 'Arguments.{word}', which is no intrinsic")
     }
+}
+
+func object_allocator(body: Body, operation: Operation) {
+    var heap = body.operand(operation, 1)
+    var made = body.type_of(operation.result)
+    var written = naming.c_type(made)
+    body.assign(operation.result, "(({written})({heap}))")
 }
 
 func arguments_get(body: Body, operation: Operation, arguments: String) {
@@ -169,12 +300,53 @@ func arguments_flag(body: Body, operation: Operation, arguments: String) {
 }
 
 func print_enum(body: Body, operation: Operation, word: String) {
+    if word == "from_text" {
+        enum_from_text(body, operation)
+        return
+    }
     if word != "to_integer" {
         print_number(body, operation, word)
         return
     }
     var converted = body.operand(operation, 0)
     body.assign(operation.result, "((int32_t)({converted}))")
+}
+
+func enum_from_text(body: Body, operation: Operation) {
+    var text = body.operand(operation, 0)
+    var made = body.type_of(operation.result)
+    assert made
+    var nullable = shape.as_nullable(made)
+    var enumerated = shape.as_enum(made)
+    if nullable {
+        enumerated = shape.as_enum(nullable.inner)
+    }
+    if not enumerated {
+        body.refuse("it reads text as an enum, and the answer is not an enum")
+        return
+    }
+    var written = naming.c_type(made)
+    var reader = "{enumerated.c_name}___from_text"
+    if not output.enum_readers.contains(reader) {
+        output.enum_readers.append(reader)
+        output.need("string same")
+        var lines = ["static {written} {reader}(SpiteString text) \{"]
+        var index = 0
+        while index < enumerated.values.count() {
+            var value = enumerated.values[index]
+            var spelled = sites.literal(value)
+            lines.append(
+                "if (spite_string_same(text, {spelled})) return ({written})\{ .has_value = true, .value = {enumerated.c_name}_{value} };",
+            )
+            index = index + 1
+        }
+        lines.append("return ({written})\{ .has_value = false };")
+        lines.append("}")
+        var reader_text = lines.join("\n")
+        output.supports.append(reader_text)
+        output.runtime_place(reader)
+    }
+    body.assign(operation.result, "{reader}({text})")
 }
 
 func print_boolean(body: Body, operation: Operation, word: String) {
@@ -472,8 +644,24 @@ func print_string(body: Body, operation: Operation, word: String) {
     switch word {
         "join": join(body, operation)
         "equals": string_equals(body, operation)
+        "bytes": string_storage(body, operation, "((int64_t)(intptr_t)spite_string_bytes(&")
+        "stored_length": string_storage(body, operation, "spite_string_length((")
+        "less_than": string_order(body, operation, "<")
+        "greater_than": string_order(body, operation, ">")
         _: body.refuse("it calls 'String.{word}', which is no intrinsic")
     }
+}
+
+func string_storage(body: Body, operation: Operation, opening: String) {
+    var text = body.operand(operation, 0)
+    body.assign(operation.result, "{opening}({text})))")
+}
+
+func string_order(body: Body, operation: Operation, symbol: String) {
+    var first = body.operand(operation, 0)
+    var second = body.operand(operation, 1)
+    output.need("string order")
+    body.assign(operation.result, "(spite_string_order({first}, {second}) {symbol} 0)")
 }
 
 func join(body: Body, operation: Operation) {
@@ -552,10 +740,33 @@ func nullable_has(body: Body, operation: Operation) {
     body.assign(operation.result, "({tested}).has_value")
 }
 
+func presence(tested: String, inner: Analysis.SpiteType): String {
+    if shape.as_string(inner) or shape.is_symbol(inner) {
+        return "(!SPITE_STRING_IS_NULL({tested}))"
+    }
+    if naming.is_tagged(inner) {
+        return "SPITE_TAGGED_PRESENT({tested})"
+    }
+    if naming.is_reference(inner) {
+        return "({tested} != 0)"
+    }
+    return "({tested}).has_value"
+}
+
+func checked_value(body: Body, operation: Operation, test: String) {
+    assert operation.site >= 0 and operation.form != "unchecked"
+    output.need("check failed")
+    var place = located(body, operation)
+    var text = sites.source_text(operation.site)
+    body.emit("if (__builtin_expect(!({test}), 0)) spite_check_failed(\"{text}\", {place});")
+}
+
 func nullable_value(body: Body, operation: Operation) {
     var tested = body.operand(operation, 0)
     var inner = nullable_inner(body, operation)
     assert inner
+    var present = presence(tested, inner)
+    checked_value(body, operation, present)
     if naming.is_reference(inner) {
         body.assign(operation.result, tested)
         return
@@ -612,6 +823,10 @@ func union_value(body: Body, operation: Operation) {
     var made = body.type_of(operation.result)
     assert held_type and made
     var written = naming.c_type(made)
+    var tag_test = member_test(held, held_type, made)
+    if not tag_test.is_empty() {
+        checked_value(body, operation, tag_test)
+    }
     if naming.is_tagged(held_type) {
         tagged_value(body, operation, held, made)
         return
@@ -625,6 +840,25 @@ func union_value(body: Body, operation: Operation) {
         return
     }
     body.assign(operation.result, "(({written})({held}))")
+}
+
+func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.SpiteType): String {
+    var tagged = naming.is_tagged(held_type)
+    var layout = naming.layout_of(made)
+    var scalar = shape.as_scalar(made)
+    if shape.as_string(made) {
+        layout = lowered.layout_named("SpiteString")
+    } else if scalar {
+        layout = lowered.layout_named("Spite{naming.scalar_label(scalar.kind)}")
+    }
+    if not layout or naming.is_tagged(made) or shape.as_union(made) {
+        return ""
+    }
+    var identity = naming.class_id_of(layout)
+    if tagged {
+        return "({held}).tag == {identity}"
+    }
+    return "({held}) != 0 && ((SpiteHeader*)({held}))->class_id == {identity}"
 }
 
 func tagged_value(body: Body, operation: Operation, held: String, made: Analysis.SpiteType) {

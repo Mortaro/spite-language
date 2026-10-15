@@ -174,6 +174,11 @@ func reporters(): List<String> {
             "static void spite_outside_list(const char* read, const char* where) __attribute__((noreturn, cold));\nstatic void spite_outside_list(const char* read, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' is outside its list: a bound proves only the top of an index, and this one is below 0 or the list changed, at %s\\n\", read, where);\nexit(1);\n}",
         )
     }
+    if output.needs("check failed") {
+        pieces.append(
+            "static void spite_check_failed(const char* check, const char* where) __attribute__((noreturn, cold));\nstatic void spite_check_failed(const char* check, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the check '%s' failed, at %s\\n\", check, where);\nexit(1);\n}",
+        )
+    }
     if output.needs("switch missed") {
         pieces.append(
             "static void spite_switch_missed(const char* where) __attribute__((noreturn, cold));\nstatic void spite_switch_missed(const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: a switch met a case it does not cover, at %s\\n\", where);\nexit(1);\n}",
@@ -189,6 +194,23 @@ func helpers(): List<String> {
             "static inline bool spite_string_same(SpiteString left, SpiteString right) \{\nint64_t length = spite_string_length(left);\nif (length != spite_string_length(right)) return false;\nreturn length == 0 || memcmp(spite_string_bytes(&left), spite_string_bytes(&right), (size_t)length) == 0;\n}",
         )
     }
+    pieces.append(
+        "static inline SpiteArguments SpiteArguments___retain(SpiteArguments self) \{ return self; }\nstatic inline void SpiteArguments___release(SpiteArguments self) \{ (void)self; }",
+    )
+    if output.needs("string order") {
+        pieces.append(
+            "static inline int32_t spite_string_order(SpiteString left, SpiteString right) \{\nint64_t left_length = spite_string_length(left);\nint64_t right_length = spite_string_length(right);\nint64_t shortest = left_length < right_length ? left_length : right_length;\nint compared = shortest > 0 ? memcmp(spite_string_bytes(&left), spite_string_bytes(&right), (size_t)shortest) : 0;\nif (compared != 0) return compared < 0 ? -1 : 1;\nreturn left_length < right_length ? -1 : (left_length > right_length ? 1 : 0);\n}",
+        )
+    }
+    if output.needs("value box") {
+        pieces.append(
+            "static void spite_value_box_release(void* self) \{\nif (SPITE_COUNT_DOWN(((SpiteHeader*)self)->ref_count) > 0) return;\nSPITE_FREE(self);\n}",
+        )
+    }
+    if output.needs("symbol find") {
+        var found = symbol_find()
+        pieces.append(found)
+    }
     if output.needs("string box") {
         var box = string_box()
         pieces.append(box)
@@ -200,6 +222,17 @@ func helpers(): List<String> {
         index = index + 1
     }
     return pieces
+}
+
+func symbol_find(): String {
+    var entries = List<String>()
+    var index = 0
+    while index < output.symbol_literals.count() {
+        entries.append("&{output.symbol_literals[index]}")
+        index = index + 1
+    }
+    entries.append("0")
+    return "static SpiteString spite_symbol_find(SpiteString text) \{\nstatic SpiteString* table[] = \{ {entries.join(", ")} };\nfor (int64_t index = 0; table[index] != 0; index = index + 1) if (spite_string_same(text, *table[index])) return *table[index];\nreturn SPITE_STRING_NULL;\n}"
 }
 
 func string_box(): String {

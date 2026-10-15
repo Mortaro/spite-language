@@ -241,6 +241,9 @@ func counted_name(spite_type: Analysis.SpiteType): String {
     if shape.as_list(spite_type) or shape.as_dictionary(spite_type) {
         return label(spite_type)
     }
+    if shape.is_arguments(spite_type) {
+        return "SpiteArguments"
+    }
     var united = shape.as_union(spite_type)
     if united {
         return united.c_name
@@ -320,7 +323,7 @@ func kind_of(spite_type: Analysis.SpiteType?): Analysis.Types.NumericKind? {
 }
 
 func is_signed(kind: Analysis.Types.NumericKind): Boolean {
-    return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind' or kind == 'address_kind'
+    return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
 }
 
 func is_unsigned(kind: Analysis.Types.NumericKind): Boolean {

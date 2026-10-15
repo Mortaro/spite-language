@@ -383,6 +383,12 @@ func print_constant(operation: Operation) {
     if shape.as_string(made) or shape.is_symbol(made) {
         string_constants[operation.result] = operation.literal
     }
+    if shape.is_symbol(made) and operation.literal != "null" {
+        var symbol = sites.literal(operation.literal)
+        if not output.symbol_literals.contains(symbol) {
+            output.symbol_literals.append(symbol)
+        }
+    }
     var tagged_class = lowered.layout_named(operation.literal)
     if shape.is_symbol(made) and tagged_class {
         var identity = naming.class_id_of(tagged_class)
