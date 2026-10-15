@@ -6,6 +6,7 @@ var escape: Escape? = null
 var framed_objects = 0
 var framed_lists = 0
 var framed_buffers = 0
+var dropped_defaults = Dictionary<Operation, Boolean>()
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -48,7 +49,7 @@ func place_function(function: Function) {
         }
         block_index = block_index + 1
     }
-    assert framed.count() > 0
+    assert framed.count() > 0 or dropped_defaults.count() > 0
     mark_frame_releases(function, framed)
 }
 
@@ -72,10 +73,30 @@ func place_object(
     if capacity >= 0 {
         operation.literal = capacity
         framed_lists = framed_lists + 1
+        drop_list_defaults(function, uses, operation.result)
     } else {
         framed_objects = framed_objects + 1
     }
     framed[operation.result] = true
+}
+
+func drop_list_defaults(function: Function, uses: Facts.Uses, list: Integer) {
+    var reached = uses.uses_of(list)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var user = operation_at_or_none(function, place)
+        if user and user.kind == "store" and user.operands.first() == list and (user.field == "items" or user.field == "capacity") {
+            dropped_defaults[user] = true
+        }
+        index = index + 1
+    }
+}
+
+func operation_at_or_none(function: Function, place: Facts.Place): Operation? {
+    assert place.position >= 0
+    var block = function.block_at(place.block)
+    return block.operations[place.position]
 }
 
 # ../../../../docs/optimizations.md#a-local-list-of-known-size-lives-in-the-frame
@@ -281,6 +302,7 @@ func mark_frame_releases(function: Function, framed: Dictionary<Integer, Boolean
         var index = 0
         while index < block.operations.count() {
             var operation = block.operations[index]
+            var dropped = dropped_defaults.has(operation)
             var counts_framed = operation.kind == "retain" or operation.kind == "release"
             var operand = operation.operands.first()
             if counts_framed and operand and framed.has(operand) {
@@ -288,7 +310,7 @@ func mark_frame_releases(function: Function, framed: Dictionary<Integer, Boolean
                     operation.form = "frame"
                     kept.append(operation)
                 }
-            } else {
+            } else if not dropped {
                 kept.append(operation)
             }
             index = index + 1

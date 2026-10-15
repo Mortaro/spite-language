@@ -60,6 +60,16 @@ func classified(value: Integer): String {
     if defining.kind == "call" and defining.callee == "Union.tag" {
         return "plain"
     }
+    if consumption.is_lent_call(defining) {
+        return "lent"
+    }
+    if consumption.is_wrap(defining) {
+        var wrapped = defining.operands.first()
+        crash wrapped
+        if origin_of(wrapped) == "lent" {
+            return "lent"
+        }
+    }
     if defining.kind == "constant" {
         return "static"
     }
