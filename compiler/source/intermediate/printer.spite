@@ -8,6 +8,8 @@ var layouts = Intermediate.Printing.Layouts()
 var runtime = Intermediate.Printing.Runtime()
 var copies = Intermediate.Printing.Copies()
 var machines = Intermediate.Printing.Machines()
+var hot = Intermediate.Printing.Hot()
+var hot_manifest = ""
 
 func print(lowered: Lowered): String {
     wire(lowered)
@@ -26,6 +28,9 @@ func print(lowered: Lowered): String {
     note_maths()
     var written = assembled(lowered)
     note_reached(written)
+    if lowered.hot_reload {
+        hot_manifest = hot.manifest()
+    }
     return written
 }
 
@@ -78,6 +83,12 @@ func wire(lowered: Lowered) {
     copies.output = made
     copies.lowered = lowered
     copies.naming = naming
+    hot = Intermediate.Printing.Hot()
+    hot.output = made
+    hot.lowered = lowered
+    hot.naming = naming
+    body.hot = hot
+    layouts.hot = hot
     copies.made = List<String>()
     copies.table_written = false
     intrinsics.copies = copies
@@ -100,9 +111,6 @@ func wire(lowered: Lowered) {
 }
 
 func refuse_unbuilt(lowered: Lowered) {
-    if lowered.hot_reload {
-        output.refuse("a --hot-reload build swaps code in a running program, which the printer does not write yet")
-    }
     if lowered.remote_loop {
         output.refuse("the program serves a REPL port, which the printer does not write yet")
     }
@@ -116,6 +124,14 @@ func assembled(lowered: Lowered): String {
     var declared = prototypes_text()
     var supported = supports_text(lowered)
     var bodies = output.bodies.join("\n")
+    if lowered.hot_reload {
+        var hot_prototypes = hot.prototypes()
+        var hot_supports = hot.supports()
+        var closing = hot.closing()
+        declared = "{hot_prototypes}\n{declared}"
+        supported = "{hot_supports}\n{supported}"
+        bodies = "{bodies}\n{closing}"
+    }
     return "{types}\n{declared}\n{supported}\n{bodies}\n{runtime.faults()}\n{runtime.main_function()}\n"
 }
 

@@ -39,6 +39,8 @@ var foreign_libraries = List<String>()
 var foreign_symbols = List<String>()
 var foreign_headers = List<String>()
 var table_names = List<String>()
+var defined = Dictionary<String, Boolean>()
+var hot_start = ""
 
 func refuse(why: String) {
     if not refusals.contains(why) {
@@ -59,10 +61,12 @@ func needs(piece: String): Boolean {
 func place(c_name: String, owner: String, name: String, line: Integer) {
     var where = escaped_place(owner)
     var named = escaped_place(name)
+    defined[c_name] = true
     places.append("\{(const void*)&{c_name}, \"{where}\", \"{named}\", {line}},")
 }
 
 func runtime_place(c_name: String) {
+    defined[c_name] = true
     places.append("\{(const void*)&{c_name}, \"-\\t-\", \"{c_name}\", 0},")
 }
 

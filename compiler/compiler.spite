@@ -413,8 +413,10 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
         return null
     }
     last_crash_map = generator.crash_map()
-    if generator.hot_reload {
+    if generator.hot_reload and not writes_from_intermediate {
         last_hot_manifest = generator.hot_manifest()
+    }
+    if generator.hot_reload {
         var reload = Generation.HotReloadLibrary()
         last_hot_state = hot_state(discovery, reload, 0)
     }
@@ -457,6 +459,7 @@ func write_from_intermediate(generator: Generation.Generator) {
         return
     }
     generated_code = written
+    last_hot_manifest = pipeline.hot_manifest
 }
 
 func report_error(message: String) {

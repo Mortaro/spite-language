@@ -37,6 +37,24 @@ func print(body: Body, operation: Operation) {
     }
 }
 
+func print_singleton_peek(body: Body, operation: Operation) {
+    var maker = lowered.function_named(operation.target)
+    if not maker or maker.singleton_of.is_empty() {
+        body.refuse("it peeks at the singleton made by '{operation.target}', which the program does not make")
+        return
+    }
+    var layout = lowered.layout_named(maker.singleton_of)
+    if not layout {
+        body.refuse("it peeks at the singleton '{maker.singleton_of}', which has no layout")
+        return
+    }
+    if layout.arrangement == "static" {
+        body.assign(operation.result, "{operation.target}()")
+        return
+    }
+    body.assign(operation.result, "__atomic_load_n(&{operation.target}_cache, __ATOMIC_ACQUIRE)")
+}
+
 func print_singleton_lock(body: Body, operation: Operation, word: String) {
     var owner = operation.literal
     switch word {
@@ -44,6 +62,7 @@ func print_singleton_lock(body: Body, operation: Operation, word: String) {
         "leave_coarse": body.leave_coarse(owner)
         "enter_skipping": body.enter_skipping(owner)
         "leave_skipping": body.leave_skipping(owner)
+        "peek": print_singleton_peek(body, operation)
         _: body.refuse("it calls 'Singleton.{word}', which is no intrinsic")
     }
 }

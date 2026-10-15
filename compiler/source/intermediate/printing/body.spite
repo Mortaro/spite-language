@@ -5,6 +5,7 @@ var naming = Naming()
 var sites = Sites()
 var intrinsics = Intrinsics()
 var machines = Machines()
+var hot = Hot()
 var machine = false
 var resume_count = 0
 var placements = Dictionary<Integer, Integer>()
@@ -51,10 +52,23 @@ func print(printed: Function) {
         print_locked()
         return
     }
+    if printed.slotted {
+        print_slotted()
+        return
+    }
     print_lowered(printed.c_name, "")
     if printed.resumable {
         print_machine()
     }
+}
+
+# ../../../../docs/repl.md#live-reload---hot-reload
+func print_slotted() {
+    print_lowered("{function.c_name}___hot", "")
+    var parts = parameter_parts()
+    var answered = answer_type()
+    hot.slot(function.c_name, answered, parts, function.shown, function.owner)
+    hot.note_function(function)
 }
 
 func print_machine() {
@@ -307,8 +321,13 @@ func print_singleton_maker() {
     var shown = naming.escape_c(layout.qualified)
     var answered = answer_type()
     var ending = "{name}___release(object);"
+    var found = "found"
+    var cached = "{getter}_cache"
     if layout.is_singleton {
         ending = "{name}___destroy(object);"
+    } else {
+        found = "{name}___retain(found)"
+        cached = "{name}___retain({getter}_cache)"
     }
     var getter_lines = [
         "static {answered} {getter}_cache = 0;"
@@ -322,7 +341,7 @@ func print_singleton_maker() {
         "}"
         "{answered} {getter}(void) \{"
         "{answered} found = SPITE_SINGLETON_FOUND({getter}_cache);"
-        "if (found != 0) return found;"
+        "if (found != 0) return {found};"
         "spite_singleton_check_circle(\"{shown}\");"
         "SPITE_LOCK({getter}_lock);"
         "if ({getter}_cache == 0) \{"
@@ -334,10 +353,11 @@ func print_singleton_maker() {
         "SPITE_SINGLETON_PUBLISH({getter}_cache, made);"
         "}"
         "SPITE_UNLOCK({getter}_lock);"
-        "return {getter}_cache;"
+        "return {cached};"
         "}"
     ]
     output.prototypes.append("{answered} {getter}(void);")
+    output.prototypes.append("static {answered} {getter}_cache;")
     var getter_text = getter_lines.join("\n")
     output.bodies.append(getter_text)
     output.runtime_place("{getter}_teardown")
@@ -434,6 +454,17 @@ func print_supplied() {
         note_place(function.c_name)
         return
     }
+    if function.slotted {
+        var hot_heading = signature("{function.c_name}___hot")
+        output.prototypes.append("{hot_heading};")
+        output.bodies.append("{hot_heading} \{\n{supplied}\n}")
+        note_place("{function.c_name}___hot")
+        var parts = parameter_parts()
+        var answered = answer_type()
+        hot.slot(function.c_name, answered, parts, function.shown, function.owner)
+        hot.note_hash(function.c_name, supplied)
+        return
+    }
     var heading = signature(function.c_name)
     output.prototypes.append("{heading};")
     output.bodies.append("{heading} \{\n{supplied}\n}")
@@ -491,6 +522,15 @@ func slot_hook(name: String, inner: String): String {
 }
 
 func signature(c_name: String): String {
+    var parts = parameter_parts()
+    if parts.is_empty() {
+        parts.append("void")
+    }
+    var answered = answer_type()
+    return "{answered} {c_name}({parts.join(", ")})"
+}
+
+func parameter_parts(): List<String> {
     var parts = List<String>()
     if function.receiver >= 0 {
         var receiving = receiver_type()
@@ -503,11 +543,7 @@ func signature(c_name: String): String {
         parts.append("{written} {parameter.name}_")
         index = index + 1
     }
-    if parts.is_empty() {
-        parts.append("void")
-    }
-    var answered = answer_type()
-    return "{answered} {c_name}({parts.join(", ")})"
+    return parts
 }
 
 func receiver_type(): String {
@@ -1439,6 +1475,9 @@ func field_place(operation: Operation): String {
     }
     if layout.is_value {
         return "({holder}).{operation.field}_"
+    }
+    if layout.hot {
+        return "{layout.c_name}___fields({holder})->{operation.field}_"
     }
     return "({holder})->{operation.field}_"
 }
