@@ -422,3 +422,12 @@ func returns_at(value: Integer, site_number: Integer) {
     ended.site = site_number
     end_block(ended)
 }
+
+func retype(value: Integer, spite_type: Analysis.SpiteType) {
+    var retyped = built_function().value_at(value)
+    retyped.spite_type = spite_type
+    assert current >= 0
+    var last = block().operations.last()
+    assert last and last.result == value
+    last.spite_type = spite_type
+}

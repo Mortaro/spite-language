@@ -253,8 +253,11 @@ func enum_toward(literal: Syntax.Expressions.EnumLiteralExpression, wanted: Anal
 }
 
 func convert(value: Integer, wanted: Analysis.SpiteType): Integer {
-    if value < 0 or emitter.lowering_failed() {
+    if emitter.lowering_failed() {
         return value
+    }
+    if value < 0 {
+        return nothing_value(wanted)
     }
     var given = type_of(value)
     if known().same(given, wanted) {
@@ -765,7 +768,13 @@ func index_of_value(object: Integer, index: Syntax.Expressions.Expression): Inte
         return not_lowered(null, "an index read on '{owner.qualified_dotted}', which has no get_at")
     }
     var arguments = [index]
-    return call_with_arguments(owner, reader, object, arguments)
+    var read = call_with_arguments(owner, reader, object, arguments)
+    var listed = types.as_list(object_type)
+    if listed and read >= 0 {
+        var element_type = known().nullable_of(listed.element)
+        emitter.retype(read, element_type)
+    }
+    return read
 }
 
 func call_reached(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, operands: List<Integer>): Integer {
@@ -3243,4 +3252,16 @@ func member_operation(
         return emitter.emit_call_one("Boolean.not", called, boolean)
     }
     return called
+}
+
+func nothing_value(wanted: Analysis.SpiteType): Integer {
+    if types.is_void(wanted) {
+        return -1
+    }
+    var wanted_class = types.as_class_ref(wanted)
+    if wanted_class and wanted_class.c_name == "Nothing" {
+        return default_of(wanted)
+    }
+    var shown = known().type_text(wanted)
+    return not_lowered(wanted, "a call that answers nothing, used where {shown} is wanted")
 }
