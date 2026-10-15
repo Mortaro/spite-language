@@ -566,6 +566,9 @@ func print_framed(layout: Layout) {
     if output.placed_layouts.contains(name) {
         framed_allocator = "self->spite_allocator = 0;\n"
     }
+    if output.tracked_layouts.contains(name) {
+        framed_allocator = "{framed_allocator}spite_track_{name}(self);\n"
+    }
     var identity = naming.class_id_of(layout)
     output.need("framed")
     output.prototypes.append("static {name}* {name}___framed({name}* self);")
@@ -579,6 +582,9 @@ func print_framed(layout: Layout) {
     var dropping = drop_call(layout)
     if not dropping.is_empty() {
         lines.append(dropping)
+    }
+    if output.tracked_layouts.contains(name) {
+        lines.append("spite_untrack_{name}(self);")
     }
     var released = field_releases(layout, "self")
     var released_text = released.join("\n")

@@ -40,6 +40,9 @@ func own_summary(function: Function): Summary {
         made.unknown = true
         return made
     }
+    if not function.waiting_kind.is_empty() {
+        made.waits = true
+    }
     fresh_values = Dictionary<Integer, Boolean>()
     function.blocks.each(note_fresh)
     var block_index = 0

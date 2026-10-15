@@ -287,21 +287,21 @@ func note_loop_tables(lowered: Lowered) {
     var class_names = naming.escape_c(lowered.loop_class_names)
     var enum_names = naming.escape_c(lowered.loop_enum_names)
     var descriptions = naming.escape_c(lowered.loop_class_descriptions)
-    output.prototypes.append("SpiteString spite_loop_class_names(void);")
-    output.prototypes.append("SpiteString spite_loop_enum_names(void);")
-    output.prototypes.append("SpiteString spite_loop_class_descriptions(void);")
-    output.support(
-        "SpiteString spite_loop_class_names(void) \{ return spite_string_from_cstring_owned(\"{class_names}\"); }",
-    )
-    output.name_piece("spite_loop_class_names")
-    output.support(
-        "SpiteString spite_loop_enum_names(void) \{ return spite_string_from_cstring_owned(\"{enum_names}\"); }",
-    )
-    output.name_piece("spite_loop_enum_names")
-    output.support(
-        "SpiteString spite_loop_class_descriptions(void) \{ return spite_string_from_cstring_owned(\"{descriptions}\"); }",
-    )
-    output.name_piece("spite_loop_class_descriptions")
+    loop_table(lowered, "spite_loop_class_names", class_names, "the names of the classes")
+    loop_table(lowered, "spite_loop_enum_names", enum_names, "the names of the enums")
+    loop_table(lowered, "spite_loop_class_descriptions", descriptions, "the descriptions of the classes")
+}
+
+func loop_table(lowered: Lowered, name: String, text: String, shown: String) {
+    var body_text = "return spite_string_from_cstring_owned(\"{text}\");"
+    if lowered.hot_reload {
+        var nothing = List<String>()
+        hot.slot_support(name, "SpiteString", nothing, body_text, "the REPL's list of {shown}", "spite_loop")
+        return
+    }
+    output.prototypes.append("SpiteString {name}(void);")
+    output.support("SpiteString {name}(void) \{ {body_text} }")
+    output.name_piece(name)
 }
 
 func note_nothing_default() {
