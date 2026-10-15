@@ -451,6 +451,20 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
     if nullable {
         return layout_of(nullable.inner)
     }
+    var enumerated = shape.as_enum(spite_type)
+    if enumerated {
+        return lowered.layout_named(enumerated.c_name)
+    }
+    var scalar = shape.as_scalar(spite_type)
+    if scalar {
+        return lowered.layout_named("Spite{scalar_label(scalar.kind)}")
+    }
+    if shape.is_symbol(spite_type) {
+        return lowered.layout_named("SpiteSymbol")
+    }
+    if shape.as_string(spite_type) {
+        return lowered.layout_named("SpiteString")
+    }
     return null
 }
 

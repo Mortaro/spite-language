@@ -30,6 +30,18 @@ func waiting_kind(function: Function): String {
     return ""
 }
 
+func scheduler_present(): Boolean {
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.qualified == "Scheduler" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func scheduler_name(): String {
     var index = 0
     while index < lowered.layouts.count() {
@@ -141,6 +153,7 @@ func frame_type(function: Function, fields: List<String>) {
 
 func ensure_primitive(function: Function, kind: String) {
     assert not primitives.contains(function.c_name)
+    output.need("machines")
     primitives.append(function.c_name)
     var fields = parameter_fields(function)
     var steps = ""

@@ -8,6 +8,7 @@ var machines = Machines()
 var machine = false
 var resume_count = 0
 var placements = Dictionary<Integer, Integer>()
+var current_block = Block(0)
 var shape = Analysis.TypeShape()
 var function = Function("", "", "")
 var lines = List<String>()
@@ -66,7 +67,9 @@ func print_machine() {
     frame_buffers = Dictionary<Integer, String>()
     fixed_buffers = Dictionary<Integer, Boolean>()
     machine = true
+    output.need("machines")
     resume_count = 0
+    note_frames()
     declare_values()
     print_blocks()
     machine = false
@@ -275,6 +278,7 @@ func print_locked() {
 
 func print_lowered(c_name: String, storage: String) {
     note_placements()
+    note_frames()
     declare_values()
     print_blocks()
     var heading = signature(c_name)
@@ -399,6 +403,9 @@ func print_supplied() {
         return
     }
     var supplied = function.source.supplied_body
+    if supplied.contains("spite_frame_start") or supplied.contains("SpiteFrame") {
+        output.need("machines")
+    }
     if supplied.is_empty() {
         output.refuse("the supplied function '{function.c_name}' has no supplied body")
         return
@@ -416,7 +423,8 @@ func print_supplied() {
         supplied = slot_hook(function.name, inline_inner)
     }
     var kind = machines.waiting_kind(function)
-    if lowered.makes_concurrents and not kind.is_empty() and kind != "join" {
+    if machines.scheduler_present() and not kind.is_empty() and kind != "join" {
+        output.need("machines")
         var waited = signature("{function.c_name}___waiting")
         output.prototypes.append("{waited};")
         output.bodies.append("{waited} \{\n{supplied}\n}")
@@ -653,6 +661,7 @@ func print_blocks() {
     while index < function.blocks.count() {
         var block = function.blocks[index]
         lines.append("block_{block.number}:;")
+        current_block = block
         print_operations(block)
         print_terminator(block.terminator)
         index = index + 1
@@ -977,6 +986,10 @@ func print_known_call(operation: Operation, callee: Function) {
         print_kept_store_call(operation, callee.c_name)
         return
     }
+    if operation.form == "overlap" and not machine {
+        print_overlap(operation, callee)
+        return
+    }
     if operation.form == "unguarded" and not callee.locking.is_empty() {
         print_plain_call(operation, "{callee.c_name}___unguarded")
         return
@@ -986,6 +999,103 @@ func print_known_call(operation: Operation, callee: Function) {
         return
     }
     print_plain_call(operation, callee.c_name)
+}
+
+func overlap_members(operation: Operation): List<Operation> {
+    var members = List<Operation>()
+    var index = 0
+    while index < current_block.operations.count() {
+        var candidate = current_block.operations[index]
+        if candidate.kind == "call" and candidate.form == "overlap" and candidate.literal == operation.literal {
+            members.append(candidate)
+        }
+        index = index + 1
+    }
+    return members
+}
+
+func print_overlap(operation: Operation, callee: Function) {
+    var members = overlap_members(operation)
+    var pool = intrinsics.pool_function("maker")
+    var submit = intrinsics.pool_function("submit")
+    var joining = intrinsics.pool_function("join")
+    var parallel = members.count() > 1 and not pool.is_empty() and not submit.is_empty() and not joining.is_empty() and lowered.layout_named("Spite_Function")
+    if not parallel {
+        print_plain_call(operation, callee.c_name)
+        return
+    }
+    var last = members.last()
+    crash last
+    if last != operation {
+        start_overlapped(operation, callee, pool, submit)
+        return
+    }
+    print_plain_call(operation, callee.c_name)
+    var index = 0
+    while index < members.count() - 1 {
+        var member = members[index]
+        var slot = "spite_overlap_{member.result}"
+        lines.append("{joining}({pool}(), (int64_t)(intptr_t)&{slot}_state);")
+        if is_declared(member.result) {
+            assign(member.result, "{slot}.result")
+        }
+        index = index + 1
+    }
+}
+
+func start_overlapped(operation: Operation, callee: Function, pool: String, submit: String) {
+    output.need("framed")
+    output.need("threads")
+    var piece = "spite_overlap_piece_{callee.c_name}"
+    var arguments_type = "{piece}_arguments"
+    var answered = answer_of(callee)
+    if not output.forwarders.contains(piece) {
+        output.forwarders.append(piece)
+        var fields = List<String>()
+        var passed = List<String>()
+        var index = 0
+        while index < operation.operands.count() {
+            var argument_type = operand_type(operation, index)
+            var written = naming.c_type(argument_type)
+            fields.append("{written} argument_{index};")
+            passed.append("arguments->argument_{index}")
+            index = index + 1
+        }
+        if not answered.is_empty() {
+            fields.append("{answered} result;")
+        }
+        output.frames.append("typedef struct {arguments_type} \{ {fields.join(" ")} } {arguments_type};")
+        var stored = ""
+        if not answered.is_empty() {
+            stored = "arguments->result = "
+        }
+        output.prototypes.append("static void {piece}(void* owner, int32_t first, int32_t end);")
+        output.supports.append(
+            "static void {piece}(void* owner, int32_t first, int32_t end) \{\n(void)first; (void)end;\n{arguments_type}* arguments = ({arguments_type}*)owner;\n{stored}{callee.c_name}({passed.join(", ")});\n}",
+        )
+        output.runtime_place(piece)
+    }
+    var slot = "spite_overlap_{operation.result}"
+    declarations.append("{arguments_type} {slot};")
+    declarations.append("int64_t {slot}_state;")
+    declarations.append("Spite_Function {slot}_piece;")
+    var index = 0
+    while index < operation.operands.count() {
+        var argument = operand(operation, index)
+        lines.append("{slot}.argument_{index} = {argument};")
+        index = index + 1
+    }
+    lines.append(
+        "memset(&{slot}_piece, 0, sizeof({slot}_piece)); {slot}_piece.header.ref_count = SPITE_FRAMED_COUNT; {slot}_piece.spite_owner = (void*)&{slot}; {slot}_piece.spite_typed_call = (void*)&{piece};",
+    )
+    lines.append("{submit}({pool}(), &{slot}_piece, 0, 1, (int64_t)(intptr_t)&{slot}_state);")
+}
+
+func answer_of(callee: Function): String {
+    if not callee.answer or shape.is_void(callee.answer) {
+        return ""
+    }
+    return naming.c_type(callee.answer)
 }
 
 func print_skipping_call(operation: Operation, callee: Function) {
@@ -1295,7 +1405,13 @@ func print_plain_store(operation: Operation) {
     var stored = operand(operation, 1)
     var stored_type = operand_type(operation, 1)
     var counted = counted_name_of(stored_type)
-    if counted.is_empty() {
+    var holding = operand_type(operation, 0)
+    var holder_layout = naming.layout_of(holding)
+    var row = false
+    if holder_layout {
+        row = holder_layout.kind == "row"
+    }
+    if counted.is_empty() or row {
         lines.append("{place} = {stored};")
         return
     }
@@ -1333,7 +1449,7 @@ func print_make(operation: Operation) {
         refuse("it makes '{operation.layout}', which has no layout")
         return
     }
-    if layout.is_value or layout.kind != "class" or layout.arrangement == "static" {
+    if layout.is_value or layout.kind != "class" and layout.kind != "row" or layout.arrangement == "static" {
         refuse("it makes '{operation.layout}', which is not an object made at run time")
         return
     }
@@ -1471,6 +1587,30 @@ func print_framed_make(operation: Operation, layout: Layout) {
     declarations.append("{written} {slot}_items[{room}];")
     lines.append("({name_of(operation.result)})->items_ = (int64_t)(intptr_t){slot}_items;")
     lines.append("({name_of(operation.result)})->capacity_ = {capacity};")
+}
+
+func note_frames() {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "make" and operation.form == "frame" and not operation.literal.is_empty() {
+                note_frame_list(operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_frame_list(operation: Operation) {
+    var layout = lowered.layout_named(operation.layout)
+    assert layout and layout.information
+    var element = layout.information.codegen_types.first()
+    assert element
+    var written = naming.c_type(element)
     var element_count = naming.counted_name(element)
     frame_lists[operation.result] = "{element_count}|{written}"
 }

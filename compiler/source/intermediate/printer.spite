@@ -125,10 +125,9 @@ func types_text(): String {
     var types = output.types.join("\n")
     var nullable_types = output.nullable_types.join("\n")
     var structs = output.structs.join("\n")
-    var frames = ""
-    if runtime.lowered.makes_concurrents {
-        var frame_types = output.frames.join("\n")
-        frames = "{machines.runtime_types()}\n{frame_types}"
+    var frames = output.frames.join("\n")
+    if output.needs("machines") {
+        frames = "{machines.runtime_types()}\n{frames}"
     }
     var site_lines = output.site_lines.join("\n")
     var literal_lines = output.literal_lines.join("\n")
@@ -167,7 +166,7 @@ func supports_text(lowered: Lowered): String {
         supports = "static void spite_weak_object_freed(void* object);\n{weak_runtime}\n{supports}"
     }
     var libraries = runtime.foreign_libraries()
-    if lowered.makes_concurrents {
+    if output.needs("machines") {
         var machine_runtime = machines.runtime_bodies()
         libraries = "{libraries}\n{machine_runtime}"
     }
