@@ -46,6 +46,10 @@ func lower_statement(statement: Syntax.Statements.Statement) {
     if statement.line > 0 {
         emitter.line = statement.line
     }
+    var made = front()
+    if not made.breakpoint_sites.is_empty() {
+        breakpoint(statement)
+    }
     switch statement {
         Syntax.Statements.VariableDeclaration: declaration(statement)
         Syntax.Statements.AssignmentStatement: assignment(statement)
@@ -975,6 +979,47 @@ func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned:
     var allocator = lowering().lower(assigned)
     var operands = [object, allocator]
     emitter.emit_call("Object.place", operands, null)
+}
+
+func breakpoint(statement: Syntax.Statements.Statement) {
+    var made = front()
+    var described = lowering().lowered_function()
+    var source_path = described.source_path
+    if source_path.is_empty() {
+        source_path = lowered_class.source_path
+    }
+    var site = "{statement.line} {source_path}"
+    assert made.hot_reload and made.remote_loop_port > 0 and made.breakpoint_sites.contains(site)
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        emitter.fail_lowering("a breakpoint with no Spite.Attribute class")
+        return
+    }
+    var element = lowering().known().class_type(attribute_class)
+    var listed = lowering().new_list(element)
+    var appender = lowering().list_function(element, "append")
+    var expressions = lowering()
+    var reflection = ReflectionLowering(expressions)
+    if not lowered_class.is_value_class {
+        var own_object = lowering().own_receiver()
+        var own_name = reflection.symbol("self")
+        var own_attribute = reflection.reflect_body(own_name, own_object)
+        lowering().call_two_function(appender, listed, own_attribute)
+    }
+    var names = List<String>()
+    emitter.scope.visible_names(names)
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
+        var value = lowering().lower(named)
+        var local_name = reflection.symbol(name)
+        var local_attribute = reflection.reflect_body(local_name, value)
+        lowering().call_two_function(appender, listed, local_attribute)
+        index = index + 1
+    }
+    var shown = lowering().text_constant("{source_path}:{statement.line}")
+    emitter.emit_call_two("Loop.breakpoint", shown, listed, null)
 }
 
 func check_point() {

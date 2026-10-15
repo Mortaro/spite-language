@@ -34240,8 +34240,11 @@ func slot_statement_holds(
             watch.locals.append(statement.name)
             declare_ahead(statement, scope, class_information)
             var declared_type = scope.written_type(statement.name)
-            crash declared_type
-            if not declared_type or type_needs_drop(declared_type) {
+            var holds_objects = true
+            if declared_type {
+                holds_objects = type_needs_drop(declared_type)
+            }
+            if holds_objects {
                 watch.object_locals = true
             }
             return true

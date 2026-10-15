@@ -1400,15 +1400,74 @@ func program_loaded(call: Syntax.Expressions.CallExpression): Integer {
     if not entry {
         return not_lowered(null, "a program with no entry class")
     }
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    var program = construct(entry, no_arguments)
-    if made.remote_loop_port > 0 or made.hot_reload {
-        return not_lowered(null, "a program served to a remote REPL or reloaded while it runs")
+    var entry_type = known().class_type(entry)
+    var program = default_object(entry, entry_type)
+    var served = -1
+    if made.remote_loop_port > 0 {
+        served = served_loop(entry, program)
+    }
+    if entry.constructor {
+        var constructed = [program]
+        call_reached(entry, entry.constructor, constructed)
     }
     if made.console_loop {
         console_loop(entry, program)
     }
+    if served >= 0 {
+        wait_for_loop(served)
+    }
     return -1
+}
+
+func served_loop(entry: Analysis.ClassInfo, program: Integer): Integer {
+    var made = front()
+    var loop_class = made.find_class_by_qualified("ReadEvaluatePrintLoop")
+    if not loop_class {
+        return not_lowered(null, "a remote REPL with no ReadEvaluatePrintLoop class")
+    }
+    var wanted = ["serve", "listen_in_background", "wait_for_exit", "pause_at"]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(loop_class, wanted[index])
+        if found {
+            known().reach(loop_class, found)
+        }
+        index = index + 1
+    }
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var loop = construct(loop_class, no_arguments)
+    var attribute = program_attribute(entry, program)
+    var operands = [loop, attribute]
+    var serving = emitter.call_operation("Loop.serve", operands, null)
+    serving.literal = made.remote_loop_port.to_string()
+    return loop
+}
+
+func wait_for_loop(loop: Integer) {
+    var made = front()
+    var loop_class = made.find_class_by_qualified("ReadEvaluatePrintLoop")
+    crash loop_class
+    var waiting = made.find_or_instantiate_function(loop_class, "wait_for_exit")
+    if not waiting {
+        not_lowered(null, "a remote REPL with no wait_for_exit")
+        return
+    }
+    var operands = [loop]
+    call_reached(loop_class, waiting, operands)
+}
+
+func program_attribute(entry: Analysis.ClassInfo, program: Integer): Integer {
+    var made = front()
+    var symbol_type = known().typed_symbol()
+    var program_name = emitter.constant(symbol_type, "program")
+    var entry_type = known().class_type(entry)
+    var reflect_name = "spite_reflect_{made.reflected_label(entry_type)}"
+    known().reflection_maker(reflect_name, "reflect", entry, "")
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = known().class_type(attribute_class)
+    var reflect_operands = [program_name, program]
+    return emitter.emit_call(reflect_name, reflect_operands, attribute_type)
 }
 
 func console_loop(entry: Analysis.ClassInfo, program: Integer) {
@@ -1429,16 +1488,7 @@ func console_loop(entry: Analysis.ClassInfo, program: Integer) {
     var exit = emitter.new_block()
     emitter.jump_plain(header)
     emitter.enter_block(header)
-    var symbol_type = known().typed_symbol()
-    var program_name = emitter.constant(symbol_type, "program")
-    var entry_type = known().class_type(entry)
-    var reflect_name = "spite_reflect_{made.reflected_label(entry_type)}"
-    known().reflection_maker(reflect_name, "reflect", entry, "")
-    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
-    crash attribute_class
-    var attribute_type = known().class_type(attribute_class)
-    var reflect_operands = [program_name, program]
-    var attribute = emitter.emit_call(reflect_name, reflect_operands, attribute_type)
+    var attribute = program_attribute(entry, program)
     var step_operands = [loop, attribute]
     var going = call_reached(loop_class, step, step_operands)
     emitter.branch(going, header, exit)
@@ -1852,7 +1902,56 @@ func deep_copied(object: Integer): Integer {
             return call_reached(owner, own_copy, operands)
         }
     }
+    var visited = List<String>()
+    reach_own_copies(copied_type, visited)
     return emitter.emit_call_one("Object.deep_copy", object, copied_type)
+}
+
+func reach_own_copies(copied_type: Analysis.SpiteType, visited: List<String>) {
+    var made = front()
+    var label = known().type_text(copied_type)
+    assert not visited.contains(label)
+    visited.append(label)
+    var nullable = types.as_nullable(copied_type)
+    if nullable {
+        reach_own_copies(nullable.inner, visited)
+        return
+    }
+    var united = types.as_union(copied_type)
+    if united {
+        var described_union = made.find_union_by_c_name(united.c_name)
+        crash described_union
+        var member_index = 0
+        while member_index < described_union.members.count() {
+            var member = described_union.members[member_index]
+            var member_kind = member_type(member)
+            reach_own_copies(member_kind, visited)
+            member_index = member_index + 1
+        }
+        return
+    }
+    var listed = types.as_list(copied_type)
+    if listed {
+        reach_own_copies(listed.element, visited)
+        return
+    }
+    var dictionary = types.as_dictionary(copied_type)
+    if dictionary {
+        reach_own_copies(dictionary.element, visited)
+        return
+    }
+    var owner = made.class_of_type(copied_type)
+    assert owner and not owner.is_value_class
+    var own_copy = owner.find_function("deep_copy")
+    if own_copy {
+        known().reach(owner, own_copy)
+    }
+    var index = 0
+    while index < owner.fields.count() {
+        var field = owner.fields[index]
+        reach_own_copies(field.type, visited)
+        index = index + 1
+    }
 }
 
 func string_call(name: String, object: Integer, arguments: List<Syntax.Expressions.Expression>): Integer {
@@ -3065,6 +3164,11 @@ func reflection_read(member: Syntax.Expressions.MemberExpression, object: Intege
     if listed != -2 {
         return listed
     }
+    var united = types.as_union(object_type)
+    var union_reflected = member.name == "class" or member.name == "attributes" or member.name == "functions"
+    if united and union_reflected {
+        return union_reflection(object, united.c_name, member.name)
+    }
     var probe = Generation.ExpressionResult("spite_reflected", object_type)
     var result = made.generate_reflection_read(member.name, probe, member.object)
     if not result or not result.spite_type {
@@ -3072,6 +3176,81 @@ func reflection_read(member: Syntax.Expressions.MemberExpression, object: Intege
     }
     reach_class_layout()
     return emitter.emit_call_one("Reflection.{member.name}", object, result.spite_type)
+}
+
+func union_reflection(object: Integer, union_name: String, name: String): Integer {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union {
+        return not_lowered(null, "the '{name}' of a union with no description")
+    }
+    var answer = made.spite_class_type()
+    if name == "attributes" or name == "functions" {
+        var element_name = "Spite_Attribute"
+        if name == "functions" {
+            element_name = "Spite_Function"
+        }
+        var element_class = made.find_class_by_c_name(element_name)
+        if not element_class {
+            return not_lowered(null, "the '{name}' of a union with no {element_name} class")
+        }
+        var element = known().class_type(element_class)
+        answer = made.list_type_of(element)
+    }
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", object, tag_type)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(answer, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        tags.append(member.c_name)
+        var member_block = emitter.new_block()
+        targets.append(member_block)
+        index = index + 1
+    }
+    var own_block = emitter.new_block()
+    tags.append("_")
+    targets.append(own_block)
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        var member_kind = member_type(member)
+        var narrowed = emitter.emit_call_one("Union.value", object, member_kind)
+        var read = reflected_list(name, narrowed, member_kind)
+        if read == -2 {
+            read = empty_reflection(answer)
+        }
+        var member_passed = [read]
+        emitter.jump(joined, member_passed)
+        index = index + 1
+    }
+    emitter.enter_block(own_block)
+    var own_read = -1
+    if name == "class" {
+        var union_type = made.union_type_of(described_union)
+        own_read = class_object_of(union_type)
+    } else {
+        own_read = empty_reflection(answer)
+    }
+    var own_passed = [own_read]
+    emitter.jump(joined, own_passed)
+    emitter.enter_block(joined)
+    return answered
+}
+
+func empty_reflection(answer: Analysis.SpiteType): Integer {
+    var listed = types.as_list(answer)
+    if not listed {
+        return not_lowered(answer, "a reflection read with no list to answer")
+    }
+    return new_list(listed.element)
 }
 
 func class_object_of(spite_type: Analysis.SpiteType): Integer {
