@@ -5,6 +5,7 @@ var concrete_functions = List<Function>()
 var functions_by_name = Dictionary<String, Function>()
 var sites = List<Site>()
 var entry = ""
+var runtime_roots = List<String>()
 var hot_reload = false
 var read_evaluate_print_loop = false
 var remote_loop = false

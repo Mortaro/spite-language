@@ -15,6 +15,7 @@ func run(starting_lowered: Lowered) {
     assert not starting_lowered.is_inspectable()
     assert not starting_lowered.entry.is_empty() and starting_lowered.function_named(starting_lowered.entry)
     waiting.append(starting_lowered.entry)
+    starting_lowered.runtime_roots.each(waiting.append)
     settle()
     keep_reached()
 }
