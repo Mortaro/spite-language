@@ -75,6 +75,7 @@ func settle_layouts() {
     lowered.concrete_functions.each(note_function_types)
     lowered.layouts.each(note_layout_types)
     generator.unions.each(settle_union)
+    lowered.concrete_functions.each(settle_schema)
 }
 
 func settle_value_class(information: Analysis.ClassInfo) {
@@ -101,6 +102,16 @@ func settle_value_class(information: Analysis.ClassInfo) {
         index = index + 1
     }
     lowered.add_layout(made)
+}
+
+func settle_schema(function: Function) {
+    crash generator
+    assert function.intrinsic == "supplied" and function.source
+    var source = function.source
+    assert source.supplied_body.ends_with("the schema hash, written when the function is emitted */")
+    var owner = lowered.layout_named(function.owner)
+    assert owner and owner.information
+    source.supplied_body = generator.schema_body(owner.information, source)
 }
 
 func settle_synthetic_value(layout: Layout) {
