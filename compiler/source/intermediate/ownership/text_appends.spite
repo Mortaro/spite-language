@@ -1,0 +1,73 @@
+# ../../../../docs/optimizations.md#appending-to-text-in-place
+var types = Analysis.TypeShape()
+var appended_count = 0
+
+func mark(function: Function) {
+    assert not function.blocks.is_empty()
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if appends_in_place(function, uses, operation, block_index, index) {
+                operation.form = "in_place"
+                appended_count = appended_count + 1
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func appends_in_place(
+    function: Function,
+    uses: Facts.Uses,
+    operation: Operation,
+    block_index: Integer,
+    position: Integer,
+): Boolean {
+    if operation.kind != "call" or operation.callee != "String.join" or operation.result < 0 or not operation.form.is_empty() {
+        return false
+    }
+    var first = operation.operands.first()
+    if not first {
+        return false
+    }
+    var joined = function.value_at(operation.result)
+    var previous = function.value_at(first)
+    if joined.name.is_empty() or joined.name != previous.name or not is_text(previous.spite_type) {
+        return false
+    }
+    var index = 1
+    while index < operation.operands.count() {
+        if operation.operands[index] == first {
+            return false
+        }
+        index = index + 1
+    }
+    return used_only_before(uses, first, block_index, position)
+}
+
+func is_text(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    return types.as_string(spite_type)
+}
+
+func used_only_before(uses: Facts.Uses, value: Integer, block_index: Integer, position: Integer): Boolean {
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var earlier = place.block == block_index and place.position >= 0 and place.position < position
+        var here = place.block == block_index and place.position == position
+        if not earlier and not here {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}

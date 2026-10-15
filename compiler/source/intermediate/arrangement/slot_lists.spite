@@ -1,0 +1,324 @@
+# ../../../../docs/optimizations.md#a-list-held-only-by-another-list-lives-in-its-slot
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var effects: Facts.Effects? = null
+var candidates = Dictionary<String, Boolean>()
+var refused = Dictionary<String, Boolean>()
+var arranged_count = 0
+
+func SlotLists(starting_lowered: Lowered, starting_effects: Facts.Effects) {
+    lowered = starting_lowered
+    effects = starting_effects
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+}
+
+func arrange() {
+    crash lowered
+    assert not lowered.is_inspectable()
+    var layouts = lowered.layouts
+    layouts.each(note_candidate)
+    assert candidates.count() > 0
+    layouts.each(refuse_other_holders)
+    var functions = lowered.concrete_functions
+    functions.each(study)
+    var index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        var inner = inner_of(layout)
+        if candidates.has(layout.c_name) and not refused.has(inner) {
+            layout.arrangement = "slots"
+            arranged_count = arranged_count + 1
+        }
+        index = index + 1
+    }
+}
+
+func inner_of(layout: Layout): String {
+    crash kinds
+    if not layout.information {
+        return ""
+    }
+    var element = layout.information.codegen_types.first()
+    var inner = kinds.layout_of(element)
+    if not inner {
+        return ""
+    }
+    return inner.c_name
+}
+
+func note_candidate(layout: Layout) {
+    crash lowered
+    assert layout.qualified == "List"
+    var inner = inner_of(layout)
+    assert not inner.is_empty()
+    var inner_layout = lowered.layout_named(inner)
+    assert inner_layout and inner_layout.qualified == "List"
+    candidates[layout.c_name] = true
+}
+
+func refuse_other_holders(layout: Layout) {
+    var others = ["Dictionary", "Items", "Vector"]
+    assert others.contains(layout.qualified) and layout.information
+    var index = 0
+    while index < layout.information.codegen_types.count() {
+        var held = layout.information.codegen_types[index]
+        crash kinds
+        var held_layout = kinds.layout_of(held)
+        if held_layout {
+            refused[held_layout.c_name] = true
+        }
+        index = index + 1
+    }
+}
+
+func is_outer(spite_type: Analysis.SpiteType?): String {
+    crash kinds
+    var layout = kinds.layout_of(spite_type)
+    if not layout or not candidates.has(layout.c_name) {
+        return ""
+    }
+    return layout.c_name
+}
+
+func study(function: Function) {
+    var uses = Facts.Uses(function)
+    var flow = Facts.Flow(function)
+    var index = 0
+    while index < function.values.count() {
+        var value_type = function.value_at(index).spite_type
+        var outer = is_outer(value_type)
+        if not outer.is_empty() {
+            study_outer(function, uses, flow, index, outer)
+        }
+        index = index + 1
+    }
+}
+
+func refuse(outer: String) {
+    crash lowered
+    var layout = lowered.layout_named(outer)
+    assert layout
+    var inner = inner_of(layout)
+    refused[inner] = true
+}
+
+func study_outer(function: Function, uses: Facts.Uses, flow: Facts.Flow, value: Integer, outer: String) {
+    var defining = uses.definition_of(value)
+    if not loaded_or_made(defining) {
+        refuse(outer)
+        return
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if not outer_use_allowed(function, uses, flow, place, value, outer) {
+            refuse(outer)
+            return
+        }
+        index = index + 1
+    }
+}
+
+func loaded_or_made(defining: Operation?): Boolean {
+    if not defining {
+        return false
+    }
+    return defining.kind == "load" or defining.kind == "make"
+}
+
+func occurrences(values: List<Integer>, wanted: Integer): Integer {
+    var found = 0
+    var index = 0
+    while index < values.count() {
+        if values[index] == wanted {
+            found = found + 1
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func operation_at(function: Function, place: Facts.Place): Operation? {
+    assert place.position >= 0
+    var block = function.block_at(place.block)
+    return block.operations[place.position]
+}
+
+func outer_use_allowed(
+    function: Function,
+    uses: Facts.Uses,
+    flow: Facts.Flow,
+    place: Facts.Place,
+    value: Integer,
+    outer: String,
+): Boolean {
+    crash intrinsics
+    var operation = operation_at(function, place)
+    if not operation {
+        return false
+    }
+    if operation.kind == "store" {
+        return operation.operands.first() != value and is_fresh_store(uses, operation)
+    }
+    if operation.kind == "retain" or operation.kind == "release" {
+        return true
+    }
+    if operation.kind != "call" or operation.operands.first() != value {
+        return false
+    }
+    var meaning = intrinsics.meaning(operation.callee)
+    var allowed = [
+        "count"
+        "is_empty"
+        "append"
+        "prepend"
+        "insert"
+        "get_at"
+        "first"
+        "last"
+        "remove_at"
+        "remove_swapping"
+        "truncate"
+        "swap"
+        "reverse"
+        "clear"
+    ]
+    if not allowed.contains(meaning) {
+        return false
+    }
+    var putting = ["append", "prepend", "insert"]
+    if putting.contains(meaning) {
+        return put_fresh(function, uses, operation, place)
+    }
+    var reading = ["get_at", "first", "last"]
+    if reading.contains(meaning) and operation.result >= 0 {
+        return read_only_used_at_once(function, uses, flow, operation.result, place, outer, 0)
+    }
+    return true
+}
+
+func is_fresh_store(uses: Facts.Uses, operation: Operation): Boolean {
+    var stored = operation.operands.last()
+    if not stored {
+        return false
+    }
+    var defining = uses.definition_of(stored)
+    if not defining {
+        return false
+    }
+    return defining.kind == "make"
+}
+
+func put_fresh(function: Function, uses: Facts.Uses, operation: Operation, place: Facts.Place): Boolean {
+    var put = operation.operands.last()
+    if not put {
+        return false
+    }
+    var defining = uses.definition_of(put)
+    if not defining or defining.kind != "make" {
+        return false
+    }
+    var reached = uses.uses_of(put)
+    var index = 0
+    while index < reached.count() {
+        var other = reached[index]
+        if other.block == place.block and other.position > place.position {
+            if not is_count_operation(function, other) {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_count_operation(function: Function, place: Facts.Place): Boolean {
+    if place.position < 0 {
+        return false
+    }
+    var operation = operation_at(function, place)
+    if not operation {
+        return false
+    }
+    return operation.kind == "release"
+}
+
+func read_only_used_at_once(
+    function: Function,
+    uses: Facts.Uses,
+    flow: Facts.Flow,
+    read: Integer,
+    start: Facts.Place,
+    outer: String,
+    depth: Integer,
+): Boolean {
+    crash intrinsics
+    if depth > 4 {
+        return false
+    }
+    var reached = uses.uses_of(read)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var operation = operation_at(function, place)
+        if not operation {
+            return false
+        }
+        if not inner_use_allowed(function, uses, flow, operation, read, start, place, outer, depth) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func inner_use_allowed(
+    function: Function,
+    uses: Facts.Uses,
+    flow: Facts.Flow,
+    operation: Operation,
+    read: Integer,
+    start: Facts.Place,
+    place: Facts.Place,
+    outer: String,
+    depth: Integer,
+): Boolean {
+    if operation.kind != "call" {
+        return false
+    }
+    if operation.callee == "Nullable.has" {
+        return true
+    }
+    if operation.callee == "Nullable.value" and operation.result >= 0 {
+        return read_only_used_at_once(function, uses, flow, operation.result, start, outer, depth + 1)
+    }
+    if operation.operands.first() != read or occurrences(operation.operands, read) != 1 {
+        return false
+    }
+    return not resized_between(function, flow, start, place, outer)
+}
+
+func resized_between(
+    function: Function,
+    flow: Facts.Flow,
+    start: Facts.Place,
+    end: Facts.Place,
+    outer: String,
+): Boolean {
+    crash effects
+    var between = Facts.Between().operations_between(function, flow, start, end)
+    var index = 0
+    while index < between.count() {
+        var summary = effects.operation_summary(function, between[index])
+        if summary.unknown or summary.may_write_any_of(outer) or summary.grows_any_of(outer) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}

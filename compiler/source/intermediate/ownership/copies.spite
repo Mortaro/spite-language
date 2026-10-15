@@ -1,0 +1,226 @@
+# ../../../../docs/optimizations.md#a-deep-copy-nothing-changes-is-the-original
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var written = Dictionary<String, Boolean>()
+var compared = Dictionary<String, Boolean>()
+var shared_count = 0
+var enabled = false
+
+func Copies(starting_lowered: Lowered, effects: Facts.Effects) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    enabled = not starting_lowered.is_inspectable() and not starting_lowered.makes_threads and not starting_lowered.makes_concurrents
+    var named = effects.summaries.keys()
+    var index = 0
+    while index < named.count() {
+        var name = named[index]
+        crash effects.summaries[name]
+        var summary = effects.summaries[name]
+        note_written(summary)
+        index = index + 1
+    }
+    starting_lowered.concrete_functions.each(note_compared)
+}
+
+func note_written(summary: Facts.Summary) {
+    var keys = summary.writes.keys()
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        var dot = key.index_of(".")
+        if dot >= 0 {
+            var layout = key.slice(0, dot)
+            written[layout] = true
+        }
+        index = index + 1
+    }
+    if summary.unknown {
+        written["*"] = true
+    }
+}
+
+func note_compared(function: Function) {
+    crash intrinsics
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and intrinsics.operation_part(operation.callee) == "equals" {
+                note_operand_classes(function, operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_operand_classes(function: Function, operation: Operation) {
+    crash kinds
+    var index = 0
+    while index < operation.operands.count() {
+        var operand_type = function.value_at(operation.operands[index]).spite_type
+        var layout = kinds.layout_of(operand_type)
+        if layout {
+            compared[layout.c_name] = true
+        }
+        index = index + 1
+    }
+}
+
+func share(function: Function) {
+    crash intrinsics
+    assert enabled and not function.blocks.is_empty()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var kept = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if not shares(function, operation) {
+                kept.append(operation)
+            }
+            index = index + 1
+        }
+        block.operations = kept
+        block_index = block_index + 1
+    }
+}
+
+func shares(function: Function, operation: Operation): Boolean {
+    crash intrinsics
+    crash kinds
+    if operation.kind != "call" or operation.result < 0 or operation.operands.count() != 1 {
+        return false
+    }
+    if intrinsics.meaning(operation.callee) != "deep_copy" {
+        return false
+    }
+    var original = operation.operands.first()
+    crash original
+    var copied_type = function.value_at(original).spite_type
+    if kinds.may_run_drop(copied_type) or not unchanging(copied_type, 0) {
+        return false
+    }
+    Facts.Rewrites().replace_value(function, operation.result, original)
+    shared_count = shared_count + 1
+    return true
+}
+
+func unchanging(spite_type: Analysis.SpiteType?, depth: Integer): Boolean {
+    crash kinds
+    if not spite_type or depth > 8 or written.has("*") {
+        return false
+    }
+    if not kinds.is_counted(spite_type) {
+        return true
+    }
+    if types.as_string(spite_type) {
+        return true
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return unchanging(nullable.inner, depth + 1)
+    }
+    var layout = kinds.layout_of(spite_type)
+    if not layout or layout.qualified == "List" or layout.qualified == "Dictionary" {
+        return false
+    }
+    if written.has(layout.c_name) or compared.has(layout.c_name) or not layout.information {
+        return false
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        if not unchanging(layout.stored_fields[index].spite_type, depth + 1) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+# ../../../../docs/optimizations.md#a-deep-copy-is-written-per-class-with-a-table-only-where-a-graph-needs-one
+func mark_tables() {
+    crash lowered
+    var layouts = lowered.layouts
+    var index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        var visited = List<String>()
+        layout.copy_with_table = reaches_back(layout.c_name, layout.c_name, visited) or held_weakly(layout.c_name)
+        index = index + 1
+    }
+}
+
+func reaches_back(start: String, at: String, visited: List<String>): Boolean {
+    crash lowered
+    crash kinds
+    var layout = lowered.layout_named(at)
+    if not layout {
+        return false
+    }
+    if layout.qualified == "Weak" {
+        return true
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field_layout = field_layout_of(layout.stored_fields[index].spite_type)
+        if field_layout == start {
+            return true
+        }
+        if not field_layout.is_empty() and not visited.contains(field_layout) {
+            visited.append(field_layout)
+            if reaches_back(start, field_layout, visited) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func field_layout_of(spite_type: Analysis.SpiteType?): String {
+    crash kinds
+    if not spite_type {
+        return ""
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        return field_layout_of(listed.element)
+    }
+    var layout = kinds.layout_of(spite_type)
+    if not layout {
+        return ""
+    }
+    var element = kinds.element_of_list(spite_type)
+    if element and layout.qualified == "List" {
+        return field_layout_of(element)
+    }
+    return layout.c_name
+}
+
+func held_weakly(c_name: String): Boolean {
+    crash lowered
+    crash kinds
+    var layouts = lowered.layouts
+    var index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        if layout.qualified == "Weak" and layout.information {
+            var held = layout.information.codegen_types.first()
+            var held_layout = kinds.layout_of(held)
+            if held_layout and held_layout.c_name == c_name {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}

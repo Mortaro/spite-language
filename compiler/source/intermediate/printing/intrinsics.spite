@@ -24,8 +24,37 @@ func print(body: Body, operation: Operation) {
         "Enum": print_enum(body, operation, word)
         "Boolean": print_boolean(body, operation, word)
         "Function": print_function_value(body, operation, word)
+        "List": print_list(body, operation, word)
+        "Bands": body.refuse("it runs a loop in bands on threads, which the printer does not write yet")
+        "Rows": body.refuse("it runs rows of work on threads, which the printer does not write yet")
+        "Singleton": body.refuse("it takes a singleton's lock around a loop, which the printer does not write yet")
         _: print_number(body, operation, word)
     }
+}
+
+func print_list(body: Body, operation: Operation, word: String) {
+    if word != "holds_table" {
+        body.refuse("it calls 'List.{word}', which is no intrinsic")
+        return
+    }
+    var held = body.operand(operation, 0)
+    var table = body.operand(operation, 1)
+    var table_type = body.operand_type(operation, 1)
+    var layout = naming.layout_of(table_type)
+    if not layout or not layout.information {
+        body.refuse("it compares a list with a table that is not a list")
+        return
+    }
+    var element = layout.information.codegen_types.first()
+    if not element {
+        body.refuse("it compares a list with a table of no element type")
+        return
+    }
+    var written = naming.c_type(element)
+    body.assign(
+        operation.result,
+        "({held} != 0 && ({held})->item_count_ == ({table})->item_count_ && memcmp((const void*)(intptr_t)({held})->items_, (const void*)(intptr_t)({table})->items_, sizeof({written}) * (size_t)({table})->item_count_) == 0)",
+    )
 }
 
 func print_function_value(body: Body, operation: Operation, word: String) {
@@ -259,7 +288,7 @@ func division(body: Body, operation: Operation) {
         return
     }
     zero_check(body, operation, divisor)
-    if not naming.is_signed(kind) {
+    if not naming.is_signed(kind) or operation.form == "no_overflow" {
         body.assign(operation.result, "({written})({dividend} / {divisor})")
         return
     }
@@ -288,7 +317,7 @@ func remainder(body: Body, operation: Operation) {
         return
     }
     zero_check(body, operation, divisor)
-    if not naming.is_signed(kind) {
+    if not naming.is_signed(kind) or operation.form == "no_overflow" {
         body.assign(operation.result, "({written})({dividend} % {divisor})")
         return
     }
@@ -457,7 +486,22 @@ func join(body: Body, operation: Operation) {
         body.assign(operation.result, "SPITE_STRING_EMPTY")
         return
     }
+    if operation.form == "in_place" {
+        appended_join(body, operation, parts)
+        return
+    }
     body.assign(operation.result, "spite_string_join({parts.count()}, (SpiteString[]) \{ {parts.join(", ")} })")
+}
+
+func appended_join(body: Body, operation: Operation, parts: List<String>) {
+    var joined = parts.first()
+    crash joined
+    var index = 1
+    while index < parts.count() {
+        joined = "SpiteString_append({joined}, {parts[index]})"
+        index = index + 1
+    }
+    body.assign(operation.result, joined)
 }
 
 func string_equals(body: Body, operation: Operation) {

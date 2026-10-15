@@ -1,0 +1,162 @@
+# ../../../../docs/proofs.md#a-range-proves-arithmetic-fits
+var lowest: Long = 0
+var highest: Long = 0
+
+func NumberSpan(starting_lowest: Long, starting_highest: Long) {
+    lowest = starting_lowest
+    highest = starting_highest
+}
+
+func reach(): Long {
+    return 4611686018427387903
+}
+
+func bounded(low: Long, high: Long): NumberSpan? {
+    var limit = reach()
+    assert low >= -limit and high <= limit and low <= high
+    return NumberSpan(low, high)
+}
+
+func plus(other: NumberSpan): NumberSpan? {
+    var low = lowest + other.lowest
+    var high = highest + other.highest
+    return bounded(low, high)
+}
+
+func minus(other: NumberSpan): NumberSpan? {
+    var low = lowest - other.highest
+    var high = highest - other.lowest
+    return bounded(low, high)
+}
+
+func negated(): NumberSpan {
+    return NumberSpan(-highest, -lowest)
+}
+
+func times(other: NumberSpan): NumberSpan? {
+    assert safe_product(lowest, other.lowest) and safe_product(lowest, other.highest)
+    assert safe_product(highest, other.lowest) and safe_product(highest, other.highest)
+    var first = lowest * other.lowest
+    var second = lowest * other.highest
+    var third = highest * other.lowest
+    var fourth = highest * other.highest
+    var low_pair = first.minimum(second)
+    var low_other = third.minimum(fourth)
+    var high_pair = first.maximum(second)
+    var high_other = third.maximum(fourth)
+    var low = low_pair.minimum(low_other)
+    var high = high_pair.maximum(high_other)
+    return bounded(low, high)
+}
+
+func safe_product(left: Long, right: Long): Boolean {
+    if left == 0 or right == 0 {
+        return true
+    }
+    var left_size = magnitude(left)
+    var right_size = magnitude(right)
+    return left_size <= reach() / right_size
+}
+
+func magnitude(value: Long): Long {
+    if value < 0 {
+        return -value
+    }
+    return value
+}
+
+func largest_magnitude(): Long {
+    var low = magnitude(lowest)
+    var high = magnitude(highest)
+    return low.maximum(high)
+}
+
+func remainder_by(divisor: NumberSpan?): NumberSpan {
+    var limit = largest_magnitude()
+    if divisor {
+        var below = divisor.largest_magnitude() - 1
+        var positive = below.maximum(0)
+        limit = limit.minimum(positive)
+    }
+    var low = -limit
+    var high = limit
+    if lowest >= 0 {
+        low = 0
+    }
+    if highest <= 0 {
+        high = 0
+    }
+    return NumberSpan(low, high)
+}
+
+func divided_by(divisor: NumberSpan?): NumberSpan {
+    var limit = largest_magnitude()
+    if not divisor {
+        return NumberSpan(-limit, limit)
+    }
+    if divisor.lowest == divisor.highest and divisor.lowest > 0 {
+        var low = lowest / divisor.lowest
+        var high = highest / divisor.lowest
+        return NumberSpan(low, high)
+    }
+    if divisor.lowest == divisor.highest and divisor.lowest < 0 {
+        var flipped_low = highest / divisor.lowest
+        var flipped_high = lowest / divisor.lowest
+        return NumberSpan(flipped_low, flipped_high)
+    }
+    return NumberSpan(-limit, limit)
+}
+
+func joined(other: NumberSpan): NumberSpan {
+    var low = lowest.minimum(other.lowest)
+    var high = highest.maximum(other.highest)
+    return NumberSpan(low, high)
+}
+
+func narrowed(low: Long, high: Long): NumberSpan {
+    var narrowed_low = lowest.maximum(low)
+    var narrowed_high = highest.minimum(high)
+    if narrowed_low > narrowed_high {
+        return NumberSpan(lowest, highest)
+    }
+    return NumberSpan(narrowed_low, narrowed_high)
+}
+
+func within(low: Long, high: Long): Boolean {
+    return lowest >= low and highest <= high
+}
+
+func same(other: NumberSpan): Boolean {
+    return lowest == other.lowest and highest == other.highest
+}
+
+func is_exact(): Boolean {
+    return lowest == highest
+}
+
+func excludes(value: Long): Boolean {
+    return value < lowest or value > highest
+}
+
+func minimum_with(other: NumberSpan): NumberSpan {
+    var low = lowest.minimum(other.lowest)
+    var high = highest.minimum(other.highest)
+    return NumberSpan(low, high)
+}
+
+func maximum_with(other: NumberSpan): NumberSpan {
+    var low = lowest.maximum(other.lowest)
+    var high = highest.maximum(other.highest)
+    return NumberSpan(low, high)
+}
+
+func absolute_span(): NumberSpan {
+    var largest = largest_magnitude()
+    if lowest >= 0 {
+        return NumberSpan(lowest, highest)
+    }
+    if highest <= 0 {
+        return NumberSpan(-highest, -lowest)
+    }
+    return NumberSpan(0, largest)
+}

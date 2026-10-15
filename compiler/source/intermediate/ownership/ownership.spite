@@ -1,0 +1,221 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var lowered: Lowered? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var consumption: Consumption? = null
+var drop_effects = Facts.Summary()
+var borrowed_reads = 0
+var counted_reads = 0
+var retains = 0
+var releases = 0
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_effects = Facts.Effects(starting_lowered)
+    effects = made_effects
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_consumption = Consumption(starting_lowered)
+    consumption = made_consumption
+    var conventions = ParameterConventions(starting_lowered, made_effects)
+    conventions.decide()
+    learn_drops(starting_lowered, made_effects)
+    prepare_lent_copies(starting_lowered)
+    var copies = Copies(starting_lowered, made_effects)
+    copies.mark_tables()
+    var slots = SlotStores(starting_lowered, made_effects, drop_effects)
+    var appends = TextAppends()
+    var functions = starting_lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if not function.blocks.is_empty() and not function.is_intrinsic() {
+            copies.share(function)
+            slots.rewrite(function)
+            appends.mark(function)
+            count_function(function)
+        }
+        index = index + 1
+    }
+}
+
+func learn_drops(starting_lowered: Lowered, made_effects: Facts.Effects) {
+    var functions = starting_lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.name == "drop" {
+            var summary = made_effects.of(function.c_name)
+            drop_effects.adds(summary)
+        }
+        index = index + 1
+    }
+}
+
+func count_function(function: Function) {
+    crash effects
+    crash kinds
+    crash consumption
+    split_critical_edges(function)
+    var flow = Facts.Flow(function)
+    var uses = Facts.Uses(function)
+    var borrows = Borrows(function, flow, uses, effects, kinds, consumption, drop_effects)
+    settle_borrows(function, borrows, uses)
+    var settled_flow = Facts.Flow(function)
+    var settled_uses = Facts.Uses(function)
+    borrows.flow = settled_flow
+    borrows.uses = settled_uses
+    var counting = Counting(function, borrows, consumption, kinds)
+    counting.count()
+    retains = retains + counting.retained_count
+    releases = releases + counting.released_count
+}
+
+func settle_borrows(function: Function, borrows: Borrows, uses: Facts.Uses) {
+    var inserted = Dictionary<Integer, Boolean>()
+    var index = 0
+    while index < function.values.count() {
+        var origin = borrows.origin_of(index)
+        if origin == "borrowed" or origin == "lending" {
+            settle_value(function, borrows, uses, index, inserted)
+        }
+        index = index + 1
+    }
+    assert inserted.count() > 0
+    insert_retains(function, inserted)
+}
+
+func settle_value(
+    function: Function,
+    borrows: Borrows,
+    uses: Facts.Uses,
+    value: Integer,
+    inserted: Dictionary<Integer, Boolean>,
+) {
+    var origin = borrows.origin_of(value)
+    var keeps = not borrows.is_consumed(value) and borrows.stays_valid(value)
+    var defining = uses.definition_of(value)
+    crash defining
+    if keeps and origin == "lending" {
+        keeps = lend(defining)
+    }
+    if keeps {
+        if origin == "lending" {
+            borrowed_reads = borrowed_reads + 1
+        }
+        return
+    }
+    borrows.origins[value] = "owned"
+    counted_reads = counted_reads + 1
+    if origin == "borrowed" {
+        inserted[value] = true
+    }
+}
+
+func lend(defining: Operation): Boolean {
+    crash consumption
+    crash lowered
+    if consumption.is_lending_read(defining) {
+        defining.form = "borrowed"
+        return true
+    }
+    var callee = lowered.function_named(defining.callee)
+    if not callee {
+        return false
+    }
+    if callee.lends_answer {
+        return true
+    }
+    var name = "{callee.c_name}___lent"
+    if not lowered.function_named(name) {
+        return false
+    }
+    defining.callee = name
+    return true
+}
+
+func prepare_lent_copies(starting_lowered: Lowered) {
+    crash consumption
+    var functions = List<Function>()
+    starting_lowered.concrete_functions.each(functions.append)
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var block_index = 0
+        while block_index < function.blocks.count() {
+            var block = function.blocks[block_index]
+            block.operations.each(prepare_lent_copy)
+            block_index = block_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func prepare_lent_copy(operation: Operation) {
+    crash consumption
+    crash lowered
+    assert consumption.is_lending_call(operation)
+    var callee = lowered.function_named(operation.callee)
+    assert callee and not callee.lends_answer
+    var name = "{callee.c_name}___lent"
+    assert not lowered.function_named(name)
+    var copy = Facts.FunctionCopy().copied(callee, name)
+    copy.lends_answer = true
+    lowered.add_function(copy)
+}
+
+func insert_retains(function: Function, inserted: Dictionary<Integer, Boolean>) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var rebuilt = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            rebuilt.append(operation)
+            if operation.result >= 0 and inserted.has(operation.result) {
+                var retain = Operation("retain", operation.line)
+                retain.takes(operation.result)
+                retain.spite_type = function.value_at(operation.result).spite_type
+                rebuilt.append(retain)
+            }
+            index = index + 1
+        }
+        block.operations = rebuilt
+        block_index = block_index + 1
+    }
+}
+
+func split_critical_edges(function: Function) {
+    var flow = Facts.Flow(function)
+    var count = function.blocks.count()
+    var index = 0
+    while index < count {
+        var block = function.blocks[index]
+        var going = flow.successors_of(index)
+        if going.count() > 1 {
+            split_block_edges(function, flow, block)
+        }
+        index = index + 1
+    }
+}
+
+func split_block_edges(function: Function, flow: Facts.Flow, block: Block) {
+    var targets = block.terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        var coming = flow.predecessors_of(target.block)
+        if coming.count() > 1 or not target.arguments.is_empty() {
+            var edge = function.new_block()
+            var onward = Target(target.block)
+            target.arguments.each(onward.arguments.append)
+            var jump = Terminator("jump")
+            jump.to(onward)
+            edge.terminator = jump
+            target.block = edge.number
+            target.arguments = List<Integer>()
+        }
+        index = index + 1
+    }
+}

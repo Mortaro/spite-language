@@ -1,0 +1,203 @@
+# ../../../../docs/proofs.md#calls-that-share-nothing-written
+var lowered: Lowered? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var bands: Bands? = null
+var rows_count = 0
+
+func Rows(starting_lowered: Lowered, starting_effects: Facts.Effects, starting_bands: Bands) {
+    lowered = starting_lowered
+    effects = starting_effects
+    bands = starting_bands
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
+
+func study(function: Function) {
+    crash lowered
+    assert not lowered.hot_reload and not lowered.read_evaluate_print_loop and not lowered.development
+    assert not function.blocks.is_empty() and not function.is_intrinsic()
+    var uses = Facts.Uses(function)
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        gather_rows(function, uses, block)
+        index = index + 1
+    }
+}
+
+func gather_rows(function: Function, uses: Facts.Uses, block: Block) {
+    var rebuilt = List<Operation>()
+    var row = List<Operation>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var movable = not row.is_empty() and steps_aside(function, row, operation)
+        if movable {
+            rebuilt.append(operation)
+        } else if row_call(function, uses, operation) and independent_of(row, operation) {
+            row.append(operation)
+        } else {
+            close_row(row, rebuilt)
+            row = List<Operation>()
+            start_row(function, uses, operation, row, rebuilt)
+        }
+        index = index + 1
+    }
+    close_row(row, rebuilt)
+    block.operations = rebuilt
+}
+
+func start_row(
+    function: Function,
+    uses: Facts.Uses,
+    operation: Operation,
+    row: List<Operation>,
+    rebuilt: List<Operation>,
+) {
+    if row_call(function, uses, operation) {
+        row.append(operation)
+        return
+    }
+    rebuilt.append(operation)
+}
+
+func steps_aside(function: Function, row: List<Operation>, operation: Operation): Boolean {
+    crash effects
+    crash kinds
+    if operation.kind == "constant" {
+        return true
+    }
+    if operation.kind != "load" {
+        return false
+    }
+    var object = operation.operands.first()
+    crash object
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    if not layout {
+        return false
+    }
+    var index = 0
+    while index < row.count() {
+        var summary = effects.of(row[index].callee)
+        if summary.may_write(layout.c_name, operation.field) or summary.grows.has("{layout.c_name}.{operation.field}") {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func row_call(function: Function, uses: Facts.Uses, operation: Operation): Boolean {
+    crash lowered
+    crash effects
+    crash kinds
+    crash bands
+    if operation.kind != "call" or operation.operands.count() != 1 or not operation.form.is_empty() {
+        return false
+    }
+    if operation.result >= 0 and uses.use_count(operation.result) > 0 {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() or kinds.is_library_layout(callee.owner) {
+        return false
+    }
+    var receiver = operation.operands.first()
+    if receiver == function.receiver {
+        return false
+    }
+    var summary = effects.of(callee.c_name)
+    if summary.unknown or summary.calls_values or summary.starts_threads or summary.waits or summary.counts {
+        return false
+    }
+    if summary.writes_memory or summary.makes.count() > 0 or touches_singletons(summary) {
+        return false
+    }
+    return bands.weight_of(callee.c_name, 0) >= 256
+}
+
+func touches_singletons(summary: Facts.Summary): Boolean {
+    crash lowered
+    var keys = List<String>()
+    var written = summary.writes.keys()
+    written.each(keys.append)
+    var read = summary.reads.keys()
+    read.each(keys.append)
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        var dot = key.index_of(".")
+        if dot < 0 {
+            return true
+        }
+        var layout_name = key.slice(0, dot)
+        var layout = lowered.layout_named(layout_name)
+        if not layout or layout.is_singleton {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func independent_of(row: List<Operation>, operation: Operation): Boolean {
+    crash effects
+    var mine = effects.of(operation.callee)
+    var index = 0
+    while index < row.count() {
+        var other = effects.of(row[index].callee)
+        if conflicts(mine, other) or conflicts(other, mine) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func conflicts(writer: Facts.Summary, other: Facts.Summary): Boolean {
+    var written = writer.writes.keys()
+    var grown = writer.grows.keys()
+    grown.each(written.append)
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        if other.reads.has(key) or other.writes.has(key) or other.grows.has(key) {
+            return true
+        }
+        index = index + 1
+    }
+    var made = writer.makes.keys()
+    index = 0
+    while index < made.count() {
+        if other.makes.has(made[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func close_row(row: List<Operation>, rebuilt: List<Operation>) {
+    if row.count() < 2 {
+        row.each(rebuilt.append)
+        return
+    }
+    var names = List<String>()
+    var run = Operation("call", 0)
+    run.callee = "Rows.run"
+    var index = 0
+    while index < row.count() {
+        var call = row[index]
+        names.append(call.callee)
+        var receiver = call.operands.first()
+        crash receiver
+        run.takes(receiver)
+        run.line = call.line
+        index = index + 1
+    }
+    run.literal = names.join(",")
+    rebuilt.append(run)
+    rows_count = rows_count + 1
+}

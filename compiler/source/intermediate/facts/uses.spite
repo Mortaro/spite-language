@@ -1,0 +1,116 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-form
+var definitions = List<Place>()
+var uses = List<List<Place>>()
+var defining = Dictionary<Integer, Operation>()
+
+func Uses(studied: Function) {
+    var count = studied.values.count()
+    var index = 0
+    while index < count {
+        var nowhere = Place(-1, -2)
+        definitions.append(nowhere)
+        var nothing_yet = List<Place>()
+        uses.append(nothing_yet)
+        index = index + 1
+    }
+    record_parameters(studied)
+    var block_index = 0
+    while block_index < studied.blocks.count() {
+        var block = studied.blocks[block_index]
+        record_block(block)
+        block_index = block_index + 1
+    }
+}
+
+func record_parameters(studied: Function) {
+    var index = 0
+    while index < studied.parameters.count() {
+        var parameter = studied.parameters[index]
+        define(parameter.value, 0, -2)
+        index = index + 1
+    }
+    define(studied.receiver, 0, -2)
+}
+
+func record_block(block: Block) {
+    var index = 0
+    while index < block.parameters.count() {
+        define(block.parameters[index], block.number, -2)
+        index = index + 1
+    }
+    index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        record_operation(block.number, index, operation)
+        index = index + 1
+    }
+    var terminator = block.terminator
+    index = 0
+    while index < terminator.operands.count() {
+        use(terminator.operands[index], block.number, -1)
+        index = index + 1
+    }
+    index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var argument_index = 0
+        while argument_index < target.arguments.count() {
+            use(target.arguments[argument_index], block.number, -1)
+            argument_index = argument_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func record_operation(block_number: Integer, position: Integer, operation: Operation) {
+    var index = 0
+    while index < operation.operands.count() {
+        use(operation.operands[index], block_number, position)
+        index = index + 1
+    }
+    if operation.result >= 0 {
+        define(operation.result, block_number, position)
+        defining[operation.result] = operation
+    }
+}
+
+func define(value: Integer, block_number: Integer, position: Integer) {
+    var place = Place(block_number, position)
+    crash definitions[value]
+    definitions[value] = place
+}
+
+func use(value: Integer, block_number: Integer, position: Integer) {
+    var place = Place(block_number, position)
+    crash uses[value]
+    uses[value].append(place)
+}
+
+func definition_of(value: Integer): Operation? {
+    if defining.has(value) {
+        return defining[value]
+    }
+    return null
+}
+
+func place_of(value: Integer): Place {
+    crash definitions[value]
+    return definitions[value]
+}
+
+func uses_of(value: Integer): List<Place> {
+    crash uses[value]
+    return uses[value]
+}
+
+func use_count(value: Integer): Integer {
+    crash uses[value]
+    return uses[value].count()
+}
+
+func constant_of(value: Integer): Operation? {
+    var found = definition_of(value)
+    assert found
+    assert found.kind == "constant"
+    return found
+}

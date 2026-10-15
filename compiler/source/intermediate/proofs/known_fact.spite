@@ -1,0 +1,43 @@
+# ../../../../docs/proofs.md#a-call-keeps-a-proof-it-cannot-change
+var kind = ""
+var smaller: ValueKey? = null
+var larger: ValueKey? = null
+var strict = false
+var block = -1
+
+func KnownFact(starting_kind: String, starting_block: Integer) {
+    kind = starting_kind
+    block = starting_block
+}
+
+func smaller_key(): ValueKey {
+    crash smaller
+    return smaller
+}
+
+func larger_key(): ValueKey {
+    crash larger
+    return larger
+}
+
+func shrink_sensitive(): List<String> {
+    var found = List<String>()
+    if larger {
+        larger.depends_on.each(found.append)
+    }
+    if smaller {
+        smaller.depends_on.each(found.append)
+    }
+    return found
+}
+
+func growth_sensitive(): List<String> {
+    var found = List<String>()
+    if smaller {
+        smaller.depends_on.each(found.append)
+    }
+    if kind != "less" {
+        larger_key().depends_on.each(found.append)
+    }
+    return found
+}

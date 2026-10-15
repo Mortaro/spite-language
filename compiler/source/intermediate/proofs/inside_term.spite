@@ -1,0 +1,8 @@
+# ../../../../docs/optimizations.md#a-proven-read-tests-only-its-bounds
+var base = ""
+var offset: Long = 0
+
+func InsideTerm(starting_base: String, starting_offset: Long) {
+    base = starting_base
+    offset = starting_offset
+}

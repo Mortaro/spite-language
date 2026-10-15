@@ -1,0 +1,52 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-form
+func preheader_of(flow: Flow, header: Integer): Integer {
+    var coming = flow.predecessors_of(header)
+    var found = -1
+    var entries = 0
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        if not flow.is_back_edge(from, header) {
+            found = from
+            entries = entries + 1
+        }
+        index = index + 1
+    }
+    if entries != 1 {
+        return -1
+    }
+    var going = flow.successors_of(found)
+    if going.count() != 1 {
+        return -1
+    }
+    return found
+}
+
+func exit_of(function: Function, flow: Flow, body: List<Integer>): Integer {
+    var leaving = -1
+    var index = 0
+    while index < body.count() {
+        var going = flow.successors_of(body[index])
+        var position = 0
+        while position < going.count() {
+            var target = going[position]
+            if not body.contains(target) {
+                if leaving >= 0 and leaving != target {
+                    return -1
+                }
+                leaving = target
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    if leaving < 0 {
+        return -1
+    }
+    var coming = flow.predecessors_of(leaving)
+    var exit_block = function.block_at(leaving)
+    if coming.count() != 1 or not exit_block.parameters.is_empty() {
+        return -1
+    }
+    return leaving
+}

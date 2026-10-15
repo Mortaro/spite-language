@@ -1,0 +1,224 @@
+# ../../../../docs/optimizations.md#defaults-the-constructor-replaces-are-never-made
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var replaced_fields = Dictionary<String, List<String>>()
+var elided_count = 0
+
+func DefaultElision(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
+
+func elide(function: Function) {
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        elide_block(function, block)
+        index = index + 1
+    }
+}
+
+func elide_block(function: Function, block: Block) {
+    var uses = Facts.Uses(function)
+    var dropped = Dictionary<Operation, Boolean>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind == "make" {
+            find_replaced(function, uses, block, index, dropped)
+        }
+        index = index + 1
+    }
+    assert dropped.count() > 0
+    var kept = List<Operation>()
+    index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if not dropped.has(operation) {
+            kept.append(operation)
+        }
+        index = index + 1
+    }
+    block.operations = kept
+}
+
+func find_replaced(
+    function: Function,
+    uses: Facts.Uses,
+    block: Block,
+    start: Integer,
+    dropped: Dictionary<Operation, Boolean>,
+) {
+    crash block.operations[start]
+    var made = block.operations[start].result
+    var constructing = constructor_call(block, start, made)
+    assert constructing >= 0
+    crash block.operations[constructing]
+    var constructor = block.operations[constructing].callee
+    var replaced = fields_replaced(constructor)
+    var index = start + 1
+    while index < constructing {
+        crash block.operations[index]
+        var operation = block.operations[index]
+        var stored = operation.operands.last()
+        var target = operation.operands.first()
+        var replaces = operation.kind == "store" and target == made and replaced.contains(operation.field)
+        if replaces and stored and is_discardable(function, uses, block, stored, index) {
+            dropped[operation] = true
+            drop_construction(uses, block, stored, dropped)
+            elided_count = elided_count + 1
+        }
+        index = index + 1
+    }
+}
+
+func constructor_call(block: Block, start: Integer, made: Integer): Integer {
+    crash lowered
+    var index = start + 1
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind == "call" and operation.operands.first() == made {
+            var callee = lowered.function_named(operation.callee)
+            if callee and callee.is_constructor {
+                return index
+            }
+            return -1
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func fields_replaced(constructor: String): List<String> {
+    if replaced_fields.has(constructor) {
+        crash replaced_fields[constructor]
+        return replaced_fields[constructor]
+    }
+    var found = opening_stores(constructor)
+    replaced_fields[constructor] = found
+    return found
+}
+
+func opening_stores(constructor: String): List<String> {
+    crash lowered
+    var found = List<String>()
+    var callee = lowered.function_named(constructor)
+    if not callee or callee.blocks.is_empty() {
+        return found
+    }
+    var entry = callee.blocks[0]
+    var simple = List<Integer>()
+    var parameters = callee.parameters.map_values()
+    parameters.each(simple.append)
+    var index = 0
+    var opening = true
+    while index < entry.operations.count() and opening {
+        var operation = entry.operations[index]
+        opening = opening_step(callee, operation, simple, found)
+        index = index + 1
+    }
+    return found
+}
+
+func opening_step(callee: Function, operation: Operation, simple: List<Integer>, found: List<String>): Boolean {
+    if operation.kind == "constant" {
+        simple.append(operation.result)
+        return true
+    }
+    if operation.kind != "store" or operation.operands.count() != 2 {
+        return false
+    }
+    var target = operation.operands.first()
+    var stored = operation.operands.last()
+    if target != callee.receiver or not stored or not simple.contains(stored) {
+        return false
+    }
+    if not found.contains(operation.field) {
+        found.append(operation.field)
+    }
+    return true
+}
+
+func is_discardable(function: Function, uses: Facts.Uses, block: Block, value: Integer, store_index: Integer): Boolean {
+    crash kinds
+    var defining = uses.definition_of(value)
+    if not defining or defining.kind != "make" {
+        return false
+    }
+    var layout = defining.layout
+    var made_type = function.value_at(value).spite_type
+    if kinds.may_run_drop(made_type) or not kinds.class_is_counted(layout) {
+        return false
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if not construction_use(block, place, value, store_index) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func construction_use(block: Block, place: Facts.Place, value: Integer, store_index: Integer): Boolean {
+    crash lowered
+    if place.block != block.number or place.position < 0 {
+        return false
+    }
+    if place.position == store_index {
+        return true
+    }
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    if operation.kind == "store" and operation.operands.first() == value {
+        return true
+    }
+    if operation.kind != "call" or operation.operands.first() != value {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or not callee.is_constructor {
+        return false
+    }
+    return only_copies(callee)
+}
+
+func only_copies(constructor: Function): Boolean {
+    if constructor.blocks.count() != 1 {
+        return false
+    }
+    var entry = constructor.blocks[0]
+    var stored = fields_replaced(constructor.c_name)
+    var stores = 0
+    var index = 0
+    while index < entry.operations.count() {
+        var operation = entry.operations[index]
+        if operation.kind == "store" {
+            stores = stores + 1
+        } else if operation.kind != "constant" {
+            return false
+        }
+        index = index + 1
+    }
+    return stores == stored.count() and entry.terminator.kind == "return"
+}
+
+func drop_construction(uses: Facts.Uses, block: Block, value: Integer, dropped: Dictionary<Operation, Boolean>) {
+    var defining = uses.definition_of(value)
+    crash defining
+    dropped[defining] = true
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.block == block.number and place.position >= 0 {
+            crash block.operations[place.position]
+            var operation = block.operations[place.position]
+            dropped[operation] = true
+        }
+        index = index + 1
+    }
+}

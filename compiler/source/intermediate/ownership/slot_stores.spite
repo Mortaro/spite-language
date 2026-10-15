@@ -1,0 +1,491 @@
+# ../../../../docs/optimizations.md#an-item-written-back-to-its-own-slot-is-not-written
+var lowered: Lowered? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var types = Analysis.TypeShape()
+var dropped_count = 0
+var in_place_count = 0
+var drops_write_memory = false
+
+func SlotStores(starting_lowered: Lowered, starting_effects: Facts.Effects, drop_effects: Facts.Summary) {
+    lowered = starting_lowered
+    effects = starting_effects
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    drops_write_memory = drop_effects.writes_memory or drop_effects.unknown
+}
+
+func rewrite(function: Function) {
+    crash lowered
+    crash effects
+    assert not lowered.is_inspectable() and not function.blocks.is_empty()
+    var flow = Facts.Flow(function)
+    var uses = Facts.Uses(function)
+    var spans = Proofs.Spans(function, flow, uses, lowered)
+    var relations = Proofs.Relations(function, flow, uses, effects, spans, lowered)
+    var dropped = Dictionary<Operation, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var place = Facts.Place(block_index, index)
+            consider(function, flow, uses, relations, operation, place, dropped)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    remove_dropped(function, dropped)
+}
+
+func consider(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    relations: Proofs.Relations,
+    operation: Operation,
+    place: Facts.Place,
+    dropped: Dictionary<Operation, Boolean>,
+) {
+    crash intrinsics
+    assert operation.kind == "call" and operation.form.is_empty()
+    var meaning = intrinsics.meaning(operation.callee)
+    if meaning == "set_at" and is_list_call(function, operation) {
+        if writes_back(function, flow, uses, relations, operation, place) {
+            dropped[operation] = true
+            dropped_count = dropped_count + 1
+            return
+        }
+        store_in_place(function, uses, operation)
+        return
+    }
+    if puts_back(function, flow, uses, relations, operation, place) {
+        dropped[operation] = true
+        dropped_count = dropped_count + 1
+    }
+}
+
+func is_list_call(function: Function, operation: Operation): Boolean {
+    crash kinds
+    var list = operation.operands.first()
+    if not list or operation.operands.count() != 3 {
+        return false
+    }
+    var list_type = function.value_at(list).spite_type
+    if not list_type {
+        return false
+    }
+    if types.as_list(list_type) {
+        return true
+    }
+    var layout = kinds.layout_of(list_type)
+    if not layout {
+        return false
+    }
+    return layout.qualified == "List"
+}
+
+func writes_back(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    relations: Proofs.Relations,
+    operation: Operation,
+    place: Facts.Place,
+): Boolean {
+    var stored = operation.operands.last()
+    if not stored {
+        return false
+    }
+    var read = slot_read(uses, stored)
+    if not read {
+        return false
+    }
+    crash operation.operands[0]
+    crash operation.operands[1]
+    var read_list = read.operands.first()
+    var read_index = read.operands.last()
+    if not read_list or not read_index or read.operands.count() != 2 {
+        return false
+    }
+    var same_list = same_key(relations, read_list, operation.operands[0])
+    var same_index = same_key(relations, read_index, operation.operands[1])
+    if not same_list or not same_index {
+        return false
+    }
+    var start = uses.place_of(read.result)
+    return quiet_between(function, flow, start, place, relations, read_list, read_index)
+}
+
+func slot_read(uses: Facts.Uses, stored: Integer): Operation? {
+    crash intrinsics
+    var defining = uses.definition_of(stored)
+    assert defining
+    if defining.callee == "Nullable.value" {
+        var inner = defining.operands.first()
+        crash inner
+        defining = uses.definition_of(inner)
+    }
+    assert defining and defining.kind == "call"
+    var meaning = intrinsics.meaning(defining.callee)
+    assert meaning == "get_at"
+    return defining
+}
+
+func same_key(relations: Proofs.Relations, first: Integer, second: Integer): Boolean {
+    if first == second {
+        return true
+    }
+    var first_key = relations.key_of(first)
+    var second_key = relations.key_of(second)
+    return first_key.text() == second_key.text() and not first_key.base.starts_with("v")
+}
+
+func quiet_between(
+    function: Function,
+    flow: Facts.Flow,
+    start: Facts.Place,
+    end: Facts.Place,
+    relations: Proofs.Relations,
+    list: Integer,
+    index: Integer,
+): Boolean {
+    crash effects
+    var between = Facts.Between().operations_between(function, flow, start, end)
+    var list_key = relations.key_of(list)
+    var index_key = relations.key_of(index)
+    var watched = List<String>()
+    list_key.depends_on.each(watched.append)
+    index_key.depends_on.each(watched.append)
+    var position = 0
+    while position < between.count() {
+        var summary = effects.operation_summary(function, between[position])
+        if summary.unknown or summary.calls_values or summary.writes_memory {
+            return false
+        }
+        if summary.releases and drops_write_memory {
+            return false
+        }
+        if touches_any(summary, watched) {
+            return false
+        }
+        position = position + 1
+    }
+    return true
+}
+
+func touches_any(summary: Facts.Summary, watched: List<String>): Boolean {
+    var index = 0
+    while index < watched.count() {
+        var field = watched[index]
+        if summary.writes.has(field) or summary.grows.has(field) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../docs/optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot
+func store_in_place(function: Function, uses: Facts.Uses, operation: Operation) {
+    crash kinds
+    assert not kinds.is_library_layout(function.owner)
+    var stored = operation.operands.last()
+    crash stored
+    var described = function.value_at(stored)
+    assert not described.name.is_empty() or is_parameter(function, stored)
+    assert described.spite_type and kinds.is_counted(described.spite_type)
+    assert stored_shape_fits(described.spite_type)
+    var defining = uses.definition_of(stored)
+    assert not made_here(defining)
+    operation.form = "in_place"
+    in_place_count = in_place_count + 1
+}
+
+func stored_shape_fits(stored_type: Analysis.SpiteType): Boolean {
+    if types.as_string(stored_type) or types.as_union(stored_type) or types.as_nullable(stored_type) {
+        return false
+    }
+    var class_ref = types.as_class_ref(stored_type)
+    if not class_ref {
+        return true
+    }
+    return not class_ref.has_signature
+}
+
+func made_here(defining: Operation?): Boolean {
+    if not defining {
+        return false
+    }
+    return defining.kind == "make" or defining.kind == "call"
+}
+
+func is_parameter(function: Function, value: Integer): Boolean {
+    var index = 0
+    while index < function.parameters.count() {
+        if function.parameters[index].value == value {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../docs/optimizations.md#a-write-back-of-what-the-slot-already-holds-is-not-written
+func puts_back(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    relations: Proofs.Relations,
+    operation: Operation,
+    place: Facts.Place,
+): Boolean {
+    crash lowered
+    if lowered.makes_concurrents or drops_write_memory or operation.operands.count() != 1 {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    var stored = write_back_fields(callee)
+    if stored.count() != 3 {
+        return false
+    }
+    var object = operation.operands.first()
+    crash object
+    var taken = taking_call(function, uses, relations, object, stored, place)
+    if not taken {
+        return false
+    }
+    return quiet_fields(function, flow, taken, place, stored)
+}
+
+func write_back_fields(callee: Function): List<String> {
+    var found = List<String>()
+    if callee.blocks.count() != 1 {
+        return found
+    }
+    var block = callee.blocks[0]
+    if block.terminator.kind != "return" {
+        return found
+    }
+    var loaded = Dictionary<Integer, String>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        assert write_back_step(callee, operation, loaded, found)
+        index = index + 1
+    }
+    return found
+}
+
+func write_back_step(
+    callee: Function,
+    operation: Operation,
+    loaded: Dictionary<Integer, String>,
+    found: List<String>,
+): Boolean {
+    crash intrinsics
+    if operation.kind == "load" and operation.operands.first() == callee.receiver {
+        loaded[operation.result] = operation.field
+        return true
+    }
+    if operation.kind != "call" or not found.is_empty() or operation.operands.count() != 3 {
+        return false
+    }
+    var meaning = intrinsics.meaning(operation.callee)
+    if meaning != "set_at" {
+        return false
+    }
+    var index = 0
+    while index < operation.operands.count() {
+        var operand = operation.operands[index]
+        if not loaded.has(operand) {
+            return false
+        }
+        crash loaded[operand]
+        found.append(loaded[operand])
+        index = index + 1
+    }
+    return true
+}
+
+func taking_call(
+    function: Function,
+    uses: Facts.Uses,
+    relations: Proofs.Relations,
+    object: Integer,
+    stored: List<String>,
+    place: Facts.Place,
+): Facts.Place? {
+    crash lowered
+    var found: Facts.Place? = null
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var candidate = Facts.Place(block_index, index)
+            if operation.kind == "call" and operation.operands.count() >= 1 and dominates_place(function, candidate, place) {
+                var callee = lowered.function_named(operation.callee)
+                if callee and same_key(relations, operation.operands[0], object) and establishes(callee, stored) {
+                    found = candidate
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func dominates_place(function: Function, first: Facts.Place, second: Facts.Place): Boolean {
+    if first.block == second.block {
+        return first.position < second.position
+    }
+    var flow = Facts.Flow(function)
+    return flow.dominates(first.block, second.block)
+}
+
+func establishes(callee: Function, stored: List<String>): Boolean {
+    crash intrinsics
+    crash stored[0]
+    crash stored[1]
+    crash stored[2]
+    var list_field = stored[0]
+    var index_field = stored[1]
+    var item_field = stored[2]
+    var block_index = 0
+    var returns = 0
+    while block_index < callee.blocks.count() {
+        var block = callee.blocks[block_index]
+        if block.terminator.kind == "return" {
+            returns = returns + 1
+            if not block_establishes(callee, block, list_field, index_field, item_field) {
+                return false
+            }
+        }
+        block_index = block_index + 1
+    }
+    return returns == 1
+}
+
+func block_establishes(
+    callee: Function,
+    block: Block,
+    list_field: String,
+    index_field: String,
+    item_field: String,
+): Boolean {
+    crash intrinsics
+    var uses = Facts.Uses(callee)
+    var index_value = -1
+    var item_value = -1
+    var position = 0
+    while position < block.operations.count() {
+        var operation = block.operations[position]
+        if operation.kind == "store" and operation.operands.first() == callee.receiver {
+            var stored = operation.operands.last()
+            crash stored
+            if operation.field == index_field {
+                index_value = stored
+            } else if operation.field == item_field {
+                item_value = stored
+            } else if operation.field == list_field {
+                return false
+            }
+        }
+        position = position + 1
+    }
+    if index_value < 0 or item_value < 0 {
+        return false
+    }
+    var read = slot_read(uses, item_value)
+    if not read or read.operands.count() != 2 {
+        return false
+    }
+    var list = read.operands.first()
+    var at = read.operands.last()
+    if not list or not at {
+        return false
+    }
+    var list_read = uses.definition_of(list)
+    if not list_read or list_read.kind != "load" or list_read.field != list_field {
+        return false
+    }
+    return at == index_value or same_load(uses, at, callee.receiver, index_field)
+}
+
+func same_load(uses: Facts.Uses, value: Integer, receiver: Integer, field: String): Boolean {
+    var defining = uses.definition_of(value)
+    if not defining or defining.kind != "load" {
+        return false
+    }
+    return defining.field == field and defining.operands.first() == receiver
+}
+
+func quiet_fields(
+    function: Function,
+    flow: Facts.Flow,
+    from: Facts.Place,
+    to: Facts.Place,
+    stored: List<String>,
+): Boolean {
+    crash effects
+    crash kinds
+    var between = Facts.Between().operations_between(function, flow, from, to)
+    var position = 0
+    while position < between.count() {
+        var summary = effects.operation_summary(function, between[position])
+        if summary.unknown or summary.calls_values or summary.writes_memory {
+            return false
+        }
+        if writes_named_field(summary, stored) {
+            return false
+        }
+        position = position + 1
+    }
+    return true
+}
+
+func writes_named_field(summary: Facts.Summary, stored: List<String>): Boolean {
+    var written = summary.writes.keys()
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        var position = 0
+        while position < stored.count() {
+            if key.ends_with(".{stored[position]}") {
+                return true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func remove_dropped(function: Function, dropped: Dictionary<Operation, Boolean>) {
+    assert dropped.count() > 0
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        var kept = List<Operation>()
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if not dropped.has(operation) {
+                kept.append(operation)
+            }
+            position = position + 1
+        }
+        block.operations = kept
+        index = index + 1
+    }
+}

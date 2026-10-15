@@ -1,0 +1,271 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-form
+var successors = List<List<Integer>>()
+var predecessors = List<List<Integer>>()
+var order = List<Integer>()
+var order_position = List<Integer>()
+var dominators = List<Integer>()
+var loop_headers = Dictionary<Integer, Boolean>()
+var back_edges = Dictionary<String, Boolean>()
+var loop_bodies = Dictionary<Integer, List<Integer>>()
+
+func Flow(studied: Function) {
+    var count = studied.blocks.count()
+    var index = 0
+    while index < count {
+        var going = List<Integer>()
+        successors.append(going)
+        var coming = List<Integer>()
+        predecessors.append(coming)
+        order_position.append(-1)
+        dominators.append(-1)
+        index = index + 1
+    }
+    index = 0
+    while index < count {
+        var block = studied.blocks[index]
+        link(block)
+        index = index + 1
+    }
+    number_blocks(count)
+    find_dominators()
+    find_loops()
+}
+
+func link(block: Block) {
+    var targets = block.terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        crash successors[block.number]
+        crash predecessors[target.block]
+        if not successors[block.number].contains(target.block) {
+            successors[block.number].append(target.block)
+            predecessors[target.block].append(block.number)
+        }
+        index = index + 1
+    }
+}
+
+func successors_of(block: Integer): List<Integer> {
+    crash successors[block]
+    return successors[block]
+}
+
+func predecessors_of(block: Integer): List<Integer> {
+    crash predecessors[block]
+    return predecessors[block]
+}
+
+func number_blocks(count: Integer) {
+    assert count > 0
+    var visited = List<Boolean>()
+    var index = 0
+    while index < count {
+        visited.append(false)
+        index = index + 1
+    }
+    var finished = List<Integer>()
+    var stack = List<Integer>()
+    var next_child = List<Integer>()
+    stack.append(0)
+    next_child.append(0)
+    visited[0] = true
+    while not stack.is_empty() {
+        var top = stack.count() - 1
+        crash stack[top]
+        crash next_child[top]
+        var block = stack[top]
+        var child = next_child[top]
+        var going = successors_of(block)
+        if child < going.count() {
+            next_child[top] = child + 1
+            var target = going[child]
+            visit_child(target, visited, stack, next_child)
+        } else {
+            finished.append(block)
+            stack.remove_last()
+            next_child.remove_last()
+        }
+    }
+    var position = finished.count() - 1
+    while position >= 0 {
+        crash finished[position]
+        var placed = finished[position]
+        order_position[placed] = order.count()
+        order.append(placed)
+        position = position - 1
+    }
+}
+
+func visit_child(target: Integer, visited: List<Boolean>, stack: List<Integer>, next_child: List<Integer>) {
+    crash visited[target]
+    assert not visited[target]
+    visited[target] = true
+    stack.append(target)
+    next_child.append(0)
+}
+
+func is_reachable(block: Integer): Boolean {
+    crash order_position[block]
+    return order_position[block] >= 0
+}
+
+func find_dominators() {
+    dominators[0] = 0
+    var changed = true
+    while changed {
+        changed = false
+        var index = 1
+        while index < order.count() {
+            var block = order[index]
+            if settle_dominator(block) {
+                changed = true
+            }
+            index = index + 1
+        }
+    }
+}
+
+func settle_dominator(block: Integer): Boolean {
+    var chosen = -1
+    var coming = predecessors_of(block)
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        crash dominators[from]
+        if dominators[from] >= 0 {
+            chosen = meet(chosen, from)
+        }
+        index = index + 1
+    }
+    crash dominators[block]
+    if chosen < 0 or dominators[block] == chosen {
+        return false
+    }
+    dominators[block] = chosen
+    return true
+}
+
+func meet(first: Integer, second: Integer): Integer {
+    if first < 0 {
+        return second
+    }
+    var left = first
+    var right = second
+    while left != right {
+        while position_of(left) > position_of(right) {
+            left = dominator_of(left)
+        }
+        while position_of(right) > position_of(left) {
+            right = dominator_of(right)
+        }
+    }
+    return left
+}
+
+func position_of(block: Integer): Integer {
+    crash order_position[block]
+    return order_position[block]
+}
+
+func dominator_of(block: Integer): Integer {
+    crash dominators[block]
+    return dominators[block]
+}
+
+func dominates(upper: Integer, lower: Integer): Boolean {
+    if not is_reachable(lower) {
+        return false
+    }
+    var walked = lower
+    while walked != upper and walked != 0 {
+        walked = dominator_of(walked)
+    }
+    return walked == upper
+}
+
+func find_loops() {
+    var index = 0
+    while index < order.count() {
+        var block = order[index]
+        var going = successors_of(block)
+        var child = 0
+        while child < going.count() {
+            var target = going[child]
+            if dominates(target, block) {
+                back_edges["{block}>{target}"] = true
+                loop_headers[target] = true
+                collect_body(target, block)
+            }
+            child = child + 1
+        }
+        index = index + 1
+    }
+}
+
+func collect_body(header: Integer, latch: Integer) {
+    if not loop_bodies.has(header) {
+        var started = List<Integer>()
+        started.append(header)
+        loop_bodies[header] = started
+    }
+    crash loop_bodies[header]
+    var body = loop_bodies[header]
+    var waiting = List<Integer>()
+    waiting.append(latch)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not body.contains(taken) {
+            body.append(taken)
+            var coming = predecessors_of(taken)
+            coming.each(waiting.append)
+        }
+    }
+}
+
+func is_back_edge(from: Integer, to: Integer): Boolean {
+    return back_edges.has("{from}>{to}")
+}
+
+func is_loop_header(block: Integer): Boolean {
+    return loop_headers.has(block)
+}
+
+func body_of(header: Integer): List<Integer> {
+    if loop_bodies.has(header) {
+        crash loop_bodies[header]
+        return loop_bodies[header]
+    }
+    return List<Integer>()
+}
+
+func in_any_loop(block: Integer): Boolean {
+    var headers = loop_bodies.keys()
+    var index = 0
+    while index < headers.count() {
+        var body = body_of(headers[index])
+        if body.contains(block) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func innermost_header(block: Integer): Integer {
+    var found = -1
+    var smallest = 0
+    var headers = loop_bodies.keys()
+    var index = 0
+    while index < headers.count() {
+        var header = headers[index]
+        var body = body_of(header)
+        if body.contains(block) and (found < 0 or body.count() < smallest) {
+            found = header
+            smallest = body.count()
+        }
+        index = index + 1
+    }
+    return found
+}

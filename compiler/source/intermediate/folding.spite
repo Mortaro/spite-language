@@ -1,0 +1,231 @@
+# ../../../docs/optimizations.md#identical-functions-are-folded-into-one
+var text = Text()
+var types = Analysis.TypeShape()
+var program: Lowered? = null
+var shapes = Dictionary<String, String>()
+var folded_count = 0
+
+func run(lowered: Lowered) {
+    assert not lowered.hot_reload and not lowered.read_evaluate_print_loop and not lowered.remote_loop
+    program = lowered
+    var rounds = 0
+    var changed = true
+    while changed and rounds < 8 {
+        changed = fold_once(lowered)
+        rounds = rounds + 1
+    }
+}
+
+func fold_once(lowered: Lowered): Boolean {
+    var kept = Dictionary<String, String>()
+    var replaced = Dictionary<String, String>()
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if may_fold(function) {
+            var key = normalised(function)
+            if kept.has(key) {
+                crash kept[key]
+                replaced[function.c_name] = kept[key]
+                function.folded_into = kept[key]
+            } else {
+                kept[key] = function.c_name
+            }
+        }
+        index = index + 1
+    }
+    if replaced.count() == 0 {
+        return false
+    }
+    index = 0
+    while index < functions.count() {
+        redirect(functions[index], replaced)
+        index = index + 1
+    }
+    folded_count = folded_count + replaced.count()
+    return true
+}
+
+func redirect(function: Function, replaced: Dictionary<String, String>) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if replaced.has(operation.callee) {
+                crash replaced[operation.callee]
+                operation.callee = replaced[operation.callee]
+            }
+            operation.literal = redirected_literal(operation.literal, replaced)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func redirected_literal(literal: String, replaced: Dictionary<String, String>): String {
+    if replaced.has(literal) {
+        crash replaced[literal]
+        return replaced[literal]
+    }
+    if not literal.contains(",") or literal.contains(" ") {
+        return literal
+    }
+    var names = literal.split(",")
+    var changed = List<String>()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var chosen = name
+        if replaced.has(name) {
+            crash replaced[name]
+            chosen = replaced[name]
+        }
+        changed.append(chosen)
+        index = index + 1
+    }
+    return changed.join(",")
+}
+
+func may_fold(function: Function): Boolean {
+    var plain = function.folded_into.is_empty() and not function.is_intrinsic() and not function.blocks.is_empty()
+    return plain and function.not_lowered.is_empty() and not function.is_constructor and function.name != "drop"
+}
+
+func normalised(function: Function): String {
+    var lines = List<String>()
+    var renumbered = Dictionary<Integer, Integer>()
+    number_value(renumbered, function.receiver)
+    var parameters = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        number_value(renumbered, parameter.value)
+        var shown = shape_text(parameter.spite_type, 0)
+        parameters.append("{shown} {parameter.ownership}")
+        index = index + 1
+    }
+    var answer = shape_text(function.answer, 0)
+    var owner_type: Analysis.SpiteType = Analysis.Types.ClassRefType(function.owner)
+    var owner = shape_text(owner_type, 0)
+    lines.append(
+        "{owner}|{parameters.join(",")}|{answer}|{function.locking}|{function.resumable}|{function.lends_answer}",
+    )
+    index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        block_lines(block, renumbered, lines)
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func number_value(renumbered: Dictionary<Integer, Integer>, value: Integer) {
+    assert value >= 0 and not renumbered.has(value)
+    renumbered[value] = renumbered.count()
+}
+
+func shown_value(renumbered: Dictionary<Integer, Integer>, value: Integer): String {
+    if renumbered.has(value) {
+        crash renumbered[value]
+        return "n{renumbered[value]}"
+    }
+    return "free{value}"
+}
+
+func shown_values(renumbered: Dictionary<Integer, Integer>, values: List<Integer>): String {
+    var shown = List<String>()
+    var index = 0
+    while index < values.count() {
+        var named = shown_value(renumbered, values[index])
+        shown.append(named)
+        index = index + 1
+    }
+    return shown.join(",")
+}
+
+func block_lines(block: Block, renumbered: Dictionary<Integer, Integer>, lines: List<String>) {
+    var index = 0
+    while index < block.parameters.count() {
+        number_value(renumbered, block.parameters[index])
+        index = index + 1
+    }
+    var parameters = shown_values(renumbered, block.parameters)
+    lines.append("block {block.number}({parameters})")
+    index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var operands = shown_values(renumbered, operation.operands)
+        if operation.result >= 0 {
+            number_value(renumbered, operation.result)
+        }
+        var made = shown_value(renumbered, operation.result)
+        var shown_type = shape_text(operation.spite_type, 0)
+        var made_layout = layout_shape(operation.layout, 0)
+        var site = site_text(operation.site)
+        lines.append(
+            "{made}={operation.kind}|{operation.callee}|{made_layout}|{operation.field}|{operation.literal}|{operation.form}|{site}|{shown_type}|{operands}",
+        )
+        index = index + 1
+    }
+    var terminator = block.terminator
+    var terminator_operands = shown_values(renumbered, terminator.operands)
+    var terminator_site = site_text(terminator.site)
+    lines.append("{terminator.kind}|{terminator_site}|{terminator_operands}")
+    index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var arguments = shown_values(renumbered, target.arguments)
+        lines.append("to {target.block}|{target.tag}|{arguments}")
+        index = index + 1
+    }
+}
+
+func site_text(site: Integer): String {
+    crash program
+    if site < 0 or site >= program.sites.count() {
+        return "-"
+    }
+    var found = program.sites[site]
+    return "{found.kind}@{found.path}:{found.line}:{found.text}"
+}
+
+func shape_text(spite_type: Analysis.SpiteType?, depth: Integer): String {
+    if not spite_type {
+        return "?"
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if not class_ref or class_ref.has_signature {
+        return text.type_text(spite_type)
+    }
+    return layout_shape(class_ref.c_name, depth)
+}
+
+func layout_shape(c_name: String, depth: Integer): String {
+    crash program
+    if c_name.is_empty() {
+        return ""
+    }
+    if shapes.has(c_name) {
+        crash shapes[c_name]
+        return shapes[c_name]
+    }
+    var layout = program.layout_named(c_name)
+    if not layout or depth > 4 or layout.is_singleton {
+        return c_name
+    }
+    shapes[c_name] = c_name
+    var fields = List<String>()
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var shown = shape_text(field.spite_type, depth + 1)
+        fields.append("{field.name}:{shown}")
+        index = index + 1
+    }
+    var made = "({fields.join(",")})"
+    shapes[c_name] = made
+    return made
+}

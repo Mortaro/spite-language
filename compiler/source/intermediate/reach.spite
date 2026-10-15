@@ -1,0 +1,178 @@
+# ../../../docs/proofs.md#tree-shaking-what-main-can-reach
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var functions_reached = Dictionary<String, Boolean>()
+var layouts_reached = Dictionary<String, Boolean>()
+var waiting = List<String>()
+var dropped_functions = 0
+var dropped_layouts = 0
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    assert not starting_lowered.is_inspectable()
+    assert not starting_lowered.entry.is_empty() and starting_lowered.function_named(starting_lowered.entry)
+    waiting.append(starting_lowered.entry)
+    settle()
+    keep_reached()
+}
+
+func settle() {
+    crash lowered
+    var rounds = 0
+    var changed = true
+    while changed and rounds < 64 {
+        while not waiting.is_empty() {
+            var taken = waiting.remove_last()
+            crash taken
+            reach_function(taken)
+        }
+        changed = reach_hooks()
+        rounds = rounds + 1
+    }
+}
+
+func reach_function(c_name: String) {
+    crash lowered
+    assert not functions_reached.has(c_name)
+    var function = lowered.function_named(c_name)
+    assert function
+    functions_reached[c_name] = true
+    reach_layout(function.owner)
+    if not function.folded_into.is_empty() {
+        waiting.append(function.folded_into)
+    }
+    var index = 0
+    while index < function.values.count() {
+        reach_type(function.values[index].spite_type, 0)
+        index = index + 1
+    }
+    index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        block.operations.each(reach_operation)
+        index = index + 1
+    }
+}
+
+func reach_operation(operation: Operation) {
+    crash lowered
+    if operation.kind == "make" {
+        reach_layout(operation.layout)
+    }
+    if not operation.callee.is_empty() and lowered.function_named(operation.callee) {
+        waiting.append(operation.callee)
+    }
+    reach_type(operation.spite_type, 0)
+    var named = operation.literal.split(",")
+    var index = 0
+    while index < named.count() {
+        var name = named[index]
+        if not name.is_empty() and lowered.function_named(name) {
+            waiting.append(name)
+        }
+        index = index + 1
+    }
+}
+
+func reach_layout(c_name: String) {
+    crash lowered
+    assert not c_name.is_empty() and not layouts_reached.has(c_name)
+    var layout = lowered.layout_named(c_name)
+    assert layout
+    layouts_reached[c_name] = true
+    var index = 0
+    while index < layout.stored_fields.count() {
+        reach_type(layout.stored_fields[index].spite_type, 0)
+        index = index + 1
+    }
+    assert layout.information
+    var held = layout.information.codegen_types
+    index = 0
+    while index < held.count() {
+        reach_type(held[index], 0)
+        index = index + 1
+    }
+}
+
+func reach_type(spite_type: Analysis.SpiteType?, depth: Integer) {
+    assert spite_type and depth < 16
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        reach_type(nullable.inner, depth + 1)
+        return
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        reach_type(listed.element, depth + 1)
+        return
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        reach_type(dictionary.key, depth + 1)
+        reach_type(dictionary.element, depth + 1)
+        return
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    assert class_ref
+    reach_layout(class_ref.c_name)
+}
+
+func reach_hooks(): Boolean {
+    crash lowered
+    var before = functions_reached.count()
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var hooked = function.name == "drop" or function.is_constructor and is_singleton_layout(function.owner)
+        if hooked and layouts_reached.has(function.owner) and not functions_reached.has(function.c_name) {
+            waiting.append(function.c_name)
+        }
+        index = index + 1
+    }
+    return not waiting.is_empty() or functions_reached.count() != before
+}
+
+func is_singleton_layout(c_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    if not layout {
+        return false
+    }
+    return layout.is_singleton
+}
+
+func keep_reached() {
+    crash lowered
+    var kept_functions = List<Function>()
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if functions_reached.has(function.c_name) {
+            kept_functions.append(function)
+        } else {
+            lowered.functions_by_name.remove(function.c_name)
+            dropped_functions = dropped_functions + 1
+        }
+        index = index + 1
+    }
+    lowered.concrete_functions = kept_functions
+    var kept_layouts = List<Layout>()
+    var layouts = lowered.layouts
+    index = 0
+    while index < layouts.count() {
+        var layout = layouts[index]
+        if layouts_reached.has(layout.c_name) {
+            kept_layouts.append(layout)
+        } else {
+            lowered.layouts_by_name.remove(layout.c_name)
+            dropped_layouts = dropped_layouts + 1
+        }
+        index = index + 1
+    }
+    lowered.layouts = kept_layouts
+}

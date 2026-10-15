@@ -1,0 +1,39 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-passes-in-order
+var bands: Bands? = null
+var rows: Rows? = null
+var waits: Waits? = null
+var forms: SingletonForms? = null
+
+func run(lowered: Lowered) {
+    var first_effects = Facts.Effects(lowered)
+    var made_waits = Waits(lowered, first_effects)
+    waits = made_waits
+    var functions = lowered.concrete_functions
+    functions.each(made_waits.note_waiting)
+    functions.each(made_waits.overlap_reads)
+    functions.each(made_waits.start_frame_waits)
+    run_at_once(lowered, first_effects)
+    var entries = made_waits.concurrent_entries()
+    made_waits.mark_resumable(entries)
+    var effects = Facts.Effects(lowered)
+    var reach = Facts.ThreadReach(lowered, effects)
+    var counts = SharedCounts(lowered)
+    counts.decide(reach)
+    var made_forms = SingletonForms(lowered, effects, reach)
+    forms = made_forms
+    made_forms.decide()
+}
+
+func run_at_once(lowered: Lowered, effects: Facts.Effects) {
+    assert not lowered.hot_reload and not lowered.read_evaluate_print_loop and not lowered.development
+    var made_bands = Bands(lowered)
+    bands = made_bands
+    var made_rows = Rows(lowered, effects, made_bands)
+    rows = made_rows
+    var functions = lowered.concrete_functions
+    functions.each(made_bands.study)
+    functions.each(made_rows.study)
+    if made_bands.banded_count > 0 or made_rows.rows_count > 0 {
+        lowered.makes_threads = true
+    }
+}

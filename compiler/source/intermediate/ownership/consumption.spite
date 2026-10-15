@@ -1,0 +1,118 @@
+# ../../../../docs/optimizations.md#an-argument-its-caller-holds-is-passed-without-counting
+var lowered: Lowered? = null
+var intrinsics: Facts.Intrinsics? = null
+
+func Consumption(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+}
+
+func is_projection(operation: Operation): Boolean {
+    return operation.kind == "call" and (operation.callee == "Nullable.value" or operation.callee == "Union.value")
+}
+
+func consumes(operation: Operation, value: Integer): Boolean {
+    var index = 0
+    while index < operation.operands.count() {
+        if operation.operands[index] == value and consumes_position(operation, index) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func consumes_position(operation: Operation, position: Integer): Boolean {
+    if operation.kind == "store" {
+        return position == 1
+    }
+    if operation.kind == "call value" {
+        return position > 0
+    }
+    if operation.kind == "call" and operation.callee == "String.join" and operation.form == "in_place" {
+        return position == 0
+    }
+    if operation.kind != "call" or position == 0 or operation.form == "in_place" {
+        return false
+    }
+    crash intrinsics
+    if intrinsics.is_dotted(operation.callee) {
+        return false
+    }
+    var callee = intrinsics.callee_named(operation.callee)
+    if not callee {
+        return true
+    }
+    var ownership = parameter_ownership(callee, position - 1)
+    return ownership != "held" and ownership != "lent"
+}
+
+func parameter_ownership(callee: Function, index: Integer): String {
+    if index < 0 or index >= callee.parameters.count() {
+        return "owned"
+    }
+    return callee.parameters[index].ownership
+}
+
+func lends_answer(operation: Operation): Boolean {
+    return operation.kind == "call" and operation.form == "borrowed"
+}
+
+func is_lending_call(operation: Operation): Boolean {
+    crash intrinsics
+    crash lowered
+    if operation.kind != "call" or operation.form == "in_place" {
+        return false
+    }
+    var callee = intrinsics.callee_named(operation.callee)
+    if not callee or callee.is_intrinsic() {
+        return false
+    }
+    if callee.lends_answer {
+        return true
+    }
+    var kinds = Facts.ValueKinds(lowered)
+    var lending = ["get_at", "first", "last"]
+    return lending.contains(callee.name) and kinds.is_library_layout(callee.owner) and returns_reads(callee)
+}
+
+func returns_reads(callee: Function): Boolean {
+    var uses = Facts.Uses(callee)
+    var index = 0
+    while index < callee.blocks.count() {
+        var block = callee.blocks[index]
+        if block.terminator.kind == "return" and not returns_read(uses, block.terminator) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func returns_read(uses: Facts.Uses, terminator: Terminator): Boolean {
+    var returned = terminator.operands.first()
+    if not returned {
+        return false
+    }
+    var defining = uses.definition_of(returned)
+    if not defining {
+        return false
+    }
+    if defining.kind == "constant" {
+        return true
+    }
+    return is_lending_read(defining)
+}
+
+func is_lending_read(operation: Operation): Boolean {
+    crash intrinsics
+    if operation.kind != "call" {
+        return false
+    }
+    var callee = intrinsics.callee_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return callee.intrinsic == "supplied" and callee.name == "read_value"
+}

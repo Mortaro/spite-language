@@ -1,0 +1,314 @@
+# ../../../../docs/optimizations.md#a-table-filled-once-is-read-as-constants
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var tables = Dictionary<String, List<String>>()
+var refused = Dictionary<String, Boolean>()
+var copies = Dictionary<String, String>()
+var copied_count = 0
+
+func TableCopies(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+}
+
+func copy_tables() {
+    crash lowered
+    assert not lowered.is_inspectable()
+    var functions = lowered.concrete_functions
+    functions.each(learn_constructor)
+    functions.each(refuse_writers)
+    assert tables.count() > refused.count()
+    var originals = List<Function>()
+    functions.each(originals.append)
+    originals.each(copy_reader)
+    var made = copies.keys()
+    var index = 0
+    while index < made.count() {
+        var original_name = made[index]
+        crash copies[original_name]
+        var copy = lowered.function_named(copies[original_name])
+        crash copy
+        retarget_calls(copy)
+        index = index + 1
+    }
+}
+
+func field_key(function: Function, operation: Operation): String {
+    crash kinds
+    if operation.kind != "load" {
+        return ""
+    }
+    var object = operation.operands.first()
+    if not object {
+        return ""
+    }
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    if not layout or kinds.is_library_layout(layout.c_name) {
+        return ""
+    }
+    var field = layout.field_named(operation.field)
+    if not field or not plain_list(field.spite_type) {
+        return ""
+    }
+    return "{layout.c_name}.{operation.field}"
+}
+
+func plain_list(spite_type: Analysis.SpiteType?): Boolean {
+    crash kinds
+    if not spite_type {
+        return false
+    }
+    var element = kinds.element_of_list(spite_type)
+    if not element {
+        return false
+    }
+    var types = Analysis.TypeShape()
+    if types.as_enum(element) {
+        return true
+    }
+    var scalar = types.as_scalar(element)
+    if not scalar {
+        return false
+    }
+    return kinds.is_whole_kind(scalar.kind)
+}
+
+func learn_constructor(function: Function) {
+    crash intrinsics
+    assert function.is_constructor and not function.blocks.is_empty()
+    var flow = Facts.Flow(function)
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < flow.order.count() {
+        var block_number = flow.order[block_index]
+        var block = function.block_at(block_number)
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var key = field_key(function, operation)
+            if not key.is_empty() and operation.operands.first() == function.receiver {
+                learn_fills(function, flow, uses, operation, key, block_number)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func learn_fills(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    read: Operation,
+    key: String,
+    block_number: Integer,
+) {
+    crash intrinsics
+    if flow.in_any_loop(block_number) or not reaches_every_return(function, flow, block_number) {
+        refused[key] = true
+        return
+    }
+    var reached = uses.uses_of(read.result)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var operation = operation_at(function, place)
+        if not operation {
+            refused[key] = true
+            return
+        }
+        if not fills_constant(uses, operation, read.result, key) {
+            refused[key] = true
+            return
+        }
+        index = index + 1
+    }
+}
+
+func reaches_every_return(function: Function, flow: Facts.Flow, block_number: Integer): Boolean {
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        if block.terminator.kind == "return" and not flow.dominates(block_number, index) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func operation_at(function: Function, place: Facts.Place): Operation? {
+    assert place.position >= 0
+    var block = function.block_at(place.block)
+    return block.operations[place.position]
+}
+
+func fills_constant(uses: Facts.Uses, operation: Operation, list: Integer, key: String): Boolean {
+    crash intrinsics
+    if operation.kind != "call" or operation.operands.first() != list {
+        return false
+    }
+    var meaning = intrinsics.meaning(operation.callee)
+    var reading = ["count", "get_at", "is_empty", "first", "last", "contains", "index_of"]
+    if reading.contains(meaning) {
+        return true
+    }
+    if meaning != "append" or operation.operands.count() != 2 {
+        return false
+    }
+    var added = operation.operands.last()
+    crash added
+    var defining = uses.definition_of(added)
+    if not defining or defining.kind != "constant" {
+        return false
+    }
+    if not tables.has(key) {
+        var started = List<String>()
+        tables[key] = started
+    }
+    crash tables[key]
+    tables[key].append(defining.literal)
+    return true
+}
+
+func refuse_writers(function: Function) {
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            refuse_operation(function, uses, operation)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func refuse_operation(function: Function, uses: Facts.Uses, operation: Operation) {
+    crash intrinsics
+    crash kinds
+    if operation.kind == "store" {
+        refuse_store(function, uses, operation)
+        return
+    }
+    var key = field_key(function, operation)
+    assert not key.is_empty()
+    assert not function.is_constructor or operation.operands.first() != function.receiver
+    var reached = uses.uses_of(operation.result)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var user = operation_at(function, place)
+        if not reads_through(user, operation.result) {
+            refused[key] = true
+        }
+        index = index + 1
+    }
+}
+
+func refuse_store(function: Function, uses: Facts.Uses, operation: Operation) {
+    crash kinds
+    var object = operation.operands.first()
+    crash object
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    assert layout
+    var key = "{layout.c_name}.{operation.field}"
+    assert tables.has(key)
+    var stored = operation.operands.last()
+    crash stored
+    var defining = uses.definition_of(stored)
+    if not is_made(defining) {
+        refused[key] = true
+    }
+}
+
+func is_made(defining: Operation?): Boolean {
+    if not defining {
+        return false
+    }
+    return defining.kind == "make"
+}
+
+func reads_through(user: Operation?, list: Integer): Boolean {
+    if not user {
+        return false
+    }
+    return only_reads(user, list)
+}
+
+func only_reads(user: Operation, list: Integer): Boolean {
+    crash intrinsics
+    if user.kind == "retain" or user.kind == "release" {
+        return true
+    }
+    if user.kind != "call" or user.operands.first() != list {
+        return false
+    }
+    var meaning = intrinsics.meaning(user.callee)
+    var reading = ["count", "get_at", "is_empty", "first", "last", "contains", "index_of"]
+    return reading.contains(meaning)
+}
+
+func copy_reader(function: Function) {
+    crash lowered
+    assert not function.is_constructor and not function.blocks.is_empty() and not function.is_intrinsic()
+    var read = table_read(function)
+    assert not read.is_empty()
+    crash tables[read]
+    var values = tables[read]
+    var copy_name = "{function.c_name}___configured_0"
+    assert not lowered.function_named(copy_name)
+    var copy = TableCopy(function, copy_name, read, values)
+    var made = copy.made()
+    assert made
+    lowered.add_function(made)
+    copies[function.c_name] = copy_name
+    copy.dispatch_from(function)
+    copied_count = copied_count + 1
+}
+
+func table_read(function: Function): String {
+    var found = ""
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var key = field_key(function, operation)
+            var usable = not key.is_empty() and not refused.has(key) and tables.has(key)
+            if usable and operation.operands.first() == function.receiver {
+                found = key
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func retarget_calls(copy: Function) {
+    var block_index = 0
+    while block_index < copy.blocks.count() {
+        var block = copy.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var calls_copied = operation.kind == "call" and copies.has(operation.callee)
+            if calls_copied and operation.operands.first() == copy.receiver {
+                crash copies[operation.callee]
+                operation.callee = copies[operation.callee]
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}

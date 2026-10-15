@@ -1,0 +1,35 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-passes-in-order
+var slots: SlotLists? = null
+var tables: TableCopies? = null
+var static_count = 0
+
+func run(lowered: Lowered) {
+    assert not lowered.is_inspectable()
+    var effects = Facts.Effects(lowered)
+    var made_slots = SlotLists(lowered, effects)
+    slots = made_slots
+    made_slots.arrange()
+    var made_tables = TableCopies(lowered)
+    tables = made_tables
+    made_tables.copy_tables()
+    lowered.layouts.each(make_static)
+}
+
+# ../../../../docs/optimizations.md#singletons-that-hold-nothing-are-static-objects
+func make_static(layout: Layout) {
+    assert layout.is_singleton and layout.stored_fields.is_empty() and layout.information
+    assert not layout.information.drop_function
+    layout.arrangement = "static"
+    static_count = static_count + 1
+}
+
+func arranged(): Integer {
+    var count = static_count
+    if slots {
+        count = count + slots.arranged_count
+    }
+    if tables {
+        count = count + tables.copied_count
+    }
+    return count
+}

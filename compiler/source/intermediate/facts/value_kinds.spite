@@ -1,0 +1,170 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var dropping = Dictionary<String, Boolean>()
+
+func ValueKinds(starting_lowered: Lowered) {
+    lowered = starting_lowered
+}
+
+func layout_of(spite_type: Analysis.SpiteType?): Layout? {
+    assert spite_type
+    crash lowered
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref {
+        return lowered.layout_named(class_ref.c_name)
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return layout_of(nullable.inner)
+    }
+    return null
+}
+
+func is_counted(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    if types.as_scalar(spite_type) or types.as_enum(spite_type) or types.is_void(spite_type) {
+        return false
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return is_counted(nullable.inner)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref {
+        return class_is_counted(class_ref.c_name)
+    }
+    return true
+}
+
+func class_is_counted(c_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    if not layout {
+        return true
+    }
+    return not layout.is_singleton and not layout.is_value
+}
+
+func holds_singleton(spite_type: Analysis.SpiteType?): Boolean {
+    var layout = layout_of(spite_type)
+    if not layout {
+        return false
+    }
+    return layout.is_singleton
+}
+
+func whole_kind(spite_type: Analysis.SpiteType?): Analysis.Types.ScalarType? {
+    assert spite_type
+    var scalar = types.as_scalar(spite_type)
+    assert scalar
+    assert is_whole_kind(scalar.kind)
+    return scalar
+}
+
+func is_whole_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return is_signed_kind(kind) or is_unsigned_kind(kind)
+}
+
+func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
+}
+
+func is_unsigned_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind' or kind == 'unsigned_long_kind'
+}
+
+func is_nullable(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    if types.as_nullable(spite_type) {
+        return true
+    }
+    return false
+}
+
+# ../../../../docs/optimizations.md#a-lists-templates-read-its-elements-without-counting-them
+func may_run_drop(spite_type: Analysis.SpiteType?): Boolean {
+    if not is_counted(spite_type) {
+        return false
+    }
+    crash spite_type
+    if types.as_string(spite_type) or types.is_symbol(spite_type) {
+        return false
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return may_run_drop(nullable.inner)
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        return may_run_drop(listed.element)
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        return may_run_drop(dictionary.element) or may_run_drop(dictionary.key)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref {
+        return class_may_run_drop(class_ref.c_name)
+    }
+    return true
+}
+
+func class_may_run_drop(c_name: String): Boolean {
+    if dropping.has(c_name) {
+        crash dropping[c_name]
+        return dropping[c_name]
+    }
+    dropping[c_name] = false
+    var answer = layout_may_run_drop(c_name)
+    dropping[c_name] = answer
+    return answer
+}
+
+func layout_may_run_drop(c_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    if not layout {
+        return true
+    }
+    if not layout.information {
+        return true
+    }
+    if layout.information.drop_function {
+        return true
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        if may_run_drop(layout.stored_fields[index].spite_type) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_library_layout(c_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    if not layout or not layout.information {
+        return true
+    }
+    var path = layout.information.source_path
+    return path.starts_with("library/") or path.starts_with("launcher/")
+}
+
+func element_of_list(spite_type: Analysis.SpiteType?): Analysis.SpiteType? {
+    assert spite_type
+    var listed = types.as_list(spite_type)
+    if listed {
+        return listed.element
+    }
+    var layout = layout_of(spite_type)
+    assert layout and layout.information
+    assert layout.qualified == "List"
+    return layout.information.codegen_types.first()
+}

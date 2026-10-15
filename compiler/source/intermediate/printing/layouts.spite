@@ -61,18 +61,28 @@ func enum_line(information: Analysis.EnumInfo, index: Integer): String {
 
 func print_class(layout: Layout) {
     var name = layout.c_name
-    if layout.arrangement != "object" {
-        output.refuse("'{name}' is arranged as '{layout.arrangement}', which the printer does not lay out")
+    if layout.arrangement != "object" and layout.arrangement != "static" {
+        output.refuse("'{name}' is arranged as '{layout.arrangement}', which the printer does not lay out yet")
         return
+    }
+    if not layout.thread_form.is_empty() and layout.thread_form != "read_only" {
+        output.refuse(
+            "the singleton '{layout.qualified}' is shared by threads as '{layout.thread_form}', which the printer does not write yet",
+        )
+    }
+    if layout.copy_with_table and output.copied_layouts.contains(name) {
+        output.refuse(
+            "'{layout.qualified}' is copied with a table of what it already copied, which the printer does not write yet",
+        )
     }
     output.types.append("typedef struct {name} {name};")
     print_struct(layout)
-    if layout.is_singleton and layout.allocation == "static" {
+    if layout.is_singleton and layout.arrangement == "static" {
         print_static_singleton(layout)
         return
     }
     print_initialize(layout)
-    if layout.allocation == "pool" {
+    if layout.pooled {
         print_pool(layout)
     }
     print_allocate(layout)
@@ -254,7 +264,7 @@ func print_allocate(layout: Layout) {
     var identity = naming.class_id_of(layout)
     var lines = List<String>()
     lines.append("{name}* {name}___allocate(void) \{")
-    if layout.allocation == "pool" {
+    if layout.pooled {
         lines.append("{name}* self = {name}___pool_take();")
     } else {
         lines.append("{name}* self = ({name}*)SPITE_MALLOC(sizeof({name}));")
@@ -315,11 +325,15 @@ func print_counted(layout: Layout) {
     output.prototypes.append("static inline {name}* {name}___retain({name}* self);")
     output.prototypes.append("static inline void {name}___release({name}* self);")
     output.prototypes.append("void {name}___free({name}* self);")
+    var counting = "SPITE_COUNT"
+    if lowered.makes_threads and not layout.atomic_counts {
+        counting = "SPITE_PLAIN_COUNT"
+    }
     output.supports.append(
-        "static inline {name}* {name}___retain({name}* self) \{\nif (self != 0) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
+        "static inline {name}* {name}___retain({name}* self) \{\nif (self != 0) {counting}_UP(self->header.ref_count);\nreturn self;\n}",
     )
     output.supports.append(
-        "static inline void {name}___release({name}* self) \{\nif (self == 0) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{name}___free(self);\n}",
+        "static inline void {name}___release({name}* self) \{\nif (self == 0) return;\nif ({counting}_DOWN(self->header.ref_count) > 0) return;\n{name}___free(self);\n}",
     )
     var lines = List<String>()
     lines.append("void {name}___free({name}* self) \{")
@@ -334,7 +348,7 @@ func print_counted(layout: Layout) {
     var hidden_text = hidden.join("\n")
     lines.append(hidden_text)
     lines.append("#ifdef SPITE_WEAK_{name}\nspite_weak_object_freed(self);\n#endif")
-    if layout.allocation == "pool" {
+    if layout.pooled {
         lines.append("{name}___pool_give(self);")
     } else {
         lines.append("SPITE_FREE(self);")
@@ -408,8 +422,13 @@ func print_framed(layout: Layout) {
     lines.append("}")
     var lines_text = lines.join("\n")
     output.supports.append(lines_text)
+    output.prototypes.append("static void {name}___unframe_fields({name}* self);")
+    var field_lines = field_releases(layout, "self")
+    var fields_text = field_lines.join("\n")
+    output.supports.append("static void {name}___unframe_fields({name}* self) \{\n{fields_text}\n(void)self;\n}")
     output.runtime_place("{name}___framed")
     output.runtime_place("{name}___unframe")
+    output.runtime_place("{name}___unframe_fields")
 }
 
 func print_copy(layout: Layout) {

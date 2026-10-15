@@ -4,6 +4,7 @@ var error_message = ""
 var lowered = Lowered()
 var reached_unions = List<String>()
 var types = Analysis.TypeShape()
+var optimized = false
 
 func Pipeline(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -36,10 +37,13 @@ func settle_settings() {
     lowered.debug_memory = generator.debug_memory
     lowered.trace_asserts = generator.trace_asserts
     lowered.bare_crash_sites = generator.bare_crash_sites
-    lowered.threads = generator.builder.threads
     lowered.hot_reload = generator.hot_reload
-    lowered.read_evaluate_print_loop = generator.read_evaluate_print_loop or generator.remote_loop_port > 0
-    lowered.scheduler_used = generator.scheduler_used
+    lowered.read_evaluate_print_loop = generator.read_evaluate_print_loop
+    lowered.remote_loop = generator.remote_loop_port > 0
+    lowered.development = generator.development
+    lowered.optimized = optimized
+    lowered.makes_threads = generator.builder.threads or generator.parallel_used
+    lowered.makes_concurrents = generator.scheduler_used
     lowered.class_names = generator.class_names_by_id
     lowered.enums = generator.enums
 }

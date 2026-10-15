@@ -12,16 +12,23 @@ var parameter_names = Dictionary<Integer, String>()
 var string_constants = Dictionary<Integer, String>()
 var tag_sources = Dictionary<Integer, String>()
 var tag_constants = Dictionary<Integer, String>()
+var frame_lists = Dictionary<Integer, String>()
+var frame_buffers = Dictionary<Integer, String>()
+var fixed_buffers = Dictionary<Integer, Boolean>()
 
 func print(printed: Function) {
     function = printed
     assert printed.intrinsic.is_empty() or printed.intrinsic == "supplied"
+    assert printed.folded_into.is_empty()
     lines = List<String>()
     declarations = List<String>()
     parameter_names = Dictionary<Integer, String>()
     string_constants = Dictionary<Integer, String>()
     tag_sources = Dictionary<Integer, String>()
     tag_constants = Dictionary<Integer, String>()
+    frame_lists = Dictionary<Integer, String>()
+    frame_buffers = Dictionary<Integer, String>()
+    fixed_buffers = Dictionary<Integer, Boolean>()
     note_parameters()
     if printed.intrinsic == "supplied" {
         print_supplied()
@@ -29,6 +36,10 @@ func print(printed: Function) {
     }
     if not printed.not_lowered.is_empty() {
         output.refuse("'{printed.c_name}' ({printed.owner}.{printed.name}) cannot be written: {printed.not_lowered}")
+        return
+    }
+    if not printed.locking.is_empty() or printed.resumable or printed.waits {
+        refuse("it locks its singleton or waits on concurrent work, which the printer does not write yet")
         return
     }
     if not printed.singleton_of.is_empty() {
@@ -55,7 +66,7 @@ func print_singleton_maker() {
         refuse("it makes the singleton '{function.singleton_of}', which has no layout")
         return
     }
-    if layout.allocation == "static" {
+    if layout.arrangement == "static" {
         print_static_getter(layout)
         return
     }
@@ -377,8 +388,35 @@ func print_constant(operation: Operation) {
         var identity = naming.class_id_of(tagged_class)
         tag_constants[operation.result] = identity
     }
+    if operation.form == "table" {
+        print_table(operation, made)
+        return
+    }
+    if operation.form == "exact" {
+        assign(operation.result, operation.literal)
+        return
+    }
     var written = constant_text(made, operation.literal)
     assign(operation.result, written)
+}
+
+func print_table(operation: Operation, made: Analysis.SpiteType) {
+    var layout = naming.layout_of(made)
+    if not layout or not layout.information or not layout.field_named("items") {
+        refuse("a constant table of a type that is not a list")
+        return
+    }
+    var element = layout.information.codegen_types.first()
+    if not element {
+        refuse("a constant table of a list with no element type")
+        return
+    }
+    var name = output.table_name(layout.c_name, operation.literal)
+    if name.is_empty() {
+        var written = naming.c_type(element)
+        name = output.add_table(layout.c_name, operation.literal, written)
+    }
+    assign(operation.result, "(&{name})")
 }
 
 func constant_text(made: Analysis.SpiteType, literal: String): String {
@@ -591,6 +629,23 @@ func print_known_call(operation: Operation, callee: Function) {
         intrinsics.print(this, operation)
         return
     }
+    var forms = ["", "moved", "borrowed", "in_place", "frame"]
+    if not forms.contains(operation.form) {
+        refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
+        return
+    }
+    if operation.form == "borrowed" and callee.name == "read_value" {
+        print_borrowed_read(operation)
+        return
+    }
+    if operation.form == "frame" and callee.name == "allocate" {
+        print_frame_buffer(operation, callee)
+        return
+    }
+    if operation.form == "frame" and callee.name == "free" {
+        print_frame_free(operation, callee)
+        return
+    }
     var expected = callee.parameters.count()
     if callee.receiver >= 0 {
         expected = expected + 1
@@ -599,7 +654,83 @@ func print_known_call(operation: Operation, callee: Function) {
         refuse("it calls '{callee.c_name}' with {operation.operands.count()} values, and it takes {expected}")
         return
     }
+    if operation.form == "in_place" {
+        print_kept_store_call(operation, callee.c_name)
+        return
+    }
     print_plain_call(operation, callee.c_name)
+}
+
+func print_borrowed_read(operation: Operation) {
+    var address = operand(operation, 1)
+    var index = operand(operation, 2)
+    var answered = type_of(operation.result)
+    var written = naming.c_type(answered)
+    assign(operation.result, "(({written}*)(intptr_t)({address}))[{index}]")
+}
+
+func print_frame_buffer(operation: Operation, callee: Function) {
+    var buffer = "spite_buffer_{operation.result}"
+    var last = operation.operands.count() - 1
+    var size = operand(operation, last)
+    var fixed = operation.literal.to_integer()
+    frame_buffers[operation.result] = buffer
+    if fixed {
+        var words = (fixed + 7) / 8 + 1
+        declarations.append("int64_t {buffer}[{words}];")
+        fixed_buffers[operation.result] = true
+        assign(operation.result, "(int64_t)(intptr_t){buffer}")
+        return
+    }
+    declarations.append("int64_t {buffer}[32];")
+    var arguments = call_arguments(operation)
+    assign(operation.result, "({size} <= 256 ? (int64_t)(intptr_t){buffer} : {callee.c_name}({arguments}))")
+}
+
+func print_frame_free(operation: Operation, callee: Function) {
+    var last = operation.operands.count() - 1
+    var address_number = operand_number(operation, last)
+    var buffer = frame_buffers[address_number]
+    if not buffer {
+        refuse("it frees a frame buffer it cannot trace to where it was placed")
+        return
+    }
+    assert not fixed_buffers.has(address_number)
+    var address = name_of(address_number)
+    var arguments = call_arguments(operation)
+    lines.append("if ({address} != (int64_t)(intptr_t){buffer}) {callee.c_name}({arguments});")
+}
+
+func print_kept_store_call(operation: Operation, c_name: String) {
+    var last = operation.operands.count() - 1
+    var kept_number = operand_number(operation, last)
+    var kept_type = type_of(kept_number)
+    var counted = counted_name_of(kept_type)
+    var arguments = List<String>()
+    var index = 0
+    while index < operation.operands.count() - 1 {
+        var argument = operand(operation, index)
+        arguments.append(argument)
+        index = index + 1
+    }
+    var kept = name_of(kept_number)
+    if counted.is_empty() {
+        arguments.append(kept)
+    } else {
+        arguments.append("{counted}___retain({kept})")
+    }
+    assign(operation.result, "{c_name}({arguments.join(", ")})")
+}
+
+func call_arguments(operation: Operation): String {
+    var arguments = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var argument = operand(operation, index)
+        arguments.append(argument)
+        index = index + 1
+    }
+    return arguments.join(", ")
 }
 
 func print_plain_call(operation: Operation, c_name: String) {
@@ -614,14 +745,29 @@ func print_plain_call(operation: Operation, c_name: String) {
 }
 
 func print_load(operation: Operation) {
+    if not operation.form.is_empty() {
+        refuse("it reads '{operation.field}' in the form '{operation.form}', which the printer does not write yet")
+        return
+    }
     var place = field_place(operation)
     assign(operation.result, place)
 }
 
 func print_store(operation: Operation) {
+    if not operation.form.is_empty() {
+        refuse("it writes '{operation.field}' in the form '{operation.form}', which the printer does not write yet")
+        return
+    }
     var place = field_place(operation)
     var stored = operand(operation, 1)
-    lines.append("{place} = {stored};")
+    var stored_type = operand_type(operation, 1)
+    var counted = counted_name_of(stored_type)
+    if counted.is_empty() {
+        lines.append("{place} = {stored};")
+        return
+    }
+    var written = naming.c_type(stored_type)
+    lines.append("\{ {written} spite_replaced = {place}; {place} = {stored}; {counted}___release(spite_replaced); }")
 }
 
 func field_place(operation: Operation): String {
@@ -632,7 +778,7 @@ func field_place(operation: Operation): String {
         refuse("it reaches the field '{operation.field}' of something that is not an object")
         return "spite_missing"
     }
-    if layout.arrangement != "object" {
+    if layout.arrangement != "object" and layout.arrangement != "static" {
         refuse(
             "it reaches the field '{operation.field}' of '{layout.c_name}', arranged as '{layout.arrangement}', which the printer does not lay out",
         )
@@ -654,11 +800,11 @@ func print_make(operation: Operation) {
         refuse("it makes '{operation.layout}', which has no layout")
         return
     }
-    if layout.is_value or layout.kind != "class" or layout.allocation == "static" {
+    if layout.is_value or layout.kind != "class" or layout.arrangement == "static" {
         refuse("it makes '{operation.layout}', which is not an object made at run time")
         return
     }
-    if operation.form == "framed" {
+    if operation.form == "frame" {
         print_framed_make(operation, layout)
         return
     }
@@ -676,6 +822,29 @@ func print_framed_make(operation: Operation, layout: Layout) {
         output.framed_layouts.append(layout.c_name)
     }
     assign(operation.result, "{layout.c_name}___framed(&{slot})")
+    assert not operation.literal.is_empty()
+    var capacity = operation.literal.to_integer()
+    if not capacity or not layout.information or not layout.field_named("items") or not layout.field_named("capacity") {
+        refuse(
+            "it places a list of '{operation.literal}' items in the frame, and '{layout.c_name}' is not a list it can place",
+        )
+        return
+    }
+    var element = layout.information.codegen_types.first()
+    if not element {
+        refuse("it places a list with no element type in the frame")
+        return
+    }
+    var written = naming.c_type(element)
+    var room = capacity
+    if room < 1 {
+        room = 1
+    }
+    declarations.append("{written} {slot}_items[{room}];")
+    lines.append("({name_of(operation.result)})->items_ = (int64_t)(intptr_t){slot}_items;")
+    lines.append("({name_of(operation.result)})->capacity_ = {capacity};")
+    var element_count = naming.counted_name(element)
+    frame_lists[operation.result] = "{element_count}|{written}"
 }
 
 func print_retain(operation: Operation) {
@@ -697,11 +866,30 @@ func print_release(operation: Operation) {
         refuse("it releases a value that is not counted")
         return
     }
-    if operation.form == "framed" {
-        lines.append("{name}___unframe({held});")
+    if operation.form == "frame" {
+        print_unframe(operation, name, held)
         return
     }
     lines.append("{name}___release({held});")
+}
+
+func print_unframe(operation: Operation, name: String, held: String) {
+    var framed_number = operand_number(operation, 0)
+    var listed = frame_lists[framed_number]
+    if not listed {
+        lines.append("{name}___unframe({held});")
+        return
+    }
+    var parts = listed.split("|")
+    var element_count = parts.first()
+    var element_type = parts.last()
+    crash element_count and element_type
+    if not element_count.is_empty() {
+        lines.append(
+            "for (int32_t spite_index = 0; spite_index < ({held})->item_count_; spite_index = spite_index + 1) {element_count}___release((({element_type}*)(intptr_t)({held})->items_)[spite_index]);",
+        )
+    }
+    lines.append("{name}___unframe_fields({held});")
 }
 
 func counted_name_of(counted: Analysis.SpiteType?): String {

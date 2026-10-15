@@ -59,8 +59,11 @@ func refuse_unbuilt(lowered: Lowered) {
     if lowered.read_evaluate_print_loop {
         output.refuse("a REPL build answers questions about the running program, which the printer does not write yet")
     }
-    if lowered.scheduler_used {
+    if lowered.makes_concurrents {
         output.refuse("the program waits on concurrent work, whose state machines the printer does not write yet")
+    }
+    if lowered.remote_loop {
+        output.refuse("the program serves a REPL port, which the printer does not write yet")
     }
     if lowered.entry == "main" {
         output.refuse("the program starts at a function named 'main', which is the name of C's own entry")

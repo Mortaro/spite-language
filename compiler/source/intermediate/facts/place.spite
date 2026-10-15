@@ -1,0 +1,50 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-form
+var block = -1
+var position = -1
+
+func Place(starting_block: Integer, starting_position: Integer) {
+    block = starting_block
+    position = starting_position
+}
+
+func at_terminator(): Boolean {
+    return position == -1
+}
+
+func at_entry(): Boolean {
+    return position == -2
+}
+
+func order(): Integer {
+    if position == -2 {
+        return -1
+    }
+    if position == -1 {
+        return 1000000000
+    }
+    return position
+}
+
+func before(other: Place): Boolean {
+    return block == other.block and order() < other.order()
+}
+
+func first_operation_after(): Integer {
+    if position == -2 {
+        return 0
+    }
+    if position == -1 {
+        return 1000000000
+    }
+    return position + 1
+}
+
+func last_operation_before(): Integer {
+    if position == -2 {
+        return 0
+    }
+    if position == -1 {
+        return 1000000000
+    }
+    return position
+}

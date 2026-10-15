@@ -1,0 +1,299 @@
+# ../../../../docs/optimizations.md#the-compiler-places-memory
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var escape: Escape? = null
+var framed_objects = 0
+var framed_lists = 0
+var framed_buffers = 0
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_escape = Escape(starting_lowered)
+    escape = made_escape
+    var functions = starting_lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if not function.blocks.is_empty() and not function.is_intrinsic() {
+            place_function(function)
+        }
+        index = index + 1
+    }
+    var pools = Pools(starting_lowered)
+    pools.choose()
+}
+
+func place_function(function: Function) {
+    crash lowered
+    var uses = Facts.Uses(function)
+    var flow = Facts.Flow(function)
+    var framed = Dictionary<Integer, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "make" and not lowered.is_inspectable() {
+                place_object(function, uses, flow, operation, framed)
+            } else if operation.kind == "call" {
+                place_buffer(function, uses, flow, operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    assert framed.count() > 0
+    mark_frame_releases(function, framed)
+}
+
+# ../../../../docs/proofs.md#objects-that-never-leave-their-function-live-in-the-frame
+func place_object(
+    function: Function,
+    uses: Facts.Uses,
+    flow: Facts.Flow,
+    operation: Operation,
+    framed: Dictionary<Integer, Boolean>,
+) {
+    crash escape
+    crash kinds
+    assert operation.result >= 0 and operation.form.is_empty()
+    var layout_name = operation.layout
+    assert kinds.class_is_counted(layout_name)
+    assert not escape.escapes(function, operation.result)
+    var capacity = list_capacity(function, uses, flow, operation)
+    assert capacity != -2
+    operation.form = "frame"
+    if capacity >= 0 {
+        operation.literal = capacity
+        framed_lists = framed_lists + 1
+    } else {
+        framed_objects = framed_objects + 1
+    }
+    framed[operation.result] = true
+}
+
+# ../../../../docs/optimizations.md#a-local-list-of-known-size-lives-in-the-frame
+func list_capacity(function: Function, uses: Facts.Uses, flow: Facts.Flow, operation: Operation): Integer {
+    crash lowered
+    crash intrinsics
+    var layout = lowered.layout_named(operation.layout)
+    if not layout or layout.qualified != "List" {
+        return -1
+    }
+    var appended = 0
+    var reached = uses.uses_of(operation.result)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var growth = list_growth(function, flow, place)
+        if growth < 0 {
+            return -2
+        }
+        appended = appended + growth
+        index = index + 1
+    }
+    if appended > 256 {
+        return -2
+    }
+    return appended
+}
+
+func list_growth(function: Function, flow: Facts.Flow, place: Facts.Place): Integer {
+    crash intrinsics
+    if place.position < 0 {
+        return -1
+    }
+    var operation = operation_at(function, place)
+    if not operation {
+        return -1
+    }
+    if operation.kind != "call" {
+        return 0
+    }
+    var meaning = intrinsics.meaning(operation.callee)
+    var reading = ["count", "get_at", "is_empty", "first", "last", "contains", "index_of", "join", "set_at"]
+    if reading.contains(meaning) {
+        return 0
+    }
+    var shrinking = [
+        "remove_last"
+        "remove_first"
+        "remove_at"
+        "clear"
+        "truncate"
+        "remove_swapping"
+        "swap"
+        "reverse"
+    ]
+    if shrinking.contains(meaning) {
+        return 0
+    }
+    if meaning == "append" and not flow.in_any_loop(place.block) {
+        return 1
+    }
+    return -1
+}
+
+# ../../../../docs/proofs.md#a-buffer-freed-in-its-block-lives-in-the-frame
+func place_buffer(function: Function, uses: Facts.Uses, flow: Facts.Flow, operation: Operation) {
+    crash lowered
+    crash escape
+    var callee = lowered.function_named(operation.callee)
+    assert callee and callee.name == "allocate" and operation.result >= 0 and operation.form.is_empty()
+    var owner = lowered.layout_named(callee.owner)
+    assert owner and owner.qualified == "Memory.Heap"
+    var freeing = free_call(function, uses, operation.result)
+    assert freeing
+    assert freed_on_every_path(function, flow, uses, operation.result, freeing)
+    assert not escapes_but_free(function, uses, operation.result)
+    operation.form = "frame"
+    freeing.form = "frame"
+    var size = operation.operands.last()
+    crash size
+    var defining = uses.definition_of(size)
+    if defining and defining.kind == "constant" {
+        operation.literal = defining.literal
+    }
+    framed_buffers = framed_buffers + 1
+}
+
+func free_call(function: Function, uses: Facts.Uses, address: Integer): Operation? {
+    crash lowered
+    var found: Operation? = null
+    var frees = 0
+    var reached = uses.uses_of(address)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var operation = operation_at(function, place)
+        if operation and operation.kind == "call" {
+            var callee = lowered.function_named(operation.callee)
+            if callee and callee.name == "free" {
+                found = operation
+                frees = frees + 1
+            }
+        }
+        index = index + 1
+    }
+    assert frees == 1
+    return found
+}
+
+func operation_at(function: Function, place: Facts.Place): Operation? {
+    assert place.position >= 0
+    var block = function.block_at(place.block)
+    return block.operations[place.position]
+}
+
+func freed_on_every_path(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    address: Integer,
+    freeing: Operation,
+): Boolean {
+    var start = uses.place_of(address)
+    var free_block = block_holding(function, freeing)
+    if free_block < 0 {
+        return false
+    }
+    if free_block == start.block {
+        return true
+    }
+    var seen = List<Integer>()
+    var waiting = flow.successors_of(start.block)
+    var copied = List<Integer>()
+    waiting.each(copied.append)
+    while not copied.is_empty() {
+        var taken = copied.remove_last()
+        crash taken
+        if taken != free_block and not seen.contains(taken) {
+            seen.append(taken)
+            var block = function.block_at(taken)
+            if block.terminator.kind == "return" {
+                return false
+            }
+            var next = flow.successors_of(taken)
+            next.each(copied.append)
+        }
+    }
+    return true
+}
+
+func block_holding(function: Function, wanted: Operation): Integer {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            if block.operations[index] == wanted {
+                return block_index
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return -1
+}
+
+func escapes_but_free(function: Function, uses: Facts.Uses, address: Integer): Boolean {
+    crash escape
+    crash lowered
+    var reached = uses.uses_of(address)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var operation = operation_at(function, place)
+        if not operation {
+            return true
+        }
+        if not is_free(operation) and escape.escapes_at(function, uses, place, address, 0) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_free(operation: Operation): Boolean {
+    crash lowered
+    if operation.kind != "call" {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return callee.name == "free"
+}
+
+func mark_frame_releases(function: Function, framed: Dictionary<Integer, Boolean>) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var kept = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var counts_framed = operation.kind == "retain" or operation.kind == "release"
+            var operand = operation.operands.first()
+            if counts_framed and operand and framed.has(operand) {
+                if operation.kind == "release" {
+                    operation.form = "frame"
+                    kept.append(operation)
+                }
+            } else {
+                kept.append(operation)
+            }
+            index = index + 1
+        }
+        block.operations = kept
+        block_index = block_index + 1
+    }
+}

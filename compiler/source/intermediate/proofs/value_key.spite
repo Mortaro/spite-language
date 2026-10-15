@@ -1,0 +1,29 @@
+# ../../../../docs/proofs.md#a-proven-count-or-bound-proves-a-read
+var base = ""
+var offset: Long = 0
+var depends_on = List<String>()
+
+func ValueKey(starting_base: String, starting_offset: Long) {
+    base = starting_base
+    offset = starting_offset
+}
+
+func shifted(amount: Long): ValueKey {
+    var moved = ValueKey(base, offset + amount)
+    depends_on.each(moved.depends_on.append)
+    return moved
+}
+
+func text(): String {
+    return "{base}{offset}"
+}
+
+func depends(field: String) {
+    if not depends_on.contains(field) {
+        depends_on.append(field)
+    }
+}
+
+func takes(other: ValueKey) {
+    other.depends_on.each(depends)
+}

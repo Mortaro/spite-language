@@ -1,0 +1,82 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-form
+func copied(original: Function, c_name: String): Function {
+    var made = Function(c_name, original.name, original.owner)
+    made.source = original.source
+    made.answer = original.answer
+    made.receiver = original.receiver
+    made.intrinsic = original.intrinsic
+    made.is_constructor = original.is_constructor
+    made.specialised_from = original.c_name
+    made.not_lowered = original.not_lowered
+    var index = 0
+    while index < original.values.count() {
+        var value = original.values[index]
+        var copy = Value(value.number, value.origin)
+        copy.spite_type = value.spite_type
+        copy.block = value.block
+        copy.name = value.name
+        made.values.append(copy)
+        index = index + 1
+    }
+    index = 0
+    while index < original.parameters.count() {
+        var parameter = original.parameters[index]
+        var copy = Parameter(parameter.name, parameter.spite_type, parameter.value)
+        copy.ownership = parameter.ownership
+        made.parameters.append(copy)
+        index = index + 1
+    }
+    index = 0
+    while index < original.blocks.count() {
+        var block = original.blocks[index]
+        var copy = copied_block(block)
+        made.blocks.append(copy)
+        index = index + 1
+    }
+    return made
+}
+
+func copied_block(block: Block): Block {
+    var made = Block(block.number)
+    block.parameters.each(made.parameters.append)
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var copy = copied_operation(operation)
+        made.add(copy)
+        index = index + 1
+    }
+    made.terminator = copied_terminator(block.terminator)
+    return made
+}
+
+func copied_operation(operation: Operation): Operation {
+    var made = Operation(operation.kind, operation.line)
+    made.result = operation.result
+    operation.operands.each(made.operands.append)
+    made.callee = operation.callee
+    made.layout = operation.layout
+    made.field = operation.field
+    made.literal = operation.literal
+    made.spite_type = operation.spite_type
+    made.site = operation.site
+    made.form = operation.form
+    made.kept_because = operation.kept_because
+    return made
+}
+
+func copied_terminator(terminator: Terminator): Terminator {
+    var made = Terminator(terminator.kind)
+    terminator.operands.each(made.operands.append)
+    made.site = terminator.site
+    var index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var copy = Target(target.block)
+        copy.tag = target.tag
+        target.arguments.each(copy.arguments.append)
+        made.to(copy)
+        index = index + 1
+    }
+    return made
+}

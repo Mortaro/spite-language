@@ -1,0 +1,51 @@
+# ../../../design/proposals/desugared_high_ir.md#the-passes-in-order
+var inlining = Inlining.Inlining()
+var proofs = Proofs.Proofs()
+var ownership = Ownership.Ownership()
+var placement = Placement.Placement()
+var arrangement = Arrangement.Arrangement()
+var concurrency = Concurrency.Concurrency()
+var folding = Folding()
+var reach = Reach()
+
+func run(lowered: Lowered) {
+    inlining.run(lowered)
+    proofs.run(lowered)
+    ownership.run(lowered)
+    placement.run(lowered)
+    arrangement.run(lowered)
+    concurrency.run(lowered)
+    folding.run(lowered)
+    reach.run(lowered)
+    tidy(lowered)
+}
+
+func tidy(lowered: Lowered) {
+    var intrinsics = Facts.Intrinsics(lowered)
+    var rewrites = Facts.Rewrites()
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if not function.blocks.is_empty() {
+            rewrites.remove_unused(function, intrinsics)
+        }
+        index = index + 1
+    }
+}
+
+func summary(): String {
+    var lines = List<String>()
+    lines.append("inlined {inlining.inlined_count}")
+    lines.append("checks dropped {proofs.unchecked_count}, kept {proofs.kept.count()}")
+    lines.append(
+        "retains {ownership.retains}, releases {ownership.releases}, borrowed reads {ownership.borrowed_reads}, counted reads {ownership.counted_reads}",
+    )
+    lines.append(
+        "frame objects {placement.framed_objects}, frame lists {placement.framed_lists}, frame buffers {placement.framed_buffers}",
+    )
+    lines.append("arranged {arrangement.arranged()}")
+    lines.append("folded {folding.folded_count}")
+    lines.append("dropped functions {reach.dropped_functions}, dropped layouts {reach.dropped_layouts}")
+    return lines.join("\n")
+}

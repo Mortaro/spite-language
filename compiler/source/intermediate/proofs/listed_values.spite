@@ -1,0 +1,300 @@
+# ../../../../docs/proofs.md#a-list-only-its-class-fills-holds-only-what-it-fills
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var effects: Facts.Effects? = null
+var listed = Dictionary<String, List<String>>()
+var refused = Dictionary<String, Boolean>()
+var passed_as_values = Dictionary<String, Boolean>()
+var enabled = false
+
+func ListedValues(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_effects = Facts.Effects(starting_lowered)
+    effects = made_effects
+    enabled = not starting_lowered.is_inspectable()
+    var functions = starting_lowered.concrete_functions
+    functions.each(note_function_values)
+    functions.each(study)
+}
+
+func note_function_values(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "constant" and not operation.literal.is_empty() {
+                passed_as_values[operation.literal] = true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func study(function: Function) {
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            study_operation(function, uses, operation)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func study_operation(function: Function, uses: Facts.Uses, operation: Operation) {
+    var key = field_key(function, operation)
+    assert not key.is_empty()
+    if operation.kind == "store" {
+        study_store(function, uses, operation, key)
+        return
+    }
+    assert operation.result >= 0
+    var reached = uses.uses_of(operation.result)
+    var index = 0
+    while index < reached.count() {
+        study_use(function, uses, reached[index], operation.result, key)
+        index = index + 1
+    }
+}
+
+func field_key(function: Function, operation: Operation): String {
+    crash kinds
+    if operation.kind != "load" and operation.kind != "store" {
+        return ""
+    }
+    var object = operation.operands.first()
+    if not object {
+        return ""
+    }
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    if not layout or kinds.is_library_layout(layout.c_name) {
+        return ""
+    }
+    var field = layout.field_named(operation.field)
+    if not field or not holds_plain_list(field.spite_type) {
+        return ""
+    }
+    return "{layout.c_name}.{operation.field}"
+}
+
+func holds_plain_list(spite_type: Analysis.SpiteType?): Boolean {
+    crash kinds
+    if not spite_type {
+        return false
+    }
+    var element = kinds.element_of_list(spite_type)
+    if not element {
+        return false
+    }
+    if types.as_enum(element) {
+        return true
+    }
+    var scalar = types.as_scalar(element)
+    if not scalar {
+        return false
+    }
+    return kinds.is_whole_kind(scalar.kind)
+}
+
+func study_store(function: Function, uses: Facts.Uses, operation: Operation, key: String) {
+    var stored = operation.operands.last()
+    crash stored
+    var defining = uses.definition_of(stored)
+    if not is_fresh(defining, function) {
+        refused[key] = true
+    }
+}
+
+func is_fresh(defining: Operation?, function: Function): Boolean {
+    if not defining {
+        return false
+    }
+    return defining.kind == "make" or defining.kind == "call" and function.is_constructor
+}
+
+func study_use(function: Function, uses: Facts.Uses, place: Facts.Place, list: Integer, key: String) {
+    if place.at_terminator() or place.at_entry() {
+        refused[key] = true
+        return
+    }
+    var block = function.block_at(place.block)
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    var position = operation.operands.index_of(list)
+    if operation.kind != "call" or position != 0 {
+        refused[key] = true
+        return
+    }
+    crash intrinsics
+    var meaning = intrinsics.meaning(operation.callee)
+    var reading = ["count", "get_at", "is_empty", "first", "last", "contains", "index_of"]
+    assert not reading.contains(meaning)
+    var filling = ["append", "prepend", "set_at", "insert"]
+    if not filling.contains(meaning) {
+        refused[key] = true
+        return
+    }
+    var added = operation.operands.last()
+    crash added
+    note_values(function, uses, added, key)
+}
+
+func note_values(function: Function, uses: Facts.Uses, added: Integer, key: String) {
+    var defining = uses.definition_of(added)
+    if defining and defining.kind == "constant" {
+        note_literal(key, defining.literal)
+        return
+    }
+    var position = parameter_position(function, added)
+    if position < 0 or passed_as_values.has(function.c_name) {
+        refused[key] = true
+        return
+    }
+    var literals = argument_literals(function.c_name, position)
+    if not literals {
+        refused[key] = true
+        return
+    }
+    var index = 0
+    while index < literals.count() {
+        note_literal(key, literals[index])
+        index = index + 1
+    }
+}
+
+func parameter_position(function: Function, value: Integer): Integer {
+    var index = 0
+    while index < function.parameters.count() {
+        if function.parameters[index].value == value {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func argument_literals(callee: String, position: Integer): List<String>? {
+    crash effects
+    crash lowered
+    var calling = effects.callers_of(callee)
+    assert not calling.is_empty()
+    var found = List<String>()
+    var index = 0
+    while index < calling.count() {
+        var caller = lowered.function_named(calling[index])
+        assert caller
+        var literals = call_literals(caller, callee, position)
+        assert literals
+        literals.each(found.append)
+        index = index + 1
+    }
+    return found
+}
+
+func call_literals(caller: Function, callee: String, position: Integer): List<String>? {
+    var uses = Facts.Uses(caller)
+    var found = List<String>()
+    var block_index = 0
+    while block_index < caller.blocks.count() {
+        var block = caller.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == callee {
+                assert operation.operands[position + 1]
+                var argument = operation.operands[position + 1]
+                var defining = uses.definition_of(argument)
+                assert defining and defining.kind == "constant"
+                found.append(defining.literal)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func note_literal(key: String, literal: String) {
+    if not listed.has(key) {
+        var started = List<String>()
+        listed[key] = started
+    }
+    crash listed[key]
+    if not listed[key].contains(literal) {
+        listed[key].append(literal)
+    }
+}
+
+func holds_only(key: String): List<String>? {
+    assert not refused.has(key)
+    if listed.has(key) {
+        return listed[key]
+    }
+    return List<String>()
+}
+
+func decided_equality(function: Function, left: Integer, right: Integer): String {
+    if not enabled {
+        return ""
+    }
+    var uses = Facts.Uses(function)
+    var answer = decided_side(function, uses, left, right)
+    if answer.is_empty() {
+        answer = decided_side(function, uses, right, left)
+    }
+    return answer
+}
+
+func decided_side(function: Function, uses: Facts.Uses, item: Integer, compared: Integer): String {
+    var literal = uses.definition_of(compared)
+    if not literal or literal.kind != "constant" {
+        return ""
+    }
+    var key = item_source(function, uses, item)
+    if key.is_empty() {
+        return ""
+    }
+    var values = holds_only(key)
+    if not values or values.contains(literal.literal) {
+        return ""
+    }
+    return "false"
+}
+
+func item_source(function: Function, uses: Facts.Uses, item: Integer): String {
+    crash intrinsics
+    var defining = uses.definition_of(item)
+    if defining and defining.callee == "Nullable.value" {
+        var inner = defining.operands.first()
+        crash inner
+        defining = uses.definition_of(inner)
+    }
+    if not defining or defining.kind != "call" {
+        return ""
+    }
+    var meaning = intrinsics.meaning(defining.callee)
+    if meaning != "get_at" and meaning != "first" and meaning != "last" {
+        return ""
+    }
+    var list = defining.operands.first()
+    crash list
+    var read = uses.definition_of(list)
+    if not read {
+        return ""
+    }
+    return field_key(function, read)
+}

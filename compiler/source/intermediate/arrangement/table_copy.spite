@@ -1,0 +1,179 @@
+# ../../../../docs/proofs.md#a-table-filled-once-holds-what-its-setup-put-in
+var types = Analysis.TypeShape()
+var original: Function? = null
+var copy_name = ""
+var field = ""
+var values = List<String>()
+var table_type: Analysis.SpiteType? = null
+
+func TableCopy(starting_original: Function, starting_copy_name: String, key: String, starting_values: List<String>) {
+    original = starting_original
+    copy_name = starting_copy_name
+    var dot = key.index_of(".")
+    crash dot >= 0
+    var length = key.length()
+    field = key.slice(dot + 1, length)
+    values = starting_values
+}
+
+func table_text(): String {
+    return "[{values.join(", ")}]"
+}
+
+func made(): Function? {
+    crash original
+    var copy = Facts.FunctionCopy().copied(original, copy_name)
+    var uses = Facts.Uses(copy)
+    var block_index = 0
+    while block_index < copy.blocks.count() {
+        var block = copy.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var reads_table = operation.kind == "load" and operation.field == field and operation.operands.first() == copy.receiver
+            if reads_table {
+                assert only_read(copy, uses, operation.result)
+                become_table(copy, operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return copy
+}
+
+func only_read(copy: Function, uses: Facts.Uses, value: Integer): Boolean {
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.position < 0 {
+            return false
+        }
+        var user = operation_at(copy, place)
+        if not user or user.kind == "retain" or user.kind == "release" {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func operation_at(function: Function, place: Facts.Place): Operation? {
+    assert place.position >= 0
+    var block = function.block_at(place.block)
+    return block.operations[place.position]
+}
+
+func become_table(copy: Function, operation: Operation) {
+    operation.kind = "constant"
+    operation.literal = table_text()
+    operation.operands = List<Integer>()
+    operation.field = ""
+    operation.form = "table"
+    operation.spite_type = copy.value_at(operation.result).spite_type
+    table_type = operation.spite_type
+}
+
+# ../../../../docs/optimizations.md#a-table-filled-once-is-read-as-constants
+func dispatch_from(function: Function) {
+    var entry = function.block_at(0)
+    var moved = function.new_block()
+    entry.parameters.each(moved.parameters.append)
+    entry.operations.each(moved.operations.append)
+    moved.terminator = entry.terminator
+    note_moved(function, moved)
+    retarget_entry(function, moved.number)
+    entry.parameters = List<Integer>()
+    entry.operations = List<Operation>()
+    var holds = test_table(function, entry)
+    var dispatching = dispatch_block(function)
+    var branch = Terminator("branch")
+    branch.operands.append(holds)
+    var taken = Target(dispatching)
+    branch.to(taken)
+    var other = Target(moved.number)
+    branch.to(other)
+    entry.terminator = branch
+}
+
+func note_moved(function: Function, moved: Block) {
+    var index = 0
+    while index < moved.parameters.count() {
+        function.value_at(moved.parameters[index]).block = moved.number
+        index = index + 1
+    }
+    index = 0
+    while index < moved.operations.count() {
+        var operation = moved.operations[index]
+        if operation.result >= 0 {
+            function.value_at(operation.result).block = moved.number
+        }
+        index = index + 1
+    }
+}
+
+func retarget_entry(function: Function, moved: Integer) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.terminator.targets.count() {
+            var target = block.terminator.targets[index]
+            if target.block == 0 {
+                target.block = moved
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func test_table(function: Function, entry: Block): Integer {
+    var read = Operation("load", 0)
+    read.takes(function.receiver)
+    read.field = field
+    read.spite_type = table_type
+    read.result = function.new_value(table_type, "operation")
+    function.value_at(read.result).block = 0
+    entry.add(read)
+    var table = Operation("constant", 0)
+    table.literal = table_text()
+    table.form = "table"
+    table.spite_type = table_type
+    table.result = function.new_value(table_type, "operation")
+    function.value_at(table.result).block = 0
+    entry.add(table)
+    var truth: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
+    var test = Operation("call", 0)
+    test.callee = "List.holds_table"
+    test.takes(read.result)
+    test.takes(table.result)
+    test.spite_type = truth
+    test.result = function.new_value(truth, "operation")
+    function.value_at(test.result).block = 0
+    entry.add(test)
+    return test.result
+}
+
+func dispatch_block(function: Function): Integer {
+    var block = function.new_block()
+    var call = Operation("call", 0)
+    call.callee = copy_name
+    call.takes(function.receiver)
+    var index = 0
+    while index < function.parameters.count() {
+        call.takes(function.parameters[index].value)
+        index = index + 1
+    }
+    var returning = Terminator("return")
+    if function.answer and not types.is_void(function.answer) {
+        call.spite_type = function.answer
+        call.result = function.new_value(function.answer, "operation")
+        function.value_at(call.result).block = block.number
+        returning.operands.append(call.result)
+    }
+    block.add(call)
+    block.terminator = returning
+    return block.number
+}

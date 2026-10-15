@@ -1,0 +1,289 @@
+# ../../../../docs/optimizations.md#proofs-that-survive-a-call
+var lowered: Lowered? = null
+var intrinsics: Intrinsics? = null
+var kinds: ValueKinds? = null
+var summaries = Dictionary<String, Summary>()
+var callers = Dictionary<String, List<String>>()
+var fresh_values = Dictionary<Integer, Boolean>()
+
+func Effects(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_intrinsics = Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    var made_kinds = ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var functions = starting_lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var own = own_summary(function)
+        summaries[function.c_name] = own
+        index = index + 1
+    }
+    link_callers()
+    settle()
+}
+
+func own_summary(function: Function): Summary {
+    var made = Summary()
+    if function.is_intrinsic() {
+        made.waits = is_waiting(function)
+        note_intrinsic(made, function.name)
+        return made
+    }
+    if not function.not_lowered.is_empty() {
+        made.unknown = true
+        return made
+    }
+    fresh_values = Dictionary<Integer, Boolean>()
+    function.blocks.each(note_fresh)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            note_operation(made, function, operation)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return made
+}
+
+func note_fresh(block: Block) {
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind == "make" and operation.result >= 0 {
+            fresh_values[operation.result] = true
+        }
+        index = index + 1
+    }
+}
+
+func is_waiting(function: Function): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(function.owner)
+    if not layout {
+        return false
+    }
+    var waiting_classes = [
+        "Program"
+        "File"
+        "Socket"
+        "Console"
+        "UdpSocket"
+        "HttpClient"
+        "HttpServer"
+        "WebSocket"
+        "Process"
+    ]
+    var waiting_names = [
+        "sleep"
+        "read"
+        "read_line"
+        "read_bytes"
+        "write"
+        "append"
+        "accept_client"
+        "write_line"
+        "write_bytes"
+        "run"
+        "receive"
+        "send"
+        "next_request"
+    ]
+    return waiting_classes.contains(layout.qualified) and waiting_names.contains(function.name)
+}
+
+func note_intrinsic(made: Summary, name: String) {
+    crash intrinsics
+    assert not intrinsics.is_reading_name(name)
+    if intrinsics.is_memory_write_name(name) {
+        made.writes_memory = true
+        made.releases = intrinsics.is_release_name(name)
+        return
+    }
+    made.unknown = true
+}
+
+func note_operation(made: Summary, function: Function, operation: Operation) {
+    if operation.kind == "store" {
+        note_store(made, function, operation)
+    } else if operation.kind == "load" {
+        note_load(made, function, operation)
+    } else if operation.kind == "make" {
+        made.makes[operation.layout] = true
+    } else if operation.kind == "call value" {
+        made.calls_values = true
+        made.unknown = true
+    } else if operation.kind == "release" {
+        made.releases = true
+        made.counts = true
+    } else if operation.kind == "retain" {
+        made.counts = true
+    } else if operation.kind == "call" {
+        note_called(made, operation.callee)
+    }
+}
+
+func note_load(made: Summary, function: Function, operation: Operation) {
+    crash kinds
+    var object = operation.operands.first()
+    crash object
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    var owner = "*"
+    if layout {
+        owner = layout.c_name
+    }
+    made.note_read(owner, operation.field)
+}
+
+func note_store(made: Summary, function: Function, operation: Operation) {
+    crash kinds
+    var object = operation.operands.first()
+    crash object
+    assert not function.is_constructor or object != function.receiver
+    assert not fresh_values.has(object)
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    var owner = "*"
+    if layout {
+        owner = layout.c_name
+    }
+    if is_growing(function.name) {
+        made.note_growth(owner, operation.field)
+    } else {
+        made.note_write(owner, operation.field)
+    }
+    var stored = operation.operands.last()
+    crash stored
+    var stored_type = function.value_at(stored).spite_type
+    if kinds.is_counted(stored_type) {
+        made.releases = true
+    }
+}
+
+func is_growing(name: String): Boolean {
+    var growing = ["append", "prepend", "insert", "reserve", "append_bytes"]
+    return growing.contains(name) or name.starts_with("append_")
+}
+
+func note_called(made: Summary, callee: String) {
+    crash intrinsics
+    assert not intrinsics.is_number_operation(callee)
+    if intrinsics.is_dotted(callee) {
+        note_dotted(made, callee)
+        return
+    }
+    if not summaries.has(callee) and not intrinsics.callee_named(callee) {
+        made.unknown = true
+        return
+    }
+    made.note_call(callee)
+}
+
+func note_dotted(made: Summary, callee: String) {
+    crash intrinsics
+    var owner = intrinsics.type_part(callee)
+    var known = ["String", "Nullable", "Union", "Boolean"]
+    assert not known.contains(owner)
+    if owner == "Parallel" or owner == "Concurrent" {
+        made.starts_threads = true
+    }
+    made.unknown = true
+}
+
+func link_callers() {
+    var named = summaries.keys()
+    var index = 0
+    while index < named.count() {
+        var caller = named[index]
+        crash summaries[caller]
+        var callees = summaries[caller].callees
+        var callee_index = 0
+        while callee_index < callees.count() {
+            var callee = callees[callee_index]
+            note_caller(callee, caller)
+            callee_index = callee_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func note_caller(callee: String, caller: String) {
+    if not callers.has(callee) {
+        var started = List<String>()
+        callers[callee] = started
+    }
+    crash callers[callee]
+    if not callers[callee].contains(caller) {
+        callers[callee].append(caller)
+    }
+}
+
+func settle() {
+    var waiting = summaries.keys()
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        pass_up(taken, waiting)
+    }
+}
+
+func pass_up(callee: String, waiting: List<String>) {
+    assert callers.has(callee)
+    crash callers[callee]
+    crash summaries[callee]
+    var reached = summaries[callee]
+    var calling = callers[callee]
+    var index = 0
+    while index < calling.count() {
+        var caller = calling[index]
+        crash summaries[caller]
+        if summaries[caller].adds(reached) and not waiting.contains(caller) {
+            waiting.append(caller)
+        }
+        index = index + 1
+    }
+}
+
+func of(callee: String): Summary {
+    if summaries.has(callee) {
+        crash summaries[callee]
+        return summaries[callee]
+    }
+    var unknowable = Summary()
+    crash intrinsics
+    if intrinsics.is_number_operation(callee) {
+        return unknowable
+    }
+    if intrinsics.is_dotted(callee) {
+        note_dotted(unknowable, callee)
+        return unknowable
+    }
+    unknowable.unknown = true
+    return unknowable
+}
+
+func callers_of(callee: String): List<String> {
+    if callers.has(callee) {
+        crash callers[callee]
+        return callers[callee]
+    }
+    return List<String>()
+}
+
+func operation_summary(function: Function, operation: Operation): Summary {
+    var made = Summary()
+    if operation.kind == "call" {
+        var reached = of(operation.callee)
+        made.adds(reached)
+        return made
+    }
+    fresh_values = Dictionary<Integer, Boolean>()
+    note_operation(made, function, operation)
+    return made
+}

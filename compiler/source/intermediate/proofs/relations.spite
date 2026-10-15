@@ -1,0 +1,546 @@
+# ../../../../docs/proofs.md#a-proven-count-or-bound-proves-a-read
+var function: Function? = null
+var flow: Facts.Flow? = null
+var uses: Facts.Uses? = null
+var effects: Facts.Effects? = null
+var kinds: Facts.ValueKinds? = null
+var intrinsics: Facts.Intrinsics? = null
+var lowered: Lowered? = null
+var spans: Spans? = null
+var facts_by_block = Dictionary<Integer, List<KnownFact>>()
+var keys = Dictionary<Integer, ValueKey>()
+
+func Relations(
+    studied: Function,
+    studied_flow: Facts.Flow,
+    studied_uses: Facts.Uses,
+    studied_effects: Facts.Effects,
+    studied_spans: Spans,
+    starting_lowered: Lowered,
+) {
+    function = studied
+    flow = studied_flow
+    uses = studied_uses
+    effects = studied_effects
+    spans = studied_spans
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_intrinsics = Facts.Intrinsics(starting_lowered)
+    intrinsics = made_intrinsics
+    studied_flow.order.each(learn_edge)
+}
+
+func key_of(value: Integer): ValueKey {
+    if keys.has(value) {
+        crash keys[value]
+        return keys[value]
+    }
+    var plain = ValueKey("v{value}", 0)
+    keys[value] = plain
+    var made = built_key(value, 0)
+    if made {
+        keys[value] = made
+        return made
+    }
+    return plain
+}
+
+func built_key(value: Integer, depth: Integer): ValueKey? {
+    crash uses
+    crash intrinsics
+    assert depth < 12
+    var defining = uses.definition_of(value)
+    assert defining
+    if defining.kind == "constant" {
+        var parsed: Long? = defining.literal
+        assert parsed
+        return ValueKey("#", parsed)
+    }
+    if defining.kind == "load" {
+        return loaded_key(defining)
+    }
+    assert defining.kind == "call"
+    var meaning = intrinsics.meaning(defining.callee)
+    if intrinsics.is_number_operation(defining.callee) {
+        return arithmetic_key(defining, meaning)
+    }
+    return called_key(defining, meaning)
+}
+
+func arithmetic_key(defining: Operation, meaning: String): ValueKey? {
+    crash uses
+    if meaning.starts_with("to_") and defining.site < 0 {
+        var widened = defining.operands.first()
+        crash widened
+        return key_of(widened)
+    }
+    assert defining.operands.count() == 2
+    if meaning == "multiply" {
+        var first = key_of(defining.operands[0])
+        var second = key_of(defining.operands[1])
+        var product = ValueKey("({first.text()}*{second.text()})", 0)
+        product.takes(first)
+        product.takes(second)
+        return product
+    }
+    assert meaning == "sum" or meaning == "subtract"
+    var amount = literal_of(defining.operands[1])
+    assert amount
+    var left = key_of(defining.operands[0])
+    if meaning == "sum" {
+        return left.shifted(amount)
+    }
+    return left.shifted(-amount)
+}
+
+func literal_of(value: Integer): Long? {
+    crash uses
+    var defining = uses.definition_of(value)
+    assert defining and defining.kind == "constant"
+    return defining.literal
+}
+
+func loaded_key(defining: Operation): ValueKey? {
+    crash function
+    crash kinds
+    var object = defining.operands.first()
+    crash object
+    var object_type = function.value_at(object).spite_type
+    var layout = kinds.layout_of(object_type)
+    assert layout
+    var owner = key_of(object)
+    var made = ValueKey("{defining.field}@({owner.text()})", 0)
+    made.takes(owner)
+    made.depends("{layout.c_name}.{defining.field}")
+    return made
+}
+
+func called_key(defining: Operation, meaning: String): ValueKey? {
+    crash lowered
+    crash function
+    crash kinds
+    var callee = lowered.function_named(defining.callee)
+    assert callee and not defining.operands.is_empty()
+    var receiver = defining.operands.first()
+    crash receiver
+    var receiver_type = function.value_at(receiver).spite_type
+    var layout = kinds.layout_of(receiver_type)
+    assert layout
+    crash intrinsics
+    var field = intrinsics.getter_field(callee)
+    var owner = key_of(receiver)
+    if not field.is_empty() {
+        var read = ValueKey("{field}@({owner.text()})", 0)
+        read.takes(owner)
+        read.depends("{layout.c_name}.{field}")
+        return read
+    }
+    assert meaning == "get_at" or meaning == "first" or meaning == "last" or meaning == "count"
+    var parts = List<String>()
+    var owner_text = owner.text()
+    parts.append(owner_text)
+    var made = ValueKey("", 0)
+    made.takes(owner)
+    var index = 1
+    while index < defining.operands.count() {
+        var argument = key_of(defining.operands[index])
+        var argument_text = argument.text()
+        parts.append(argument_text)
+        made.takes(argument)
+        index = index + 1
+    }
+    made.base = "{meaning}({parts.join(",")})"
+    made.depends("{layout.c_name}.*")
+    return made
+}
+
+func facts_at(block_number: Integer): List<KnownFact> {
+    if facts_by_block.has(block_number) {
+        crash facts_by_block[block_number]
+        return facts_by_block[block_number]
+    }
+    return List<KnownFact>()
+}
+
+func add_fact(fact: KnownFact) {
+    if not facts_by_block.has(fact.block) {
+        var started = List<KnownFact>()
+        facts_by_block[fact.block] = started
+    }
+    crash facts_by_block[fact.block]
+    facts_by_block[fact.block].append(fact)
+}
+
+func learn_edge(block_number: Integer) {
+    crash flow
+    crash function
+    var coming = flow.predecessors_of(block_number)
+    assert coming.count() == 1
+    var from = coming[0]
+    var deciding = function.block_at(from).terminator
+    assert deciding.kind == "branch" and deciding.targets.count() == 2
+    var taken = deciding.targets[0].block
+    assert taken != deciding.targets[1].block
+    var condition = deciding.operands.first()
+    crash condition
+    learn_condition(condition, taken == block_number, block_number, 0)
+}
+
+func learn_condition(condition: Integer, holds: Boolean, into: Integer, depth: Integer) {
+    crash uses
+    crash intrinsics
+    assert depth < 8
+    var defining = uses.definition_of(condition)
+    assert defining and defining.kind == "call"
+    if defining.callee == "Boolean.not" {
+        var negated = defining.operands.first()
+        crash negated
+        learn_condition(negated, not holds, into, depth + 1)
+        return
+    }
+    if defining.callee == "Nullable.has" {
+        learn_presence(defining, holds, into)
+        return
+    }
+    assert intrinsics.is_comparison(defining.callee) and defining.operands.count() == 2
+    var left = key_of(defining.operands[0])
+    var right = key_of(defining.operands[1])
+    var meaning = intrinsics.operation_part(defining.callee)
+    if meaning == "less_than" {
+        learn_order(left, right, holds, into)
+    } else if meaning == "greater_than" {
+        learn_order(right, left, holds, into)
+    } else {
+        learn_equality(left, right, holds, into)
+    }
+}
+
+func learn_presence(defining: Operation, holds: Boolean, into: Integer) {
+    assert holds
+    var tested = defining.operands.first()
+    crash tested
+    var fact = KnownFact("present", into)
+    var key = key_of(tested)
+    fact.smaller = key
+    add_fact(fact)
+}
+
+func learn_order(left: ValueKey, right: ValueKey, holds: Boolean, into: Integer) {
+    var fact = KnownFact("less", into)
+    if holds {
+        fact.smaller = left
+        fact.larger = right
+        fact.strict = true
+    } else {
+        fact.kind = "less_or_equal"
+        fact.smaller = right
+        fact.larger = left
+    }
+    add_fact(fact)
+}
+
+func learn_equality(left: ValueKey, right: ValueKey, holds: Boolean, into: Integer) {
+    if not holds {
+        learn_nonzero(left, right, into)
+        return
+    }
+    var first = KnownFact("less_or_equal", into)
+    first.smaller = left
+    first.larger = right
+    add_fact(first)
+    var second = KnownFact("less_or_equal", into)
+    second.smaller = right
+    second.larger = left
+    add_fact(second)
+}
+
+func learn_nonzero(left: ValueKey, right: ValueKey, into: Integer) {
+    var fact = KnownFact("nonzero", into)
+    if right.base == "#" and right.offset == 0 {
+        fact.smaller = left
+        add_fact(fact)
+    } else if left.base == "#" and left.offset == 0 {
+        fact.smaller = right
+        add_fact(fact)
+    }
+}
+
+func holds_at(fact: KnownFact, at: Facts.Place): Boolean {
+    crash function
+    crash flow
+    var start = Facts.Place(fact.block, -2)
+    var between = Facts.Between().operations_between(function, flow, start, at)
+    var shrinking = fact.shrink_sensitive()
+    var growing = fact.growth_sensitive()
+    var index = 0
+    while index < between.count() {
+        if disturbs(between[index], shrinking, growing) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func disturbs(operation: Operation, shrinking: List<String>, growing: List<String>): Boolean {
+    crash effects
+    crash function
+    if shrinking.is_empty() and growing.is_empty() {
+        return false
+    }
+    var summary = effects.operation_summary(function, operation)
+    if summary.unknown or summary.calls_values {
+        return true
+    }
+    if touches(summary, shrinking, false) {
+        return true
+    }
+    return touches(summary, growing, true)
+}
+
+func touches(summary: Facts.Summary, fields: List<String>, counting_growth: Boolean): Boolean {
+    var index = 0
+    while index < fields.count() {
+        var field = fields[index]
+        if field_touched(summary, field, counting_growth) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func field_touched(summary: Facts.Summary, field: String, counting_growth: Boolean): Boolean {
+    if field.ends_with(".*") {
+        var length = field.length()
+        var layout = field.slice(0, length - 2)
+        return summary.writes_memory or summary.may_write_any_of(layout) or counting_growth and summary.grows_any_of(layout)
+    }
+    if summary.writes.has(field) {
+        return true
+    }
+    return counting_growth and summary.grows.has(field)
+}
+
+func walk_up(block_number: Integer): List<Integer> {
+    crash flow
+    var chain = List<Integer>()
+    var walked = block_number
+    var steps = 0
+    while walked >= 0 and steps < 10000 {
+        chain.append(walked)
+        if walked == 0 {
+            walked = -1
+        } else {
+            walked = flow.dominator_of(walked)
+        }
+        steps = steps + 1
+    }
+    return chain
+}
+
+func proves_less(smaller: Integer, larger: Integer, at: Facts.Place): Boolean {
+    var small = key_of(smaller)
+    var large = key_of(larger)
+    crash spans
+    var small_span = spans.span_at(smaller, at.block)
+    return proves_keys_less(small, large, small_span, at)
+}
+
+func proves_not_less(smaller: Integer, larger: Integer, at: Facts.Place): Boolean {
+    var small = key_of(smaller)
+    var large = key_of(larger)
+    var flipped = large.shifted(-1)
+    return proves_keys_less(flipped, small, null, at)
+}
+
+func proves_keys_less(small: ValueKey, large: ValueKey, small_span: NumberSpan?, at: Facts.Place): Boolean {
+    var chain = walk_up(at.block)
+    var index = 0
+    while index < chain.count() {
+        var facts = facts_at(chain[index])
+        var fact_index = 0
+        while fact_index < facts.count() {
+            var fact = facts[fact_index]
+            var matched = orders(fact, small, large) or orders_by_span(fact, small_span, large)
+            if matched and holds_at(fact, at) {
+                return true
+            }
+            fact_index = fact_index + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func orders_by_span(fact: KnownFact, small_span: NumberSpan?, large: ValueKey): Boolean {
+    if not small_span or fact.kind != "less" and fact.kind != "less_or_equal" {
+        return false
+    }
+    var fact_small = fact.smaller_key()
+    var fact_large = fact.larger_key()
+    if fact_small.base != "#" or fact_large.base != large.base {
+        return false
+    }
+    var bound = fact_small.offset - fact_large.offset + large.offset
+    if fact.strict {
+        return small_span.highest <= bound
+    }
+    return small_span.highest < bound
+}
+
+func lowered_function(c_name: String): Function? {
+    crash lowered
+    return lowered.function_named(c_name)
+}
+
+func count_field_of(container: Integer): String {
+    crash function
+    crash kinds
+    crash intrinsics
+    var container_type = function.value_at(container).spite_type
+    var layout = kinds.layout_of(container_type)
+    if not layout {
+        return ""
+    }
+    var counting = intrinsics.member_of(layout.c_name, "count")
+    if not counting {
+        return ""
+    }
+    return intrinsics.getter_field(counting)
+}
+
+func count_key(container: Integer, field: String): ValueKey {
+    crash function
+    crash kinds
+    var owner = key_of(container)
+    var made = ValueKey("{field}@({owner.text()})", 0)
+    made.takes(owner)
+    var container_type = function.value_at(container).spite_type
+    var layout = kinds.layout_of(container_type)
+    if layout {
+        made.depends("{layout.c_name}.{field}")
+    } else {
+        made.depends("*.{field}")
+    }
+    return made
+}
+
+# ../../../../docs/proofs.md#an-index-built-from-loop-counters-is-proven-by-one-guard
+func proves_inside(
+    index: Integer,
+    extra: Integer,
+    container: Integer,
+    field: String,
+    at: Facts.Place,
+    studied_spans: Spans,
+): Boolean {
+    var count = count_key(container, field)
+    var index_key = key_of(index)
+    var small = index_key.shifted(extra)
+    var index_span = studied_spans.span_at(index, at.block)
+    var small_span: NumberSpan? = null
+    var extra_span = NumberSpan(extra, extra)
+    if index_span {
+        small_span = index_span.plus(extra_span)
+    }
+    if proves_keys_less(small, count, small_span, at) {
+        return true
+    }
+    return extra == 0 and proves_grid(index, count, at, studied_spans)
+}
+
+func proves_grid(index: Integer, count: ValueKey, at: Facts.Place, studied_spans: Spans): Boolean {
+    crash uses
+    var sum = uses.definition_of(index)
+    if not sum or sum.callee != "Integer.sum" or sum.operands.count() != 2 {
+        return false
+    }
+    var product = uses.definition_of(sum.operands[0])
+    var column = sum.operands[1]
+    if not product or product.callee != "Integer.multiply" or product.operands.count() != 2 {
+        return false
+    }
+    var row = product.operands[0]
+    var stride = product.operands[1]
+    var row_span = studied_spans.span_at(row, at.block)
+    var column_span = studied_spans.span_at(column, at.block)
+    if not row_span or not column_span or row_span.lowest < 0 or column_span.lowest < 0 {
+        return false
+    }
+    var height = bound_above(row, at)
+    var stride_key = key_of(stride)
+    var column_key = key_of(column)
+    if not height or not proves_keys_less(column_key, stride_key, column_span, at) {
+        return false
+    }
+    var area = ValueKey("({height.text()}*{stride_key.text()})", 0)
+    area.takes(height)
+    area.takes(stride_key)
+    var last = count.shifted(1)
+    return proves_keys_less(area, last, null, at)
+}
+
+func bound_above(value: Integer, at: Facts.Place): ValueKey? {
+    var wanted = key_of(value)
+    var chain = walk_up(at.block)
+    var index = 0
+    while index < chain.count() {
+        var facts = facts_at(chain[index])
+        var fact_index = 0
+        while fact_index < facts.count() {
+            var fact = facts[fact_index]
+            if fact.kind == "less" and fact.smaller_key().text() == wanted.text() and holds_at(fact, at) {
+                return fact.larger_key()
+            }
+            fact_index = fact_index + 1
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func orders(fact: KnownFact, small: ValueKey, large: ValueKey): Boolean {
+    if fact.kind != "less" and fact.kind != "less_or_equal" {
+        return false
+    }
+    var fact_small = fact.smaller_key()
+    var fact_large = fact.larger_key()
+    if fact_small.base != small.base or fact_large.base != large.base {
+        return false
+    }
+    var room = large.offset - small.offset
+    var fact_room = fact_large.offset - fact_small.offset
+    if fact.strict {
+        return fact_room <= room
+    }
+    return fact_room < room
+}
+
+func proves_kind(kind: String, value: Integer, at: Facts.Place): Boolean {
+    var wanted = key_of(value)
+    var chain = walk_up(at.block)
+    var index = 0
+    while index < chain.count() {
+        var facts = facts_at(chain[index])
+        var fact_index = 0
+        while fact_index < facts.count() {
+            var fact = facts[fact_index]
+            if fact.kind == kind and fact.smaller_key().text() == wanted.text() and holds_at(fact, at) {
+                return true
+            }
+            fact_index = fact_index + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func proves_present(value: Integer, at: Facts.Place): Boolean {
+    return proves_kind("present", value, at)
+}
+
+func proves_nonzero(value: Integer, at: Facts.Place): Boolean {
+    return proves_kind("nonzero", value, at)
+}

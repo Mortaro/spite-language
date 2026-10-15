@@ -19,6 +19,8 @@ var tagged_makers = List<String>()
 var framed_layouts = List<String>()
 var copied_layouts = List<String>()
 var printed_text = ""
+var table_keys = List<String>()
+var table_names = List<String>()
 
 func refuse(why: String) {
     if not refusals.contains(why) {
@@ -50,6 +52,34 @@ func escaped_place(text: String): String {
     var backslashes = text.replace("\\", "\\\\")
     var quotes = backslashes.replace("\"", "\\\"")
     return quotes.replace("\t", "\\t")
+}
+
+func table_name(layout: String, literal: String): String {
+    var key = "{layout}|{literal}"
+    var index = table_keys.index_of(key)
+    if not index {
+        return ""
+    }
+    crash table_names[index]
+    return table_names[index]
+}
+
+func add_table(layout: String, literal: String, element: String): String {
+    var name = "spite_table_{table_names.count()}"
+    table_keys.append("{layout}|{literal}")
+    table_names.append(name)
+    var length = literal.length()
+    var inner = literal.slice(1, length - 1)
+    var pieces = inner.split(",")
+    var count = pieces.count()
+    if inner.trim().is_empty() {
+        count = 0
+    }
+    literal_lines.append("static {element} {name}_items[{count} + 1] = \{ {inner} };")
+    literal_lines.append(
+        "static {layout} {name} = \{ .header = \{ 0, -1 }, .items_ = (int64_t)(intptr_t){name}_items, .item_count_ = {count}, .capacity_ = {count} };",
+    )
+    return name
 }
 
 func is_refused(): Boolean {

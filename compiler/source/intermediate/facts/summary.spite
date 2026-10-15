@@ -1,0 +1,145 @@
+# ../../../../docs/optimizations.md#proofs-that-survive-a-call
+var writes = Dictionary<String, Boolean>()
+var grows = Dictionary<String, Boolean>()
+var reads = Dictionary<String, Boolean>()
+var makes = Dictionary<String, Boolean>()
+var callees = List<String>()
+var writes_memory = false
+var releases = false
+var calls_values = false
+var unknown = false
+var starts_threads = false
+var waits = false
+var counts = false
+
+func adds(other: Summary): Boolean {
+    var changed = false
+    var written = other.writes.keys()
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        if not writes.has(key) {
+            writes[key] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    var grown = other.grows.keys()
+    index = 0
+    while index < grown.count() {
+        var key = grown[index]
+        if not grows.has(key) {
+            grows[key] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    var read = other.reads.keys()
+    index = 0
+    while index < read.count() {
+        var key = read[index]
+        if not reads.has(key) {
+            reads[key] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    var made = other.makes.keys()
+    index = 0
+    while index < made.count() {
+        var key = made[index]
+        if not makes.has(key) {
+            makes[key] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    if other.writes_memory and not writes_memory {
+        writes_memory = true
+        changed = true
+    }
+    if other.releases and not releases {
+        releases = true
+        changed = true
+    }
+    if other.calls_values and not calls_values {
+        calls_values = true
+        changed = true
+    }
+    if other.unknown and not unknown {
+        unknown = true
+        changed = true
+    }
+    if other.starts_threads and not starts_threads {
+        starts_threads = true
+        changed = true
+    }
+    if other.waits and not waits {
+        waits = true
+        changed = true
+    }
+    if other.counts and not counts {
+        counts = true
+        changed = true
+    }
+    return changed
+}
+
+func may_write(layout: String, field: String): Boolean {
+    return unknown or writes.has("{layout}.{field}") or writes.has("*.{field}")
+}
+
+func may_write_any_of(layout: String): Boolean {
+    if unknown {
+        return true
+    }
+    var written = writes.keys()
+    var prefix = "{layout}."
+    var index = 0
+    while index < written.count() {
+        if written[index].starts_with(prefix) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func grows_any_of(layout: String): Boolean {
+    var grown = grows.keys()
+    var prefix = "{layout}."
+    var index = 0
+    while index < grown.count() {
+        if grown[index].starts_with(prefix) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_growth(layout: String, field: String) {
+    grows["{layout}.{field}"] = true
+}
+
+func is_calm(): Boolean {
+    return not unknown and not calls_values and not releases and not writes_memory and writes.count() == 0 and grows.count() == 0
+}
+
+func note_read(layout: String, field: String) {
+    reads["{layout}.{field}"] = true
+}
+
+func may_read(layout: String, field: String): Boolean {
+    return unknown or reads.has("{layout}.{field}") or reads.has("*.{field}")
+}
+
+func note_write(layout: String, field: String) {
+    writes["{layout}.{field}"] = true
+}
+
+func note_call(callee: String) {
+    if not callees.contains(callee) {
+        callees.append(callee)
+    }
+}

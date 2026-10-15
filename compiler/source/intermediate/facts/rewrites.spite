@@ -1,0 +1,75 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+func replace_value(function: Function, from: Integer, to: Integer) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            replace_in(operation.operands, from, to)
+            index = index + 1
+        }
+        replace_in(block.terminator.operands, from, to)
+        var targets = block.terminator.targets
+        index = 0
+        while index < targets.count() {
+            var target = targets[index]
+            replace_in(target.arguments, from, to)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func replace_in(values: List<Integer>, from: Integer, to: Integer) {
+    var index = 0
+    while index < values.count() {
+        if values[index] == from {
+            values[index] = to
+        }
+        index = index + 1
+    }
+}
+
+func is_pure(operation: Operation, intrinsics: Intrinsics): Boolean {
+    if operation.kind == "constant" or operation.kind == "load" {
+        return true
+    }
+    if operation.kind != "call" or operation.site >= 0 {
+        return false
+    }
+    if intrinsics.is_number_operation(operation.callee) {
+        return true
+    }
+    var pure = ["Nullable.has", "Nullable.value", "Union.tag", "Union.value"]
+    return pure.contains(operation.callee)
+}
+
+func remove_unused(function: Function, intrinsics: Intrinsics): Integer {
+    var removed = 0
+    var changed = true
+    while changed {
+        changed = false
+        var uses = Uses(function)
+        var block_index = 0
+        while block_index < function.blocks.count() {
+            var block = function.blocks[block_index]
+            var kept = List<Operation>()
+            var index = 0
+            while index < block.operations.count() {
+                var operation = block.operations[index]
+                var unused = operation.result >= 0 and uses.use_count(operation.result) == 0
+                if unused and is_pure(operation, intrinsics) {
+                    removed = removed + 1
+                    changed = true
+                } else {
+                    kept.append(operation)
+                }
+                index = index + 1
+            }
+            block.operations = kept
+            block_index = block_index + 1
+        }
+    }
+    return removed
+}

@@ -1,0 +1,110 @@
+# ../../../../docs/optimizations.md#a-proven-read-tests-only-its-bounds
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var inlinable = Dictionary<String, Boolean>()
+var inlined_count = 0
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    assert not starting_lowered.hot_reload
+    var elision = DefaultElision(starting_lowered)
+    var functions = starting_lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if not function.blocks.is_empty() {
+            inline_function(function)
+            elision.elide(function)
+        }
+        index = index + 1
+    }
+}
+
+func inline_function(function: Function) {
+    var rounds = 0
+    var changed = true
+    while changed and rounds < 256 {
+        changed = inline_once(function)
+        rounds = rounds + 1
+    }
+}
+
+func inline_once(function: Function): Boolean {
+    crash lowered
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.form.is_empty() and may_inline(operation.callee, function) {
+                var callee = lowered.function_named(operation.callee)
+                crash callee
+                var copy = InlineCopy(function, callee)
+                copy.inline_at(block_index, index)
+                inlined_count = inlined_count + 1
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func may_inline(callee_name: String, caller: Function): Boolean {
+    if callee_name == caller.c_name {
+        return false
+    }
+    if inlinable.has(callee_name) {
+        return inlinable[callee_name] == true
+    }
+    var answer = judged(callee_name)
+    inlinable[callee_name] = answer
+    return answer
+}
+
+func judged(callee_name: String): Boolean {
+    crash lowered
+    crash kinds
+    var callee = lowered.function_named(callee_name)
+    if not callee or callee.is_intrinsic() or callee.is_constructor or not callee.not_lowered.is_empty() {
+        return false
+    }
+    if callee.blocks.is_empty() or callee.blocks.count() > 6 or not kinds.is_library_layout(callee.owner) {
+        return false
+    }
+    var lending = ["get_at", "first", "last"]
+    if lending.contains(callee.name) {
+        return false
+    }
+    var counted = 0
+    var block_index = 0
+    while block_index < callee.blocks.count() {
+        var block = callee.blocks[block_index]
+        if block.terminator.kind == "halt" or block.terminator.site >= 0 {
+            return false
+        }
+        if not plain_operations(block, callee_name) {
+            return false
+        }
+        counted = counted + block.operations.count()
+        block_index = block_index + 1
+    }
+    return counted <= 16
+}
+
+func plain_operations(block: Block, callee_name: String): Boolean {
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var refused = operation.site >= 0 or operation.kind == "call value" or operation.callee == callee_name
+        if refused or operation.kind == "retain" or operation.kind == "release" {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}

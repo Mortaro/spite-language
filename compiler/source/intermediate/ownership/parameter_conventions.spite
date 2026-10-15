@@ -1,0 +1,156 @@
+# ../../../../docs/optimizations.md#an-argument-its-caller-holds-is-passed-without-counting
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var effects: Facts.Effects? = null
+var taken_as_values = Dictionary<String, Boolean>()
+var consumption: Consumption? = null
+var held_count = 0
+
+func ParameterConventions(starting_lowered: Lowered, starting_effects: Facts.Effects) {
+    lowered = starting_lowered
+    effects = starting_effects
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_consumption = Consumption(starting_lowered)
+    consumption = made_consumption
+}
+
+func decide() {
+    crash lowered
+    var functions = lowered.concrete_functions
+    functions.each(note_values_taken)
+    functions.each(start)
+    var changed = true
+    var rounds = 0
+    while changed and rounds < 64 {
+        changed = false
+        var index = 0
+        while index < functions.count() {
+            if settle(functions[index]) {
+                changed = true
+            }
+            index = index + 1
+        }
+        rounds = rounds + 1
+    }
+    functions.each(count_held)
+}
+
+func count_held(function: Function) {
+    var index = 0
+    while index < function.parameters.count() {
+        if function.parameters[index].ownership == "held" {
+            held_count = held_count + 1
+        }
+        index = index + 1
+    }
+}
+
+func note_values_taken(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "constant" and not operation.literal.is_empty() {
+                taken_as_values[operation.literal] = true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func start(function: Function) {
+    crash kinds
+    var lent = List<String>()
+    if function.source {
+        lent = function.source.lent_parameters
+    }
+    var eligible = may_hold(function)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        parameter.ownership = "owned"
+        if lent.contains(parameter.name) {
+            parameter.ownership = "lent"
+        } else if eligible and kinds.is_counted(parameter.spite_type) and not is_text(parameter.spite_type) {
+            parameter.ownership = "held"
+        }
+        index = index + 1
+    }
+}
+
+func is_text(spite_type: Analysis.SpiteType?): Boolean {
+    var types = Analysis.TypeShape()
+    if not spite_type {
+        return false
+    }
+    return types.as_string(spite_type) or types.as_union(spite_type) or types.is_symbol(spite_type)
+}
+
+func may_hold(function: Function): Boolean {
+    crash lowered
+    crash kinds
+    crash effects
+    if lowered.is_inspectable() or function.is_constructor or function.is_intrinsic() {
+        return false
+    }
+    if function.blocks.is_empty() {
+        return false
+    }
+    if taken_as_values.has(function.c_name) or function.c_name == lowered.entry {
+        return false
+    }
+    var named = ["drop", "to_string", "to_debug", "hash", "equals", "missing_function"]
+    if named.contains(function.name) {
+        return false
+    }
+    var calling = effects.callers_of(function.c_name)
+    return not calling.is_empty()
+}
+
+func settle(function: Function): Boolean {
+    var changed = false
+    var uses = Facts.Uses(function)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if parameter.ownership == "held" and is_consumed(function, uses, parameter.value, 0) {
+            parameter.ownership = "owned"
+            changed = true
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func is_consumed(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+    if depth > 8 {
+        return true
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        if consumes_at(function, uses, reached[index], value, depth) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func consumes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value: Integer, depth: Integer): Boolean {
+    var block = function.block_at(place.block)
+    if place.at_terminator() {
+        return true
+    }
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    crash consumption
+    if consumption.is_projection(operation) and operation.result >= 0 {
+        return is_consumed(function, uses, operation.result, depth + 1)
+    }
+    return consumption.consumes(operation, value)
+}
