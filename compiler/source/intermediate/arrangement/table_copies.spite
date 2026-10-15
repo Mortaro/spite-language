@@ -150,6 +150,9 @@ func operation_at(function: Function, place: Facts.Place): Operation? {
 
 func fills_constant(uses: Facts.Uses, operation: Operation, list: Integer, key: String): Boolean {
     crash intrinsics
+    if operation.kind == "retain" or operation.kind == "release" or operation.kind == "load" {
+        return true
+    }
     if operation.kind != "call" or operation.operands.first() != list {
         return false
     }
