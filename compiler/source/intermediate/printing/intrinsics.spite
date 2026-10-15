@@ -990,6 +990,14 @@ func comparison(body: Body, operation: Operation, symbol: String) {
 
 func logical_not(body: Body, operation: Operation) {
     var first = body.operand(operation, 0)
+    var tested = body.operand_type(operation, 0)
+    assert tested
+    var nullable = shape.as_nullable(tested)
+    if nullable {
+        var present = presence(first, nullable.inner)
+        body.assign(operation.result, "(!{present})")
+        return
+    }
     body.assign(operation.result, "(!{first})")
 }
 

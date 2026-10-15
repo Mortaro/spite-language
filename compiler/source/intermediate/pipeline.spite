@@ -20,6 +20,7 @@ func run(): String {
     lowered.runtime_roots = roots_of_runtime()
     var passes = Passes()
     passes.run(lowered)
+    settle_held_layouts()
     var printer = Printer()
     var written = printer.print(lowered)
     var refused = printer.refusals()
@@ -112,6 +113,36 @@ func settle_schema(function: Function) {
     var owner = lowered.layout_named(function.owner)
     assert owner and owner.information
     source.supplied_body = generator.schema_body(owner.information, source)
+}
+
+func settle_held_layouts() {
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.information {
+            layout.information.codegen_types.each(settle_held)
+        }
+        index = index + 1
+    }
+}
+
+func settle_held(held: Analysis.SpiteType) {
+    crash generator
+    var reference = types.as_class_ref(held)
+    assert reference and not lowered.layout_named(reference.c_name)
+    var information = generator.find_class_by_c_name(reference.c_name)
+    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    var made = Layout(information.c_name, information.qualified_dotted)
+    made.information = information
+    var index = 0
+    while index < information.fields.count() {
+        var declared = information.fields[index]
+        var declared_type = declared.type
+        var field = Field(declared.name, declared_type)
+        made.stored_fields.append(field)
+        index = index + 1
+    }
+    lowered.add_layout(made)
 }
 
 func settle_synthetic_value(layout: Layout) {
