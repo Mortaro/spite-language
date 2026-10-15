@@ -413,3 +413,12 @@ func name_value(value: Integer, name: String) {
     var named = built_function().value_at(value)
     named.name = name
 }
+
+func returns_at(value: Integer, site_number: Integer) {
+    var ended = Terminator("return")
+    if value >= 0 {
+        ended.operands.append(value)
+    }
+    ended.site = site_number
+    end_block(ended)
+}

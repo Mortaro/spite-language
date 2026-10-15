@@ -432,7 +432,7 @@ func literal_fits(literal: String, from: Analysis.Types.NumericKind, to: Analysi
 
 func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integer {
     if identifier.name == "self" or identifier.name == "this" {
-        return receiver
+        return own_receiver()
     }
     var made = front()
     if made.reflected_binding(identifier.name) {
@@ -448,7 +448,8 @@ func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Inte
     }
     var named_function = made.find_or_instantiate_function(lowered_class, identifier.name)
     if named_function and not named_function.is_constructor {
-        return function_value(lowered_class, named_function, receiver)
+        var own_object = own_receiver()
+        return function_value(lowered_class, named_function, own_object)
     }
     var named_class = made.find_class(identifier.name, lowered_class.qualified_dotted)
     if named_class {
@@ -465,16 +466,19 @@ func read_own_field(name: String, field_type: Analysis.SpiteType): Integer {
     if lowered_class.is_value_class {
         return not_lowered(field_type, "the memory a value class is kept in")
     }
-    var field_value = emitter.load_field(receiver, name, field_type)
+    var own_object = own_receiver()
+    var field_value = emitter.load_field(own_object, name, field_type)
     return narrowed_name(field_value, name)
 }
 
 func string_storage(name: String, field_type: Analysis.SpiteType): Integer {
     if name == "_bytes" {
-        return emitter.emit_call_one("String.bytes", receiver, field_type)
+        var own_object = own_receiver()
+        return emitter.emit_call_one("String.bytes", own_object, field_type)
     }
     if name == "_length" {
-        return emitter.emit_call_one("String.stored_length", receiver, field_type)
+        var own_object = own_receiver()
+        return emitter.emit_call_one("String.stored_length", own_object, field_type)
     }
     return not_lowered(field_type, "a part of a String other than its bytes and length")
 }
@@ -741,10 +745,11 @@ func lower_index(indexed: Syntax.Expressions.IndexExpression): Integer {
 
 func bound_attribute(): Integer {
     var made = front()
+    var own_object = own_receiver()
     if not made.bound_field_type {
         return not_lowered(null, "a walked attribute with no type")
     }
-    return emitter.load_field(receiver, made.bound_field_name, made.bound_field_type)
+    return emitter.load_field(own_object, made.bound_field_name, made.bound_field_type)
 }
 
 func index_of_value(object: Integer, index: Syntax.Expressions.Expression): Integer {
@@ -1183,9 +1188,8 @@ func lower_call(call: Syntax.Expressions.CallExpression): Integer {
         return emitter.emit_call_one("Symbol.from_text", read_text, maybe_symbol)
     }
     if callee_name and callee_name.name == "Arguments" and call.arguments.is_empty() {
-        var no_operands = List<Integer>()
         var arguments_type: Analysis.SpiteType = Analysis.Types.ArgumentsType()
-        return emitter.emit_call("Arguments.program", no_operands, arguments_type)
+        return emitter.constant(arguments_type, "program")
     }
     var member = shapes.as_member(call.callee)
     if member {
@@ -1319,7 +1323,8 @@ func own_call(name: String, arguments: List<Syntax.Expressions.Expression>): Int
     }
     var found = made.find_or_instantiate_function(lowered_class, name)
     if found {
-        return call_with_arguments(lowered_class, found, receiver, arguments)
+        var own_object = own_receiver()
+        return call_with_arguments(lowered_class, found, own_object, arguments)
     }
     var held = emitter.local_named(name)
     var field = lowered_class.find_field(name)
@@ -1329,7 +1334,8 @@ func own_call(name: String, arguments: List<Syntax.Expressions.Expression>): Int
         return value_call(held_value, arguments)
     }
     if lowered_class.c_name == "SpiteString" {
-        return string_call(name, receiver, arguments)
+        var own_object = own_receiver()
+        return string_call(name, own_object, arguments)
     }
     return not_lowered(null, "'{name}()', a function this lowering cannot find")
 }
@@ -2312,6 +2318,11 @@ func compare_values(
     if scalar_type {
         decimal = known().is_decimal_kind(scalar_type.kind)
     }
+    var ordering = operator != 'equal' and operator != 'not_equal'
+    var unordered = owner == "Symbol" or owner == "Reference" or owner == "Enum" or owner == "Boolean"
+    if ordering and unordered {
+        return not_lowered(null, "an ordering of {owner} values, which have no order")
+    }
     var direct = direct_comparison(operator, decimal)
     if not direct.is_empty() {
         return emitter.emit_call("{owner}.{direct}", operands, boolean)
@@ -2558,7 +2569,7 @@ func allocator_read(member: Syntax.Expressions.MemberExpression): Integer {
     var holder = -1
     var own = shapes.as_identifier(member.object)
     if own and own.name == "memory" {
-        holder = receiver
+        holder = own_receiver()
     }
     var memory = shapes.as_member(member.object)
     if memory and memory.name == "memory" {
@@ -2591,7 +2602,7 @@ func foreign_library(arguments: List<Syntax.Expressions.Expression>): Integer {
     }
     var no_operands = List<Integer>()
     var opened = emitter.call_operation("Foreign.library", no_operands, result.spite_type)
-    opened.target = library_type.foreign_library
+    opened.target = library_type.foreign_library.to_string()
     return opened.result
 }
 
@@ -2605,7 +2616,7 @@ func foreign_read(name: String, object: Integer): Integer {
     var operands = [object]
     var read = emitter.call_operation("Foreign.constant", operands, whole)
     read.target = name.upper_case()
-    read.literal = library_type.foreign_library
+    read.literal = library_type.foreign_library.to_string()
     return read.result
 }
 
@@ -2639,7 +2650,7 @@ func foreign_call(name: String, object: Integer, arguments: List<Syntax.Expressi
     }
     var called = emitter.call_operation("Foreign.call", operands, answer)
     called.target = symbol
-    called.literal = library
+    called.literal = library.to_string()
     return called.result
 }
 
@@ -2919,7 +2930,7 @@ func shape_operator(
         var narrowed_type = member_type(member)
         var narrowed_left = emitter.emit_call_one("Union.value", left, narrowed_type)
         var narrowed_right = narrowed_operand(right, right_type, narrowed_type)
-        var result = number_operation(operator, narrowed_left, narrowed_right, narrowed_type, whole)
+        var result = member_operation(operator, member, narrowed_left, narrowed_right, whole)
         var converted = convert(result, answer)
         var passed = [converted]
         emitter.jump(joined_block, passed)
@@ -3127,7 +3138,8 @@ func passed_symbol_call(template: Analysis.TemplateInfo, arguments: List<Syntax.
     )
     var instance = made.passed_instance(lowered_class, template, registered_name)
     var values = lower_arguments(remaining, instance.parameters)
-    var operands = [receiver]
+    var own_object = own_receiver()
+    var operands = [own_object]
     values.each(operands.append)
     return call_reached(lowered_class, instance, operands)
 }
@@ -3191,4 +3203,44 @@ func present_and_true(value: Integer, present: Integer): Integer {
     emitter.jump(joined_block, passed)
     emitter.enter_block(joined_block)
     return answered
+}
+
+func own_receiver(): Integer {
+    if receiver < 0 {
+        var shown_type = known().class_type(lowered_class)
+        return not_lowered(shown_type, "a read of the object itself in a function that runs on no object")
+    }
+    return receiver
+}
+
+func member_operation(
+    operator: Syntax.Expressions.BinaryOperator,
+    member: Analysis.ClassInfo,
+    left: Integer,
+    right: Integer,
+    whole: Syntax.Expressions.Expression,
+): Integer {
+    var left_type = type_of(left)
+    if not types.as_class_ref(left_type) {
+        return number_operation(operator, left, right, left_type, whole)
+    }
+    var made = front()
+    var function_name = made.operator_function_name(operator)
+    var function = made.find_or_instantiate_function(member, function_name)
+    if function_name.is_empty() or not function {
+        return not_lowered(null, "an operator '{function_name}' on '{member.qualified_dotted}'")
+    }
+    var parameter = function.parameters.first()
+    if not parameter {
+        return not_lowered(null, "an operator '{function_name}' that takes nothing")
+    }
+    var converted = convert(right, parameter.type)
+    var operands = [left, converted]
+    var called = call_reached(member, function, operands)
+    var negated = operator == 'not_equal' or operator == 'greater_equal' or operator == 'less_equal'
+    if negated {
+        var boolean = known().typed_boolean()
+        return emitter.emit_call_one("Boolean.not", called, boolean)
+    }
+    return called
 }

@@ -35,6 +35,8 @@ func reach_layout(information: Analysis.ClassInfo) {
     assert not reached_layouts.has(information.c_name)
     reached_layouts[information.c_name] = true
     layout_classes.append(information)
+    assert information.drop_function
+    reach(information, information.drop_function)
 }
 
 func reach_type(spite_type: Analysis.SpiteType?) {
