@@ -89,6 +89,19 @@ func print_pieces(lowered: Lowered) {
     note_nothing_default()
     note_loop_tables(lowered)
     note_maths()
+    note_symbol_names(lowered)
+}
+
+func note_symbol_names(lowered: Lowered) {
+    assert output.needs("symbol find")
+    var index = 0
+    while index < lowered.symbol_names.count() {
+        var symbol = sites.literal(lowered.symbol_names[index])
+        if not output.symbol_literals.contains(symbol) {
+            output.symbol_literals.append(symbol)
+        }
+        index = index + 1
+    }
 }
 
 func note_slots(layout: Layout) {

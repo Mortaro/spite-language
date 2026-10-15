@@ -1502,7 +1502,12 @@ func print_plain_store(operation: Operation) {
     if holder_layout {
         row = holder_layout.kind == "row"
     }
-    if counted.is_empty() or row {
+    var stored_layout = naming.layout_of(stored_type)
+    var singleton = false
+    if stored_layout {
+        singleton = stored_layout.is_singleton
+    }
+    if counted.is_empty() or row or singleton {
         lines.append("{place} = {stored};")
         return
     }
