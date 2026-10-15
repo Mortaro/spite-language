@@ -69,6 +69,8 @@ func count_function(function: Function) {
     borrows.uses = settled_uses
     var counting = Counting(function, borrows, consumption, kinds)
     counting.count()
+    var pairs = PairedCounts()
+    pairs.cancel(function)
     retains = retains + counting.retained_count
     releases = releases + counting.released_count
 }

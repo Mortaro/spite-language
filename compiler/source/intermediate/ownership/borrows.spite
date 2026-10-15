@@ -8,6 +8,7 @@ var consumption: Consumption? = null
 var drop_effects: Facts.Summary? = null
 var origins = Dictionary<Integer, String>()
 var sources = Dictionary<Integer, List<Integer>>()
+var joined = List<Integer>()
 
 func Borrows(
     studied: Function,
@@ -33,6 +34,9 @@ func origin_of(value: Integer): String {
         return origins[value]
     }
     var found = classified(value)
+    if not origins.has(value) {
+        joined.append(value)
+    }
     origins[value] = found
     return found
 }
@@ -55,7 +59,7 @@ func classified(value: Integer): String {
     }
     var defining = uses.definition_of(value)
     if not defining {
-        return "owned"
+        return joined_origin(value)
     }
     if defining.kind == "call" and defining.callee == "Union.tag" {
         return "plain"
@@ -104,6 +108,76 @@ func classified(value: Integer): String {
         return "lending"
     }
     return "owned"
+}
+
+# ../../../../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame
+func joined_origin(value: Integer): String {
+    crash function
+    var block_number = block_holding(value)
+    if block_number < 0 {
+        return "owned"
+    }
+    var block = function.block_at(block_number)
+    var position = block.parameters.index_of(value)
+    if not position {
+        return "owned"
+    }
+    var started = joined.count()
+    origins[value] = "lent"
+    joined.append(value)
+    var incoming = incoming_arguments(block_number, position)
+    var index = 0
+    while index < incoming.count() {
+        var argument = incoming[index]
+        if argument != value and origin_of(argument) != "lent" {
+            forget_joined(started)
+            return "owned"
+        }
+        index = index + 1
+    }
+    if incoming.is_empty() {
+        return "owned"
+    }
+    return "lent"
+}
+
+func block_holding(value: Integer): Integer {
+    crash function
+    var index = 0
+    while index < function.blocks.count() {
+        if function.blocks[index].parameters.contains(value) {
+            return function.blocks[index].number
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func forget_joined(started: Integer) {
+    while joined.count() > started {
+        var forgotten = joined.remove_last()
+        crash forgotten
+        origins.remove(forgotten)
+    }
+}
+
+func incoming_arguments(block_number: Integer, position: Integer): List<Integer> {
+    crash function
+    var found = List<Integer>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var targets = function.blocks[block_index].terminator.targets
+        var index = 0
+        while index < targets.count() {
+            var target = targets[index]
+            if target.block == block_number and position < target.arguments.count() {
+                found.append(target.arguments[position])
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
 }
 
 func parameter_ownership(value: Integer): String {

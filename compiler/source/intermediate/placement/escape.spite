@@ -58,6 +58,22 @@ func escapes(function: Function, value: Integer): Boolean {
     return escapes_through(function, uses, value, 0)
 }
 
+func escapes_but_jumps(function: Function, value: Integer): Boolean {
+    crash consumption
+    consumption.current = function
+    var uses = Facts.Uses(function)
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if not place.at_terminator() and escapes_at(function, uses, place, value, 0) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func escapes_through(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
     if depth > 8 {
         return true

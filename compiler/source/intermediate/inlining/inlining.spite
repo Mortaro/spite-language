@@ -10,6 +10,7 @@ func run(starting_lowered: Lowered) {
     kinds = made_kinds
     assert not starting_lowered.hot_reload
     var elision = DefaultElision(starting_lowered)
+    var carried = CarriedObjects(starting_lowered)
     var functions = starting_lowered.concrete_functions
     var index = 0
     while index < functions.count() {
@@ -17,6 +18,7 @@ func run(starting_lowered: Lowered) {
         if not function.blocks.is_empty() {
             inline_function(function)
             elision.elide(function)
+            carried.carry(function)
         }
         index = index + 1
     }

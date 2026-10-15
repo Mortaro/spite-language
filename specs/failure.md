@@ -73,6 +73,14 @@ is below). A value type's narrowed `T?` is assigned the same way: `got = next`, 
 narrowed `Long?`s, stores the whole `Long?` (its presence and its value) into `got`, inside a loop too, and
 `got = missing` with a `Long?` that may be null makes it a `Long?` again (`conformance/stage6/narrowed_value_assignment`).
 
+**A `T?` is never passed, stored or returned where a `T` is wanted, whatever `T` is**: a class, `String`, a
+number, an enum, a `union` or a `type` (`Anything` too). A `union` or a `type` gets no exemption for being able to
+hold several classes: null is none of them. The error names the narrowing to write: "this value may be null (it is
+an Anything?), but an Anything is needed: narrow it first with 'if value { }', 'assert value' or 'crash value'",
+and for a `[]` read it names the read, as below. A path that a call may have changed since it was proven is a `T?`
+again, a `union` field included, so it is narrowed again after the call (`diagnostics/maybe_null_into_type`,
+`diagnostics/call_undoes_proof`).
+
 ```gdscript
 var content = program_file.read()
 assert content

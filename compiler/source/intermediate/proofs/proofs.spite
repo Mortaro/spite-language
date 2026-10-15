@@ -39,6 +39,8 @@ func prove_function(function: Function, listed: ListedValues) {
     folding.fold_function(function)
     var branches = BranchFolding()
     branches.fold(function)
+    var circuits = ShortCircuits()
+    circuits.thread(function)
     crash effects
     var first_flow = Facts.Flow(function)
     var first_uses = Facts.Uses(function)

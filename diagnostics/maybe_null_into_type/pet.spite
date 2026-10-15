@@ -1,0 +1,4 @@
+union Pet {
+    Cat
+    Dog
+}

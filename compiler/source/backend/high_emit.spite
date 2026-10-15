@@ -22,7 +22,14 @@ func HighEmit(
     function = starting_function
     answered_type = starting_answered_type
     borrowed = starting_borrowed
-    answers_nothing = not answered_type or types.is_void(answered_type)
+    answers_nothing = answers_nothing_for(starting_answered_type)
+}
+
+func answers_nothing_for(answer: Analysis.SpiteType?): Boolean {
+    if not answer {
+        return true
+    }
+    return types.is_void(answer)
 }
 
 func printed(): Boolean {

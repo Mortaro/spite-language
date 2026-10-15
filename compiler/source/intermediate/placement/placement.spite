@@ -46,6 +46,7 @@ func place_function(function: Function) {
         framed[slot_value] = true
         placed_index = placed_index + 1
     }
+    frame_copies(function, framed)
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]
@@ -66,6 +67,80 @@ func place_function(function: Function) {
 }
 
 # ../../../../docs/proofs.md#objects-that-never-leave-their-function-live-in-the-frame
+func frame_copies(function: Function, framed: Dictionary<Integer, Boolean>) {
+    crash lowered
+    assert not lowered.is_inspectable()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var rebuilt = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var layout = copied_layout(function, operation)
+            if layout {
+                copy_in_frame(function, block.number, operation, layout, rebuilt)
+                framed[operation.result] = true
+            } else {
+                rebuilt.append(operation)
+            }
+            index = index + 1
+        }
+        block.operations = rebuilt
+        block_index = block_index + 1
+    }
+}
+
+func copied_layout(function: Function, operation: Operation): Layout? {
+    crash lowered
+    crash kinds
+    crash escape
+    crash results
+    var copying = operation.callee == "Object.copy" or operation.callee == "Object.deep_copy"
+    assert operation.kind == "call" and copying and operation.result >= 0 and operation.operands.count() == 1
+    var copied_type = function.value_at(operation.result).spite_type
+    var layout = kinds.layout_of(copied_type)
+    assert layout and layout.kind == "class" and results.holds_only_plain(layout.c_name)
+    assert not escape.escapes(function, operation.result)
+    return layout
+}
+
+func copy_in_frame(
+    function: Function,
+    block_number: Integer,
+    operation: Operation,
+    layout: Layout,
+    rebuilt: List<Operation>,
+) {
+    var source = operation.operands.first()
+    crash source
+    var made = Operation("make", operation.line)
+    made.layout = layout.c_name
+    made.form = "frame"
+    made.spite_type = operation.spite_type
+    made.result = operation.result
+    rebuilt.append(made)
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var read = Operation("load", operation.line)
+        read.takes(source)
+        read.field = field.name
+        read.spite_type = field.spite_type
+        read.result = function.new_value(field.spite_type, "operation")
+        function.value_at(read.result).block = block_number
+        rebuilt.append(read)
+        var write = Operation("store", operation.line)
+        write.takes(made.result)
+        write.takes(read.result)
+        write.field = field.name
+        write.spite_type = field.spite_type
+        rebuilt.append(write)
+        index = index + 1
+    }
+    framed_objects = framed_objects + 1
+}
+
 func place_object(
     function: Function,
     uses: Facts.Uses,

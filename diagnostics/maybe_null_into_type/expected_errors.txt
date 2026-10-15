@@ -1,0 +1,2 @@
+diagnostics/maybe_null_into_type/maybe_null_into_type.spite:5: error: this value may be null (it is an Anything?), but an Anything is needed: narrow it first with 'if value { }', 'assert value' or 'crash value' (in MaybeNullIntoType.MaybeNullIntoType)
+diagnostics/maybe_null_into_type/maybe_null_into_type.spite:11: error: this value may be null (it is a Pet?), but a Pet is needed: narrow it first with 'if value { }', 'assert value' or 'crash value' (in MaybeNullIntoType.MaybeNullIntoType)
