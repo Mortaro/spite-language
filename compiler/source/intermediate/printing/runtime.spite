@@ -619,6 +619,9 @@ func entry_call(started: Function): String {
 func guard_runtime(): String {
     var lines = [
         "typedef struct SpiteGuard \{ _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;"
+        "static SPITE_THREAD_LOCAL int32_t spite_guards_held = 0;"
+        "#define SPITE_GUARDS_HELD() spite_guards_held"
+        "#define SPITE_GUARDS_COUNT(change) (spite_guards_held = spite_guards_held + (change))"
         "static void spite_spin_pause(void);"
         "static void spite_guard_wait(SpiteGuard* guard, int64_t spite_me);"
         "static void spite_guard_enter(SpiteGuard* guard);"

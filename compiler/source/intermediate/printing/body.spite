@@ -200,6 +200,33 @@ func guard_enter(owner: String): String {
     return "spite_guard_enter({guard});"
 }
 
+func unshared_path(called: String, guard: String): String {
+    var done = "return;"
+    var call_line = "{called};"
+    if not answers_nothing() {
+        var answered = answer_type()
+        call_line = "{answered} spite_unshared = {called};"
+        done = "return spite_unshared;"
+    }
+    var lines = [
+        "#ifdef SPITE_THREADS"
+        "if (spite_skipped_depth < 16 && __atomic_load_n(&spite_tasks_in_flight, __ATOMIC_ACQUIRE) == 0) \{"
+        "int32_t spite_skip = spite_skipped_depth;"
+        "spite_skipped[spite_skip] = (void*){guard};"
+        "spite_skipped_taken[spite_skip] = 0;"
+        "spite_skipped_depth = spite_skip + 1;"
+        "SPITE_GUARDS_COUNT(1);"
+        call_line
+        "spite_skipped_depth = spite_skip;"
+        "if (spite_skipped_taken[spite_skip]) spite_guard_leave({guard});"
+        "SPITE_GUARDS_COUNT(-1);"
+        done
+        "}"
+        "#endif"
+    ]
+    return lines.join("\n")
+}
+
 func print_locked() {
     var unguarded = "{function.c_name}___unguarded"
     print_lowered(unguarded, "")
@@ -222,14 +249,20 @@ func print_locked() {
         leave = "spite_read_leave(spite_reading);"
     }
     var opening = "{heading} \{"
-    var lines = [opening, enter]
+    var lines = [opening]
+    var unshared = unshared_path(called, guard)
+    lines.append(unshared)
+    lines.append(enter)
+    lines.append("SPITE_GUARDS_COUNT(1);")
     if answers_nothing() {
         lines.append("{called};")
         lines.append(leave)
+        lines.append("SPITE_GUARDS_COUNT(-1);")
     } else {
         var answered = answer_type()
         lines.append("{answered} spite_guarded = {called};")
         lines.append(leave)
+        lines.append("SPITE_GUARDS_COUNT(-1);")
         lines.append("return spite_guarded;")
     }
     lines.append("}")
@@ -917,11 +950,13 @@ func leave_skipping(owner: String) {
 func enter_coarse(owner: String) {
     var enter = guard_enter(owner)
     lines.append(enter)
+    lines.append("SPITE_GUARDS_COUNT(1);")
 }
 
 func leave_coarse(owner: String) {
     var guard = guard_of(owner)
     lines.append("spite_guard_leave({guard});")
+    lines.append("SPITE_GUARDS_COUNT(-1);")
 }
 
 func holder_owner(operation: Operation): String {
