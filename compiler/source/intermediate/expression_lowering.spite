@@ -985,7 +985,7 @@ func construct(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Ex
         return foreign_library(arguments)
     }
     if target.qualified_dotted == "ForeignCallback" {
-        return not_lowered(null, "making a '{target.qualified_dotted}'")
+        return foreign_callback(target, arguments)
     }
     if target.is_generic_template {
         var inferred = made.inferred_instance(target, arguments, emitter.scope, lowered_class)
@@ -1175,8 +1175,12 @@ func lower_call(call: Syntax.Expressions.CallExpression): Integer {
     if target {
         return construct(target, call.arguments)
     }
-    if callee_name and callee_name.name == "Symbol" {
-        return not_lowered(null, "a Symbol read from text")
+    if callee_name and callee_name.name == "Symbol" and call.arguments.count() == 1 {
+        var text_type = known().typed_string()
+        var read_text = lower_toward(call.arguments[0], text_type)
+        var symbol_type = known().typed_symbol()
+        var maybe_symbol = known().nullable_of(symbol_type)
+        return emitter.emit_call_one("Symbol.from_text", read_text, maybe_symbol)
     }
     if callee_name and callee_name.name == "Arguments" and call.arguments.is_empty() {
         var no_operands = List<Integer>()
@@ -1236,6 +1240,11 @@ func codegen_construction(
 
 func value_call(held: Integer, arguments: List<Syntax.Expressions.Expression>): Integer {
     var held_type = type_of(held)
+    var held_nullable = types.as_nullable(held_type)
+    if held_nullable {
+        var present_held = checked_present(held, held_nullable.inner)
+        return value_call(present_held, arguments)
+    }
     var signature = types.as_class_ref(held_type)
     if not signature or not signature.has_signature {
         return not_lowered(null, "a call through a value that is not a function")
@@ -1343,6 +1352,19 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
         }
         if answered == false {
             return boolean_constant("false")
+        }
+    }
+    if member.name == "source_folder" and call.arguments.is_empty() {
+        var folder = made.folded_source_folder(member, emitter.scope, lowered_class)
+        if folder {
+            return folded_constant(folder)
+        }
+    }
+    if member.name == "argument_count" {
+        var counted = made.folded_argument_count(call, lowered_class)
+        if counted {
+            var whole = known().typed_integer()
+            return emitter.constant(whole, counted)
         }
     }
     var compile_time = ["returned_text", "source_folder", "argument_count"]
@@ -1774,7 +1796,7 @@ func member_answer(
     }
     var field = member.find_field(name)
     if not field {
-        return not_lowered(null, "'{name}' missing on a member of a union")
+        return named_function_value(member, name, narrowed)
     }
     return emitter.load_field(narrowed, name, field.type)
 }
@@ -1888,7 +1910,11 @@ func truth_of(value: Integer, expression: Syntax.Expressions.Expression): Condit
     }
     var answer_type = known().typed_boolean()
     var present = emitter.emit_call_one("Nullable.has", value, answer_type)
-    var made = Condition(present)
+    var tested = present
+    if known().same(nullable.inner, answer_type) {
+        tested = present_and_true(value, present)
+    }
+    var made = Condition(tested)
     var made_front = front()
     var path = made_front.operand_text(expression)
     if not path.is_empty() {
@@ -2472,10 +2498,16 @@ func shape_dispatch(
         values = lower_typed_arguments(arguments, parameter_types)
     } else {
         var read_type = made.shape_field_type(described_union, name)
-        if not read_type {
+        var signature = shape_function_signature(described_union, name)
+        if not read_type and not signature {
             return not_lowered(null, "'{name}', which the type '{described_union.simple_name}' does not hold")
         }
-        answer = read_type
+        if read_type {
+            answer = read_type
+        }
+        if signature and not read_type {
+            answer = signature
+        }
     }
     if described_union.members.is_empty() {
         return not_lowered(
@@ -3098,4 +3130,65 @@ func passed_symbol_call(template: Analysis.TemplateInfo, arguments: List<Syntax.
     var operands = [receiver]
     values.each(operands.append)
     return call_reached(lowered_class, instance, operands)
+}
+
+func foreign_callback(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Expression>): Integer {
+    var made = front()
+    if arguments.count() != 2 {
+        return not_lowered(null, "a ForeignCallback with the wrong arguments")
+    }
+    var where_context = shapes.as_enum_literal(arguments[1])
+    var owner = made.callback_owner(arguments[0], emitter.scope, lowered_class)
+    if not where_context or not owner {
+        return not_lowered(null, "a ForeignCallback this lowering cannot read")
+    }
+    var function_name = made.callback_function_name(arguments[0])
+    var function = owner.find_function(function_name)
+    if not function {
+        return not_lowered(null, "a ForeignCallback of a function this lowering cannot find")
+    }
+    known().reach(owner, function)
+    var made_type = known().class_type(target)
+    var handle = construct_as(target, arguments, made_type)
+    var operands = [handle]
+    var registered = emitter.call_operation("Foreign.callback", operands, null)
+    registered.target = function.c_name
+    registered.literal = where_context.value
+    return handle
+}
+
+func named_function_value(target: Analysis.ClassInfo, name: String, object: Integer): Integer {
+    var made = front()
+    var found = made.find_or_instantiate_function(target, name)
+    if not found or found.is_constructor {
+        return not_lowered(null, "'{name}' missing on a member of a union")
+    }
+    return function_value(target, found, object)
+}
+
+func shape_function_signature(described_union: Analysis.UnionInfo, name: String): Analysis.SpiteType? {
+    var made = front()
+    assert made.find_required_function(described_union, name)
+    var first_member = described_union.members.first()
+    assert first_member
+    var function = made.find_or_instantiate_function(first_member, name)
+    assert function
+    return made.signature_of(function)
+}
+
+func present_and_true(value: Integer, present: Integer): Integer {
+    var boolean = known().typed_boolean()
+    var joined_block = emitter.new_block()
+    var inside = emitter.new_block()
+    var answered = emitter.new_value(boolean, "parameter")
+    emitter.built_function().block_at(joined_block).parameters.append(answered)
+    var short = [present]
+    var nothing_passed = List<Integer>()
+    branch_with(present, inside, nothing_passed, joined_block, short)
+    emitter.enter_block(inside)
+    var truth = emitter.emit_call_one("Nullable.value", value, boolean)
+    var passed = [truth]
+    emitter.jump(joined_block, passed)
+    emitter.enter_block(joined_block)
+    return answered
 }

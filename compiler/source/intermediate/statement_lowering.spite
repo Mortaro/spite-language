@@ -103,7 +103,9 @@ func assignment(statement: Syntax.Statements.AssignmentStatement) {
     var made = front()
     var reflected = made.reflected_assignment_target(statement.target, emitter.scope, lowered_class)
     if reflected {
-        emitter.fail_lowering("an assignment through a reflected member")
+        var rewritten = Syntax.Statements.AssignmentStatement(reflected, statement.value)
+        rewritten.line = statement.line
+        assignment(rewritten)
         return
     }
     var identifier = shapes.as_identifier(statement.target)
@@ -200,8 +202,8 @@ func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax
         emitter.fail_lowering("an assignment to a member of a class object")
         return
     }
-    if member.name == "allocator" or member.name == "memory" {
-        emitter.fail_lowering("an assignment that places an object with an allocator")
+    if member.name == "allocator" {
+        place_with_allocator(member, assigned)
         return
     }
     var object = lowering().lower(member.object)
@@ -835,4 +837,18 @@ func store_member_value(member: Analysis.ClassInfo, name: String, object: Intege
     }
     var stored = lowering().convert(value, field.type)
     emitter.store_field(narrowed, name, stored)
+}
+
+func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned: Syntax.Expressions.Expression) {
+    crash member.object
+    var memory = shapes.as_member(member.object)
+    if not memory or memory.name != "memory" {
+        emitter.fail_lowering("an assignment to an allocator that is not an object's")
+        return
+    }
+    crash memory.object
+    var object = lowering().lower(memory.object)
+    var allocator = lowering().lower(assigned)
+    var operands = [object, allocator]
+    emitter.emit_call("Object.place", operands, null)
 }
