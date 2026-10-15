@@ -300,6 +300,10 @@ func print_singleton_maker() {
     var name = layout.c_name
     var shown = naming.escape_c(layout.qualified)
     var answered = answer_type()
+    var ending = "{name}___release(object);"
+    if layout.is_singleton {
+        ending = "{name}___destroy(object);"
+    }
     var getter_lines = [
         "static {answered} {getter}_cache = 0;"
         "static bool {getter}_destroyed = false;"
@@ -308,7 +312,7 @@ func print_singleton_maker() {
         "{answered} object = {getter}_cache;"
         "{getter}_cache = 0;"
         "{getter}_destroyed = true;"
-        "{name}___destroy(object);"
+        ending
         "}"
         "{answered} {getter}(void) \{"
         "{answered} found = SPITE_SINGLETON_FOUND({getter}_cache);"
