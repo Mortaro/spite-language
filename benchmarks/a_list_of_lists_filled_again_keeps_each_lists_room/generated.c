@@ -367,6 +367,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2785,7 +2786,8 @@ int32_t spite_temp_134 = most_;
 return spite_temp_134;
 }
 void Order_Order(Order* self, int32_t starting_customer_) {
-self->customer_ = starting_customer_;
+(self)->customer_ = starting_customer_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

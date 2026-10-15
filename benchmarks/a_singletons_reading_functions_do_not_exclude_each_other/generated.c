@@ -381,6 +381,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3329,7 +3330,8 @@ System___release(first_);
 return spite_temp_177;
 }
 void System_System(System* self, int32_t new_rows_) {
-self->rows_ = new_rows_;
+(self)->rows_ = new_rows_;
+return;
 }
 int32_t System_run(System* self) {
 int32_t total_ = 0;
@@ -3344,7 +3346,8 @@ int32_t spite_temp_184 = total_;
 return spite_temp_184;
 }
 void Transform_Transform(Transform* self, int32_t new_across_) {
-self->across_ = new_across_;
+(self)->across_ = new_across_;
+return;
 }
 Transform* Transforms_at___unguarded(Transforms* self, int32_t row_) {
 if (!(({ List_Transform* spite_temp_185 = self->stored_; int32_t spite_temp_186 = row_; (spite_temp_186 >= 0 && spite_temp_186 < (spite_temp_185)->item_count_) && ((((Transform**)(intptr_t)(spite_temp_185)->items_)[spite_temp_186]) != 0); }))) {

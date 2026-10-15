@@ -308,6 +308,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -1344,7 +1345,8 @@ int32_t spite_temp_43 = total_;
 return spite_temp_43;
 }
 void Monster_Monster(Monster* self, int32_t starting_health_) {
-self->health_ = starting_health_;
+(self)->health_ = starting_health_;
+return;
 }
 int32_t List_Console_Printable_count(List_Console_Printable* self) {
 int32_t spite_temp_44 = self->item_count_;

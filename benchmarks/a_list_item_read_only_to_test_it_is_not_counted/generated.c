@@ -365,6 +365,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2643,7 +2644,8 @@ spite_report_assert_trace();
 exit(1);
 }
 void Entry_Entry(Entry* self, int32_t new_key_) {
-self->key_ = new_key_;
+(self)->key_ = new_key_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

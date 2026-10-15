@@ -375,6 +375,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3292,8 +3293,9 @@ Summer___release(evens_);
 return spite_temp_191;
 }
 void Summer_Summer(Summer* self, int32_t new_limit_, int32_t new_offset_) {
-self->limit_ = new_limit_;
-self->offset_ = new_offset_;
+(self)->limit_ = new_limit_;
+(self)->offset_ = new_offset_;
+return;
 }
 int64_t Summer_total(Summer* self) {
 int64_t sum_ = SpiteInteger_to_long(0);
