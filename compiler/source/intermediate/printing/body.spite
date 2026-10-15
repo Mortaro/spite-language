@@ -7,6 +7,7 @@ var intrinsics = Intrinsics()
 var machines = Machines()
 var machine = false
 var resume_count = 0
+var placements = Dictionary<Integer, Integer>()
 var shape = Analysis.TypeShape()
 var function = Function("", "", "")
 var lines = List<String>()
@@ -273,6 +274,7 @@ func print_locked() {
 }
 
 func print_lowered(c_name: String, storage: String) {
+    note_placements()
     declare_values()
     print_blocks()
     var heading = signature(c_name)
@@ -1325,7 +1327,102 @@ func print_make(operation: Operation) {
         refuse("it makes '{operation.layout}' in the form '{operation.form}', which the printer does not write")
         return
     }
+    if placements.has(operation.result) {
+        print_placed_make(operation, layout)
+        return
+    }
     assign(operation.result, "{layout.c_name}___allocate()")
+}
+
+func note_placements() {
+    placements = Dictionary<Integer, Integer>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == "Object.place" and operation.operands.count() == 2 {
+                var placed = operation.operands[0]
+                var allocator = operation.operands[1]
+                placements[placed] = allocator
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func print_placed_make(operation: Operation, layout: Layout) {
+    var allocator_number = placements[operation.result]
+    crash allocator_number
+    if position_of(allocator_number) > position_of(operation.result) {
+        refuse("it places an object in an allocator that is made after it")
+        return
+    }
+    var allocator = name_of(allocator_number)
+    var allocator_type = type_of(allocator_number)
+    var allocator_layout = naming.layout_of(allocator_type)
+    if not allocator_layout {
+        refuse("it places '{layout.c_name}' in an allocator that is not an object")
+        return
+    }
+    var allocating = allocator_function(allocator_layout, "allocate")
+    var freeing = allocator_function(allocator_layout, "free")
+    if allocating.is_empty() or freeing.is_empty() {
+        refuse(
+            "it places '{layout.c_name}' in '{allocator_layout.qualified}', whose allocate and free the program does not hold",
+        )
+        return
+    }
+    if not output.placed_layouts.contains(layout.c_name) {
+        output.placed_layouts.append(layout.c_name)
+    }
+    var given = "spite_give_back_{allocator_layout.c_name}"
+    if not output.given_back.contains(given) {
+        output.given_back.append(given)
+        output.prototypes.append("static void {given}(void* allocator, void* object);")
+        output.supports.append(
+            "static void {given}(void* allocator, void* object) \{\n{freeing}(({allocator_layout.c_name}*)allocator, (int64_t)(intptr_t)object);\n{allocator_layout.c_name}___release(({allocator_layout.c_name}*)allocator);\n}",
+        )
+        output.runtime_place(given)
+    }
+    var held = "(void*){allocator_layout.c_name}___retain({allocator})"
+    var address = "{allocating}({allocator}, (int64_t)sizeof({layout.c_name}))"
+    assign(operation.result, "{layout.c_name}___allocate_in({held}, {given}, {address})")
+}
+
+func position_of(number: Integer): Integer {
+    var position = 0
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        if block.parameters.contains(number) {
+            return position
+        }
+        var index = 0
+        while index < block.operations.count() {
+            if block.operations[index].result == number {
+                return position
+            }
+            position = position + 1
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return -1
+}
+
+func allocator_function(allocator_layout: Layout, name: String): String {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        if candidate.owner == allocator_layout.c_name and candidate.name == name {
+            return candidate.c_name
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func print_framed_make(operation: Operation, layout: Layout) {

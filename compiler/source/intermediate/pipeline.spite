@@ -5,6 +5,7 @@ var lowered = Lowered()
 var reached_unions = List<String>()
 var types = Analysis.TypeShape()
 var optimized = false
+var placed_allocators = List<String>()
 
 func Pipeline(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -134,6 +135,8 @@ func roots_of_runtime(): List<String> {
     if not generator.foreign_library_files.is_empty() {
         note_roots("DynamicLibrary", ["DynamicLibrary", "find_symbol", "open_library", "close_library", "drop"], roots)
     }
+    lowered.concrete_functions.each(note_placed_roots)
+    placed_allocators.each(roots.append)
     if generator.scheduler_used {
         note_roots(
             "Scheduler",
@@ -142,6 +145,40 @@ func roots_of_runtime(): List<String> {
         )
     }
     return roots
+}
+
+func note_placed_roots(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.callee == "Object.place" and operation.operands.count() == 2 {
+                var allocator = function.value_at(operation.operands[1])
+                note_allocator(allocator.spite_type)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_allocator(allocator_type: Analysis.SpiteType?) {
+    crash generator
+    assert allocator_type
+    var reference = types.as_class_ref(allocator_type)
+    assert reference
+    var owner = generator.find_class_by_c_name(reference.c_name)
+    assert owner
+    var allocating = owner.find_function("allocate")
+    var freeing = owner.find_function("free")
+    if allocating and not placed_allocators.contains(allocating.c_name) {
+        placed_allocators.append(allocating.c_name)
+    }
+    if freeing and not placed_allocators.contains(freeing.c_name) {
+        placed_allocators.append(freeing.c_name)
+    }
 }
 
 func note_roots(qualified: String, names: List<String>, roots: List<String>) {

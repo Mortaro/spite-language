@@ -47,25 +47,94 @@ func print_singleton_lock(body: Body, operation: Operation, word: String) {
 }
 
 func print_reflection(body: Body, operation: Operation, word: String) {
-    if word != "class_object" {
-        body.refuse("it reads '{word}' by reflection, which the printer does not write yet")
-        return
-    }
     var described = lowered.layout_named("Spite_Class")
     if not described {
         body.refuse("it reads a class object, and the program holds no Spite.Class layout")
         return
     }
-    var label = operation.target.replace(".", "_").replace("<", "_").replace(">", "_").replace(", ", "_").replace(
+    if word == "class" {
+        class_read(body, operation)
+        return
+    }
+    if word != "class_object" {
+        body.refuse("it reads '{word}' by reflection, which the printer does not write yet")
+        return
+    }
+    var getter = class_getter(operation.target)
+    body.assign(operation.result, "{getter}()")
+}
+
+func class_getter(target: String): String {
+    var label = target.replace(".", "_").replace("<", "_").replace(">", "_").replace(", ", "_").replace(
         "?",
         "_nullable",
     )
     var getter = "spite_class_object_{label}"
     if not output.class_objects.contains(getter) {
         output.class_objects.append(getter)
-        class_object(getter, operation.target)
+        class_object(getter, target)
     }
+    return getter
+}
+
+func class_read(body: Body, operation: Operation) {
+    var read = body.operand(operation, 0)
+    var read_type = body.operand_type(operation, 0)
+    assert read_type
+    if shape.as_union(read_type) {
+        var chooser = union_class_of(read_type)
+        body.assign(operation.result, "{chooser}({read})")
+        return
+    }
+    var target = naming.label(read_type)
+    var scalar = shape.as_scalar(read_type)
+    if scalar or shape.as_string(read_type) {
+        target = naming.display(read_type)
+    }
+    var getter = class_getter(target)
     body.assign(operation.result, "{getter}()")
+}
+
+func union_class_of(read_type: Analysis.SpiteType): String {
+    var layout = naming.layout_of(read_type)
+    var written = naming.c_type(read_type)
+    if not layout {
+        output.refuse("the class of a value of the union '{written}', which has no layout")
+        return "spite_missing"
+    }
+    var chooser = "spite_class_of_{layout.c_name}"
+    if output.class_objects.contains(chooser) {
+        return chooser
+    }
+    output.class_objects.append(chooser)
+    var tagged = layout.kind == "tagged union"
+    var lines = ["static Spite_Class* {chooser}({written} self) \{"]
+    var index = 0
+    while index < layout.members.count() {
+        var member = layout.members[index]
+        var member_layout = lowered.layout_named(member)
+        if member_layout {
+            var identity = naming.class_id_of(member_layout)
+            var shown = member
+            if member_layout.is_value and member_layout.information {
+                shown = member_layout.information.qualified_dotted
+            }
+            var getter = class_getter(shown)
+            if tagged {
+                lines.append("if ((self).tag == {identity}) return {getter}();")
+            } else {
+                lines.append("if (self != 0 && ((SpiteHeader*)self)->class_id == {identity}) return {getter}();")
+            }
+        }
+        index = index + 1
+    }
+    var fallback = class_getter("Nothing")
+    lines.append("return {fallback}();")
+    lines.append("}")
+    output.prototypes.append("static Spite_Class* {chooser}({written} self);")
+    var chooser_text = lines.join("\n")
+    output.supports.append(chooser_text)
+    return chooser
 }
 
 func class_object(getter: String, target: String): String {
@@ -501,6 +570,13 @@ func print_reference(body: Body, operation: Operation, word: String) {
 func print_object(body: Body, operation: Operation, word: String) {
     if word == "allocator" {
         object_allocator(body, operation)
+        return
+    }
+    if word == "place" {
+        var placed_number = body.operand_number(operation, 0)
+        if not body.placements.has(placed_number) {
+            body.refuse("it places an object in an allocator after it was made elsewhere")
+        }
         return
     }
     if word == "deep_copy" {
