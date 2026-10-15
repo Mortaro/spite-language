@@ -391,6 +391,9 @@ func note_parameters() {
 }
 
 func print_supplied() {
+    if function.name == "entry_address" {
+        thread_entry()
+    }
     if not function.source {
         output.refuse("the supplied function '{function.c_name}' has no source, so its body is not known")
         return
@@ -427,6 +430,21 @@ func print_supplied() {
     output.prototypes.append("{heading};")
     output.bodies.append("{heading} \{\n{supplied}\n}")
     note_place(function.c_name)
+}
+
+func thread_entry() {
+    var owner = function.owner
+    var entry = "{owner}___thread_entry"
+    var serving = "{owner}__serve"
+    if not lowered.function_named(serving) {
+        refuse("it starts threads that run '{serving}', which the program does not hold")
+        return
+    }
+    output.prototypes.append("static void* {entry}(void* pool);")
+    output.supports.append(
+        "static void* {entry}(void* pool) \{\nspite_fault_thread();\n{serving}(({owner}*)pool);\nreturn 0;\n}",
+    )
+    output.runtime_place(entry)
 }
 
 func held_inline(memory: Function): String {
@@ -1461,6 +1479,10 @@ func print_retain(operation: Operation) {
     var counted = operand_type(operation, 0)
     var held = operand(operation, 0)
     var name = counted_name_of(counted)
+    if name.is_empty() and naming.never_made(counted) {
+        assign(operation.result, held)
+        return
+    }
     if name.is_empty() {
         refuse("it retains a value that is not counted")
         return
@@ -1472,6 +1494,10 @@ func print_release(operation: Operation) {
     var counted = operand_type(operation, 0)
     var held = operand(operation, 0)
     var name = counted_name_of(counted)
+    if name.is_empty() and naming.never_made(counted) {
+        lines.append("(void)({held});")
+        return
+    }
     if name.is_empty() {
         refuse("it releases a value that is not counted")
         return
@@ -1597,6 +1623,13 @@ func print_branch(terminator: Terminator) {
     assert taken and dropped
     var tested_number = terminator_operand(terminator)
     var tested = name_of(tested_number)
+    var tested_type = type_of(tested_number)
+    if tested_type {
+        var nullable = shape.as_nullable(tested_type)
+        if nullable {
+            tested = intrinsics.presence(tested, nullable.inner)
+        }
+    }
     var first = transfer(taken)
     var second = transfer(dropped)
     lines.append("if ({tested}) \{ {first} } else \{ {second} }")

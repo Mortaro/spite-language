@@ -1,5 +1,6 @@
 # ../../../docs/proofs.md#tree-shaking-what-main-can-reach
 var types = Analysis.TypeShape()
+var naming = Printing.Naming()
 var lowered: Lowered? = null
 var kinds: Facts.ValueKinds? = null
 var functions_reached = Dictionary<String, Boolean>()
@@ -10,6 +11,7 @@ var dropped_layouts = 0
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
+    naming.lowered = starting_lowered
     var made_kinds = Facts.ValueKinds(starting_lowered)
     kinds = made_kinds
     assert not starting_lowered.is_inspectable()
@@ -131,11 +133,15 @@ func reach_type(spite_type: Analysis.SpiteType?, depth: Integer) {
     }
     var listed = types.as_list(spite_type)
     if listed {
+        var list_name = naming.label(spite_type)
+        reach_named_layout(list_name)
         reach_type(listed.element, depth + 1)
         return
     }
     var dictionary = types.as_dictionary(spite_type)
     if dictionary {
+        var dictionary_name = naming.label(spite_type)
+        reach_named_layout(dictionary_name)
         reach_type(dictionary.key, depth + 1)
         reach_type(dictionary.element, depth + 1)
         return

@@ -58,6 +58,7 @@ func copied_operation(operation: Operation): Operation {
     made.layout = operation.layout
     made.field = operation.field
     made.literal = operation.literal
+    made.target = operation.target
     made.spite_type = operation.spite_type
     made.site = operation.site
     made.form = operation.form

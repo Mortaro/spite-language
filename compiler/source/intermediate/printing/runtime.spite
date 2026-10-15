@@ -17,7 +17,7 @@ func header(): String {
 
 func defines(): String {
     var lines = List<String>()
-    if lowered.makes_threads {
+    if lowered.makes_threads or output.needs("threads") {
         lines.append("#define SPITE_THREADS")
     }
     if lowered.debug_memory {
@@ -197,6 +197,15 @@ func helpers(): List<String> {
     pieces.append(
         "static inline SpiteArguments SpiteArguments___retain(SpiteArguments self) \{ return self; }\nstatic inline void SpiteArguments___release(SpiteArguments self) \{ (void)self; }",
     )
+    if output.needs("callbacks") {
+        pieces.append(
+            "static void spite_callback_late(const char* called, const char* reason) \{\nfflush(stdout);\nfprintf(stderr, \"spite: C called %s %s\\n\", called, reason);\nexit(1);\n}\nstatic void spite_callback_register(void** slot, void* owner, const char* called) \{\nif (__atomic_exchange_n(slot, owner, __ATOMIC_ACQ_REL) != 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %s was handed to C by a second ForeignCallback while the first is alive: C calls it with no context, so a function has one at a time; keep the first and hand C its address\\n\", called);\nexit(1);\n}\n}",
+        )
+    }
+    if output.needs("callback contexts") {
+        var contexts = callback_contexts()
+        pieces.append(contexts)
+    }
     if output.needs("string order") {
         pieces.append(
             "static inline int32_t spite_string_order(SpiteString left, SpiteString right) \{\nint64_t left_length = spite_string_length(left);\nint64_t right_length = spite_string_length(right);\nint64_t shortest = left_length < right_length ? left_length : right_length;\nint compared = shortest > 0 ? memcmp(spite_string_bytes(&left), spite_string_bytes(&right), (size_t)shortest) : 0;\nif (compared != 0) return compared < 0 ? -1 : 1;\nreturn left_length < right_length ? -1 : (left_length > right_length ? 1 : 0);\n}",
@@ -728,4 +737,78 @@ func weak_runtime(): String {
         "}"
     ]
     return lines.join("\n")
+}
+
+func callback_contexts(): String {
+    var prototypes = List<String>()
+    prototypes.append("static int64_t* spite_callback_context_register(void* function);")
+    prototypes.append("static void* spite_callback_context_function(void* context);")
+    var lines = List<String>()
+    lines.append(
+        "typedef struct SpiteCallbackContext \{ int64_t ticket; uint64_t generation; void* function; } SpiteCallbackContext;",
+    )
+    lines.append("static SpiteCallbackContext* spite_callback_contexts[4096];")
+    lines.append("static int64_t spite_callback_context_count = 0;")
+    lines.append("static int64_t spite_callback_context_cursor = 0;")
+    lines.append("static char spite_callback_context_lock = 0;")
+    lines.append("static SpiteCallbackContext* spite_callback_context_at(int64_t index) \{")
+    lines.append("return &spite_callback_contexts[index / 4096][index % 4096];")
+    lines.append("}")
+    lines.append("static int64_t spite_callback_context_free(int64_t from, int64_t to) \{")
+    lines.append("int64_t index = from;")
+    lines.append(
+        "while (index < to && __atomic_load_n(&spite_callback_context_at(index)->ticket, __ATOMIC_ACQUIRE) != 0) index = index + 1;",
+    )
+    lines.append("return index;")
+    lines.append("}")
+    lines.append("static int64_t* spite_callback_context_register(void* function) \{")
+    lines.append("while (__atomic_test_and_set(&spite_callback_context_lock, __ATOMIC_ACQUIRE)) \{}")
+    lines.append("int64_t count = spite_callback_context_count;")
+    lines.append("int64_t index = spite_callback_context_free(spite_callback_context_cursor, count);")
+    lines.append("if (index == count && count % 4096 == 0) index = spite_callback_context_free(0, count);")
+    lines.append("if (index == count) \{")
+    lines.append("if (count % 4096 == 0) \{")
+    lines.append("if (count / 4096 == 4096) \{")
+    lines.append("fflush(stdout);")
+    lines.append(
+        "fprintf(stderr, \"spite: more than 16777216 ForeignCallbacks that hand C a context are alive at once\\n\");",
+    )
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append(
+        "spite_callback_contexts[count / 4096] = (SpiteCallbackContext*)calloc(4096, sizeof(SpiteCallbackContext));",
+    )
+    lines.append("if (spite_callback_contexts[count / 4096] == 0) \{")
+    lines.append("fflush(stdout);")
+    lines.append(
+        "fprintf(stderr, \"spite: out of memory for the table of ForeignCallbacks that hand C a context\\n\");",
+    )
+    lines.append("exit(1);")
+    lines.append("}")
+    lines.append("}")
+    lines.append("__atomic_store_n(&spite_callback_context_count, count + 1, __ATOMIC_RELEASE);")
+    lines.append("}")
+    lines.append("spite_callback_context_cursor = index + 1;")
+    lines.append("SpiteCallbackContext* context = spite_callback_context_at(index);")
+    lines.append("context->generation = context->generation % 4294967295u + 1;")
+    lines.append("context->function = function;")
+    lines.append(
+        "__atomic_store_n(&context->ticket, (int64_t)((context->generation << 32) | (uint64_t)index), __ATOMIC_RELEASE);",
+    )
+    lines.append("__atomic_clear(&spite_callback_context_lock, __ATOMIC_RELEASE);")
+    lines.append("return &context->ticket;")
+    lines.append("}")
+    lines.append("static void* spite_callback_context_function(void* context) \{")
+    lines.append("int64_t ticket = (int64_t)(intptr_t)context;")
+    lines.append("int64_t index = (int64_t)((uint64_t)ticket & 4294967295u);")
+    lines.append(
+        "if (ticket == 0 || index >= __atomic_load_n(&spite_callback_context_count, __ATOMIC_ACQUIRE)) return 0;",
+    )
+    lines.append("SpiteCallbackContext* found = spite_callback_context_at(index);")
+    lines.append("if (__atomic_load_n(&found->ticket, __ATOMIC_ACQUIRE) != ticket) return 0;")
+    lines.append("return found->function;")
+    lines.append("}")
+    var prototype_text = prototypes.join("\n")
+    var context_text = lines.join("\n")
+    return "{prototype_text}\n{context_text}"
 }

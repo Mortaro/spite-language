@@ -20,6 +20,7 @@ func run(): String {
     lowered.runtime_roots = roots_of_runtime()
     var passes = Passes()
     passes.run(lowered)
+    settle_held_layouts()
     var printer = Printer()
     var written = printer.print(lowered)
     var refused = printer.refusals()
@@ -75,6 +76,7 @@ func settle_layouts() {
     lowered.concrete_functions.each(note_function_types)
     lowered.layouts.each(note_layout_types)
     generator.unions.each(settle_union)
+    lowered.concrete_functions.each(settle_schema)
 }
 
 func settle_value_class(information: Analysis.ClassInfo) {
@@ -92,6 +94,46 @@ func settle_value_class(information: Analysis.ClassInfo) {
     made.information = information
     made.is_value = true
     made.value_type = value_type
+    var index = 0
+    while index < information.fields.count() {
+        var declared = information.fields[index]
+        var declared_type = declared.type
+        var field = Field(declared.name, declared_type)
+        made.stored_fields.append(field)
+        index = index + 1
+    }
+    lowered.add_layout(made)
+}
+
+func settle_schema(function: Function) {
+    crash generator
+    assert function.intrinsic == "supplied" and function.source
+    var source = function.source
+    assert source.supplied_body.ends_with("the schema hash, written when the function is emitted */")
+    var owner = lowered.layout_named(function.owner)
+    assert owner and owner.information
+    source.supplied_body = generator.schema_body(owner.information, source)
+}
+
+func settle_held_layouts() {
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.information {
+            layout.information.codegen_types.each(settle_held)
+        }
+        index = index + 1
+    }
+}
+
+func settle_held(held: Analysis.SpiteType) {
+    crash generator
+    var reference = types.as_class_ref(held)
+    assert reference and not lowered.layout_named(reference.c_name)
+    var information = generator.find_class_by_c_name(reference.c_name)
+    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    var made = Layout(information.c_name, information.qualified_dotted)
+    made.information = information
     var index = 0
     while index < information.fields.count() {
         var declared = information.fields[index]
@@ -136,7 +178,9 @@ func roots_of_runtime(): List<String> {
         note_roots("DynamicLibrary", ["DynamicLibrary", "find_symbol", "open_library", "close_library", "drop"], roots)
     }
     lowered.concrete_functions.each(note_placed_roots)
+    lowered.concrete_functions.each(note_serving_roots)
     placed_allocators.each(roots.append)
+    lowered.concrete_functions.each(note_pool_roots)
     if generator.scheduler_used {
         note_roots(
             "Scheduler",
@@ -145,6 +189,45 @@ func roots_of_runtime(): List<String> {
         )
     }
     return roots
+}
+
+func note_serving_roots(function: Function) {
+    crash generator
+    assert function.name == "entry_address"
+    var owner = generator.find_class_by_c_name(function.owner)
+    assert owner
+    var serving = owner.find_function("_serve")
+    if serving and not placed_allocators.contains(serving.c_name) {
+        placed_allocators.append(serving.c_name)
+    }
+}
+
+func note_pool_roots(function: Function) {
+    crash generator
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.callee == "Bands.run" or operation.callee == "Rows.run" {
+                var pool = generator.find_class_by_qualified("ThreadPool")
+                assert pool
+                note_pool(pool, "run_bands")
+                note_pool(pool, "submit")
+                note_pool(pool, "join")
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func note_pool(pool: Analysis.ClassInfo, name: String) {
+    var found = pool.find_function(name)
+    if found and not placed_allocators.contains(found.c_name) {
+        placed_allocators.append(found.c_name)
+    }
 }
 
 func note_placed_roots(function: Function) {

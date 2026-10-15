@@ -5,6 +5,7 @@ var naming = Naming()
 var shape = Analysis.TypeShape()
 var made = List<String>()
 var table_written = false
+var weak_pending_written = false
 
 func copied(spite_type: Analysis.SpiteType?, code: String): String {
     if not spite_type {
@@ -83,7 +84,7 @@ func ensure(layout: Layout): String {
         return function_name
     }
     if layout.qualified == "Weak" {
-        output.refuse("a deep copy reaches a Weak reference, which the printer does not write yet")
+        weak_copy(layout, function_name)
         return function_name
     }
     class_copy(layout, function_name)
@@ -307,4 +308,31 @@ func write_table() {
     output.supports.append(
         "typedef struct \{ void* from; void* to; } spite_copy_pair;\nstatic SPITE_THREAD_LOCAL spite_copy_pair* spite_copy_pairs = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_count = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_capacity = 0;\nstatic SPITE_THREAD_LOCAL bool spite_copy_open = false;\nstatic uint64_t spite_copy_slot(void* from, uint64_t capacity) \{ return (((uint64_t)(uintptr_t)from >> 4) * 11400714819323198485ull) & (capacity - 1); }\nstatic void* spite_copy_table_find(void* from) \{\nif (!spite_copy_open) return 0;\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) \{ if (spite_copy_pairs[slot].from == from) return spite_copy_pairs[slot].to; slot = (slot + 1) & (spite_copy_capacity - 1); }\nreturn 0;\n}\nstatic bool spite_copy_table_open(void) \{\nif (spite_copy_open) return false;\nspite_copy_capacity = 64;\nspite_copy_count = 0;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nspite_copy_open = true;\nreturn true;\n}\nstatic void spite_copy_table_add(void* from, void* to) \{\nif ((spite_copy_count + 1) * 2 > spite_copy_capacity) \{\nuint64_t old_capacity = spite_copy_capacity;\nspite_copy_pair* old_pairs = spite_copy_pairs;\nspite_copy_capacity = old_capacity * 2;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nfor (uint64_t index = 0; index < old_capacity; index = index + 1) \{\nif (old_pairs[index].from == 0) continue;\nuint64_t moved = spite_copy_slot(old_pairs[index].from, spite_copy_capacity);\nwhile (spite_copy_pairs[moved].from != 0) moved = (moved + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[moved] = old_pairs[index];\n}\nfree(old_pairs);\n}\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) slot = (slot + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[slot].from = from;\nspite_copy_pairs[slot].to = to;\nspite_copy_count = spite_copy_count + 1;\n}\nstatic SPITE_THREAD_LOCAL void (*spite_copy_closing)(void) = 0;\nstatic void spite_copy_table_close(void) \{\nif (spite_copy_closing != 0) spite_copy_closing();\nfree(spite_copy_pairs);\nspite_copy_pairs = 0;\nspite_copy_capacity = 0;\nspite_copy_count = 0;\nspite_copy_open = false;\n}",
     )
+}
+
+func weak_copy(layout: Layout, function_name: String) {
+    var name = layout.c_name
+    if not table_written {
+        write_table()
+    }
+    if not weak_pending_written {
+        weak_pending_written = true
+        output.supports.append(
+            "typedef struct \{ int64_t* box; void* object; } spite_weak_copy_entry;\nstatic SPITE_THREAD_LOCAL spite_weak_copy_entry* spite_weak_copies = 0;\nstatic SPITE_THREAD_LOCAL int64_t spite_weak_copy_count = 0;\nstatic SPITE_THREAD_LOCAL int64_t spite_weak_copy_capacity = 0;\nstatic void spite_weak_copies_settle(void) \{\nfor (int64_t index = 0; index < spite_weak_copy_count; index = index + 1) \{\nvoid* moved = spite_copy_table_find(spite_weak_copies[index].object);\nif (moved == 0) continue;\nint64_t old_box = *spite_weak_copies[index].box;\n*spite_weak_copies[index].box = spite_weak_box_of(moved);\nspite_weak_box_release(old_box);\n}\nfree(spite_weak_copies);\nspite_weak_copies = 0;\nspite_weak_copy_count = 0;\nspite_weak_copy_capacity = 0;\nspite_copy_closing = 0;\n}\nstatic void spite_weak_copy_wait(int64_t* box, void* object) \{\nif (spite_weak_copy_count == spite_weak_copy_capacity) \{\nspite_weak_copy_capacity = spite_weak_copy_capacity == 0 ? 16 : spite_weak_copy_capacity * 2;\nspite_weak_copies = (spite_weak_copy_entry*)realloc(spite_weak_copies, (size_t)spite_weak_copy_capacity * sizeof(spite_weak_copy_entry));\nif (spite_weak_copies == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\n}\nspite_weak_copies[spite_weak_copy_count].box = box;\nspite_weak_copies[spite_weak_copy_count].object = object;\nspite_weak_copy_count = spite_weak_copy_count + 1;\nspite_copy_closing = spite_weak_copies_settle;\n}",
+        )
+    }
+    var lines = [
+        "{name}* {function_name}({name}* self) \{"
+        "if (self == 0) return 0;"
+        "{name}* copied = {name}___allocate();"
+        "void* spite_object = spite_weak_object(self->_box_);"
+        "void* spite_moved = spite_copy_table_find(spite_object);"
+        "if (spite_moved != 0) spite_object = spite_moved;"
+        "else if (spite_object != 0 && spite_copy_open) spite_weak_copy_wait(&copied->_box_, spite_object);"
+        "copied->_box_ = spite_weak_box_of(spite_object);"
+        "return copied;"
+        "}"
+    ]
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
 }

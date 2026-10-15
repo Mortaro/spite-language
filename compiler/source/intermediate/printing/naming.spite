@@ -59,6 +59,25 @@ func class_c_type(c_name: String): String {
     return "{c_name}*"
 }
 
+func never_made(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return never_made(nullable.inner)
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        return not lowered.layout_named(class_ref.c_name)
+    }
+    if shape.as_list(spite_type) or shape.as_dictionary(spite_type) {
+        var named = label(spite_type)
+        return not lowered.layout_named(named)
+    }
+    return false
+}
+
 func held_c_type(spite_type: Analysis.SpiteType): String {
     var named = label(spite_type)
     if not lowered.layout_named(named) {
@@ -77,6 +96,10 @@ func value_c_type(layout: Layout): String {
 
 func nullable_c_type(nullable: Analysis.Types.NullableType): String {
     var inner = nullable.inner
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return nullable_c_type(nested)
+    }
     if is_reference(inner) {
         return c_type(inner)
     }
@@ -317,6 +340,10 @@ func scalar_zero(kind: Analysis.Types.NumericKind): String {
 
 func null_value(nullable: Analysis.Types.NullableType): String {
     var inner = nullable.inner
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return null_value(nested)
+    }
     if shape.as_string(inner) or shape.is_symbol(inner) {
         return "SPITE_STRING_NULL"
     }
