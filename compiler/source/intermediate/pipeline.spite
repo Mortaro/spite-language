@@ -68,6 +68,7 @@ func note_foreign_header(header: String) {
 func settle_layouts() {
     crash generator
     generator.classes.each(settle_value_class)
+    lowered.layouts.each(settle_synthetic_value)
     reached_unions = List<String>()
     lowered.concrete_functions.each(note_function_types)
     lowered.layouts.each(note_layout_types)
@@ -98,6 +99,62 @@ func settle_value_class(information: Analysis.ClassInfo) {
         index = index + 1
     }
     lowered.add_layout(made)
+}
+
+func settle_synthetic_value(layout: Layout) {
+    crash generator
+    assert layout.is_value and not layout.value_type
+    if layout.c_name == "SpiteSymbol" {
+        var symbol_type: Analysis.SpiteType = Analysis.Types.SymbolType()
+        layout.value_type = symbol_type
+        return
+    }
+    var index = 0
+    while index < generator.enums.count() {
+        var described = generator.enums[index]
+        if described.c_name == layout.c_name {
+            var enum_type: Analysis.SpiteType = Analysis.Types.EnumType(described.c_name, described.values)
+            layout.value_type = enum_type
+        }
+        index = index + 1
+    }
+}
+
+func runtime_roots(): List<String> {
+    crash generator
+    var roots = List<String>()
+    if generator.debug_memory {
+        note_roots(
+            "AllocationTable",
+            ["resize", "free", "register_object", "name_classes", "report", "live_allocations", "live_bytes"],
+            roots,
+        )
+    }
+    if not generator.foreign_library_files.is_empty() {
+        note_roots("DynamicLibrary", ["DynamicLibrary", "find_symbol", "open_library", "close_library", "drop"], roots)
+    }
+    if generator.scheduler_used {
+        note_roots(
+            "Scheduler",
+            ["waits_here", "yield_now", "sleep", "offload", "offload_done", "timer_start", "timer_over", "joins", "offload_start", "offload_over"],
+            roots,
+        )
+    }
+    return roots
+}
+
+func note_roots(qualified: String, names: List<String>, roots: List<String>) {
+    crash generator
+    var owner = generator.find_class_by_qualified(qualified)
+    assert owner
+    var index = 0
+    while index < names.count() {
+        var found = owner.find_function(names[index])
+        if found and not found.c_name.is_empty() {
+            roots.append(found.c_name)
+        }
+        index = index + 1
+    }
 }
 
 func note_function_types(function: Function) {
