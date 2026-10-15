@@ -23,8 +23,31 @@ func print(body: Body, operation: Operation) {
         "Arguments": print_arguments(body, operation, word)
         "Enum": print_enum(body, operation, word)
         "Boolean": print_boolean(body, operation, word)
+        "Function": print_function_value(body, operation, word)
         _: print_number(body, operation, word)
     }
+}
+
+func print_function_value(body: Body, operation: Operation, word: String) {
+    if word != "bind" {
+        body.refuse("it calls 'Function.{word}', which is no intrinsic")
+        return
+    }
+    var bound = body.operand(operation, 0)
+    var owner = body.operand(operation, 1)
+    var owner_type = body.operand_type(operation, 1)
+    assert owner_type
+    var counted = naming.counted_name(owner_type)
+    var called = lowered.function_named(operation.literal)
+    if counted.is_empty() or not called {
+        body.refuse(
+            "it binds '{operation.literal}' to an owner that is not a counted object, or to a function the program does not hold",
+        )
+        return
+    }
+    body.emit("({bound})->spite_owner = (void*){counted}___retain({owner});")
+    body.emit("({bound})->spite_release_owner = (void (*)(void*)){counted}___release;")
+    body.emit("({bound})->spite_typed_call = (void*){called.c_name};")
 }
 
 func print_symbol(body: Body, operation: Operation, word: String) {

@@ -352,6 +352,7 @@ func print_operation(operation: Operation) {
     switch operation.kind {
         "constant": print_constant(operation)
         "call": print_call(operation)
+        "call value": print_call_value(operation)
         "load": print_load(operation)
         "store": print_store(operation)
         "make": print_make(operation)
@@ -533,6 +534,40 @@ func print_call(operation: Operation) {
         return
     }
     refuse("it calls '{operation.callee}', which the program does not hold")
+}
+
+func print_call_value(operation: Operation) {
+    var called = operand(operation, 0)
+    var called_type = operand_type(operation, 0)
+    assert called_type
+    var called_signature = shape.as_class_ref(called_type)
+    if not called_signature or not called_signature.has_signature {
+        refuse("it calls a value that is not a function")
+        return
+    }
+    if called_signature.arguments.count() != operation.operands.count() - 1 {
+        refuse(
+            "it calls a function value with {operation.operands.count() - 1} values, and it takes {called_signature.arguments.count()}",
+        )
+        return
+    }
+    var pointer_parameters = ["void*"]
+    var arguments = ["({called})->spite_owner"]
+    var index = 0
+    while index < called_signature.arguments.count() {
+        var argument_type = naming.c_type(called_signature.arguments[index])
+        pointer_parameters.append(argument_type)
+        var argument = operand(operation, index + 1)
+        arguments.append(argument)
+        index = index + 1
+    }
+    var returned = "void"
+    if is_declared(operation.result) {
+        var answered = type_of(operation.result)
+        returned = naming.c_type(answered)
+    }
+    var pointer = "(({returned} (*)({pointer_parameters.join(", ")}))({called})->spite_typed_call)"
+    assign(operation.result, "{pointer}({arguments.join(", ")})")
 }
 
 func is_copy_call(callee: String): Boolean {

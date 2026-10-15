@@ -1,6 +1,9 @@
 # ../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
 var generator: Generation.Generator? = null
 var error_message = ""
+var lowered = Lowered()
+var reached_unions = List<String>()
+var types = Analysis.TypeShape()
 
 func Pipeline(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -9,8 +12,9 @@ func Pipeline(starting_generator: Generation.Generator) {
 func run(): String {
     crash generator
     var lowering = Lowering(generator)
-    var lowered = lowering.lower()
-    settle_settings(lowered)
+    lowered = lowering.lower()
+    settle_settings()
+    settle_layouts()
     var passes = Passes()
     passes.run(lowered)
     var printer = Printer()
@@ -27,7 +31,7 @@ func has_error(): Boolean {
     return not error_message.is_empty()
 }
 
-func settle_settings(lowered: Lowered) {
+func settle_settings() {
     crash generator
     lowered.debug_memory = generator.debug_memory
     lowered.trace_asserts = generator.trace_asserts
@@ -38,4 +42,98 @@ func settle_settings(lowered: Lowered) {
     lowered.scheduler_used = generator.scheduler_used
     lowered.class_names = generator.class_names_by_id
     lowered.enums = generator.enums
+}
+
+func settle_layouts() {
+    crash generator
+    generator.classes.each(settle_value_class)
+    reached_unions = List<String>()
+    lowered.concrete_functions.each(note_function_types)
+    lowered.layouts.each(note_layout_types)
+    generator.unions.each(settle_union)
+}
+
+func settle_value_class(information: Analysis.ClassInfo) {
+    crash generator
+    assert information.is_value_class
+    var value_type = generator.value_class_type(information)
+    var known = lowered.layout_named(information.c_name)
+    if known {
+        if not known.value_type {
+            known.value_type = value_type
+        }
+        return
+    }
+    var made = Layout(information.c_name, information.qualified_dotted)
+    made.information = information
+    made.is_value = true
+    made.value_type = value_type
+    var index = 0
+    while index < information.fields.count() {
+        var declared = information.fields[index]
+        var declared_type = declared.type
+        var field = Field(declared.name, declared_type)
+        made.stored_fields.append(field)
+        index = index + 1
+    }
+    lowered.add_layout(made)
+}
+
+func note_function_types(function: Function) {
+    var index = 0
+    while index < function.values.count() {
+        var value = function.values[index]
+        note_type(value.spite_type)
+        index = index + 1
+    }
+    note_type(function.answer)
+}
+
+func note_layout_types(layout: Layout) {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        note_type(field.spite_type)
+        index = index + 1
+    }
+}
+
+func note_type(spite_type: Analysis.SpiteType?) {
+    assert spite_type
+    var united = types.as_union(spite_type)
+    if united {
+        if not reached_unions.contains(united.c_name) {
+            reached_unions.append(united.c_name)
+        }
+        return
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        note_type(nullable.inner)
+        return
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        note_type(listed.element)
+        return
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    assert dictionary
+    note_type(dictionary.element)
+    note_type(dictionary.key)
+}
+
+func settle_union(described: Analysis.UnionInfo) {
+    assert reached_unions.contains(described.c_name) and not lowered.layout_named(described.c_name)
+    var qualified = described.simple_name
+    if not described.owner_qualified.is_empty() {
+        qualified = "{described.owner_qualified}.{described.simple_name}"
+    }
+    var made = Layout(described.c_name, qualified)
+    made.kind = "union"
+    if described.is_tagged {
+        made.kind = "tagged union"
+    }
+    made.members = described.members.map_c_names()
+    lowered.add_layout(made)
 }
