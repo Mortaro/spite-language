@@ -572,6 +572,13 @@ func print_object(body: Body, operation: Operation, word: String) {
         object_allocator(body, operation)
         return
     }
+    if word == "place" {
+        var placed_number = body.operand_number(operation, 0)
+        if not body.placements.has(placed_number) {
+            body.refuse("it places an object in an allocator after it was made elsewhere")
+        }
+        return
+    }
     if word == "deep_copy" {
         var copied_value = body.operand(operation, 0)
         var copied_type = body.operand_type(operation, 0)

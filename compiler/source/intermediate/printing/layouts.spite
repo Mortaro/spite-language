@@ -99,6 +99,10 @@ func print_struct(layout: Layout) {
     var lines = List<String>()
     lines.append("struct {layout.c_name} \{")
     lines.append("SpiteHeader header;")
+    if output.placed_layouts.contains(layout.c_name) {
+        lines.append("void* spite_allocator;")
+        lines.append("void (*spite_give_back)(void*, void*);")
+    }
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
@@ -274,12 +278,26 @@ func print_allocate(layout: Layout) {
         lines.append("#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {identity});\n#endif")
     }
     lines.append("{name}___init(self);")
+    if output.placed_layouts.contains(name) {
+        lines.append("self->spite_allocator = 0;")
+        print_allocate_in(layout, identity)
+    }
     lines.append("return self;")
     lines.append("}")
     output.prototypes.append("{name}* {name}___allocate(void);")
     var lines_text = lines.join("\n")
     output.supports.append(lines_text)
     output.runtime_place("{name}___allocate")
+}
+
+func print_allocate_in(layout: Layout, identity: Integer) {
+    var name = layout.c_name
+    var signature = "{name}* {name}___allocate_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address)"
+    output.prototypes.append("{signature};")
+    output.supports.append(
+        "{signature} \{\n{name}* self = ({name}*)(intptr_t)spite_address;\nif (self == 0) \{ fflush(stdout); fputs(\"spite: an allocator answered no memory for an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = {identity};\n{name}___init(self);\nself->spite_allocator = spite_allocator;\nself->spite_give_back = spite_give_back;\nreturn self;\n}",
+    )
+    output.runtime_place("{name}___allocate_in")
 }
 
 func field_releases(layout: Layout, holder: String): List<String> {
@@ -344,6 +362,9 @@ func print_counted(layout: Layout) {
     var hidden_text = hidden.join("\n")
     lines.append(hidden_text)
     lines.append("#ifdef SPITE_WEAK_{name}\nspite_weak_object_freed(self);\n#endif")
+    if output.placed_layouts.contains(name) {
+        lines.append("if (self->spite_allocator != 0) \{ self->spite_give_back(self->spite_allocator, self); return; }")
+    }
     if layout.pooled {
         lines.append("{name}___pool_give(self);")
     } else {
@@ -398,12 +419,16 @@ func print_singleton(layout: Layout) {
 
 func print_framed(layout: Layout) {
     var name = layout.c_name
+    var framed_allocator = ""
+    if output.placed_layouts.contains(name) {
+        framed_allocator = "self->spite_allocator = 0;\n"
+    }
     var identity = naming.class_id_of(layout)
     output.need("framed")
     output.prototypes.append("static {name}* {name}___framed({name}* self);")
     output.prototypes.append("static void {name}___unframe({name}* self);")
     output.supports.append(
-        "static {name}* {name}___framed({name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {identity};\n{name}___init(self);\nreturn self;\n}",
+        "static {name}* {name}___framed({name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {identity};\n{name}___init(self);\n{framed_allocator}return self;\n}",
     )
     var lines = List<String>()
     lines.append("static void {name}___unframe({name}* self) \{")
