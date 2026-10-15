@@ -26,9 +26,11 @@ func Flow(studied: Function) {
         link(block)
         index = index + 1
     }
-    number_blocks(count)
-    find_dominators()
-    find_loops()
+    if count > 0 {
+        number_blocks(count)
+        find_dominators()
+        find_loops()
+    }
 }
 
 func link(block: Block) {

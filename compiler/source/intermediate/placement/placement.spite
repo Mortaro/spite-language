@@ -3,6 +3,7 @@ var lowered: Lowered? = null
 var kinds: Facts.ValueKinds? = null
 var intrinsics: Facts.Intrinsics? = null
 var escape: Escape? = null
+var results: ResultSlots? = null
 var framed_objects = 0
 var framed_lists = 0
 var framed_buffers = 0
@@ -16,6 +17,8 @@ func run(starting_lowered: Lowered) {
     intrinsics = made_intrinsics
     var made_escape = Escape(starting_lowered)
     escape = made_escape
+    var made_results = ResultSlots(starting_lowered, made_escape)
+    results = made_results
     var functions = starting_lowered.concrete_functions
     var index = 0
     while index < functions.count() {
@@ -31,9 +34,18 @@ func run(starting_lowered: Lowered) {
 
 func place_function(function: Function) {
     crash lowered
+    crash results
+    results.place_results(function)
     var uses = Facts.Uses(function)
     var flow = Facts.Flow(function)
     var framed = Dictionary<Integer, Boolean>()
+    var placed = results.slots.keys()
+    var placed_index = 0
+    while placed_index < placed.count() {
+        var slot_value = placed[placed_index]
+        framed[slot_value] = true
+        placed_index = placed_index + 1
+    }
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]

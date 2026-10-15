@@ -60,14 +60,22 @@ func classified(value: Integer): String {
     if defining.kind == "call" and defining.callee == "Union.tag" {
         return "plain"
     }
+    if defining.kind == "call" and defining.callee == "Singleton.peek" {
+        return "held"
+    }
     if consumption.is_lent_call(defining) {
         return "lent"
     }
     if consumption.is_wrap(defining) {
         var wrapped = defining.operands.first()
         crash wrapped
-        if origin_of(wrapped) == "lent" {
+        var wrapped_origin = origin_of(wrapped)
+        if wrapped_origin == "lent" {
             return "lent"
+        }
+        if wrapped_origin != "owned" and wrapped_origin != "plain" {
+            note_sources(value, defining)
+            return "borrowed"
         }
     }
     if defining.kind == "constant" {
@@ -75,6 +83,11 @@ func classified(value: Integer): String {
     }
     if defining.kind == "load" {
         note_sources(value, defining)
+        var object = defining.operands.first()
+        crash object
+        if consumption.is_row_value(function, object) {
+            return "lent"
+        }
         return "borrowed"
     }
     if consumption.is_projection(defining) {
@@ -213,7 +226,8 @@ func consumed_at(place: Facts.Place, value: Integer): Boolean {
     }
     crash block.operations[place.position]
     var operation = block.operations[place.position]
-    if consumption.is_projection(operation) and operation.result >= 0 {
+    var passes_on = consumption.is_projection(operation) or consumption.is_wrap(operation)
+    if passes_on and operation.result >= 0 and origin_of(operation.result) != "owned" {
         return is_consumed(operation.result)
     }
     return consumption.consumes(operation, value)

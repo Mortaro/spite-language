@@ -1,10 +1,13 @@
 # ../../../../docs/optimizations.md#appending-to-text-in-place
 var types = Analysis.TypeShape()
 var appended_count = 0
+var flow: Facts.Flow? = null
 
 func mark(function: Function) {
     assert not function.blocks.is_empty()
     var uses = Facts.Uses(function)
+    var made_flow = Facts.Flow(function)
+    flow = made_flow
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]
@@ -58,16 +61,36 @@ func is_text(spite_type: Analysis.SpiteType?): Boolean {
 }
 
 func used_only_before(uses: Facts.Uses, value: Integer, block_index: Integer, position: Integer): Boolean {
+    crash flow
+    var defined = uses.place_of(value)
     var reached = uses.uses_of(value)
+    var later = blocks_after(block_index, defined.block)
     var index = 0
     while index < reached.count() {
         var place = reached[index]
-        var earlier = place.block == block_index and place.position >= 0 and place.position < position
-        var here = place.block == block_index and place.position == position
-        if not earlier and not here {
+        var after_here = place.block == block_index and (place.position < 0 or place.position > position)
+        if after_here or place.block != block_index and later.contains(place.block) {
             return false
         }
         index = index + 1
     }
     return true
+}
+
+func blocks_after(start: Integer, stop: Integer): List<Integer> {
+    crash flow
+    var seen = List<Integer>()
+    var waiting = List<Integer>()
+    var first = flow.successors_of(start)
+    first.each(waiting.append)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if taken != stop and not seen.contains(taken) {
+            seen.append(taken)
+            var next = flow.successors_of(taken)
+            next.each(waiting.append)
+        }
+    }
+    return seen
 }

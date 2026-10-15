@@ -52,6 +52,8 @@ func parameter_value(callee: Function, position: Integer): Integer {
 }
 
 func escapes(function: Function, value: Integer): Boolean {
+    crash consumption
+    consumption.current = function
     var uses = Facts.Uses(function)
     return escapes_through(function, uses, value, 0)
 }
@@ -128,6 +130,9 @@ func derived_escapes(function: Function, uses: Facts.Uses, operation: Operation,
 
 func position_keeps(operation: Operation, position: Integer): Boolean {
     crash consumption
+    if copies_item(operation, position) {
+        return false
+    }
     if consumption.consumes_position(operation, position) {
         return true
     }
@@ -146,4 +151,18 @@ func supplied_keeps(callee: Function, position: Integer): Boolean {
         return true
     }
     return callee.parameters[position].name == "value"
+}
+
+# ../../../../docs/optimizations.md#other-optimisations
+func copies_item(operation: Operation, position: Integer): Boolean {
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.intrinsic != "supplied" or callee.name != "write_item" or position != 3 {
+        return false
+    }
+    var owner = lowered.layout_named(callee.owner)
+    if not owner {
+        return false
+    }
+    return owner.qualified == "InlineMemory"
 }
