@@ -15,6 +15,7 @@ func lower(): Lowered {
     var instances = Instances(made)
     write_main(instances)
     write_debug_memory(instances)
+    write_scheduler(instances)
     var settled = false
     while not settled {
         settled = true
@@ -239,6 +240,35 @@ func write_debug_memory(instances: Instances) {
         var found = made.find_or_instantiate_function(table, wanted[index])
         if found {
             instances.reach(table, found)
+        }
+        index = index + 1
+    }
+}
+
+func write_scheduler(instances: Instances) {
+    var made = instances.front()
+    assert made.scheduler_used
+    var scheduler = made.find_class_by_qualified("Scheduler")
+    assert scheduler
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    instances.singleton_maker(scheduler, no_arguments, "")
+    var wanted = [
+        "waits_here"
+        "yield_now"
+        "sleep"
+        "offload"
+        "offload_done"
+        "timer_start"
+        "timer_over"
+        "joins"
+        "offload_start"
+        "offload_over"
+    ]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(scheduler, wanted[index])
+        if found {
+            instances.reach(scheduler, found)
         }
         index = index + 1
     }
