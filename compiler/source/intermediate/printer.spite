@@ -12,6 +12,67 @@ var hot = Intermediate.Printing.Hot()
 var hot_manifest = ""
 
 func print(lowered: Lowered): String {
+    print_pieces(lowered)
+    var written = assembled(lowered)
+    note_reached(lowered)
+    if lowered.hot_reload {
+        hot_manifest = hot.manifest()
+    }
+    return written
+}
+
+# ../../../docs/repl.md#how-it-works
+func print_library(
+    lowered: Lowered,
+    reload: Generation.HotReloadLibrary,
+    owners: List<String>,
+    rebuilt: List<String>,
+): String {
+    crash lowered.hot_reload
+    print_pieces(lowered)
+    note_hot_exports()
+    var types = types_text()
+    var hot_prototypes = hot.prototypes()
+    var prototypes = prototypes_text()
+    var declared = "{hot_prototypes}\n{prototypes}"
+    var runtime_text = supports_text(lowered, "", false)
+    var faults = runtime.faults()
+    var written = hot.library(reload, owners, rebuilt, types, declared, "{runtime_text}\n{faults}")
+    hot_manifest = hot.manifest()
+    return written
+}
+
+func note_hot_exports() {
+    var lines = [
+        "void spite_live_add(SpiteLiveSet* set, void* object, int64_t* place);"
+        "void spite_live_remove(SpiteLiveSet* set, void* object, int64_t* place);"
+        "void spite_world_enter(void);"
+        "void spite_world_leave(void);"
+        "void spite_world_park(void);"
+        "int32_t spite_world_stop(void);"
+        "void spite_world_start(void);"
+        "void* spite_hot_realloc(void* pointer, size_t size);"
+        "void spite_hot_free(void* pointer);"
+        "int64_t* spite_machine_frames(const char* name, const char* shown);"
+        "void spite_settings_reread(void);"
+    ]
+    if output.needs("singletons") {
+        var singletons = runtime.singleton_prototypes()
+        var singleton_lines = singletons.split("\n")
+        var index = 0
+        while index < singleton_lines.count() {
+            lines.append(singleton_lines[index])
+            index = index + 1
+        }
+    }
+    hot.extra_exports = lines
+}
+
+func hot_refusals(): List<String> {
+    return hot.problems
+}
+
+func print_pieces(lowered: Lowered) {
     wire(lowered)
     refuse_unbuilt(lowered)
     lowered.enums.each(layouts.print_enum)
@@ -26,12 +87,6 @@ func print(lowered: Lowered): String {
     note_nothing_default()
     note_loop_tables(lowered)
     note_maths()
-    var written = assembled(lowered)
-    note_reached(written)
-    if lowered.hot_reload {
-        hot_manifest = hot.manifest()
-    }
-    return written
 }
 
 func note_slots(layout: Layout) {
@@ -122,9 +177,11 @@ func refuse_unbuilt(lowered: Lowered) {
 func assembled(lowered: Lowered): String {
     var types = types_text()
     var declared = prototypes_text()
-    var supported = supports_text(lowered)
+    var supports = output.supports.join("\n")
+    var supported = supports_text(lowered, supports, true)
     var bodies = output.bodies.join("\n")
     if lowered.hot_reload {
+        note_hot_exports()
         var hot_prototypes = hot.prototypes()
         var hot_supports = hot.supports()
         var closing = hot.closing()
@@ -161,20 +218,20 @@ func prototypes_text(): String {
     return "{runtime.string_prototypes()}\n{runtime.prelude.prototypes()}\n{singletons}\n{prototypes}"
 }
 
-func supports_text(lowered: Lowered): String {
+func supports_text(lowered: Lowered, printed_supports: String, with_singletons: Boolean): String {
     var reporters = runtime.reporters()
     var helpers = runtime.helpers()
     var reported = reporters.join("\n")
     var helped = helpers.join("\n")
     var singletons = ""
-    if output.needs("singletons") {
+    if with_singletons and output.needs("singletons") {
         singletons = runtime.singleton_supports()
     }
     var table = ""
     if lowered.debug_memory {
         table = runtime.allocation_table()
     }
-    var supports = output.supports.join("\n")
+    var supports = printed_supports
     if not output.weak_classes.is_empty() {
         var weak_runtime = runtime.weak_runtime()
         supports = "static void spite_weak_object_freed(void* object);\n{weak_runtime}\n{supports}"
@@ -210,13 +267,13 @@ func note_loop_tables(lowered: Lowered) {
     output.prototypes.append("SpiteString spite_loop_class_names(void);")
     output.prototypes.append("SpiteString spite_loop_enum_names(void);")
     output.prototypes.append("SpiteString spite_loop_class_descriptions(void);")
-    output.supports.append(
+    output.support(
         "SpiteString spite_loop_class_names(void) \{ return spite_string_from_cstring_owned(\"{class_names}\"); }",
     )
-    output.supports.append(
+    output.support(
         "SpiteString spite_loop_enum_names(void) \{ return spite_string_from_cstring_owned(\"{enum_names}\"); }",
     )
-    output.supports.append(
+    output.support(
         "SpiteString spite_loop_class_descriptions(void) \{ return spite_string_from_cstring_owned(\"{descriptions}\"); }",
     )
 }
@@ -233,7 +290,7 @@ func note_nothing_default() {
         made = "{runtime.maker_of("Nothing")}()"
     }
     output.prototypes.append("static Nothing* Nothing___default(void);")
-    output.supports.append("static Nothing* Nothing___default(void) \{ return {made}; }")
+    output.support("static Nothing* Nothing___default(void) \{ return {made}; }")
 }
 
 func note_maths() {
@@ -280,12 +337,22 @@ func note_maths() {
     }
 }
 
-func note_reached(written: String) {
-    if output.weak_classes.is_empty() and written.contains("spite_weak_box_of") {
-        output.refuse("the program reaches a Weak reference whose layout it does not hold")
+func note_reached(lowered: Lowered) {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var reached = lowered.concrete_functions[index]
+        if reached.intrinsic == "supplied" and reached.source {
+            note_supplied_needs(reached.c_name, reached.source.supplied_body)
+        }
+        index = index + 1
     }
-    var declared = output.prototypes.join("\n")
-    var rest = written
+}
+
+func note_supplied_needs(c_name: String, supplied: String) {
+    if output.weak_classes.is_empty() and supplied.contains("spite_weak_box_of") {
+        output.refuse("the supplied body of '{c_name}' reaches a Weak reference whose layout the program does not hold")
+    }
+    var rest = supplied
     while rest.contains("___make(") {
         var at = rest.index_of("___make(")
         var start = at
@@ -293,8 +360,10 @@ func note_reached(written: String) {
             start = start - 1
         }
         var made = rest.slice(start, at)
-        if not declared.contains(" {made}___make(") and not declared.contains("*{made}___make(") {
-            output.refuse("a supplied body makes '{made}' through '{made}___make', which the lowering does not write")
+        if not made.is_empty() and not output.defined.has("{made}___make") {
+            output.refuse(
+                "the supplied body of '{c_name}' makes '{made}' through '{made}___make', which the lowering does not write",
+            )
         }
         var rest_length = rest.length()
         rest = rest.slice(at + 8, rest_length)

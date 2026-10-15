@@ -10,6 +10,11 @@ var exported_prototypes = Dictionary<String, String>()
 var hashes = Dictionary<String, String>()
 var layout_texts = Dictionary<String, String>()
 var facts = Generation.ProgramFacts()
+var extra_exports = List<String>()
+var problems = List<String>()
+var local_names = Dictionary<String, Boolean>()
+var installed = List<String>()
+var redirected = List<String>()
 
 func hash_of(text: String): String {
     var hash = facts.text_hash(text)
@@ -30,17 +35,16 @@ func slot(name: String, returned: String, parameters: List<String>, display: Str
         index = index + 1
     }
     output.prototypes.append("{returned} {name}___hot({parameter_text});")
-    output.supports.append("static {returned} (*{name}___slot)({parameter_text}) = {name}___hot;")
     var result = "return "
     if returned == "void" {
         result = ""
     }
     var heading = "{returned} {name}({parameter_text})"
     output.prototypes.append("{heading};")
-    output.supports.append(
-        "{heading} \{\n{result}__atomic_load_n(&{name}___slot, __ATOMIC_ACQUIRE)({arguments.join(", ")});\n}",
+    output.support(
+        "static {returned} (*{name}___slot)({parameter_text}) = {name}___hot;\n{heading} \{\n{result}__atomic_load_n(&{name}___slot, __ATOMIC_ACQUIRE)({arguments.join(", ")});\n}",
     )
-    output.runtime_place("{name}___hot")
+    output.runtime_place(name)
     slot_names.append(name)
     slot_displays.append(display)
     slot_owners.append(owner)
@@ -80,7 +84,8 @@ func slot_support(
     if parameters.is_empty() {
         parameter_text = "void"
     }
-    output.supports.append("{returned} {name}___hot({parameter_text}) \{\n{body}\n}")
+    output.support("{returned} {name}___hot({parameter_text}) \{\n{body}\n}")
+    output.runtime_place("{name}___hot")
     slot(name, returned, parameters, display, owner)
     note_hash(name, body)
 }
@@ -90,9 +95,66 @@ func note_hash(name: String, text: String) {
 }
 
 func note_function(printed: Function) {
-    var text = Text()
-    var written = text.function_text(printed)
+    var written = fingerprint(printed)
     note_hash(printed.c_name, written)
+}
+
+func fingerprint(printed: Function): String {
+    var text = Text()
+    var lines = List<String>()
+    var answered = text.type_text(printed.answer)
+    lines.append(
+        "{printed.c_name} {printed.receiver} {answered} {printed.intrinsic} {printed.singleton_of} {printed.locking}",
+    )
+    var index = 0
+    while index < printed.parameters.count() {
+        var parameter = printed.parameters[index]
+        var written = text.type_text(parameter.spite_type)
+        lines.append("parameter {parameter.name} {written}")
+        index = index + 1
+    }
+    if printed.source {
+        lines.append("at {printed.source.source_path} {printed.source.line}")
+        lines.append(printed.source.supplied_body)
+    }
+    var block_index = 0
+    while block_index < printed.blocks.count() {
+        var block = printed.blocks[block_index]
+        lines.append("block {block.number} {block.parameters.count()}")
+        index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var operation_line = operation_print(printed, operation)
+            lines.append(operation_line)
+            index = index + 1
+        }
+        var terminator = block.terminator
+        var ending = text.terminator_text(terminator)
+        var place = site_print(terminator.site)
+        lines.append("{ending} {place}")
+        block_index = block_index + 1
+    }
+    return lines.join("\n")
+}
+
+func operation_print(printed: Function, operation: Operation): String {
+    var text = Text()
+    var made = ""
+    if operation.result >= 0 {
+        var value = printed.value_at(operation.result)
+        made = text.type_text(value.spite_type)
+    }
+    var place = site_print(operation.site)
+    var typed = text.type_text(operation.spite_type)
+    return "{operation.kind} {operation.result} {made} {operation.operands.join(",")} {operation.callee} {operation.layout} {operation.field} {operation.literal} {operation.target} {operation.form} {typed} {place}"
+}
+
+func site_print(number: Integer): String {
+    if number < 0 or number >= lowered.sites.count() {
+        return ""
+    }
+    var site = lowered.sites[number]
+    return "{site.kind}|{site.path}|{site.line}|{site.text}|{site.identity}|{site.shown.join(",")}|{site.notes.join(",")}"
 }
 
 func live_start(lines: List<String>, layout: Layout, object: String) {
@@ -157,7 +219,7 @@ func print_layout(layout: Layout, struct_text: String) {
     output.prototypes.append("const SpiteLayout** {name}___layout_now(void);")
     output.prototypes.append("SpiteLiveSet* {name}___live(void);")
     var descriptor_text = descriptor.join("\n")
-    output.supports.append(descriptor_text)
+    output.support(descriptor_text)
     output.runtime_place("{name}___layout")
     output.runtime_place("{name}___layout_now")
     output.runtime_place("{name}___live")
@@ -171,7 +233,7 @@ func field_releaser(layout: Layout, field: Field): String {
     }
     var written = naming.c_type(field.spite_type)
     var releaser = "{layout.c_name}___release_field_{field.name}"
-    output.supports.append("static void {releaser}(void* place) \{\n{counted}___release(*({written}*)place);\n}")
+    output.support("static void {releaser}(void* place) \{\n{counted}___release(*({written}*)place);\n}")
     return releaser
 }
 
@@ -317,6 +379,16 @@ func note_exports() {
         }
         index = index + 1
     }
+    index = 0
+    while index < extra_exports.count() {
+        var line = extra_exports[index].trim()
+        var name = declared_name(line)
+        if not name.is_empty() and not exported_prototypes.has(name) {
+            exported_names.append(name)
+            exported_prototypes[name] = line
+        }
+        index = index + 1
+    }
 }
 
 func declared_name(line: String): String {
@@ -361,7 +433,29 @@ func symbol_table(): String {
     return "typedef struct SpiteHotSymbol \{ const char* name; void* address; } SpiteHotSymbol;\nstatic const SpiteHotSymbol spite_hot_symbols[] = \{ {entries.join(", ")} };\nstatic void* spite_hot_find(const char* name) \{\nfor (int64_t index = 0; spite_hot_symbols[index].name != 0; index = index + 1) \{\nif (strcmp(spite_hot_symbols[index].name, name) == 0) return spite_hot_symbols[index].address;\n}\nreturn 0;\n}"
 }
 
+func hash_pieces() {
+    hash_tagged(output.supports, output.support_tags)
+    hash_tagged(output.bodies, output.body_tags)
+}
+
+func hash_tagged(pieces: List<String>, tags: List<String>) {
+    var index = 0
+    while index < pieces.count() and index < tags.count() {
+        var named = tags[index].split(" ")
+        var name_index = 0
+        while name_index < named.count() {
+            var name = named[name_index]
+            if not name.is_empty() and exported_prototypes.has(name) and not hashes.has(name) {
+                note_hash(name, pieces[index])
+            }
+            name_index = name_index + 1
+        }
+        index = index + 1
+    }
+}
+
 func manifest(): String {
+    hash_pieces()
     var lines = List<String>()
     var index = 0
     while index < exported_names.count() {
@@ -467,4 +561,320 @@ func world_gate(): String {
 
 func live_support_types(): String {
     return "typedef struct SpiteLayoutField \{ const char* name; const char* type; int64_t offset; int64_t size; void (*release)(void*); } SpiteLayoutField;\ntypedef struct SpiteLayout \{ const char* name; int64_t size; int64_t count; const SpiteLayoutField* fields; int32_t fits; } SpiteLayout;\ntypedef struct SpiteLiveSet \{ void** objects; int64_t** places; int64_t count; int64_t capacity; int32_t lock; } SpiteLiveSet;"
+}
+
+# ../../../../docs/repl.md#how-it-works
+func library(
+    reload: Generation.HotReloadLibrary,
+    owners: List<String>,
+    rebuilt: List<String>,
+    types: String,
+    declared: String,
+    runtime_text: String,
+): String {
+    note_exports()
+    hash_pieces()
+    note_changed_owners(reload, owners)
+    grow_owners(reload, owners)
+    note_stale(reload)
+    note_layout_changes(reload)
+    var index = 0
+    while index < owners.count() {
+        var owner = lowered.layout_named(owners[index])
+        if owner and not rebuilt.contains(owner.qualified) {
+            rebuilt.append(owner.qualified)
+        }
+        index = index + 1
+    }
+    note_installs(reload, owners)
+    note_local_names(reload)
+    var kept_supports = included(output.supports, output.support_tags)
+    var bodies = included(output.bodies, output.body_tags)
+    var redirects = redirect_lines()
+    var bind = bind_function()
+    var parts = ["#define SPITE_RELOADED", types, declared, redirects, runtime_text, kept_supports, bodies, bind]
+    var text = parts.join("\n")
+    return "{text}\n"
+}
+
+func is_changed(reload: Generation.HotReloadLibrary, name: String): Boolean {
+    var known = reload.host_hashes.has(name)
+    var hashed = hashes.has(name)
+    if known != hashed {
+        return true
+    }
+    if not known {
+        return false
+    }
+    return reload.host_hashes[name] != hashes[name]
+}
+
+func keeps_prototype(reload: Generation.HotReloadLibrary, name: String): Boolean {
+    if not reload.host_prototypes.has(name) or not exported_prototypes.has(name) {
+        return false
+    }
+    return reload.host_prototypes[name] == exported_prototypes[name]
+}
+
+func note_changed_owners(reload: Generation.HotReloadLibrary, owners: List<String>) {
+    var index = 0
+    while index < slot_names.count() and index < slot_owners.count() {
+        var name = slot_names[index]
+        var owner = slot_owners[index]
+        var changed = is_changed(reload, name) or not keeps_prototype(reload, name)
+        if changed and not owners.contains(owner) {
+            owners.append(owner)
+        }
+        index = index + 1
+    }
+}
+
+func grow_owners(reload: Generation.HotReloadLibrary, owners: List<String>) {
+    var moved = List<String>()
+    var index = 0
+    while index < exported_names.count() {
+        var name = exported_names[index]
+        if reload.host_prototypes.has(name) and not keeps_prototype(reload, name) {
+            moved.append(name)
+        }
+        index = index + 1
+    }
+    assert not moved.is_empty()
+    index = 0
+    while index < lowered.concrete_functions.count() {
+        var caller = lowered.concrete_functions[index]
+        var reaches = references_any(caller, moved)
+        if reaches and caller.slotted and not owners.contains(caller.owner) {
+            owners.append(caller.owner)
+        } else if reaches and not caller.slotted and reload.host_prototypes.has(caller.c_name) {
+            stale(caller.c_name)
+        }
+        index = index + 1
+    }
+}
+
+func references_any(caller: Function, names: List<String>): Boolean {
+    var block_index = 0
+    while block_index < caller.blocks.count() {
+        var block = caller.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if names.contains(operation.callee) or names.contains(operation.target) {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func note_stale(reload: Generation.HotReloadLibrary) {
+    var index = 0
+    while index < exported_names.count() {
+        var name = exported_names[index]
+        var slotted = slot_names.contains(name) or name.ends_with("___hot")
+        if not slotted and keeps_prototype(reload, name) and is_changed(reload, name) {
+            stale(name)
+        }
+        index = index + 1
+    }
+}
+
+func stale(name: String) {
+    var problem = "the change reaches '{name}', which the running program cannot swap: restart the program to take the change, or undo it"
+    if not problems.contains(problem) {
+        problems.append(problem)
+    }
+}
+
+func note_layout_changes(reload: Generation.HotReloadLibrary) {
+    var names = layout_texts.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        crash layout_texts[name]
+        var flat = layout_texts[name].replace("\n", " ")
+        var known = reload.host_layouts.has(name)
+        var enumerated = flat.starts_with("typedef enum")
+        if known and not enumerated and reload.host_layouts[name] != flat {
+            problems.append(
+                "the attributes of '{name}' changed, and moving the running objects to new attributes is not printed from the high IR yet: restart the program to take the change",
+            )
+        }
+        index = index + 1
+    }
+}
+
+func note_installs(reload: Generation.HotReloadLibrary, owners: List<String>) {
+    installed = List<String>()
+    var index = 0
+    while index < slot_names.count() and index < slot_owners.count() {
+        var name = slot_names[index]
+        var rebuilt = owners.contains(slot_owners[index])
+        if rebuilt and reload.host_slots.has(name) and keeps_prototype(reload, name) {
+            installed.append(name)
+            reload.installed.append(name)
+        } else if rebuilt and not reload.host_slots.has(name) {
+            reload.added.append(name)
+        }
+        index = index + 1
+    }
+    var running = reload.host_slots.keys()
+    index = 0
+    while index < running.count() {
+        var name = running[index]
+        var owner_rebuilt = true
+        if reload.host_slot_owners.has(name) {
+            crash reload.host_slot_owners[name]
+            owner_rebuilt = owners.contains(reload.host_slot_owners[name])
+        }
+        if owner_rebuilt and not slot_names.contains(name) {
+            crash reload.host_slots[name]
+            reload.removed.append(reload.host_slots[name])
+        }
+        index = index + 1
+    }
+}
+
+func note_local_names(reload: Generation.HotReloadLibrary) {
+    local_names = Dictionary<String, Boolean>()
+    redirected = List<String>()
+    var index = 0
+    while index < exported_names.count() {
+        var name = exported_names[index]
+        if keeps_prototype(reload, name) {
+            redirected.append(name)
+        } else {
+            local_names[name] = true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < installed.count() {
+        var hot_name = "{installed[index]}___hot"
+        local_names[hot_name] = true
+        index = index + 1
+    }
+    var kept = List<String>()
+    index = 0
+    while index < redirected.count() {
+        var name = redirected[index]
+        if not local_names.has(name) {
+            kept.append(name)
+        }
+        index = index + 1
+    }
+    redirected = kept
+    var shared = [
+        "spite_program_arguments"
+        "spite_check_point_wanted"
+        "spite_assert_trace"
+        "spite_assert_runs"
+        "spite_assert_newest"
+        "spite_assert_newest_count"
+        "spite_assert_total"
+    ]
+    index = 0
+    while index < shared.count() {
+        var name = shared[index]
+        if name == "spite_check_point_wanted" or output.printed_text.contains(name) {
+            redirected.append(name)
+        }
+        index = index + 1
+    }
+}
+
+func included(pieces: List<String>, tags: List<String>): String {
+    var kept = List<String>()
+    var index = 0
+    while index < pieces.count() and index < tags.count() {
+        var named = tags[index].split(" ")
+        var exported = false
+        var local = false
+        var name_index = 0
+        while name_index < named.count() {
+            var name = named[name_index]
+            if not name.is_empty() and exported_prototypes.has(name) {
+                exported = true
+                if local_names.has(name) {
+                    local = true
+                }
+            }
+            if name.ends_with("___hot") and local_names.has(name) {
+                local = true
+            }
+            name_index = name_index + 1
+        }
+        if local or not exported {
+            kept.append(pieces[index])
+        }
+        index = index + 1
+    }
+    return kept.join("\n")
+}
+
+func redirect_lines(): String {
+    var lines = List<String>()
+    var index = 0
+    while index < redirected.count() {
+        var name = redirected[index]
+        lines.append("static __typeof__({name})* spite_host_{name} = 0;\n#define {name} (*spite_host_{name})")
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func bind_function(): String {
+    var lines = [
+        "#ifdef _WIN32"
+        "__declspec(dllexport)"
+        "#else"
+        "__attribute__((visibility(\"default\")))"
+        "#endif"
+        "const char* spite_reload_bind(void* (*find)(const char*), int32_t (*install)(const char*, void*)) \{"
+        "spite_host_realloc = (void* (*)(void*, size_t))find(\"spite_hot_realloc\");"
+        "spite_host_free = (void (*)(void*))find(\"spite_hot_free\");"
+        "if (spite_host_realloc == 0 || spite_host_free == 0) return \"spite_hot_realloc\";"
+    ]
+    var index = 0
+    while index < redirected.count() {
+        var name = redirected[index]
+        lines.append(
+            "spite_host_{name} = (__typeof__(spite_host_{name}))find(\"{name}\"); if (spite_host_{name} == 0) return \"{name}\";",
+        )
+        index = index + 1
+    }
+    index = 0
+    while index < installed.count() {
+        var checked = installed[index]
+        lines.append("if (install(\"{checked}\", 0) == 0) return \"{checked}\";")
+        index = index + 1
+    }
+    index = 0
+    while index < installed.count() {
+        var name = installed[index]
+        lines.append("install(\"{name}\", (void*)&{name}___hot);")
+        index = index + 1
+    }
+    lines.append("return 0;")
+    lines.append("}")
+    var swapped = List<String>()
+    index = 0
+    while index < installed.count() {
+        swapped.append("\"{installed[index]}\"")
+        index = index + 1
+    }
+    swapped.append("0")
+    lines.append("#ifdef _WIN32")
+    lines.append("__declspec(dllexport)")
+    lines.append("#else")
+    lines.append("__attribute__((visibility(\"default\")))")
+    lines.append("#endif")
+    lines.append("const char* spite_reload_installs(int64_t index) \{")
+    lines.append("static const char* const spite_names[] = \{ {swapped.join(", ")} };")
+    lines.append("return spite_names[index];")
+    lines.append("}")
+    return lines.join("\n")
 }

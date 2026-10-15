@@ -442,7 +442,7 @@ func generator_pass(
     var prototypes = prelude.prototypes()
     var bodies = prelude.bodies()
     generated_code = generator.generate(discovery, header, structs, prototypes, bodies)
-    if writes_from_intermediate and not generator.has_error {
+    if writes_from_intermediate and not reloading and not generator.has_error {
         write_from_intermediate(generator)
     }
     return generator
@@ -1557,7 +1557,7 @@ func compile_reload(
 ): String {
     partial_host = null
     layout_host = reload
-    if partial {
+    if partial and not writes_from_intermediate {
         partial_host = reload
         partial_paths = changed_files
     }
@@ -1566,6 +1566,9 @@ func compile_reload(
     layout_host = null
     if generator.has_error {
         return generator.error_message
+    }
+    if writes_from_intermediate {
+        return reload_from_intermediate(generator, reload, changed_files)
     }
     if not generator.partial_refusal.is_empty() {
         return "whole {generator.partial_refusal}"
@@ -1608,6 +1611,30 @@ func compile_reload(
     if not partial {
         reload_baseline = generator.baseline_manifest(reload_host_text, reload)
     }
+    return ""
+}
+
+# ../docs/repl.md#how-it-works
+func reload_from_intermediate(
+    generator: Generation.Generator,
+    reload: Generation.HotReloadLibrary,
+    changed_files: List<String>,
+): String {
+    var unused_renames = generator.unused_renames()
+    if not unused_renames.is_empty() {
+        return "error: the reload map names {unused_renames.join(", ")}, but the reload moves no object of that class to a new attribute of that name: name an attribute that is gone and one that is new"
+    }
+    var pipeline = Intermediate.Pipeline(generator)
+    pipeline.optimized = is_on("optimized")
+    var rebuilt = List<String>()
+    var code = pipeline.reload_library(reload, changed_files, rebuilt)
+    if pipeline.has_error() {
+        return pipeline.error_message
+    }
+    reload_code = code
+    reload_rebuilt = rebuilt
+    reload_generator = generator
+    reload_baseline = pipeline.baseline(reload_host_text)
     return ""
 }
 

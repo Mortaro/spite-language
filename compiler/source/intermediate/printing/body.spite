@@ -36,6 +36,9 @@ func print(printed: Function) {
     frame_buffers = Dictionary<Integer, String>()
     fixed_buffers = Dictionary<Integer, Boolean>()
     note_parameters()
+    if lowered.hot_reload {
+        hot.note_function(printed)
+    }
     if printed.intrinsic == "supplied" {
         print_supplied()
         return
@@ -68,7 +71,6 @@ func print_slotted() {
     var parts = parameter_parts()
     var answered = answer_type()
     hot.slot(function.c_name, answered, parts, function.shown, function.owner)
-    hot.note_function(function)
 }
 
 func print_machine() {
@@ -113,7 +115,7 @@ func print_machine() {
     }
     machines.frame_type(function, fields)
     var begun = machines.begin_text(function)
-    output.bodies.append(begun)
+    output.body(begun)
     var defines = List<String>()
     var undefines = List<String>()
     index = 0
@@ -123,7 +125,7 @@ func print_machine() {
         index = index + 1
     }
     var written = lines.join("\n")
-    output.bodies.append(
+    output.body(
         "static bool {name}___step(void* spite_raw) \{\n{name}___frame* spite_frame = ({name}___frame*)spite_raw;\nswitch (spite_frame->spite_head.state) \{ {resumes.join(" ")} default: break; }\n{defines.join("\n")}\n{written}\n{undefines.join("\n")}\n}",
     )
     output.runtime_place("{name}___step")
@@ -286,7 +288,7 @@ func print_locked() {
     lines.append("}")
     output.prototypes.append("{heading};")
     var wrapper = lines.join("\n")
-    output.bodies.append(wrapper)
+    output.body(wrapper)
     output.runtime_place(function.c_name)
 }
 
@@ -299,7 +301,7 @@ func print_lowered(c_name: String, storage: String) {
     output.prototypes.append("{storage}{heading};")
     var declared = declarations.join("\n")
     var written = lines.join("\n")
-    output.bodies.append("{storage}{heading} \{\n{declared}\n{written}\n}")
+    output.body("{storage}{heading} \{\n{declared}\n{written}\n}")
     note_place(c_name)
 }
 
@@ -357,11 +359,15 @@ func print_singleton_maker() {
         "}"
     ]
     output.prototypes.append("{answered} {getter}(void);")
-    output.prototypes.append("static {answered} {getter}_cache;")
+    output.prototypes.append("{answered} {getter}_peek(void);")
+    getter_lines.append(
+        "{answered} {getter}_peek(void) \{\nreturn __atomic_load_n(&{getter}_cache, __ATOMIC_ACQUIRE);\n}",
+    )
     var getter_text = getter_lines.join("\n")
-    output.bodies.append(getter_text)
+    output.body(getter_text)
     output.runtime_place("{getter}_teardown")
     output.runtime_place(getter)
+    output.runtime_place("{getter}_peek")
 }
 
 func print_static_getter(layout: Layout) {
@@ -375,7 +381,7 @@ func print_static_getter(layout: Layout) {
     var getter = function.c_name
     var answered = answer_type()
     output.prototypes.append("{answered} {getter}(void);")
-    output.bodies.append(
+    output.body(
         "{answered} {getter}(void) \{\nstatic {layout.c_name} spite_object = \{ \{ 1, {identity} } };\nreturn &spite_object;\n}",
     )
     output.runtime_place(getter)
@@ -447,7 +453,7 @@ func print_supplied() {
         output.need("machines")
         var waited = signature("{function.c_name}___waiting")
         output.prototypes.append("{waited};")
-        output.bodies.append("{waited} \{\n{supplied}\n}")
+        output.body("{waited} \{\n{supplied}\n}")
         var wrapped = signature(function.c_name)
         output.prototypes.append("{wrapped};")
         machines.waiting_wrapper(function, kind, wrapped)
@@ -457,17 +463,16 @@ func print_supplied() {
     if function.slotted {
         var hot_heading = signature("{function.c_name}___hot")
         output.prototypes.append("{hot_heading};")
-        output.bodies.append("{hot_heading} \{\n{supplied}\n}")
+        output.body("{hot_heading} \{\n{supplied}\n}")
         note_place("{function.c_name}___hot")
         var parts = parameter_parts()
         var answered = answer_type()
         hot.slot(function.c_name, answered, parts, function.shown, function.owner)
-        hot.note_hash(function.c_name, supplied)
         return
     }
     var heading = signature(function.c_name)
     output.prototypes.append("{heading};")
-    output.bodies.append("{heading} \{\n{supplied}\n}")
+    output.body("{heading} \{\n{supplied}\n}")
     note_place(function.c_name)
 }
 
@@ -480,7 +485,7 @@ func thread_entry() {
         return
     }
     output.prototypes.append("static void* {entry}(void* pool);")
-    output.supports.append(
+    output.support(
         "static void* {entry}(void* pool) \{\nspite_fault_thread();\n{serving}(({owner}*)pool);\nreturn 0;\n}",
     )
     output.runtime_place(entry)
@@ -1106,7 +1111,7 @@ func start_overlapped(operation: Operation, callee: Function, pool: String, subm
             stored = "arguments->result = "
         }
         output.prototypes.append("static void {piece}(void* owner, int32_t first, int32_t end);")
-        output.supports.append(
+        output.support(
             "static void {piece}(void* owner, int32_t first, int32_t end) \{\n(void)first; (void)end;\n{arguments_type}* arguments = ({arguments_type}*)owner;\n{stored}{callee.c_name}({passed.join(", ")});\n}",
         )
         output.runtime_place(piece)
@@ -1561,7 +1566,7 @@ func placement_head(placed: Integer, layout: Layout): String {
     if not output.given_back.contains(given) {
         output.given_back.append(given)
         output.prototypes.append("static void {given}(void* allocator, void* object);")
-        output.supports.append(
+        output.support(
             "static void {given}(void* allocator, void* object) \{\n{freeing}(({allocator_layout.c_name}*)allocator, (int64_t)(intptr_t)object);\n{allocator_layout.c_name}___release(({allocator_layout.c_name}*)allocator);\n}",
         )
         output.runtime_place(given)

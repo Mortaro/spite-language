@@ -41,6 +41,9 @@ var foreign_headers = List<String>()
 var table_names = List<String>()
 var defined = Dictionary<String, Boolean>()
 var hot_start = ""
+var support_tags = List<String>()
+var body_tags = List<String>()
+var last_piece = ""
 
 func refuse(why: String) {
     if not refusals.contains(why) {
@@ -58,15 +61,41 @@ func needs(piece: String): Boolean {
     return needed.contains(piece)
 }
 
+func support(text: String) {
+    supports.append(text)
+    support_tags.append("")
+    last_piece = "support"
+}
+
+func body(text: String) {
+    bodies.append(text)
+    body_tags.append("")
+    last_piece = "body"
+}
+
+func tag(c_name: String) {
+    if last_piece == "support" {
+        var at = support_tags.count() - 1
+        crash support_tags[at]
+        support_tags[at] = "{support_tags[at]} {c_name}"
+    } else if last_piece == "body" {
+        var at = body_tags.count() - 1
+        crash body_tags[at]
+        body_tags[at] = "{body_tags[at]} {c_name}"
+    }
+}
+
 func place(c_name: String, owner: String, name: String, line: Integer) {
     var where = escaped_place(owner)
     var named = escaped_place(name)
     defined[c_name] = true
+    tag(c_name)
     places.append("\{(const void*)&{c_name}, \"{where}\", \"{named}\", {line}},")
 }
 
 func runtime_place(c_name: String) {
     defined[c_name] = true
+    tag(c_name)
     places.append("\{(const void*)&{c_name}, \"-\\t-\", \"{c_name}\", 0},")
 }
 

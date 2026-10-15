@@ -165,10 +165,10 @@ func ensure_primitive(function: Function, kind: String) {
     frame_type(function, fields)
     var name = function.c_name
     var begun = begin_text(function)
-    output.bodies.append(begun)
+    output.body(begun)
     var getter = scheduler_getter()
     var scheduler = scheduler_name()
-    output.bodies.append(
+    output.body(
         "static bool {name}___step(void* spite_raw) \{\n{name}___frame* spite_frame = ({name}___frame*)spite_raw;\n{scheduler}* spite_scheduler = {getter}();\n{steps}\nreturn spite_over;\n}",
     )
     output.runtime_place("{name}___step")
@@ -251,7 +251,7 @@ func offload_call(function: Function) {
     }
     output.frames.append("typedef struct {name}___call \{ {fields.join(" ")} } {name}___call;")
     output.prototypes.append("static void {name}___perform(void* raw);")
-    output.bodies.append(
+    output.body(
         "static void {name}___perform(void* raw) \{\n{name}___call* call = ({name}___call*)raw;\n{stored}{name}___waiting({passed.join(", ")});\n}",
     )
     output.runtime_place("{name}___perform")
@@ -287,7 +287,7 @@ func waiting_wrapper(function: Function, kind: String, heading: String) {
     }
     lines.append("}")
     var wrapper = lines.join("\n")
-    output.bodies.append(wrapper)
+    output.body(wrapper)
 }
 
 func offload_lines(function: Function, waited: String, arguments: List<String>): String {

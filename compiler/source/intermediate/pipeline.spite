@@ -13,6 +13,19 @@ func Pipeline(starting_generator: Generation.Generator) {
 }
 
 func run(): String {
+    prepare()
+    var printer = Printer()
+    var written = printer.print(lowered)
+    hot_manifest = printer.hot_manifest
+    var refused = printer.refusals()
+    if not refused.is_empty() {
+        error_message = "error: the C cannot be written from the high IR:\n{refused.join("\n")}"
+        return ""
+    }
+    return written
+}
+
+func prepare() {
     crash generator
     var lowering = Lowering(generator)
     lowered = lowering.lower()
@@ -25,15 +38,50 @@ func run(): String {
     if lowered.hot_reload {
         settle_hot()
     }
+}
+
+# ../../../docs/repl.md#how-it-works
+func reload_library(reload: Generation.HotReloadLibrary, changed_paths: List<String>, rebuilt: List<String>): String {
+    prepare()
+    crash generator
     var printer = Printer()
-    var written = printer.print(lowered)
+    var owners = generator.classes_of_paths(changed_paths)
+    var written = printer.print_library(lowered, reload, owners, rebuilt)
     hot_manifest = printer.hot_manifest
     var refused = printer.refusals()
     if not refused.is_empty() {
         error_message = "error: the C cannot be written from the high IR:\n{refused.join("\n")}"
         return ""
     }
+    var problems = printer.hot_refusals()
+    if not problems.is_empty() {
+        error_message = "error: {problems.join("\nerror: ")}"
+        return ""
+    }
     return written
+}
+
+func baseline(host_text: String): String {
+    var lines = List<String>()
+    var host_lines = host_text.split("\n")
+    var index = 0
+    while index < host_lines.count() {
+        var line = host_lines[index]
+        if line.starts_with("function ") or line.starts_with("slot ") or line.starts_with("owner ") {
+            lines.append(line)
+        }
+        index = index + 1
+    }
+    var now_lines = hot_manifest.split("\n")
+    index = 0
+    while index < now_lines.count() {
+        var line = now_lines[index]
+        if not line.starts_with("function ") and not line.starts_with("slot ") and not line.starts_with("owner ") {
+            lines.append(line)
+        }
+        index = index + 1
+    }
+    return lines.join("\n")
 }
 
 func has_error(): Boolean {

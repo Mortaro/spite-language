@@ -52,7 +52,7 @@ func print_singleton_peek(body: Body, operation: Operation) {
         body.assign(operation.result, "{operation.target}()")
         return
     }
-    body.assign(operation.result, "__atomic_load_n(&{operation.target}_cache, __ATOMIC_ACQUIRE)")
+    body.assign(operation.result, "{operation.target}_peek()")
 }
 
 func print_singleton_lock(body: Body, operation: Operation, word: String) {
@@ -181,7 +181,7 @@ func assign_thunk(layout: Layout, field: Field, operation: Operation): String {
     }
     var stored = written_field(field, operation, "assigned")
     output.prototypes.append("static bool {thunk}(void* owner, void* slot, SpiteString text);")
-    output.supports.append(
+    output.support(
         "static bool {thunk}(void* owner, void* slot, SpiteString text) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\n{guard}\n{written} assigned;\n{parsed}\n{stored}\nreturn true;\n}",
     )
     output.runtime_place(thunk)
@@ -239,7 +239,7 @@ func store_thunk(layout: Layout, field: Field, operation: Operation): String {
     var identity = naming.class_id_of(stored_layout)
     var stored = written_field(field, operation, "assigned")
     output.prototypes.append("static bool {thunk}(void* owner, void* slot, void* object);")
-    output.supports.append(
+    output.support(
         "static bool {thunk}(void* owner, void* slot, void* object) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{stored_layout.c_name}* assigned = {stored_layout.c_name}___retain(({stored_layout.c_name}*)object);\n{stored}\nreturn true;\n}",
     )
     output.runtime_place(thunk)
@@ -353,7 +353,7 @@ func union_class_of(read_type: Analysis.SpiteType): String {
     lines.append("}")
     output.prototypes.append("static Spite_Class* {chooser}({written} self);")
     var chooser_text = lines.join("\n")
-    output.supports.append(chooser_text)
+    output.support(chooser_text)
     return chooser
 }
 
@@ -390,7 +390,7 @@ func class_object(getter: String, target: String): String {
     lines.append("}")
     output.prototypes.append("Spite_Class* {getter}(void);")
     var object_text = lines.join("\n")
-    output.supports.append(object_text)
+    output.support(object_text)
     output.runtime_place(getter)
     return getter
 }
@@ -534,7 +534,7 @@ func trampoline_text(trampoline: String, parameters: List<String>, returned: Str
     }
     var header = "static {returned} {trampoline}({parameters.join(", ")})"
     output.prototypes.append("{header};")
-    output.supports.append("{header} \{\n{fetch}\n{answer}\n}")
+    output.support("{header} \{\n{fetch}\n{answer}\n}")
     output.runtime_place(trampoline)
 }
 
@@ -760,7 +760,7 @@ func row_piece(called: Function): String {
         owner_type = naming.c_type(receiver.spite_type)
     }
     output.prototypes.append("static void {piece}(void* owner, int32_t first, int32_t end);")
-    output.supports.append(
+    output.support(
         "static void {piece}(void* owner, int32_t first, int32_t end) \{\n(void)first; (void)end;\n{called.c_name}(({owner_type})owner);\n}",
     )
     output.runtime_place(piece)
@@ -801,7 +801,7 @@ func band_piece(layout: Layout, member: Function): String {
         item_type = naming.c_type(receiver.spite_type)
     }
     output.prototypes.append("static void {piece}(void* owner, int32_t first, int32_t end);")
-    output.supports.append(
+    output.support(
         "static void {piece}(void* owner, int32_t first, int32_t end) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\nfor (int32_t spite_index = first; spite_index < end; spite_index++) {member.c_name}((({item_type}*)(intptr_t)self->items_)[spite_index]);\n}",
     )
     output.runtime_place(piece)
@@ -895,7 +895,7 @@ func note_value_box(label: String, written: String) {
     output.nullable_types.append(
         "typedef struct SpiteBox_{label} \{ SpiteHeader header; {written} value; } SpiteBox_{label};",
     )
-    output.supports.append(
+    output.support(
         "static void* spite_box_{label}({written} value) \{\nSpiteBox_{label}* self = (SpiteBox_{label}*)SPITE_MALLOC(sizeof(SpiteBox_{label}));\nif (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = 0;\nself->value = value;\nreturn self;\n}",
     )
 }
@@ -921,7 +921,7 @@ func value_forwarder(called: Function, box: String): String {
     if returned == "void" {
         body_text = "{called.c_name}({forwarded.join(", ")});"
     }
-    output.supports.append("static {returned} {forwarder}({parameters.join(", ")}) \{\n{body_text}\n}")
+    output.support("static {returned} {forwarder}({parameters.join(", ")}) \{\n{body_text}\n}")
     output.runtime_place(forwarder)
     return forwarder
 }
@@ -961,7 +961,7 @@ func dropping_call(called: Function, forwarder: String): String {
             released = "{counted}___release({call});"
         }
     }
-    output.supports.append("static void {dropping}(void* owner) \{\n{released}\n}")
+    output.support("static void {dropping}(void* owner) \{\n{released}\n}")
     output.runtime_place(dropping)
     return dropping
 }
@@ -1145,7 +1145,7 @@ func enum_from_text(body: Body, operation: Operation) {
         lines.append("return ({written})\{ .has_value = false };")
         lines.append("}")
         var reader_text = lines.join("\n")
-        output.supports.append(reader_text)
+        output.support(reader_text)
         output.runtime_place(reader)
     }
     body.assign(operation.result, "{reader}({text})")
