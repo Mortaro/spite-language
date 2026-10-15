@@ -155,6 +155,9 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
     if result.code.starts_with("spite_class_object_") and result.code.ends_with("()") {
         return class_object_named(result.code, result.spite_type)
     }
+    if result.code.starts_with("spite_namespace_object_") and result.code.ends_with("()") {
+        return namespace_object_named(result.code, result.spite_type)
+    }
     if made.constant_texts.has(result.code) {
         crash made.constant_texts[result.code]
         return emitter.constant(result.spite_type, made.constant_texts[result.code])
@@ -461,6 +464,11 @@ func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Inte
         var named_type = known().class_type(named_class)
         return class_object_of(named_type)
     }
+    var expression: Syntax.Expressions.Expression = identifier
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if folded {
+        return folded_constant(folded)
+    }
     return not_lowered(null, "'{identifier.name}' read as a value")
 }
 
@@ -713,6 +721,11 @@ func class_member(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberE
         var joined_member = joined_handle(object)
         return member_of_value(member, joined_member)
     }
+    var reflecting = member.name == "class" or member.name == "attributes" or member.name == "functions"
+    var own_getter = target.find_function("get_{member.name}")
+    if reflecting and not own_getter and not target.find_field(member.name) {
+        return reflection_read(member, object)
+    }
     var getter = made.find_getter(target, member.name, lowered_class)
     if getter {
         var operands = [object]
@@ -735,6 +748,10 @@ func lower_index(indexed: Syntax.Expressions.IndexExpression): Integer {
     crash indexed.object
     crash indexed.index
     var made = front()
+    var reflected = reflected_index(indexed)
+    if reflected != -2 {
+        return reflected
+    }
     if made.is_bound_member_index(indexed) {
         var rewritten = made.bound_member_expression(indexed)
         return lower(rewritten)
@@ -913,7 +930,12 @@ func untyped_list(literal: Syntax.Expressions.ListLiteralExpression): Integer {
 
 func untyped_object(literal: Syntax.Expressions.ObjectLiteralExpression): Integer {
     if not literal.is_dictionary {
-        return shape_literal(literal)
+        var made_literal = shape_literal(literal)
+        var made = front()
+        if made_literal >= 0 and made.borrows_an_item(literal, emitter.scope, lowered_class) {
+            mark_row(made_literal)
+        }
+        return made_literal
     }
     var first = literal.fields.first()
     if not first {
@@ -1059,7 +1081,7 @@ func construct_as(
 }
 
 func default_object(target: Analysis.ClassInfo, made_type: Analysis.SpiteType): Integer {
-    if target.is_singleton {
+    if target.is_stateless_singleton {
         var no_arguments = List<Syntax.Expressions.Expression>()
         return singleton(target, no_arguments)
     }
@@ -1384,8 +1406,7 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
             return emitter.constant(whole, counted)
         }
     }
-    var compile_time = ["returned_text", "source_folder", "argument_count"]
-    if compile_time.contains(member.name) {
+    if member.name == "returned_text" {
         return not_lowered(null, "'{member.name}()', asked while compiling")
     }
     if member.name == "class" {
@@ -2903,7 +2924,10 @@ func shape_default(described_union: Analysis.UnionInfo, spite_type: Analysis.Spi
         return not_lowered(spite_type, "the default of a type whose class '{label}' the program never made")
     }
     var literal_type = known().class_type(literal_class)
-    var made_object = default_object(literal_class, literal_type)
+    known().reach_layout(literal_class)
+    var made_object = emitter.make_object(literal_class.c_name, literal_type)
+    mark_row(made_object)
+    known().reach_type(literal_type)
     return emitter.emit_call_one("Union.wrap", made_object, spite_type)
 }
 
@@ -3354,4 +3378,54 @@ func construct_values(target: Analysis.ClassInfo, values: List<Integer>): Intege
     }
     call_reached(target, constructor, operands)
     return object
+}
+
+func reflected_index(indexed: Syntax.Expressions.IndexExpression): Integer {
+    var made = front()
+    var folded_entry = made.folded_dictionary_read(indexed, emitter.scope, lowered_class)
+    if folded_entry {
+        return folded_constant(folded_entry)
+    }
+    var field_read = made.reflected_field_read(indexed, emitter.scope, lowered_class)
+    if field_read {
+        return lower(field_read)
+    }
+    var expression: Syntax.Expressions.Expression = indexed
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if folded {
+        return folded_constant(folded)
+    }
+    var named_read = made.named_reflection_read(indexed, emitter.scope, lowered_class)
+    if named_read {
+        return lower(named_read)
+    }
+    return -2
+}
+
+func mark_row(object: Integer) {
+    var object_type = type_of(object)
+    var class_ref = types.as_class_ref(object_type)
+    assert class_ref
+    known().row_classes[class_ref.c_name] = true
+}
+
+func namespace_object_named(code: String, namespace_type: Analysis.SpiteType): Integer {
+    var made = front()
+    var length = code.length()
+    var name = code.slice(0, length - 2)
+    var index = 0
+    while index < made.namespace_object_keys.count() {
+        var dotted = made.namespace_object_keys[index]
+        var candidate = "spite_namespace_object_{dotted.replace(".", "_")}"
+        if candidate == name {
+            var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+            crash namespace_class
+            known().reach_layout(namespace_class)
+            known().reflection_maker(name, "namespace_object", namespace_class, dotted)
+            var no_operands = List<Integer>()
+            return emitter.emit_call(name, no_operands, namespace_type)
+        }
+        index = index + 1
+    }
+    return not_lowered(null, "a namespace object the generator never described")
 }

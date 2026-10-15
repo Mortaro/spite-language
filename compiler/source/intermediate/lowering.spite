@@ -14,6 +14,8 @@ func Lowering(starting_generator: Generation.Generator) {
 func lower(): Lowered {
     crash generator
     var made = generator
+    var quiet_before = made.nested_quiet
+    made.nested_quiet = true
     var instances = Instances(made)
     write_main(instances)
     write_debug_memory(instances)
@@ -54,6 +56,7 @@ func lower(): Lowered {
     lowered.foreign_files = made.foreign_library_files
     lowered.foreign_namings = made.foreign_library_namings
     lowered.foreign_headers = made.foreign_library_headers
+    made.nested_quiet = quiet_before
     return lowered
 }
 
@@ -156,6 +159,7 @@ func lower_reached(instances: Instances, information: Analysis.ClassInfo, declar
         index = index + 1
     }
     lowered.add_function(function)
+    synthetic_body(information, declared)
     var supplied = not declared.has_body or not declared.supplied_body.is_empty()
     if supplied {
         lower_supplied(instances, information, declared, function)
@@ -208,6 +212,9 @@ func write_layout(instances: Instances, information: Analysis.ClassInfo) {
         instances.reach_type(declared_type)
         index = index + 1
     }
+    if instances.row_classes.has(information.c_name) {
+        layout.kind = "row"
+    }
     lowered.add_layout(layout)
 }
 
@@ -230,6 +237,12 @@ func lower_supplied(
         generator.supply_body(information, declared)
     }
     var answer = declared.return_type
+    if declared.name == "to_debug" and declared.supplied_body.contains("Spite_Debug") {
+        reach_debug_text(instances, information)
+    }
+    if declared.name == "entry_address" {
+        reach_served(instances, information)
+    }
     if not declared.supplied_body.is_empty() or not types.is_void(answer) {
         function.intrinsic = "supplied"
         return
@@ -377,4 +390,34 @@ func write_namespace_object(instances: Instances, name: String, dotted: String) 
     var object = reflection.namespace_object(dotted)
     emitter.returns(object)
     finish_body(maker, emitter)
+}
+
+func synthetic_body(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {
+    crash generator
+    var synthetic = generator.synthetic_value_classes.find_by_c_name(information.c_name)
+    assert synthetic and declared.name == "to_string" and declared.supplied_body.is_empty()
+    declared.has_body = false
+    if information.c_name == "SpiteSymbol" {
+        declared.supplied_body = "return SpiteString___retain(self);"
+        return
+    }
+    declared.supplied_body = "return spite_string_from_cstring_owned({information.c_name}___name(self));"
+}
+
+func reach_debug_text(instances: Instances, information: Analysis.ClassInfo) {
+    var made = instances.front()
+    var debugged_type = made.instance_type_of(information)
+    var debug_class = made.debug_class_of(debugged_type)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    instances.singleton_maker(debug_class, no_arguments, "")
+    var text = made.find_or_instantiate_function(debug_class, "text")
+    assert text
+    instances.reach(debug_class, text)
+}
+
+func reach_served(instances: Instances, information: Analysis.ClassInfo) {
+    var made = instances.front()
+    var served = made.find_or_instantiate_function(information, "_serve")
+    assert served
+    instances.reach(information, served)
 }
