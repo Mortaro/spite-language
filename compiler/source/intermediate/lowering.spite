@@ -6,6 +6,7 @@ var made_singletons = 0
 var made_layouts = 0
 var foreign_written = false
 var made_reflections = 0
+var loop_written = false
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -51,6 +52,11 @@ func lower(): Lowered {
             var information = instances.layout_classes[made_layouts]
             write_layout(instances, information)
             made_layouts = made_layouts + 1
+            settled = false
+        }
+        if settled and made.read_evaluate_print_loop and not loop_written {
+            loop_written = true
+            write_loop_singletons(instances)
             settled = false
         }
     }
@@ -246,6 +252,7 @@ func lower_supplied(
     }
     if not declared.supplied_body.is_empty() or not types.is_void(answer) {
         function.intrinsic = "supplied"
+        reach_supplied_makers(instances, declared.supplied_body)
         return
     }
     var emitter = start_body(function, information, declared, instances)
@@ -327,6 +334,16 @@ func write_reflection(instances: Instances, position: Integer) {
     var described = instances.reflection_classes[position]
     if kind == "class_object" {
         write_class_object(instances, name)
+        return
+    }
+    if kind == "reflect" {
+        crash instances.reflection_texts[position]
+        var nullable_text = instances.reflection_texts[position]
+        write_reflect(instances, name, described, nullable_text == "nullable")
+        return
+    }
+    if kind == "class_maker" {
+        write_class_maker(instances, name, described)
         return
     }
     if kind == "namespace_object" {
@@ -442,4 +459,105 @@ func write_thread_pool(instances: Instances) {
         }
         index = index + 1
     }
+}
+
+func write_reflect(instances: Instances, name: String, described: Analysis.ClassInfo, nullable: Boolean) {
+    var made = instances.front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var function = synthetic_function(name, "reflect", described)
+    var answer = instances.class_type(attribute_class)
+    function.answer = answer
+    var value_type = instances.class_type(described)
+    if nullable {
+        value_type = instances.nullable_of(value_type)
+    }
+    var symbol_type = instances.typed_symbol()
+    var name_value = function.new_value(symbol_type, "parameter")
+    function.value_at(name_value).name = "name"
+    var named = Parameter("name", symbol_type, name_value)
+    function.parameters.append(named)
+    var held_value = function.new_value(value_type, "parameter")
+    function.value_at(held_value).name = "value"
+    var held = Parameter("value", value_type, held_value)
+    function.parameters.append(held)
+    var described_function = synthetic_description("reflect", name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    var attribute = reflection.reflect_body(name_value, held_value)
+    emitter.returns(attribute)
+    finish_body(function, emitter)
+}
+
+func write_class_maker(instances: Instances, name: String, described: Analysis.ClassInfo) {
+    var function = synthetic_function(name, "make", described)
+    var made_type = instances.class_type(described)
+    function.answer = made_type
+    var values = List<Integer>()
+    if described.constructor {
+        var index = 0
+        while index < described.constructor.parameters.count() {
+            var declared_parameter = described.constructor.parameters[index]
+            var spite_type = declared_parameter.type
+            var value = function.new_value(spite_type, "parameter")
+            function.value_at(value).name = declared_parameter.name
+            var parameter = Parameter(declared_parameter.name, spite_type, value)
+            function.parameters.append(parameter)
+            values.append(value)
+            index = index + 1
+        }
+    }
+    var described_function = synthetic_description("make", name, made_type)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var object = expressions.construct_values(described, values)
+    emitter.returns(object)
+    finish_body(function, emitter)
+}
+
+func reach_supplied_makers(instances: Instances, body: String) {
+    var made = instances.front()
+    var pieces = body.split("___make(")
+    var index = 0
+    while index < pieces.count() - 1 {
+        var piece = pieces[index]
+        var start = piece.length()
+        while start > 0 and is_name_character(piece, start - 1) {
+            start = start - 1
+        }
+        var length = piece.length()
+        var c_name = piece.slice(start, length)
+        var described = made.find_class_by_c_name(c_name)
+        if described and not described.is_value_class {
+            instances.reach_layout(described)
+            instances.reflection_maker("{c_name}___make", "class_maker", described, "")
+        }
+        index = index + 1
+    }
+}
+
+func is_name_character(text: String, position: Integer): Boolean {
+    var code = text.code_at(position)
+    var letter = code >= 65 and code <= 90 or code >= 97 and code <= 122
+    return letter or code >= 48 and code <= 57 or code == 95
+}
+
+func write_loop_singletons(instances: Instances) {
+    var made = instances.front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    assert attribute_class
+    var launcher = made.find_class_by_qualified("Launcher")
+    assert launcher
+    var function = synthetic_function("spite_loop_singletons", "singletons", launcher)
+    var element = instances.class_type(attribute_class)
+    var answer = made.list_type_of(element)
+    function.answer = answer
+    var described_function = synthetic_description("singletons", "spite_loop_singletons", answer)
+    var emitter = start_body(function, launcher, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, launcher, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    var listed = reflection.loop_singletons()
+    emitter.returns(listed)
+    finish_body(function, emitter)
 }

@@ -148,12 +148,7 @@ func attributes_of(described: Analysis.ClassInfo, owner: Integer): Integer {
     var index = 0
     while index < described.fields.count() {
         var field = described.fields[index]
-        var name_value = symbol(field.name)
-        var field_class = lowering().class_object_of(field.type)
-        var values = [name_value, field_class]
-        var attribute = lowering().construct_values(attribute_class, values)
-        var held = attribute_value(owner, field.name, field.type)
-        lowering().emitter.store_field(attribute, "_value", held)
+        var attribute = field_attribute(described, owner, field, attribute_class)
         store_index(attribute, index)
         lowering().call_two_function(appender, listed, attribute)
         index = index + 1
@@ -337,4 +332,190 @@ func store_literal(made_function: Integer, function: Analysis.FunctionInfo) {
     var text = lowering().text_constant(literal)
     lowering().emitter.store_field(made_function, "_returned_literal", text)
     flag(made_function, "_has_returned_literal")
+}
+
+func reflect_attribute(name_value: Integer, value: Integer, value_type: Analysis.SpiteType): Integer {
+    var made = lowering().front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        return lowering().not_lowered(null, "a reflected value with no Spite.Attribute class")
+    }
+    var value_class = lowering().class_object_of(value_type)
+    var values = [name_value, value_class]
+    var attribute = lowering().construct_values(attribute_class, values)
+    var held = held_value(value, value_type)
+    lowering().emitter.store_field(attribute, "_value", held)
+    var links = held_links(value_type)
+    var operands = [attribute, value]
+    var holding = lowering().emitter.call_operation("Attribute.hold", operands, null)
+    holding.target = links
+    return attribute
+}
+
+func held_value(value: Integer, value_type: Analysis.SpiteType): Integer {
+    var made = lowering().front()
+    var shape = made.attribute_object_shape()
+    var shape_type = made.union_type_of(shape)
+    var held_type = lowering().known().nullable_of(shape_type)
+    var plain = lowering().without_nullable(value_type)
+    var carried = false
+    if made.has_attribute_object(plain) or made.boxed_class_of(plain) or types.is_symbol(plain) {
+        carried = true
+    }
+    if not made.attribute_object_used or not carried or types.as_nullable(value_type) {
+        return lowering().emitter.constant(held_type, "null")
+    }
+    return lowering().convert(value, held_type)
+}
+
+func held_links(value_type: Analysis.SpiteType): String {
+    var made = lowering().front()
+    var plain = lowering().without_nullable(value_type)
+    var class_ref = types.as_class_ref(plain)
+    if not class_ref or class_ref.has_signature {
+        return ",,"
+    }
+    var described = made.find_class_by_c_name(class_ref.c_name)
+    if not described or described.is_value_class or described.is_generic_template or described.is_container {
+        return ",,"
+    }
+    var attributes = "{described.c_name}___attributes"
+    var functions = "{described.c_name}___functions"
+    lowering().known().reflection_maker(attributes, "attributes", described, "")
+    lowering().known().reflection_maker(functions, "functions", described, "")
+    var class_code = made.class_object_call(plain)
+    var class_length = class_code.length()
+    var class_maker = class_code.slice(0, class_length - 2)
+    lowering().known().reflection_maker(class_maker, "class_object", described, "")
+    return "{attributes},{functions},{class_maker}"
+}
+
+func placed_attribute(attribute: Integer, owner: Integer, described: Analysis.ClassInfo, field: Analysis.FieldInfo) {
+    var made = lowering().front()
+    var operands = [attribute, owner]
+    var placing = lowering().emitter.call_operation("Attribute.place", operands, null)
+    placing.layout = described.c_name
+    placing.field = field.name
+    var setter = described.find_function("set_{field.name}")
+    if setter and setter.parameters.count() == 1 {
+        lowering().known().reach(described, setter)
+        placing.literal = setter.c_name
+    }
+    var scalar_type = types.as_scalar(field.type)
+    assert scalar_type
+    var word = lowering().known().scalar_word(scalar_type.kind)
+    var parser = made.written_string_function("to_{word}")
+    var string_class = made.find_class_by_c_name("SpiteString")
+    assert parser and string_class
+    lowering().known().reach(string_class, parser)
+    placing.target = parser.c_name
+}
+
+func loop_singletons(): Integer {
+    var made = lowering().front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        return lowering().not_lowered(null, "the REPL's singletons with no Spite.Attribute class")
+    }
+    var element = lowering().known().class_type(attribute_class)
+    var listed = lowering().new_list(element)
+    var appender = lowering().list_function(element, "append")
+    var known = lowering().known()
+    var index = 0
+    while index < known.singleton_classes.count() {
+        var information = known.singleton_classes[index]
+        crash known.singleton_names[index]
+        var maker = known.singleton_names[index]
+        var listed_class = information.qualified_dotted == "Environment" or information.qualified_dotted == "Build"
+        if not made.is_library_class(information) or listed_class {
+            var attribute = peeked_singleton(information, maker)
+            lowering().call_two_function(appender, listed, attribute)
+        }
+        index = index + 1
+    }
+    return listed
+}
+
+func peeked_singleton(information: Analysis.ClassInfo, maker: String): Integer {
+    var made = lowering().front()
+    var class_type = lowering().known().class_type(information)
+    var maybe_type = lowering().known().nullable_of(class_type)
+    var no_operands = List<Integer>()
+    var peeking = lowering().emitter.call_operation("Singleton.peek", no_operands, maybe_type)
+    peeking.target = maker
+    var display = made.singleton_display_name(information)
+    var name_value = symbol(display)
+    var attribute_type = lowering().known().class_type(information)
+    var reflect = made.find_class_by_c_name("Spite_Attribute")
+    crash reflect
+    var answer_type = lowering().known().class_type(reflect)
+    var operands = [name_value, peeking.result]
+    var reflect_name = reflect_function_name(maybe_type)
+    lowering().known().reflection_maker(reflect_name, "reflect", information, "nullable")
+    var attribute = lowering().emitter.emit_call(reflect_name, operands, answer_type)
+    lowering().known().reach_type(attribute_type)
+    return attribute
+}
+
+func reflect_function_name(spite_type: Analysis.SpiteType): String {
+    var made = lowering().front()
+    return "spite_reflect_{made.reflected_label(spite_type)}"
+}
+
+func field_attribute(
+    described: Analysis.ClassInfo,
+    owner: Integer,
+    field: Analysis.FieldInfo,
+    attribute_class: Analysis.ClassInfo,
+): Integer {
+    var made = lowering().front()
+    var name_value = symbol(field.name)
+    if made.read_evaluate_print_loop {
+        var stored = lowering().emitter.load_field(owner, field.name, field.type)
+        var reflected = reflect_attribute(name_value, stored, field.type)
+        placed_attribute(reflected, owner, described, field)
+        return reflected
+    }
+    var field_class = lowering().class_object_of(field.type)
+    var values = [name_value, field_class]
+    var attribute = lowering().construct_values(attribute_class, values)
+    var held = attribute_value(owner, field.name, field.type)
+    lowering().emitter.store_field(attribute, "_value", held)
+    return attribute
+}
+
+func reflect_body(name_value: Integer, value: Integer): Integer {
+    var value_type = lowering().type_of(value)
+    var nullable = types.as_nullable(value_type)
+    if not nullable {
+        return reflect_attribute(name_value, value, value_type)
+    }
+    var made = lowering().front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        return lowering().not_lowered(null, "a reflected value with no Spite.Attribute class")
+    }
+    var emitter = lowering().emitter
+    var boolean = lowering().known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", value, boolean)
+    var answer_type = lowering().known().class_type(attribute_class)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(answer_type, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var present_block = emitter.new_block()
+    var absent_block = emitter.new_block()
+    emitter.branch(present, present_block, absent_block)
+    emitter.enter_block(present_block)
+    var inner = emitter.emit_call_one("Nullable.value", value, nullable.inner)
+    var reflected = reflect_attribute(name_value, inner, nullable.inner)
+    var reflected_passed = [reflected]
+    emitter.jump(joined, reflected_passed)
+    emitter.enter_block(absent_block)
+    var inner_class = lowering().class_object_of(nullable.inner)
+    var values = [name_value, inner_class]
+    var unmade = lowering().construct_values(attribute_class, values)
+    var unmade_passed = [unmade]
+    emitter.jump(joined, unmade_passed)
+    emitter.enter_block(joined)
+    return answered
 }

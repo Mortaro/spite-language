@@ -319,7 +319,11 @@ func into_nullable(
     if types.as_nullable(given) {
         return not_lowered(wanted, "a conversion between two nullable types")
     }
-    if types.as_string(given) and not types.as_string(inner) {
+    var parsed = false
+    if types.as_scalar(inner) or types.as_enum(inner) {
+        parsed = true
+    }
+    if types.as_string(given) and parsed {
         return text_read_as(value, inner, wanted)
     }
     var inner_value = convert(value, inner)
@@ -1262,8 +1266,48 @@ func program_loaded(call: Syntax.Expressions.CallExpression): Integer {
         return not_lowered(null, "a program with no entry class")
     }
     var no_arguments = List<Syntax.Expressions.Expression>()
-    construct(entry, no_arguments)
+    var program = construct(entry, no_arguments)
+    if made.remote_loop_port > 0 or made.hot_reload {
+        return not_lowered(null, "a program served to a remote REPL or reloaded while it runs")
+    }
+    if made.console_loop {
+        console_loop(entry, program)
+    }
     return -1
+}
+
+func console_loop(entry: Analysis.ClassInfo, program: Integer) {
+    var made = front()
+    var loop_class = made.find_class_by_qualified("ReadEvaluatePrintLoop")
+    if not loop_class {
+        not_lowered(null, "a REPL with no ReadEvaluatePrintLoop class")
+        return
+    }
+    var step = made.find_or_instantiate_function(loop_class, "step")
+    if not step {
+        not_lowered(null, "a REPL with no step")
+        return
+    }
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var loop = construct(loop_class, no_arguments)
+    var header = emitter.new_block()
+    var exit = emitter.new_block()
+    emitter.jump_plain(header)
+    emitter.enter_block(header)
+    var symbol_type = known().typed_symbol()
+    var program_name = emitter.constant(symbol_type, "program")
+    var entry_type = known().class_type(entry)
+    var reflect_name = "spite_reflect_{made.reflected_label(entry_type)}"
+    known().reflection_maker(reflect_name, "reflect", entry, "")
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = known().class_type(attribute_class)
+    var reflect_operands = [program_name, program]
+    var attribute = emitter.emit_call(reflect_name, reflect_operands, attribute_type)
+    var step_operands = [loop, attribute]
+    var going = call_reached(loop_class, step, step_operands)
+    emitter.branch(going, header, exit)
+    emitter.enter_block(exit)
 }
 
 func codegen_construction(
