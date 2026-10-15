@@ -6,6 +6,7 @@ var shape = Analysis.TypeShape()
 var made = List<String>()
 var table_written = false
 var weak_pending_written = false
+var hot = Hot()
 
 func copied(spite_type: Analysis.SpiteType?, code: String): String {
     if not spite_type {
@@ -70,25 +71,29 @@ func ensure(layout: Layout): String {
     made.append(function_name)
     var written = naming.c_type_of_layout(layout)
     output.prototypes.append("{written} {function_name}({written} self);")
+    print_copy(layout, function_name, written)
     output.runtime_place(function_name)
+    return function_name
+}
+
+func print_copy(layout: Layout, function_name: String, written: String) {
     if layout.kind == "union" or layout.kind == "tagged union" {
         union_copy(layout, function_name, written)
-        return function_name
+        return
     }
     if layout.qualified == "List" {
         list_copy(layout, function_name)
-        return function_name
+        return
     }
     if layout.qualified == "Dictionary" {
         dictionary_copy(layout, function_name)
-        return function_name
+        return
     }
     if layout.qualified == "Weak" {
         weak_copy(layout, function_name)
-        return function_name
+        return
     }
     class_copy(layout, function_name)
-    return function_name
 }
 
 func class_copy(layout: Layout, function_name: String) {
@@ -107,8 +112,10 @@ func class_copy(layout: Layout, function_name: String) {
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
-        var copied_field = copied(field.spite_type, "self->{field.name}_")
-        lines.append("copied->{field.name}_ = {copied_field};")
+        var source = naming.fields_of(layout, "self")
+        var made_fields = naming.fields_of(layout, "copied")
+        var copied_field = copied(field.spite_type, "{source}->{field.name}_")
+        lines.append("{made_fields}->{field.name}_ = {copied_field};")
         index = index + 1
     }
     if layout.copy_with_table {
@@ -116,8 +123,17 @@ func class_copy(layout: Layout, function_name: String) {
     }
     lines.append("return copied;")
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var copy_body = lines.join("\n")
+        var receiving = ["{name}* self"]
+        hot.slot_support(function_name, "{name}*", receiving, copy_body, "{layout.qualified}'s deep copy", name)
+        return
+    }
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
 }
 
 func element_of(layout: Layout, position: Integer): Analysis.SpiteType? {
@@ -158,6 +174,7 @@ func list_copy(layout: Layout, function_name: String) {
     ]
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
 }
 
 func slots_copy(layout: Layout, function_name: String) {
@@ -200,6 +217,7 @@ func slots_copy(layout: Layout, function_name: String) {
     output.need("framed")
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
 }
 
 func kept_fields(layout: Layout, skipped: List<String>): String {
@@ -262,6 +280,7 @@ func dictionary_copy(layout: Layout, function_name: String) {
     ]
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
 }
 
 func shallow_list(layout: Layout): String {
@@ -302,6 +321,7 @@ func shallow_list(layout: Layout): String {
     ]
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
     output.runtime_place(function_name)
     return function_name
 }
@@ -327,6 +347,7 @@ func union_copy(layout: Layout, function_name: String, written: String) {
     lines.append("}")
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
 }
 
 func member_copy(member: String, tagged: Boolean, written: String): String {
@@ -350,6 +371,8 @@ func write_table() {
     output.support(
         "typedef struct \{ void* from; void* to; } spite_copy_pair;\nstatic SPITE_THREAD_LOCAL spite_copy_pair* spite_copy_pairs = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_count = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_capacity = 0;\nstatic SPITE_THREAD_LOCAL bool spite_copy_open = false;\nstatic uint64_t spite_copy_slot(void* from, uint64_t capacity) \{ return (((uint64_t)(uintptr_t)from >> 4) * 11400714819323198485ull) & (capacity - 1); }\nstatic void* spite_copy_table_find(void* from) \{\nif (!spite_copy_open) return 0;\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) \{ if (spite_copy_pairs[slot].from == from) return spite_copy_pairs[slot].to; slot = (slot + 1) & (spite_copy_capacity - 1); }\nreturn 0;\n}\nstatic bool spite_copy_table_open(void) \{\nif (spite_copy_open) return false;\nspite_copy_capacity = 64;\nspite_copy_count = 0;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nspite_copy_open = true;\nreturn true;\n}\nstatic void spite_copy_table_add(void* from, void* to) \{\nif ((spite_copy_count + 1) * 2 > spite_copy_capacity) \{\nuint64_t old_capacity = spite_copy_capacity;\nspite_copy_pair* old_pairs = spite_copy_pairs;\nspite_copy_capacity = old_capacity * 2;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nfor (uint64_t index = 0; index < old_capacity; index = index + 1) \{\nif (old_pairs[index].from == 0) continue;\nuint64_t moved = spite_copy_slot(old_pairs[index].from, spite_copy_capacity);\nwhile (spite_copy_pairs[moved].from != 0) moved = (moved + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[moved] = old_pairs[index];\n}\nfree(old_pairs);\n}\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) slot = (slot + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[slot].from = from;\nspite_copy_pairs[slot].to = to;\nspite_copy_count = spite_copy_count + 1;\n}\nstatic SPITE_THREAD_LOCAL void (*spite_copy_closing)(void) = 0;\nstatic void spite_copy_table_close(void) \{\nif (spite_copy_closing != 0) spite_copy_closing();\nfree(spite_copy_pairs);\nspite_copy_pairs = 0;\nspite_copy_capacity = 0;\nspite_copy_count = 0;\nspite_copy_open = false;\n}",
     )
+    output.name_piece("spite_copy_table")
+    output.impure()
 }
 
 func weak_copy(layout: Layout, function_name: String) {
@@ -362,6 +385,8 @@ func weak_copy(layout: Layout, function_name: String) {
         output.support(
             "typedef struct \{ int64_t* box; void* object; } spite_weak_copy_entry;\nstatic SPITE_THREAD_LOCAL spite_weak_copy_entry* spite_weak_copies = 0;\nstatic SPITE_THREAD_LOCAL int64_t spite_weak_copy_count = 0;\nstatic SPITE_THREAD_LOCAL int64_t spite_weak_copy_capacity = 0;\nstatic void spite_weak_copies_settle(void) \{\nfor (int64_t index = 0; index < spite_weak_copy_count; index = index + 1) \{\nvoid* moved = spite_copy_table_find(spite_weak_copies[index].object);\nif (moved == 0) continue;\nint64_t old_box = *spite_weak_copies[index].box;\n*spite_weak_copies[index].box = spite_weak_box_of(moved);\nspite_weak_box_release(old_box);\n}\nfree(spite_weak_copies);\nspite_weak_copies = 0;\nspite_weak_copy_count = 0;\nspite_weak_copy_capacity = 0;\nspite_copy_closing = 0;\n}\nstatic void spite_weak_copy_wait(int64_t* box, void* object) \{\nif (spite_weak_copy_count == spite_weak_copy_capacity) \{\nspite_weak_copy_capacity = spite_weak_copy_capacity == 0 ? 16 : spite_weak_copy_capacity * 2;\nspite_weak_copies = (spite_weak_copy_entry*)realloc(spite_weak_copies, (size_t)spite_weak_copy_capacity * sizeof(spite_weak_copy_entry));\nif (spite_weak_copies == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\n}\nspite_weak_copies[spite_weak_copy_count].box = box;\nspite_weak_copies[spite_weak_copy_count].object = object;\nspite_weak_copy_count = spite_weak_copy_count + 1;\nspite_copy_closing = spite_weak_copies_settle;\n}",
         )
+        output.name_piece("spite_weak_copies")
+        output.impure()
     }
     var lines = [
         "{name}* {function_name}({name}* self) \{"
@@ -377,4 +402,5 @@ func weak_copy(layout: Layout, function_name: String) {
     ]
     var copy_text = lines.join("\n")
     output.support(copy_text)
+    output.name_piece(function_name)
 }

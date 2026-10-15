@@ -3,6 +3,7 @@ var text = Text()
 var types = Analysis.TypeShape()
 var program: Lowered? = null
 var shapes = Dictionary<String, String>()
+var folded_function: Function? = null
 var folded_count = 0
 
 func run(lowered: Lowered) {
@@ -95,6 +96,7 @@ func may_fold(function: Function): Boolean {
 }
 
 func normalised(function: Function): String {
+    folded_function = function
     var lines = List<String>()
     var renumbered = Dictionary<Integer, Integer>()
     number_value(renumbered, function.receiver)
@@ -108,8 +110,7 @@ func normalised(function: Function): String {
         index = index + 1
     }
     var answer = shape_text(function.answer, 0)
-    var owner_type: Analysis.SpiteType = Analysis.Types.ClassRefType(function.owner)
-    var owner = shape_text(owner_type, 0)
+    var owner = function.owner
     lines.append(
         "{owner}|{parameters.join(",")}|{answer}|{function.locking}|{function.resumable}|{function.lends_answer}",
     )
@@ -163,7 +164,11 @@ func block_lines(block: Block, renumbered: Dictionary<Integer, Integer>, lines: 
         }
         var made = shown_value(renumbered, operation.result)
         var shown_type = shape_text(operation.spite_type, 0)
-        var made_layout = layout_shape(operation.layout, 0)
+        var made_layout = operation.layout
+        if names_classes(operation) {
+            shown_type = text.type_text(operation.spite_type)
+            made_layout = "{operation.layout}|{operation.target}|{operand_types(block, operation)}"
+        }
         var site = site_text(operation.site)
         lines.append(
             "{made}={operation.kind}|{operation.callee}|{made_layout}|{operation.field}|{operation.literal}|{operation.form}|{site}|{shown_type}|{operands}",
@@ -196,11 +201,13 @@ func shape_text(spite_type: Analysis.SpiteType?, depth: Integer): String {
     if not spite_type {
         return "?"
     }
+    var written = text.type_text(spite_type)
     var class_ref = types.as_class_ref(spite_type)
     if not class_ref or class_ref.has_signature {
-        return text.type_text(spite_type)
+        return written
     }
-    return layout_shape(class_ref.c_name, depth)
+    var shape = layout_shape(class_ref.c_name, depth)
+    return "{written}{shape}"
 }
 
 func layout_shape(c_name: String, depth: Integer): String {
@@ -225,7 +232,36 @@ func layout_shape(c_name: String, depth: Integer): String {
         fields.append("{field.name}:{shown}")
         index = index + 1
     }
-    var made = "({fields.join(",")})"
+    var properties = "{layout.is_value}|{layout.arrangement}|{layout.pooled}|{layout.atomic_counts}|{layout.copy_with_table}|{layout.thread_form}"
+    var made = "({fields.join(",")}|{properties})"
     shapes[c_name] = made
     return made
+}
+
+func names_classes(operation: Operation): Boolean {
+    if operation.kind == "make" or not operation.target.is_empty() {
+        return true
+    }
+    var naming = ["Reflection.", "Union.", "Object.", "Instances.", "Symbol.", "Enum.", "Singleton."]
+    var index = 0
+    while index < naming.count() {
+        if operation.callee.starts_with(naming[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func operand_types(block: Block, operation: Operation): String {
+    crash folded_function
+    var shown = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var operand_type = folded_function.value_at(operation.operands[index]).spite_type
+        var written = text.type_text(operand_type)
+        shown.append(written)
+        index = index + 1
+    }
+    return "{block.number}:{shown.join(",")}"
 }

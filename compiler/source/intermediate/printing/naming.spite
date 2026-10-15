@@ -267,7 +267,11 @@ func counted_name(spite_type: Analysis.SpiteType): String {
     }
     var class_ref = shape.as_class_ref(spite_type)
     if class_ref {
-        if is_value_class(class_ref.c_name) or not lowered.layout_named(class_ref.c_name) {
+        var held = lowered.layout_named(class_ref.c_name)
+        if is_value_class(class_ref.c_name) or not held {
+            return ""
+        }
+        if held.is_singleton {
             return ""
         }
         return class_ref.c_name
@@ -466,6 +470,14 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
         return lowered.layout_named("SpiteString")
     }
     return null
+}
+
+# ../../../../docs/repl.md#changing-a-classs-attributes
+func fields_of(layout: Layout, object: String): String {
+    if layout.hot {
+        return "{layout.c_name}___fields({object})"
+    }
+    return object
 }
 
 func c_type_of_layout(layout: Layout): String {

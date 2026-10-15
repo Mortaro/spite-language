@@ -18,7 +18,8 @@ var nullable_labels = List<String>()
 var tagged_makers = List<String>()
 var framed_layouts = List<String>()
 var copied_layouts = List<String>()
-var printed_text = ""
+var supplied_texts = List<String>()
+var used = Dictionary<String, Boolean>()
 var table_keys = List<String>()
 var symbol_literals = List<String>()
 var enum_readers = List<String>()
@@ -44,6 +45,9 @@ var hot_start = ""
 var support_tags = List<String>()
 var body_tags = List<String>()
 var last_piece = ""
+var support_pure = List<Boolean>()
+var body_pure = List<Boolean>()
+var tagged_names = Dictionary<String, Boolean>()
 
 func refuse(why: String) {
     if not refusals.contains(why) {
@@ -61,19 +65,60 @@ func needs(piece: String): Boolean {
     return needed.contains(piece)
 }
 
+func supplied(text: String) {
+    supplied_texts.append(text)
+}
+
+func use(name: String) {
+    used[name] = true
+}
+
+func uses(name: String): Boolean {
+    if used.has(name) {
+        return true
+    }
+    var index = 0
+    while index < supplied_texts.count() {
+        if supplied_texts[index].contains(name) {
+            used[name] = true
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func support(text: String) {
     supports.append(text)
     support_tags.append("")
+    support_pure.append(true)
     last_piece = "support"
 }
 
 func body(text: String) {
     bodies.append(text)
     body_tags.append("")
+    body_pure.append(true)
     last_piece = "body"
 }
 
+func name_piece(c_name: String) {
+    tag(c_name)
+    tagged_names[c_name] = true
+}
+
+func impure() {
+    if last_piece == "support" {
+        var at = support_pure.count() - 1
+        support_pure[at] = false
+    } else if last_piece == "body" {
+        var at = body_pure.count() - 1
+        body_pure[at] = false
+    }
+}
+
 func tag(c_name: String) {
+    assert not tagged_names.has(c_name)
     if last_piece == "support" {
         var at = support_tags.count() - 1
         crash support_tags[at]

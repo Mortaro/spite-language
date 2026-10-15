@@ -19,6 +19,7 @@ var lends_answer = false
 var waits = false
 var folded_into = ""
 var slotted = false
+var waiting_kind = ""
 var shown = ""
 
 func Function(starting_c_name: String, starting_name: String, starting_owner: String) {

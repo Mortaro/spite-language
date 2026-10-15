@@ -2,6 +2,7 @@
 var output = Output()
 var lowered = Lowered()
 var naming = Naming()
+var hot = Hot()
 var sites = Sites()
 var shape = Analysis.TypeShape()
 var copies = Copies()
@@ -132,8 +133,9 @@ func attribute_place(body: Body, operation: Operation) {
         return
     }
     var name = layout.c_name
+    var reached = naming.fields_of(layout, "({owner})")
     body.emit(
-        "({attribute})->spite_stored_address = (int64_t)(intptr_t)&({owner})->{field.name}_; ({attribute})->spite_stored_bytes = (int64_t)sizeof(({owner})->{field.name}_);",
+        "({attribute})->spite_stored_address = (int64_t)(intptr_t)&{reached}->{field.name}_; ({attribute})->spite_stored_bytes = (int64_t)sizeof({reached}->{field.name}_);",
     )
     var assign = assign_thunk(layout, field, operation)
     var store = store_thunk(layout, field, operation)
@@ -161,6 +163,24 @@ func written_field(field: Field, operation: Operation, value: String): String {
     return "{counted}___release(self->{field.name}_);\nself->{field.name}_ = {value};"
 }
 
+func print_thunk(layout: Layout, thunk: String, last: String, body_text: String, display: String) {
+    var parameters = ["void* owner", "void* slot", last]
+    if layout.hot {
+        hot.slot_support(thunk, "bool", parameters, body_text, display, layout.c_name)
+        return
+    }
+    var heading = "static bool {thunk}({parameters.join(", ")})"
+    output.prototypes.append("{heading};")
+    output.support("{heading} \{\n{body_text}\n}")
+    output.runtime_place(thunk)
+}
+
+func owner_line(layout: Layout): String {
+    var cast = "({layout.c_name}*)owner"
+    var reached = naming.fields_of(layout, cast)
+    return "{layout.c_name}* self = {reached};"
+}
+
 func assign_thunk(layout: Layout, field: Field, operation: Operation): String {
     crash field.spite_type
     var field_type = field.spite_type
@@ -180,11 +200,14 @@ func assign_thunk(layout: Layout, field: Field, operation: Operation): String {
         guard = ""
     }
     var stored = written_field(field, operation, "assigned")
-    output.prototypes.append("static bool {thunk}(void* owner, void* slot, SpiteString text);")
-    output.support(
-        "static bool {thunk}(void* owner, void* slot, SpiteString text) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\n{guard}\n{written} assigned;\n{parsed}\n{stored}\nreturn true;\n}",
+    var owned = owner_line(layout)
+    print_thunk(
+        layout,
+        thunk,
+        "SpiteString text",
+        "{owned}\n(void)slot;\n{guard}\n{written} assigned;\n{parsed}\n{stored}\nreturn true;",
+        "{layout.qualified}'s assignment of {field.name}",
     )
-    output.runtime_place(thunk)
     return thunk
 }
 
@@ -238,11 +261,14 @@ func store_thunk(layout: Layout, field: Field, operation: Operation): String {
     output.forwarders.append(thunk)
     var identity = naming.class_id_of(stored_layout)
     var stored = written_field(field, operation, "assigned")
-    output.prototypes.append("static bool {thunk}(void* owner, void* slot, void* object);")
-    output.support(
-        "static bool {thunk}(void* owner, void* slot, void* object) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{stored_layout.c_name}* assigned = {stored_layout.c_name}___retain(({stored_layout.c_name}*)object);\n{stored}\nreturn true;\n}",
+    var owned = owner_line(layout)
+    print_thunk(
+        layout,
+        thunk,
+        "void* object",
+        "{owned}\n(void)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{stored_layout.c_name}* assigned = {stored_layout.c_name}___retain(({stored_layout.c_name}*)object);\n{stored}\nreturn true;",
+        "{layout.qualified}'s store of {field.name}",
     )
-    output.runtime_place(thunk)
     return thunk
 }
 
@@ -290,8 +316,11 @@ func class_getter(target: String): String {
         "_nullable",
     )
     var getter = "spite_class_object_{label}"
-    if not output.class_objects.contains(getter) {
-        output.class_objects.append(getter)
+    if output.class_objects.contains(getter) {
+        return getter
+    }
+    output.class_objects.append(getter)
+    if not lowered.function_named(getter) {
         class_object(getter, target)
     }
     return getter
@@ -354,6 +383,7 @@ func union_class_of(read_type: Analysis.SpiteType): String {
     output.prototypes.append("static Spite_Class* {chooser}({written} self);")
     var chooser_text = lines.join("\n")
     output.support(chooser_text)
+    output.name_piece(chooser)
     return chooser
 }
 
@@ -776,7 +806,9 @@ func print_bands(body: Body, operation: Operation) {
     var pool = pool_function("maker")
     var running = pool_function("run_bands")
     if not layout or not member or not layout.information or layout.qualified != "List" or pool.is_empty() or running.is_empty() or not lowered.layout_named("Spite_Function") {
-        body.assign(operation.result, "false")
+        body.refuse(
+            "it runs '{operation.literal}' in bands, and the list's layout, that function, the thread pool's maker or run_bands, or Spite.Function is not held",
+        )
         return
     }
     var piece = band_piece(layout, member)
@@ -898,6 +930,7 @@ func note_value_box(label: String, written: String) {
     output.support(
         "static void* spite_box_{label}({written} value) \{\nSpiteBox_{label}* self = (SpiteBox_{label}*)SPITE_MALLOC(sizeof(SpiteBox_{label}));\nif (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = 0;\nself->value = value;\nreturn self;\n}",
     )
+    output.name_piece("spite_box_{label}")
 }
 
 func value_forwarder(called: Function, box: String): String {
