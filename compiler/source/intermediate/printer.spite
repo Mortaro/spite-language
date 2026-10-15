@@ -13,6 +13,7 @@ func print(lowered: Lowered): String {
     wire(lowered)
     refuse_unbuilt(lowered)
     lowered.enums.each(layouts.print_enum)
+    lowered.layouts.each(note_slots)
     lowered.concrete_functions.each(body.print)
     var macros = output.macros.join(" ")
     var bodies = output.bodies.join(" ")
@@ -23,6 +24,16 @@ func print(lowered: Lowered): String {
     var written = assembled(lowered)
     note_reached(written)
     return written
+}
+
+func note_slots(layout: Layout) {
+    assert layout.arrangement == "slots" and layout.information
+    var element = layout.information.codegen_types.first()
+    assert element
+    var inner = naming.label(element)
+    if not output.slot_inners.contains(inner) {
+        output.slot_inners.append(inner)
+    }
 }
 
 func refusals(): List<String> {

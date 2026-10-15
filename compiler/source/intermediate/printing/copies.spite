@@ -129,6 +129,10 @@ func element_of(layout: Layout, position: Integer): Analysis.SpiteType? {
 
 func list_copy(layout: Layout, function_name: String) {
     var name = layout.c_name
+    if layout.arrangement == "slots" {
+        output.refuse("a deep copy of '{name}', whose lists live in its slots, which the printer does not copy yet")
+        return
+    }
     var element = element_of(layout, 0)
     assert element
     var written = naming.c_type(element)
