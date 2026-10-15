@@ -109,14 +109,15 @@ func single_step(parameter: Integer, argument: Integer): Integer {
     }
     var amount = constant_of(defining.operands[1])
     var meaning = spans.intrinsics.operation_part(defining.callee)
-    if amount != 1 or not spans.intrinsics.is_number_operation(defining.callee) {
+    if amount < 1 or amount > 65536 or not spans.intrinsics.is_number_operation(defining.callee) {
         return 0
     }
+    var step: Integer = amount
     if meaning == "sum" {
-        return 1
+        return step
     }
     if meaning == "subtract" {
-        return -1
+        return -step
     }
     return 0
 }
@@ -178,7 +179,41 @@ func bound_span(parameter: Integer, step: Integer): NumberSpan? {
     var right = defining.operands[1]
     crash spans.intrinsics
     var meaning = spans.intrinsics.operation_part(defining.callee)
-    return limit_of(parameter, step, left, right, meaning, holds)
+    var left_offset = offset_from(parameter, left)
+    var right_offset = offset_from(parameter, right)
+    var shift: Long = 0
+    if left != parameter and right != parameter and left_offset != 0 {
+        shift = left_offset
+        left = parameter
+    } else if left != parameter and right != parameter and right_offset != 0 {
+        shift = right_offset
+        right = parameter
+    }
+    var limit = limit_of(parameter, step, left, right, meaning, holds)
+    assert limit
+    return NumberSpan(limit.lowest - shift, limit.highest - shift)
+}
+
+func offset_from(parameter: Integer, value: Integer): Long {
+    crash spans
+    crash spans.uses
+    crash spans.intrinsics
+    var defining = spans.uses.definition_of(value)
+    if not defining or defining.kind != "call" or defining.operands.count() != 2 {
+        return 0
+    }
+    if defining.operands[0] != parameter or not spans.intrinsics.is_number_operation(defining.callee) {
+        return 0
+    }
+    var amount = constant_of(defining.operands[1])
+    var meaning = spans.intrinsics.operation_part(defining.callee)
+    if meaning == "sum" {
+        return amount
+    }
+    if meaning == "subtract" {
+        return -amount
+    }
+    return 0
 }
 
 func limit_of(
@@ -222,10 +257,12 @@ func counter_span(at: Integer): NumberSpan? {
     var limit = bound_span(parameter, step)
     assert limit
     if step > 0 {
-        var high = start.highest.maximum(limit.highest)
+        var reached = limit.highest + step - 1
+        var high = start.highest.maximum(reached)
         return NumberSpan(start.lowest, high)
     }
-    var low = start.lowest.minimum(limit.lowest)
+    var reached_low = limit.lowest + step + 1
+    var low = start.lowest.minimum(reached_low)
     return NumberSpan(low, start.highest)
 }
 
@@ -238,9 +275,10 @@ func passes(): NumberSpan? {
         var counted = counter_span(at)
         var start = entry_span(at)
         if counted and start {
-            var most = counted.highest - start.lowest
-            if step_of(at) < 0 {
-                most = start.highest - counted.lowest
+            var step = step_of(at)
+            var most = (counted.highest - start.lowest) / step
+            if step < 0 {
+                most = (start.highest - counted.lowest) / -step
             }
             var positive = most.maximum(0)
             return NumberSpan(0, positive)
@@ -260,6 +298,21 @@ func summed_span(): NumberSpan? {
     var most = passes()
     assert most
     var added = most.times(terms)
+    assert added
+    return start.plus(added)
+}
+
+func body_span(): NumberSpan? {
+    crash spans
+    var parameter = parameter_value(position)
+    var terms = terms_span(parameter)
+    assert terms
+    var start = entry_span(position)
+    assert start
+    var most = passes()
+    assert most and most.highest >= 1
+    var earlier = NumberSpan(0, most.highest - 1)
+    var added = earlier.times(terms)
     assert added
     return start.plus(added)
 }
@@ -293,7 +346,10 @@ func chain_span(parameter: Integer, value: Integer, block_number: Integer, depth
     }
     assert depth < 16 and value >= 0
     var defining = spans.uses.definition_of(value)
-    assert defining and defining.kind == "call" and defining.operands.count() == 2
+    if not defining {
+        return merged_chain(parameter, value, depth)
+    }
+    assert defining.kind == "call" and defining.operands.count() == 2
     var meaning = spans.intrinsics.operation_part(defining.callee)
     assert meaning == "sum" or meaning == "subtract"
     assert defining.operands[1] != parameter
@@ -305,6 +361,36 @@ func chain_span(parameter: Integer, value: Integer, block_number: Integer, depth
         return before.plus(term)
     }
     return before.minus(term)
+}
+
+func merged_chain(parameter: Integer, value: Integer, depth: Integer): NumberSpan? {
+    crash spans
+    crash spans.uses
+    crash spans.flow
+    crash spans.function
+    var place = spans.uses.place_of(value)
+    assert place.block >= 0 and place.block != header
+    var body = spans.flow.body_of(header)
+    assert body.contains(place.block)
+    var block = spans.function.block_at(place.block)
+    var at = block.parameters.index_of(value)
+    assert at
+    var coming = spans.flow.predecessors_of(place.block)
+    var joined: NumberSpan? = null
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        var argument = spans.argument_into(from, place.block, at)
+        var found = chain_span(parameter, argument, from, depth + 1)
+        assert found
+        if joined {
+            joined = joined.joined(found)
+        } else {
+            joined = found
+        }
+        index = index + 1
+    }
+    return joined
 }
 
 func parameter_span(): NumberSpan? {
