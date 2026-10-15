@@ -340,6 +340,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2471,9 +2472,10 @@ step_ = (step_ + 1);
 return spite_result;
 }
 void Offset_Offset(Offset* self, float starting_x_, float starting_y_, float starting_z_) {
-self->x_ = starting_x_;
-self->y_ = starting_y_;
-self->z_ = starting_z_;
+(self)->x_ = starting_x_;
+(self)->y_ = starting_y_;
+(self)->z_ = starting_z_;
+return;
 }
 Offset* Offset_scaled___into(Offset* self, float factor_, Offset* restrict spite_result) {
 Offset* spite_temp_93 = Offset___make_into(spite_result, (self->x_ * factor_), (self->y_ * factor_), (self->z_ * factor_));

@@ -17,9 +17,22 @@ int32_t Hunter_hunt(Hunter* self) {
 }
 
 void Hunter_record_hit(Hunter* self) {
-    self->hits_ = ({ int32_t spite_temp_5 = self->hits_; int32_t spite_temp_6 = 1; int32_t spite_temp_7; if (__builtin_expect(__builtin_add_overflow(spite_temp_5, spite_temp_6, &spite_temp_7), 0)) spite_overflowed("hits + 1", "an Integer", "+", (int64_t)spite_temp_5, (int64_t)spite_temp_6, spite_site_2()); spite_temp_7; });
+    int32_t spite_high_1 = (self)->hits_;
+    int32_t spite_high_2 = 1;
+    int32_t spite_high_3_left = spite_high_1;
+    int32_t spite_high_3_right = spite_high_2;
+    int32_t spite_high_3;
+    if (__builtin_expect(__builtin_add_overflow(spite_high_3_left, spite_high_3_right, &spite_high_3), 0)) spite_overflowed("hits + 1", "an Integer", "+", (int64_t)spite_high_3_left, (int64_t)spite_high_3_right, spite_site_2());
+    (self)->hits_ = spite_high_3;
+    return;
 }
 
 void Monster_hurt(Monster* self, int32_t amount_) {
-    self->health_ = ({ int32_t spite_temp_8 = self->health_; int32_t spite_temp_9 = amount_; int32_t spite_temp_10; if (__builtin_expect(__builtin_sub_overflow(spite_temp_8, spite_temp_9, &spite_temp_10), 0)) spite_overflowed("health - amount", "an Integer", "-", (int64_t)spite_temp_8, (int64_t)spite_temp_9, spite_site_3()); spite_temp_10; });
+    int32_t spite_high_1 = (self)->health_;
+    int32_t spite_high_2_left = spite_high_1;
+    int32_t spite_high_2_right = amount_;
+    int32_t spite_high_2;
+    if (__builtin_expect(__builtin_sub_overflow(spite_high_2_left, spite_high_2_right, &spite_high_2), 0)) spite_overflowed("health - amount", "an Integer", "-", (int64_t)spite_high_2_left, (int64_t)spite_high_2_right, spite_site_3());
+    (self)->health_ = spite_high_2;
+    return;
 }

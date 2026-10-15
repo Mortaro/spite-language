@@ -96,7 +96,11 @@ func describe_class(object: Integer, described: Analysis.ClassInfo) {
     }
     assert made.class_level_functions_used and made.describes_members(described)
     if described.c_name == made.entry_class_c_name {
-        lowering().emitter.fail_lowering("the entry class's own list of functions")
+        var unbound = functions_of(described, -1)
+        var unbound_type = lowering().type_of(unbound)
+        var maybe_unbound = lowering().known().nullable_of(unbound_type)
+        var held_unbound = lowering().convert(unbound, maybe_unbound)
+        lowering().emitter.store_field(object, "_unbound_functions", held_unbound)
         return
     }
     var fresh_type = lowering().known().class_type(described)
@@ -169,12 +173,31 @@ func attribute_value(owner: Integer, name: String, field_type: Analysis.SpiteTyp
     if not made.attribute_object_used or not carried {
         return lowering().emitter.constant(held_type, "null")
     }
-    if types.as_nullable(field_type) {
-        lowering().emitter.fail_lowering("an attribute whose value may be null, read as a Spite.Attribute")
-        return -1
-    }
     var stored = lowering().emitter.load_field(owner, name, field_type)
-    return lowering().convert(stored, held_type)
+    var nullable = types.as_nullable(field_type)
+    if not nullable {
+        return lowering().convert(stored, held_type)
+    }
+    var building = lowering().emitter
+    var boolean = lowering().known().typed_boolean()
+    var present = building.emit_call_one("Nullable.has", stored, boolean)
+    var present_block = building.new_block()
+    var absent_block = building.new_block()
+    var joined = building.new_block()
+    var answered = building.new_value(held_type, "parameter")
+    building.built_function().block_at(joined).parameters.append(answered)
+    building.branch(present, present_block, absent_block)
+    building.enter_block(present_block)
+    var inner = building.emit_call_one("Nullable.value", stored, nullable.inner)
+    var converted = lowering().convert(inner, held_type)
+    var converted_arguments = [converted]
+    building.jump(joined, converted_arguments)
+    building.enter_block(absent_block)
+    var absent = building.constant(held_type, "null")
+    var absent_arguments = [absent]
+    building.jump(joined, absent_arguments)
+    building.enter_block(joined)
+    return answered
 }
 
 func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
@@ -235,7 +258,7 @@ func function_of(
     if made.run_time_kinds_used and made.literal_body(function) {
         store_literal(made_function, function)
     }
-    if made.is_inline_supplied(function) {
+    if made.is_inline_supplied(function) or owner < 0 {
         return made_function
     }
     lowering().known().reach(described, function)
@@ -246,9 +269,47 @@ func function_of(
     return made_function
 }
 
-func returned_class(function: Analysis.FunctionInfo): Integer {
+func bound_caller(
+    caller: String,
+    name: String,
+    parameter_types: List<Analysis.SpiteType>,
+    answer: Analysis.SpiteType,
+    owner: Integer,
+    function_class: Analysis.ClassInfo,
+    argument_class: Analysis.ClassInfo,
+): Integer {
     var made = lowering().front()
-    var answer = function.return_type
+    var name_value = symbol(name)
+    var returned = returned_class_of(answer)
+    var values = [name_value, returned]
+    var made_function = lowering().construct_values(function_class, values)
+    var argument_element = lowering().known().class_type(argument_class)
+    var argument_list_type = made.list_type_of(argument_element)
+    var arguments = lowering().emitter.load_field(made_function, "_arguments", argument_list_type)
+    var appender = lowering().list_function(argument_element, "append")
+    var index = 0
+    while index < parameter_types.count() {
+        var parameter_name = symbol("argument_{index}")
+        var parameter_class = lowering().class_object_of(parameter_types[index])
+        var argument_values = [parameter_name, parameter_class]
+        var argument = lowering().construct_values(argument_class, argument_values)
+        store_index(argument, index)
+        lowering().call_two_function(appender, arguments, argument)
+        index = index + 1
+    }
+    var operands = [made_function, owner]
+    var binding = lowering().emitter.call_operation("Function.bind", operands, null)
+    binding.literal = caller
+    binding.target = caller
+    return made_function
+}
+
+func returned_class(function: Analysis.FunctionInfo): Integer {
+    return returned_class_of(function.return_type)
+}
+
+func returned_class_of(answer: Analysis.SpiteType): Integer {
+    var made = lowering().front()
     if not types.is_void(answer) {
         return lowering().class_object_of(answer)
     }

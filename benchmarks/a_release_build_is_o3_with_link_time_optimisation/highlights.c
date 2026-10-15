@@ -14,6 +14,19 @@ int64_t Naive_checksum___held_0(Naive* self, Mixer* mixer_, int32_t count_) {
 }
 
 int32_t Mixer_mixed(Mixer* self, int32_t value_) {
-    int32_t spite_temp_5 = (({ int32_t spite_temp_6 = ({ int32_t spite_temp_7 = (value_ % 65536); int32_t spite_temp_8 = self->factor_; int32_t spite_temp_9; if (__builtin_expect(__builtin_mul_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("value % 65536 * factor", "an Integer", "*", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_2()); spite_temp_9; }); int32_t spite_temp_10 = 7; int32_t spite_temp_11; if (__builtin_expect(__builtin_add_overflow(spite_temp_6, spite_temp_10, &spite_temp_11), 0)) spite_overflowed("value % 65536 * factor + 7", "an Integer", "+", (int64_t)spite_temp_6, (int64_t)spite_temp_10, spite_site_2()); spite_temp_11; }) % 1000);
-    return spite_temp_5;
+    int32_t spite_high_1 = 65536;
+    int32_t spite_high_2 = (value_ % spite_high_1);
+    int32_t spite_high_3 = (self)->factor_;
+    int32_t spite_high_4_left = spite_high_2;
+    int32_t spite_high_4_right = spite_high_3;
+    int32_t spite_high_4;
+    if (__builtin_expect(__builtin_mul_overflow(spite_high_4_left, spite_high_4_right, &spite_high_4), 0)) spite_overflowed("value % 65536 * factor", "an Integer", "*", (int64_t)spite_high_4_left, (int64_t)spite_high_4_right, spite_site_2());
+    int32_t spite_high_5 = 7;
+    int32_t spite_high_6_left = spite_high_4;
+    int32_t spite_high_6_right = spite_high_5;
+    int32_t spite_high_6;
+    if (__builtin_expect(__builtin_add_overflow(spite_high_6_left, spite_high_6_right, &spite_high_6), 0)) spite_overflowed("value % 65536 * factor + 7", "an Integer", "+", (int64_t)spite_high_6_left, (int64_t)spite_high_6_right, spite_site_2());
+    int32_t spite_high_7 = 1000;
+    int32_t spite_high_8 = (spite_high_6 % spite_high_7);
+    return spite_high_8;
 }

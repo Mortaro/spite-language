@@ -149,6 +149,10 @@ func walk_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     crash declaration.value
     var value = walk_value(declaration.value)
     var declared = declared_type(declaration, value)
+    if not declared {
+        note_unknown("a declaration whose type the walk cannot resolve", current_line)
+        return
+    }
     var points_at = points_at_of(value)
     write_value("local", -1, declaration.name, declared, current_line, points_at, value, -1)
     var scope = scopes.last()

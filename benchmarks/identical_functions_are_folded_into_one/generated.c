@@ -309,6 +309,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -1506,8 +1507,9 @@ List_Velocity___release(velocities_);
 List_Position___release(positions_);
 }
 void Position_Position(Position* self, int32_t starting_across_, int32_t starting_down_) {
-self->across_ = starting_across_;
-self->down_ = starting_down_;
+(self)->across_ = starting_across_;
+(self)->down_ = starting_down_;
+return;
 }
 int32_t List_Console_Printable_count(List_Console_Printable* self) {
 int32_t spite_temp_49 = self->item_count_;

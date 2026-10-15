@@ -3,15 +3,20 @@
  * names numbered again from 1. check.sh compares it with what the compiler writes now. */
 
 int32_t Hero_damage(Hero* self) {
-    int32_t spite_temp_1 = ({ int32_t spite_temp_2 = self->strength_; int32_t spite_temp_3 = 1; int32_t spite_temp_4; if (__builtin_expect(__builtin_add_overflow(spite_temp_2, spite_temp_3, &spite_temp_4), 0)) spite_overflowed("strength + 1", "an Integer", "+", (int64_t)spite_temp_2, (int64_t)spite_temp_3, spite_site_1()); spite_temp_4; });
-    return spite_temp_1;
+    int32_t spite_high_1 = (self)->strength_;
+    int32_t spite_high_2 = 1;
+    int32_t spite_high_3_left = spite_high_1;
+    int32_t spite_high_3_right = spite_high_2;
+    int32_t spite_high_3;
+    if (__builtin_expect(__builtin_add_overflow(spite_high_3_left, spite_high_3_right, &spite_high_3), 0)) spite_overflowed("strength + 1", "an Integer", "+", (int64_t)spite_high_3_left, (int64_t)spite_high_3_right, spite_site_1());
+    return spite_high_3;
 }
 
 void Arena_strike_all___held_0_1(Arena* self, List_Monster* monsters_, List_Hero* heroes_) {
     int32_t index_ = 0;
     while (((index_ < spite_folded_List_Monster_count(monsters_)))) {
-        Monster* monster_ = ({ List_Monster* spite_temp_5 = monsters_; int32_t spite_temp_6 = index_; if (__builtin_expect(spite_temp_6 < 0 || spite_temp_6 >= (spite_temp_5)->item_count_, 0)) spite_outside_list("monsters[index]", spite_site_2()); ((Monster**)(intptr_t)(spite_temp_5)->items_)[spite_temp_6]; });
-        Hero* hero_ = ({ List_Hero* spite_temp_7 = heroes_; int32_t spite_temp_8 = index_; (spite_temp_8 < 0 || spite_temp_8 >= (spite_temp_7)->item_count_) ? 0 : ((Hero**)(intptr_t)(spite_temp_7)->items_)[spite_temp_8]; });
+        Monster* monster_ = ({ List_Monster* spite_temp_1 = monsters_; int32_t spite_temp_2 = index_; if (__builtin_expect(spite_temp_2 < 0 || spite_temp_2 >= (spite_temp_1)->item_count_, 0)) spite_outside_list("monsters[index]", spite_site_2()); ((Monster**)(intptr_t)(spite_temp_1)->items_)[spite_temp_2]; });
+        Hero* hero_ = ({ List_Hero* spite_temp_3 = heroes_; int32_t spite_temp_4 = index_; (spite_temp_4 < 0 || spite_temp_4 >= (spite_temp_3)->item_count_) ? 0 : ((Hero**)(intptr_t)(spite_temp_3)->items_)[spite_temp_4]; });
         if (!(((hero_) != 0))) {
             spite_failed_1(index_);
         }

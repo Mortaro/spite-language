@@ -309,6 +309,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -1546,10 +1547,12 @@ List_Door___release(doors_);
 return spite_temp_43;
 }
 void Door_Door(Door* self, bool starts_open_) {
-self->is_open_ = starts_open_;
+(self)->is_open_ = starts_open_;
+return;
 }
 void Lamp_Lamp(Lamp* self, bool starts_lit_) {
-self->is_lit_ = starts_lit_;
+(self)->is_lit_ = starts_lit_;
+return;
 }
 int32_t List_Console_Printable_count(List_Console_Printable* self) {
 int32_t spite_temp_44 = self->item_count_;

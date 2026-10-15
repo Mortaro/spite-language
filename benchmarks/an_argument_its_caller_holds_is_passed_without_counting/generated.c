@@ -377,6 +377,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3332,7 +3333,8 @@ spite_report_assert_trace();
 exit(1);
 }
 void Stream_Stream(Stream* self, int32_t new_entity_count_) {
-self->entity_count_ = new_entity_count_;
+(self)->entity_count_ = new_entity_count_;
+return;
 }
 int32_t Stream_run(Stream* self) {
 Matcher spite_slot_1;

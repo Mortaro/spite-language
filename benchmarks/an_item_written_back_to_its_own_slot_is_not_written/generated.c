@@ -341,6 +341,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2534,7 +2535,8 @@ index_ = (index_ + 1);
 }
 }
 void Particle_Particle(Particle* self, int32_t starting_speed_) {
-self->speed_ = starting_speed_;
+(self)->speed_ = starting_speed_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

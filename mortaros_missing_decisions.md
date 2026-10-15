@@ -15,6 +15,10 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D589, choices made building the desugared IR**: the namespace name `Intermediate`; hot reload driven by the IR
+  (no C reading, unswappable changes refused by name); a store releases what the field held; class objects answer
+  retained references; the pipeline switched on only in a test-built compiler until the switch-over. Each is easy
+  to change.
 - **D586, C written from the high level in every build, with no setting.** A function the high level's printer
   covers gets its C from the high level; everything else stays the generator's, and `check.sh` over the whole corpus
   is the proof. The other choice was a setting to turn it on, which costs a field in every program's C. Easy to

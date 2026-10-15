@@ -340,6 +340,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2609,7 +2610,8 @@ self->owner_ = spite_temp_116;
 Owner___release(new_owner_);
 }
 void Owner_Owner(Owner* self, int32_t new_age_) {
-self->age_ = new_age_;
+(self)->age_ = new_age_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;
