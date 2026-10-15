@@ -15,6 +15,9 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D588, how a fake namespace is told apart**: three or more classes in one folder starting with the same whole
+  word, the error text, and the diagnostic's name `prefix_for_a_namespace`. The rule itself is yours. Easy to change
+  the threshold.
 - **D581, the settings' names: `spite compiler --verify`, and `--verify --release` for the full run.** You suggested
   a flag such as `--test-and-movealong`. Easy to rename.
 - **D582, how `--verify` works**: the compiler keeps its own C through `c_source` in its `build.spite`; one more

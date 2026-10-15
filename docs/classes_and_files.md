@@ -485,6 +485,13 @@ library class that is always written with its namespace, `Spite.Function` or `Me
 yours, so a `Function` or an `Arena` of your own is fine: the name is refused only where a reader could not tell at
 first glance which class it means.
 
+Names that all start with the same word say the same thing: `HighBlock`, `HighFunction`, `HighValue` are a
+namespace written into each name. Make it a folder instead, `high/block.spite` and the rest, and the classes are
+`High.Block`, `High.Function` and `High.Value` outside it and `Block`, `Function` and `Value` inside it, where a
+reader already knows which namespace they are in. Three or more such names in one folder are an error naming the
+folder to move them into ([the rule](../specs/classes_and_files.md#files-are-classes)). And name the namespace
+for what it holds: `High` alone does not say high what.
+
 ```gdscript title=own_vector/geometry/vector3.spite
 var height = 0.0
 ```
