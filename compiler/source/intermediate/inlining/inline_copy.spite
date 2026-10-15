@@ -16,6 +16,10 @@ func inline_at(block_number: Integer, position: Integer) {
     crash block.operations[position]
     var call = block.operations[position]
     map_arguments(call)
+    if splices(call) {
+        splice(block, position, call)
+        return
+    }
     var continuing = split_after(block, position, call)
     first_block = caller.blocks.count()
     copy_blocks(continuing.number)
@@ -23,6 +27,53 @@ func inline_at(block_number: Integer, position: Integer) {
     var jump = Terminator("jump")
     jump.to(entry)
     block.terminator = jump
+}
+
+func splices(call: Operation): Boolean {
+    crash callee
+    if callee.blocks.count() != 1 {
+        return false
+    }
+    var only = callee.blocks[0]
+    var returned = only.terminator.operands.first()
+    if only.terminator.kind != "return" {
+        return false
+    }
+    return call.result < 0 or returned
+}
+
+func splice(block: Block, position: Integer, call: Operation) {
+    crash caller
+    crash callee
+    crash callee.blocks[0]
+    var only = callee.blocks[0]
+    var rebuilt = List<Operation>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if index == position {
+            copy_spliced(only, block.number, rebuilt)
+        } else {
+            rebuilt.append(operation)
+        }
+        index = index + 1
+    }
+    block.operations = rebuilt
+    var returned = only.terminator.operands.first()
+    if call.result >= 0 and returned {
+        var answer = value_for(returned, block.number)
+        Facts.Rewrites().replace_value(caller, call.result, answer)
+    }
+}
+
+func copy_spliced(only: Block, block_number: Integer, rebuilt: List<Operation>) {
+    var index = 0
+    while index < only.operations.count() {
+        var operation = only.operations[index]
+        var copied = copy_operation(operation, block_number)
+        rebuilt.append(copied)
+        index = index + 1
+    }
 }
 
 func map_arguments(call: Operation) {

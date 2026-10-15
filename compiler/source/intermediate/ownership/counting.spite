@@ -440,10 +440,11 @@ func place_operation(
     }
     var moved = List<Integer>()
     var retained_any = false
+    var passes_through = consumption.is_wrap(operation) and operation.result >= 0 and not tracked.has(operation.result)
     var index = 0
     while index < operation.operands.count() {
         var operand = operation.operands[index]
-        if consumption.consumes_position(operation, index) {
+        if consumption.consumes_position(operation, index) and not passes_through {
             var retained_before = before.count()
             hand_on(operand, live, moved, before)
             if before.count() > retained_before {

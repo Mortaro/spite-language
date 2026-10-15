@@ -202,7 +202,7 @@ func weight_of(c_name: String, depth: Integer): Integer {
         return weights[c_name]
     }
     var function = lowered.function_named(c_name)
-    if not function or depth > 8 {
+    if not function or depth > 8 or function.blocks.is_empty() {
         return 1
     }
     weights[c_name] = 1

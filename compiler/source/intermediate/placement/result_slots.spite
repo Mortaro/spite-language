@@ -1,0 +1,191 @@
+# ../../../../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame
+var lowered: Lowered? = null
+var escape: Escape? = null
+var kinds: Facts.ValueKinds? = null
+var made_layouts = Dictionary<String, String>()
+var copies = Dictionary<String, String>()
+var placed_count = 0
+var slots = Dictionary<Integer, Boolean>()
+
+func ResultSlots(starting_lowered: Lowered, starting_escape: Escape) {
+    lowered = starting_lowered
+    escape = starting_escape
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
+
+func fresh_layout(callee: Function): String {
+    if made_layouts.has(callee.c_name) {
+        crash made_layouts[callee.c_name]
+        return made_layouts[callee.c_name]
+    }
+    var answer = judged_fresh(callee)
+    made_layouts[callee.c_name] = answer
+    return answer
+}
+
+func judged_fresh(callee: Function): String {
+    if callee.blocks.is_empty() or callee.is_intrinsic() or callee.is_constructor or callee.lends_answer {
+        return ""
+    }
+    var uses = Facts.Uses(callee)
+    var made = -1
+    var layout = ""
+    var index = 0
+    while index < callee.blocks.count() {
+        var block = callee.blocks[index]
+        if block.terminator.kind == "return" {
+            var returned = block.terminator.operands.first()
+            if not returned {
+                return ""
+            }
+            var defining = uses.definition_of(returned)
+            if not defining or defining.kind != "make" or made >= 0 and made != returned {
+                return ""
+            }
+            made = returned
+            layout = defining.layout
+        }
+        index = index + 1
+    }
+    if made < 0 or not stays_until_returned(callee, uses, made) {
+        return ""
+    }
+    crash kinds
+    if not kinds.class_is_counted(layout) or callee.c_name.starts_with("spite_") {
+        return ""
+    }
+    return layout
+}
+
+func stays_until_returned(callee: Function, uses: Facts.Uses, made: Integer): Boolean {
+    crash escape
+    var reached = uses.uses_of(made)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        var block = callee.block_at(place.block)
+        if place.at_terminator() {
+            if block.terminator.kind != "return" {
+                return false
+            }
+        } else if escape.escapes_at(callee, uses, place, made, 0) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func place_results(function: Function) {
+    crash lowered
+    crash escape
+    assert not lowered.is_inspectable() and not function.blocks.is_empty()
+    slots = Dictionary<Integer, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var rebuilt = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var slot = slot_for(function, operation)
+            if slot {
+                rebuilt.append(slot)
+            }
+            rebuilt.append(operation)
+            index = index + 1
+        }
+        block.operations = rebuilt
+        block_index = block_index + 1
+    }
+}
+
+func slot_for(function: Function, call: Operation): Operation? {
+    crash lowered
+    crash escape
+    assert call.kind == "call" and call.result >= 0 and call.form.is_empty()
+    var callee = lowered.function_named(call.callee)
+    assert callee and callee.c_name != function.c_name
+    var layout = fresh_layout(callee)
+    assert not layout.is_empty()
+    assert not escape.escapes(function, call.result)
+    var copy_name = into_copy(callee)
+    var result_type = function.value_at(call.result).spite_type
+    var slot = Operation("make", call.line)
+    slot.layout = layout
+    slot.form = "frame"
+    slot.spite_type = result_type
+    slot.result = function.new_value(result_type, "operation")
+    function.value_at(slot.result).block = function.value_at(call.result).block
+    Facts.Rewrites().replace_value(function, call.result, slot.result)
+    call.takes(slot.result)
+    slots[slot.result] = true
+    call.callee = copy_name
+    call.result = -1
+    call.spite_type = Analysis.Types.VoidType()
+    placed_count = placed_count + 1
+    return slot
+}
+
+func into_copy(callee: Function): String {
+    crash lowered
+    var name = "{callee.c_name}___into"
+    if copies.has(callee.c_name) {
+        return name
+    }
+    copies[callee.c_name] = name
+    var copy = Facts.FunctionCopy().copied(callee, name)
+    var made = made_value(copy)
+    var made_type = copy.value_at(made).spite_type
+    var into = copy.new_value(made_type, "parameter")
+    copy.value_at(into).name = "spite_result"
+    var parameter = Parameter("spite_result", made_type, into)
+    parameter.ownership = "lent"
+    copy.parameters.append(parameter)
+    drop_make(copy, made)
+    Facts.Rewrites().replace_value(copy, made, into)
+    var index = 0
+    while index < copy.blocks.count() {
+        var block = copy.blocks[index]
+        if block.terminator.kind == "return" {
+            block.terminator.operands = List<Integer>()
+        }
+        index = index + 1
+    }
+    copy.answer = Analysis.Types.VoidType()
+    lowered.add_function(copy)
+    return name
+}
+
+func made_value(copy: Function): Integer {
+    var index = 0
+    while index < copy.blocks.count() {
+        var block = copy.blocks[index]
+        var returned = block.terminator.operands.first()
+        if block.terminator.kind == "return" and returned {
+            return returned
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func drop_make(copy: Function, made: Integer) {
+    var index = 0
+    while index < copy.blocks.count() {
+        var block = copy.blocks[index]
+        var kept = List<Operation>()
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var counts_made = (operation.kind == "retain" or operation.kind == "release") and operation.operands.first() == made
+            if operation.result != made and not counts_made {
+                kept.append(operation)
+            }
+            position = position + 1
+        }
+        block.operations = kept
+        index = index + 1
+    }
+}

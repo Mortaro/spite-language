@@ -361,6 +361,7 @@ func while_statement(statement: Syntax.Statements.WhileStatement) {
     made.narrow_proven_indices(statement.condition, emitter.scope, lowered_class)
     lower_statements(statement.body)
     if emitter.reachable() {
+        check_point()
         emitter.back_edge(header, carried)
     }
     emitter.pop_frame()
@@ -373,6 +374,7 @@ func endless_loop(statement: Syntax.Statements.WhileStatement, header: Integer, 
     emitter.scope.is_loop = true
     lower_statements(statement.body)
     if emitter.reachable() {
+        check_point()
         emitter.back_edge(header, carried)
     }
     emitter.pop_frame()
@@ -940,4 +942,11 @@ func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned:
     var allocator = lowering().lower(assigned)
     var operands = [object, allocator]
     emitter.emit_call("Object.place", operands, null)
+}
+
+func check_point() {
+    var made = front()
+    assert made.hot_reload or made.remote_loop_port > 0
+    var no_operands = List<Integer>()
+    emitter.emit_call("Loop.check_point", no_operands, null)
 }

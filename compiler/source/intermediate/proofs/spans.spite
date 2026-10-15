@@ -160,7 +160,7 @@ func span_at(value: Integer, block_number: Integer): NumberSpan? {
     if spans.has(value) {
         return spans[value]
     }
-    return null
+    return kind_span_of(value)
 }
 
 func refinement(block_number: Integer, value: Integer): NumberSpan? {

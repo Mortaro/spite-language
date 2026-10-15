@@ -151,6 +151,8 @@ func may_hold(function: Function): Boolean {
 
 func settle(function: Function): Boolean {
     var changed = false
+    crash consumption
+    consumption.current = function
     var uses = Facts.Uses(function)
     var index = 0
     while index < function.parameters.count() {
@@ -187,7 +189,8 @@ func consumes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value
     crash block.operations[place.position]
     var operation = block.operations[place.position]
     crash consumption
-    if consumption.is_projection(operation) and operation.result >= 0 {
+    var passes_on = consumption.is_projection(operation) or consumption.is_wrap(operation)
+    if passes_on and operation.result >= 0 {
         return is_consumed(function, uses, operation.result, depth + 1)
     }
     return consumption.consumes(operation, value)

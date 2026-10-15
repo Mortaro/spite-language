@@ -136,6 +136,7 @@ func study_use(function: Function, uses: Facts.Uses, place: Facts.Place, list: I
     crash block.operations[place.position]
     var operation = block.operations[place.position]
     var position = operation.operands.index_of(list)
+    assert operation.kind != "load"
     if operation.kind != "call" or position != 0 {
         refused[key] = true
         return

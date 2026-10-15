@@ -246,7 +246,7 @@ func reads_through(user: Operation?, list: Integer): Boolean {
 
 func only_reads(user: Operation, list: Integer): Boolean {
     crash intrinsics
-    if user.kind == "retain" or user.kind == "release" {
+    if user.kind == "retain" or user.kind == "release" or user.kind == "load" {
         return true
     }
     if user.kind != "call" or user.operands.first() != list {

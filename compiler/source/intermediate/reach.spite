@@ -71,6 +71,9 @@ func reach_operation(operation: Operation) {
     }
     reach_type(operation.spite_type, 0)
     reach_named_layout(operation.target)
+    if not operation.target.is_empty() and lowered.function_named(operation.target) {
+        waiting.append(operation.target)
+    }
     if operation.kind == "constant" {
         reach_named_layout(operation.literal)
     }
