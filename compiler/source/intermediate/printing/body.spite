@@ -55,6 +55,10 @@ func print(printed: Function) {
         print_locked()
         return
     }
+    if waits_as_primitive(printed) {
+        print_waiting_lowered()
+        return
+    }
     if printed.slotted {
         print_slotted()
         return
@@ -63,6 +67,21 @@ func print(printed: Function) {
     if printed.resumable {
         print_machine()
     }
+}
+
+# ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+func waits_as_primitive(printed: Function): Boolean {
+    var kind = printed.waiting_kind
+    return not kind.is_empty() and kind != "join" and machines.scheduler_present()
+}
+
+func print_waiting_lowered() {
+    output.need("machines")
+    print_lowered("{function.c_name}___waiting", "")
+    var wrapped = signature(function.c_name)
+    output.prototypes.append("{wrapped};")
+    machines.waiting_wrapper(function, function.waiting_kind, wrapped)
+    note_place(function.c_name)
 }
 
 # ../../../../docs/repl.md#live-reload---hot-reload
@@ -176,10 +195,13 @@ func waits_in_machine(callee: Function): Boolean {
     if callee.resumable and not callee.blocks.is_empty() and callee.locking.is_empty() and callee.singleton_of.is_empty() {
         return true
     }
-    if callee.intrinsic != "supplied" {
+    var kind = callee.waiting_kind
+    if callee.intrinsic != "supplied" and kind.is_empty() {
         return false
     }
-    var kind = machines.waiting_kind(callee)
+    if kind.is_empty() {
+        kind = machines.waiting_kind(callee)
+    }
     if kind.is_empty() or kind == "yield" {
         return false
     }
