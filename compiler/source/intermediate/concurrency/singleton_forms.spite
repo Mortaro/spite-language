@@ -556,9 +556,43 @@ func mark_access(function: Function, operation: Operation) {
         }
         return
     }
+    assert operation.kind != "load" or not holds_object(field.spite_type) or reassigned(layout, field.name)
     if function.owner != layout.c_name and layout.thread_form != "read_only" {
         operation.form = "locked"
     }
+}
+
+# ../../../../docs/optimizations.md#a-singletons-attribute-that-never-changes-is-read-in-place
+func holds_object(spite_type: Analysis.SpiteType?): Boolean {
+    crash kinds
+    if not spite_type or types.as_string(spite_type) or not kinds.is_counted(spite_type) {
+        return false
+    }
+    var layout = kinds.layout_of(spite_type)
+    if not layout {
+        return false
+    }
+    return layout.kind == "class" or layout.qualified == "List" or layout.qualified == "Dictionary"
+}
+
+func reassigned(layout: Layout, field: String): Boolean {
+    crash lowered
+    crash effects
+    var key = "{layout.c_name}.{field}"
+    if outside_writes.has(key) {
+        return true
+    }
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var summary = effects.of(function.c_name)
+        if summary.writes.has(key) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func mark_fused(function: Function, store: Operation) {

@@ -1,0 +1,347 @@
+# ../../../../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame
+var types = Analysis.TypeShape()
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var escape: Placement.Escape? = null
+var carried_count = 0
+
+func CarriedObjects(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+    var made_escape = Placement.Escape(starting_lowered)
+    escape = made_escape
+}
+
+func carry(function: Function) {
+    crash lowered
+    assert not lowered.is_inspectable() and not function.blocks.is_empty()
+    var rounds = 0
+    var changed = true
+    while changed and rounds < 8 {
+        changed = carry_once(function)
+        rounds = rounds + 1
+    }
+}
+
+func carry_once(function: Function): Boolean {
+    var flow = Facts.Flow(function)
+    var headers = flow.loop_headers.keys()
+    var index = 0
+    while index < headers.count() {
+        var header = headers[index]
+        var block = function.block_at(header)
+        var position = 0
+        while position < block.parameters.count() {
+            if carry_parameter(function, flow, header, position) {
+                carried_count = carried_count + 1
+                return true
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func plain_layout(spite_type: Analysis.SpiteType?): Layout? {
+    crash kinds
+    var layout = kinds.layout_of(spite_type)
+    assert layout and kinds.class_is_counted(layout.c_name) and layout.kind == "class"
+    assert not layout.stored_fields.is_empty() and layout.information and not layout.information.drop_function
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field_type = layout.stored_fields[index].spite_type
+        assert field_type
+        assert types.as_scalar(field_type) or types.as_enum(field_type)
+        index = index + 1
+    }
+    return layout
+}
+
+func carry_parameter(function: Function, flow: Facts.Flow, header: Integer, position: Integer): Boolean {
+    crash escape
+    var block = function.block_at(header)
+    crash block.parameters[position]
+    var parameter = block.parameters[position]
+    var parameter_type = function.value_at(parameter).spite_type
+    var layout = plain_layout(parameter_type)
+    if not layout {
+        return false
+    }
+    var edges = Facts.LoopEdges()
+    var preheader = edges.preheader_of(flow, header)
+    if preheader < 0 {
+        return false
+    }
+    var uses = Facts.Uses(function)
+    var first = argument_into(function, preheader, header, position)
+    if first < 0 or not made_here(uses, first, layout) or first == parameter {
+        return false
+    }
+    if not only_built_and_passed(function, uses, first, preheader) or escape.escapes_but_jumps(function, first) {
+        return false
+    }
+    if not stays_in_loop(function, uses, parameter, header, position) or escape.escapes_but_jumps(function, parameter) {
+        return false
+    }
+    if not arguments_fresh(function, flow, uses, header, position, parameter) {
+        return false
+    }
+    rewrite(function, flow, header, position, parameter, first, layout)
+    return true
+}
+
+func argument_into(function: Function, from: Integer, into: Integer, position: Integer): Integer {
+    var targets = function.block_at(from).terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        if target.block == into and position < target.arguments.count() {
+            return target.arguments[position]
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func made_here(uses: Facts.Uses, value: Integer, layout: Layout): Boolean {
+    var defining = uses.definition_of(value)
+    if not defining {
+        return false
+    }
+    return defining.kind == "make" and defining.layout == layout.c_name
+}
+
+func only_built_and_passed(function: Function, uses: Facts.Uses, made: Integer, preheader: Integer): Boolean {
+    crash lowered
+    var reached = uses.uses_of(made)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() {
+            if place.block != preheader or passed_count(function, preheader, made) != 1 {
+                return false
+            }
+        } else if not builds(function, place, made) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func passed_count(function: Function, from: Integer, value: Integer): Integer {
+    var count = 0
+    var targets = function.block_at(from).terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var arguments = targets[index].arguments
+        var position = 0
+        while position < arguments.count() {
+            if arguments[position] == value {
+                count = count + 1
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return count
+}
+
+func builds(function: Function, place: Facts.Place, made: Integer): Boolean {
+    crash lowered
+    var block = function.block_at(place.block)
+    crash block.operations[place.position]
+    var operation = block.operations[place.position]
+    if operation.kind == "store" {
+        return operation.operands.first() == made and operation.operands.last() != made
+    }
+    if operation.kind != "call" or operation.operands.first() != made {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return callee.is_constructor
+}
+
+func stays_in_loop(
+    function: Function,
+    uses: Facts.Uses,
+    parameter: Integer,
+    header: Integer,
+    position: Integer,
+): Boolean {
+    var reached = uses.uses_of(parameter)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() and not passes_back(function, place.block, parameter, header, position) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func passes_back(function: Function, from: Integer, value: Integer, header: Integer, position: Integer): Boolean {
+    var targets = function.block_at(from).terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        var place = 0
+        while place < target.arguments.count() {
+            if target.arguments[place] == value and (target.block != header or place != position) {
+                return false
+            }
+            place = place + 1
+        }
+        index = index + 1
+    }
+    var kind = function.block_at(from).terminator.kind
+    return kind == "jump" or kind == "branch" or kind == "switch"
+}
+
+func arguments_fresh(
+    function: Function,
+    flow: Facts.Flow,
+    uses: Facts.Uses,
+    header: Integer,
+    position: Integer,
+    parameter: Integer,
+): Boolean {
+    crash escape
+    var coming = flow.predecessors_of(header)
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        if flow.is_back_edge(from, header) {
+            var argument = argument_into(function, from, header, position)
+            if argument < 0 {
+                return false
+            }
+            if argument != parameter and not fresh_argument(function, uses, argument, from) {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func fresh_argument(function: Function, uses: Facts.Uses, argument: Integer, from: Integer): Boolean {
+    crash escape
+    var jumps = 0
+    var reached = uses.uses_of(argument)
+    var index = 0
+    while index < reached.count() {
+        if reached[index].at_terminator() {
+            jumps = jumps + 1
+            if reached[index].block != from {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    if jumps != 1 or passed_count(function, from, argument) != 1 or escape.escapes_but_jumps(function, argument) {
+        return false
+    }
+    var defining = uses.definition_of(argument)
+    if not defining {
+        return false
+    }
+    if defining.kind == "make" {
+        return true
+    }
+    return defining.kind == "call" and returns_fresh(defining.callee)
+}
+
+func returns_fresh(c_name: String): Boolean {
+    crash lowered
+    crash escape
+    var callee = lowered.function_named(c_name)
+    if not callee or callee.blocks.is_empty() {
+        return false
+    }
+    var uses = Facts.Uses(callee)
+    var returned = 0
+    var index = 0
+    while index < callee.blocks.count() {
+        var terminator = callee.blocks[index].terminator
+        if terminator.kind == "return" {
+            if terminator.operands.is_empty() {
+                return false
+            }
+            var value = terminator.operands.first()
+            crash value
+            var defining = uses.definition_of(value)
+            if not defining or defining.kind != "make" or escape.escapes_but_jumps(callee, value) {
+                return false
+            }
+            returned = returned + 1
+        }
+        index = index + 1
+    }
+    return returned > 0
+}
+
+func rewrite(
+    function: Function,
+    flow: Facts.Flow,
+    header: Integer,
+    position: Integer,
+    parameter: Integer,
+    first: Integer,
+    layout: Layout,
+) {
+    var coming = flow.predecessors_of(header)
+    var index = 0
+    while index < coming.count() {
+        var from = coming[index]
+        var argument = argument_into(function, from, header, position)
+        if argument >= 0 and argument != first and argument != parameter {
+            copy_fields(function, from, argument, first, layout)
+        }
+        drop_argument(function, from, header, position)
+        index = index + 1
+    }
+    var block = function.block_at(header)
+    block.parameters.remove_at(position)
+    Facts.Rewrites().replace_value(function, parameter, first)
+}
+
+func copy_fields(function: Function, block_number: Integer, from: Integer, into: Integer, layout: Layout) {
+    var block = function.block_at(block_number)
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var read = Operation("load", 0)
+        read.takes(from)
+        read.field = field.name
+        read.spite_type = field.spite_type
+        read.result = function.new_value(field.spite_type, "operation")
+        function.value_at(read.result).block = block_number
+        block.add(read)
+        var write = Operation("store", 0)
+        write.takes(into)
+        write.takes(read.result)
+        write.field = field.name
+        write.spite_type = field.spite_type
+        block.add(write)
+        index = index + 1
+    }
+}
+
+func drop_argument(function: Function, from: Integer, header: Integer, position: Integer) {
+    var targets = function.block_at(from).terminator.targets
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        if target.block == header and position < target.arguments.count() {
+            target.arguments.remove_at(position)
+        }
+        index = index + 1
+    }
+}

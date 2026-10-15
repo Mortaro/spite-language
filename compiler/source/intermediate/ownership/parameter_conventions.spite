@@ -5,6 +5,7 @@ var effects: Facts.Effects? = null
 var taken_as_values = Dictionary<String, Boolean>()
 var consumption: Consumption? = null
 var held_count = 0
+var slot_stores: SlotStores? = null
 
 func ParameterConventions(starting_lowered: Lowered, starting_effects: Facts.Effects) {
     lowered = starting_lowered
@@ -13,6 +14,9 @@ func ParameterConventions(starting_lowered: Lowered, starting_effects: Facts.Eff
     kinds = made_kinds
     var made_consumption = Consumption(starting_lowered)
     consumption = made_consumption
+    var no_drops = Facts.Summary()
+    var made_slot_stores = SlotStores(starting_lowered, starting_effects, no_drops)
+    slot_stores = made_slot_stores
 }
 
 func decide() {
@@ -192,6 +196,10 @@ func consumes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value
     var passes_on = consumption.is_projection(operation) or consumption.is_wrap(operation)
     if passes_on and operation.result >= 0 {
         return is_consumed(function, uses, operation.result, depth + 1)
+    }
+    crash slot_stores
+    if operation.operands.last() == value and slot_stores.fits_in_place(function, uses, operation) {
+        return false
     }
     return consumption.consumes(operation, value)
 }

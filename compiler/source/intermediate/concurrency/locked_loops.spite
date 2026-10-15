@@ -66,7 +66,7 @@ func called_singleton(function: Function, body: List<Integer>): String {
         while position < block.operations.count() {
             var operation = block.operations[position]
             var owner = singleton_called(operation)
-            if owner == "!" {
+            if owner == "!" or computes_object(function, operation) {
                 return ""
             }
             if not owner.is_empty() {
@@ -84,6 +84,28 @@ func called_singleton(function: Function, body: List<Integer>): String {
         return ""
     }
     return found
+}
+
+func computes_object(function: Function, operation: Operation): Boolean {
+    crash kinds
+    if operation.kind == "retain" or operation.kind == "release" {
+        return true
+    }
+    if operation.result < 0 {
+        return false
+    }
+    var computed = function.value_at(operation.result).spite_type
+    if not computed {
+        return true
+    }
+    var types = Analysis.TypeShape()
+    if types.as_string(computed) {
+        return false
+    }
+    if operation.kind == "load" and operation.form == "locked" {
+        return true
+    }
+    return kinds.is_counted(computed) and operation.kind != "load"
 }
 
 func locking_call(operation: Operation): Boolean {
