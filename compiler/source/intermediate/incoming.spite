@@ -1,0 +1,8 @@
+# ../../../design/proposals/desugared_high_ir.md#lowering-a-body
+var block = -1
+var values = List<Integer>()
+
+func Incoming(starting_block: Integer, starting_values: List<Integer>) {
+    block = starting_block
+    values = starting_values
+}

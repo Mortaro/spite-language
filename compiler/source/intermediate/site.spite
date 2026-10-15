@@ -6,6 +6,7 @@ var line = 0
 var owner = ""
 var function = ""
 var text = ""
+var shown = List<String>()
 
 func Site(starting_kind: String, starting_path: String, starting_line: Integer) {
     kind = starting_kind

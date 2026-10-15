@@ -1,0 +1,415 @@
+# ../../../design/proposals/desugared_high_ir.md#lowering-a-body
+var function = Function("", "", "")
+var lowered = Lowered()
+var current = -1
+var locals = List<Local>()
+var frame_starts = List<Integer>()
+var scope = Generation.Scope(null)
+var failure = ""
+var line = 0
+var path = ""
+var owner_name = ""
+var function_name = ""
+var literals = Dictionary<Integer, String>()
+var floor = 0
+var wrapped_values = Dictionary<Integer, Boolean>()
+var types = Analysis.TypeShape()
+
+func built_function(): Function {
+    return function
+}
+
+func fail_lowering(reason: String) {
+    if failure.is_empty() {
+        failure = reason
+    }
+}
+
+func lowering_failed(): Boolean {
+    return not failure.is_empty()
+}
+
+func reachable(): Boolean {
+    return current >= 0
+}
+
+func new_block(): Integer {
+    var made = built_function().new_block()
+    return made.number
+}
+
+func enter_block(number: Integer) {
+    current = number
+}
+
+func block(): Block {
+    crash current >= 0
+    return built_function().block_at(current)
+}
+
+func new_value(spite_type: Analysis.SpiteType?, origin: String): Integer {
+    return built_function().new_value(spite_type, origin)
+}
+
+func type_of(value: Integer): Analysis.SpiteType? {
+    assert value >= 0
+    var found = built_function().value_at(value)
+    return found.spite_type
+}
+
+func poison(spite_type: Analysis.SpiteType?, reason: String): Integer {
+    fail_lowering(reason)
+    return new_value(spite_type, "not lowered")
+}
+
+func add_operation(operation: Operation): Operation {
+    if current < 0 {
+        fail_lowering("an operation after the end of a block")
+        return operation
+    }
+    block().add(operation)
+    return operation
+}
+
+func constant(spite_type: Analysis.SpiteType, literal: String): Integer {
+    var made = Operation("constant", line)
+    made.literal = literal
+    made.spite_type = spite_type
+    made.result = new_value(spite_type, "constant")
+    add_operation(made)
+    literals[made.result] = literal
+    return made.result
+}
+
+func literal_of(value: Integer): String? {
+    if literals.has(value) {
+        return literals[value]
+    }
+    return null
+}
+
+func call_operation(callee: String, operands: List<Integer>, answer: Analysis.SpiteType?): Operation {
+    var made = Operation("call", line)
+    made.callee = callee
+    made.operands = operands
+    if answer and not types.is_void(answer) {
+        made.spite_type = answer
+        made.result = new_value(answer, "call")
+    }
+    return add_operation(made)
+}
+
+func emit_call(callee: String, operands: List<Integer>, answer: Analysis.SpiteType?): Integer {
+    var made = call_operation(callee, operands, answer)
+    return made.result
+}
+
+func emit_call_one(callee: String, operand: Integer, answer: Analysis.SpiteType?): Integer {
+    var operands = [operand]
+    return emit_call(callee, operands, answer)
+}
+
+func emit_call_two(callee: String, first: Integer, second: Integer, answer: Analysis.SpiteType?): Integer {
+    var operands = [first, second]
+    return emit_call(callee, operands, answer)
+}
+
+func checked_call(callee: String, operands: List<Integer>, answer: Analysis.SpiteType?, site_number: Integer): Integer {
+    var made = call_operation(callee, operands, answer)
+    made.site = site_number
+    return made.result
+}
+
+func call_value(callee: Integer, operands: List<Integer>, answer: Analysis.SpiteType?): Integer {
+    var made = Operation("call value", line)
+    made.operands.append(callee)
+    operands.each(made.operands.append)
+    if answer and not types.is_void(answer) {
+        made.spite_type = answer
+        made.result = new_value(answer, "call")
+    }
+    add_operation(made)
+    return made.result
+}
+
+func load_field(object: Integer, field: String, spite_type: Analysis.SpiteType): Integer {
+    var made = Operation("load", line)
+    made.operands.append(object)
+    made.field = field
+    made.spite_type = spite_type
+    made.result = new_value(spite_type, "load")
+    add_operation(made)
+    return made.result
+}
+
+func store_field(object: Integer, field: String, stored: Integer) {
+    var made = Operation("store", line)
+    made.operands.append(object)
+    made.operands.append(stored)
+    made.field = field
+    add_operation(made)
+}
+
+func make_object(layout: String, spite_type: Analysis.SpiteType): Integer {
+    var made = Operation("make", line)
+    made.layout = layout
+    made.spite_type = spite_type
+    made.result = new_value(spite_type, "make")
+    add_operation(made)
+    return made.result
+}
+
+func site(kind: String, text: String): Integer {
+    var made = Site(kind, path, line)
+    made.owner = owner_name
+    made.function = function_name
+    made.text = text
+    return lowered.add_site(made)
+}
+
+func end_block(ended: Terminator) {
+    assert current >= 0
+    block().terminator = ended
+    current = -1
+}
+
+func jump(target: Integer, arguments: List<Integer>) {
+    var ended = Terminator("jump")
+    var to = Target(target)
+    to.arguments = arguments
+    ended.to(to)
+    end_block(ended)
+}
+
+func jump_plain(target: Integer) {
+    var passed = List<Integer>()
+    jump(target, passed)
+}
+
+func branch(condition: Integer, then_block: Integer, else_block: Integer) {
+    var ended = Terminator("branch")
+    ended.operands.append(condition)
+    var taken = Target(then_block)
+    ended.to(taken)
+    var dropped = Target(else_block)
+    ended.to(dropped)
+    end_block(ended)
+}
+
+func switch_on(subject: Integer, tags: List<String>, targets: List<Integer>) {
+    var ended = Terminator("switch")
+    ended.operands.append(subject)
+    var index = 0
+    while index < targets.count() {
+        crash tags[index]
+        var to = Target(targets[index])
+        to.tag = tags[index]
+        ended.to(to)
+        index = index + 1
+    }
+    end_block(ended)
+}
+
+func returns(value: Integer) {
+    var ended = Terminator("return")
+    if value >= 0 {
+        ended.operands.append(value)
+    }
+    end_block(ended)
+}
+
+func halt(site_number: Integer, shown: List<Integer>) {
+    var ended = Terminator("halt")
+    ended.site = site_number
+    ended.operands = shown
+    end_block(ended)
+}
+
+func push_frame() {
+    var start = locals.count()
+    frame_starts.append(start)
+    var inner = Generation.Scope(scope)
+    scope = inner
+}
+
+func pop_frame() {
+    var start = frame_starts.remove_last()
+    crash start
+    locals.truncate(start)
+    pop_scope()
+}
+
+func push_scope() {
+    var inner = Generation.Scope(scope)
+    scope = inner
+}
+
+func pop_scope() {
+    crash scope.parent
+    scope = scope.parent
+}
+
+func declare_local(name: String, value: Integer, declared: Analysis.SpiteType) {
+    name_value(value, name)
+    var made = Local(name, value, declared)
+    locals.append(made)
+    scope.declare(name, declared)
+}
+
+func local_named(name: String): Local? {
+    var index = locals.count() - 1
+    while index >= floor {
+        var candidate = local_at(index)
+        if candidate.name == name {
+            return candidate
+        }
+        index = index - 1
+    }
+    return null
+}
+
+func local_at(position: Integer): Local {
+    crash locals[position]
+    return locals[position]
+}
+
+func snapshot(count: Integer): List<Integer> {
+    var values = List<Integer>()
+    var index = 0
+    while index < count {
+        var held = local_at(index)
+        values.append(held.value)
+        index = index + 1
+    }
+    return values
+}
+
+func incoming(count: Integer): Incoming? {
+    assert current >= 0
+    var values = snapshot(count)
+    return Incoming(current, values)
+}
+
+func arrive(incomings: List<Incoming>, count: Integer) {
+    if incomings.is_empty() {
+        current = -1
+        return
+    }
+    var joined = new_block()
+    var arguments = List<List<Integer>>()
+    var counted = 0
+    while counted < incomings.count() {
+        var passed = List<Integer>()
+        arguments.append(passed)
+        counted = counted + 1
+    }
+    var position = 0
+    while position < count {
+        merge_local(position, incomings, joined, arguments)
+        position = position + 1
+    }
+    var index = 0
+    while index < incomings.count() {
+        var arrived = incomings[index]
+        crash arguments[index]
+        current = arrived.block
+        jump(joined, arguments[index])
+        index = index + 1
+    }
+    current = joined
+}
+
+func arrived_value(arrived: Incoming, position: Integer): Integer {
+    crash arrived.values[position]
+    return arrived.values[position]
+}
+
+func merge_local(position: Integer, incomings: List<Incoming>, joined: Integer, arguments: List<List<Integer>>) {
+    var held = local_at(position)
+    crash incomings[0]
+    var first = arrived_value(incomings[0], position)
+    var differs = false
+    var index = 0
+    while index < incomings.count() {
+        var arrived = incomings[index]
+        if arrived_value(arrived, position) != first {
+            differs = true
+        }
+        index = index + 1
+    }
+    if not differs {
+        held.value = first
+        return
+    }
+    var parameter = new_value(held.declared, "parameter")
+    name_value(parameter, held.name)
+    built_function().block_at(joined).parameters.append(parameter)
+    index = 0
+    while index < incomings.count() {
+        var arrived = incomings[index]
+        crash arguments[index]
+        var passed = arrived_value(arrived, position)
+        arguments[index].append(passed)
+        index = index + 1
+    }
+    held.value = parameter
+}
+
+func carried_values(carried: List<Integer>): List<Integer> {
+    var arguments = List<Integer>()
+    var index = 0
+    while index < carried.count() {
+        var held = local_at(carried[index])
+        arguments.append(held.value)
+        index = index + 1
+    }
+    return arguments
+}
+
+func loop_header(carried: List<Integer>): Integer {
+    var header = new_block()
+    var arguments = carried_values(carried)
+    jump(header, arguments)
+    current = header
+    var index = 0
+    while index < carried.count() {
+        var held = local_at(carried[index])
+        var parameter = new_value(held.declared, "parameter")
+        name_value(parameter, held.name)
+        built_function().block_at(header).parameters.append(parameter)
+        held.value = parameter
+        index = index + 1
+    }
+    return header
+}
+
+func back_edge(header: Integer, carried: List<Integer>) {
+    var arguments = carried_values(carried)
+    jump(header, arguments)
+}
+
+func reset_carried(header: Integer, carried: List<Integer>) {
+    var parameters = built_function().block_at(header).parameters
+    var index = 0
+    while index < carried.count() {
+        crash parameters[index]
+        var held = local_at(carried[index])
+        held.value = parameters[index]
+        index = index + 1
+    }
+}
+
+func restore(values: List<Integer>) {
+    var index = 0
+    while index < values.count() {
+        var held = local_at(index)
+        held.value = values[index]
+        index = index + 1
+    }
+}
+
+func name_value(value: Integer, name: String) {
+    assert value >= 0
+    var named = built_function().value_at(value)
+    named.name = name
+}

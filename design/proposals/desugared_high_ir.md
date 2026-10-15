@@ -147,3 +147,20 @@ corpus passes, the setting and the generator are deleted together.
 (its struct and its allocate, init, release, free and copy functions), every `Function` (its signature from its
 parameters, its body from its blocks), each intrinsic's C (from its name and the operation's `form`), each site,
 the runtime support the program reaches, and `main`. It decides nothing: a check it writes is a check a pass left.
+
+## Lowering a body
+
+The lowering walks each concrete function the program reaches, starting from `main` (a function the lowering
+writes itself: it makes the launcher, stores its defaults and calls its constructor), and writes its body as blocks
+in SSA form. A local is a value; where two paths meet, a local that differs arrives as a block parameter, and a
+`while` carries every local its body assigns as a parameter of the block that tests the condition. A narrowed name
+or path is read through `Nullable.value` (or `Union.value` for a union narrowed to one member) each time it is read.
+
+The conventions the passes and the printer rely on are listed with the coverage in the lowering's report.
+
+## Monomorphisation
+
+Every function the lowering reaches is one the generator already made concrete: an instance of a generic class
+(`List_Integer`), a template instance, a specialised copy. The lowering asks the generator to resolve a name, a
+type, a codegen value or a question folded while compiling, with the generator's own context set for the function
+it lowers, so the decision is made once, by the same code, and the IR holds only its answer.

@@ -1,0 +1,10 @@
+# ../../../design/proposals/desugared_high_ir.md#lowering-a-body
+var name = ""
+var value = -1
+var declared: Analysis.SpiteType? = null
+
+func Local(starting_name: String, starting_value: Integer, starting_declared: Analysis.SpiteType) {
+    name = starting_name
+    value = starting_value
+    declared = starting_declared
+}
