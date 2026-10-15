@@ -55,6 +55,10 @@ func print(printed: Function) {
         print_locked()
         return
     }
+    if waits_as_primitive(printed) {
+        print_waiting_lowered()
+        return
+    }
     if printed.slotted {
         print_slotted()
         return
@@ -63,6 +67,21 @@ func print(printed: Function) {
     if printed.resumable {
         print_machine()
     }
+}
+
+# ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+func waits_as_primitive(printed: Function): Boolean {
+    var kind = printed.waiting_kind
+    return not kind.is_empty() and kind != "join" and machines.scheduler_present()
+}
+
+func print_waiting_lowered() {
+    output.need("machines")
+    print_lowered("{function.c_name}___waiting", "")
+    var wrapped = signature(function.c_name)
+    output.prototypes.append("{wrapped};")
+    machines.waiting_wrapper(function, function.waiting_kind, wrapped)
+    note_place(function.c_name)
 }
 
 # ../../../../docs/repl.md#live-reload---hot-reload
@@ -176,10 +195,13 @@ func waits_in_machine(callee: Function): Boolean {
     if callee.resumable and not callee.blocks.is_empty() and callee.locking.is_empty() and callee.singleton_of.is_empty() {
         return true
     }
-    if callee.intrinsic != "supplied" {
+    var kind = callee.waiting_kind
+    if callee.intrinsic != "supplied" and kind.is_empty() {
         return false
     }
-    var kind = machines.waiting_kind(callee)
+    if kind.is_empty() {
+        kind = machines.waiting_kind(callee)
+    }
     if kind.is_empty() or kind == "yield" {
         return false
     }
@@ -331,6 +353,7 @@ func print_singleton_maker() {
     } else {
         found = "{name}___retain(found)"
         cached = "{name}___retain({getter}_cache)"
+        shown = getter
     }
     var getter_lines = [
         "static {answered} {getter}_cache = 0;"
@@ -910,6 +933,9 @@ func decimal_constant(kind: Analysis.Types.NumericKind, literal: String): String
         "not_a_number": return "__builtin_nan{precision}(\"\")"
         _: {}
     }
+    if is_folded_decimal(literal) {
+        return literal
+    }
     if not is_decimal_literal(literal) {
         refuse("a decimal constant '{literal}' that is not written in digits")
         return "0"
@@ -918,6 +944,13 @@ func decimal_constant(kind: Analysis.Types.NumericKind, literal: String): String
         return "{literal}{suffix}"
     }
     return "{literal}.0{suffix}"
+}
+
+func is_folded_decimal(literal: String): Boolean {
+    var wrapped = literal.starts_with("(") and literal.ends_with(")")
+    var hexadecimal = literal.contains("0x") and literal.contains("p")
+    var named = literal.contains("__builtin_nan") or literal.contains("__builtin_inf")
+    return wrapped and (hexadecimal or named) and not literal.contains(";")
 }
 
 func is_decimal_literal(literal: String): Boolean {
@@ -1596,11 +1629,14 @@ func print_placed_make(operation: Operation, layout: Layout) {
 func placement_head(placed: Integer, layout: Layout): String {
     var allocator_number = placements[placed]
     crash allocator_number
-    if position_of(allocator_number) > position_of(placed) {
-        refuse("it places an object in an allocator that is made after it")
-        return ""
-    }
     var allocator = name_of(allocator_number)
+    if position_of(allocator_number) > position_of(placed) {
+        allocator = earlier_allocator(allocator_number, placed)
+        if allocator.is_empty() {
+            refuse("it places an object in an allocator that is made after it")
+            return ""
+        }
+    }
     var allocator_type = type_of(allocator_number)
     var allocator_layout = naming.layout_of(allocator_type)
     if not allocator_layout {
@@ -1632,6 +1668,23 @@ func placement_head(placed: Integer, layout: Layout): String {
     return "{held}, {given}, {address}"
 }
 
+func made_in_frame(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number {
+                return operation.kind == "make" and operation.form == "frame"
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
 func made_here(number: Integer): Boolean {
     var block_index = 0
     while block_index < function.blocks.count() {
@@ -1647,6 +1700,41 @@ func made_here(number: Integer): Boolean {
         block_index = block_index + 1
     }
     return false
+}
+
+func earlier_allocator(allocator_number: Integer, placed: Integer): String {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var defining = block.operations[index]
+            if defining.result == allocator_number {
+                return reread(defining, placed)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return ""
+}
+
+func reread(defining: Operation, placed: Integer): String {
+    if defining.kind == "load" and defining.operands.count() == 1 {
+        var holder = defining.operands[0]
+        var holder_known = holder == function.receiver or position_of(holder) < position_of(placed)
+        if holder_known {
+            return field_place(defining)
+        }
+    }
+    var getter = lowered.function_named(defining.callee)
+    if defining.kind == "call" and defining.operands.is_empty() and getter and not getter.singleton_of.is_empty() {
+        var made = lowered.layout_named(getter.singleton_of)
+        if made and made.is_singleton {
+            return "{getter.c_name}()"
+        }
+    }
+    return ""
 }
 
 func position_of(number: Integer): Integer {
@@ -1893,7 +1981,11 @@ func print_branch(terminator: Terminator) {
     if tested_type {
         var nullable = shape.as_nullable(tested_type)
         if nullable {
-            tested = intrinsics.presence(tested, nullable.inner)
+            var present = intrinsics.presence(tested, nullable.inner)
+            tested = present
+            if holds_boolean(nullable.inner) {
+                tested = "({present} && ({tested}).value)"
+            }
         } else if shape.as_string(tested_type) or shape.is_symbol(tested_type) or naming.is_tagged(tested_type) {
             tested = intrinsics.presence(tested, tested_type)
         }
@@ -1949,6 +2041,18 @@ func case_label(tag: String, switched_type: Analysis.SpiteType?): String {
         refuse("a switch case '{tag}' that is neither an enum value, a class nor a number")
     }
     return tag
+}
+
+func holds_boolean(inner: Analysis.SpiteType): Boolean {
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return holds_boolean(nested.inner)
+    }
+    var scalar = shape.as_scalar(inner)
+    if scalar {
+        return scalar.kind == 'boolean_kind'
+    }
+    return false
 }
 
 func transfer(target: Target): String {

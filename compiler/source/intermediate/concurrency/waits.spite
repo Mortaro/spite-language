@@ -240,7 +240,7 @@ func mark_resumable(entries: List<String>) {
             seen[taken] = true
             var function = lowered.function_named(taken)
             var summary = effects.of(taken)
-            if function and summary.waits and not function.is_intrinsic() {
+            if function and summary.waits and not function.is_intrinsic() and function.waiting_kind.is_empty() {
                 function.resumable = true
                 resumable_count = resumable_count + 1
                 summary.callees.each(waiting.append)

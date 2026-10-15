@@ -379,12 +379,68 @@ func print_reflection(body: Body, operation: Operation, word: String) {
         class_read(body, operation)
         return
     }
+    if word == "memory" {
+        memory_read(body, operation)
+        return
+    }
     if word != "class_object" {
         body.refuse("it reads '{word}' by reflection, which the printer does not write yet")
         return
     }
     var getter = class_getter(operation.target)
     body.assign(operation.result, "{getter}()")
+}
+
+# ../../../../docs/memory.md#where-a-value-lives-memory
+func memory_read(body: Body, operation: Operation) {
+    var memory = lowered.layout_named("Spite_Memory")
+    var object_type = body.operand_type(operation, 0)
+    if not memory or not object_type {
+        body.refuse("it reads where a value lives, and the program holds no Spite.Memory layout")
+        return
+    }
+    var number = body.operand_number(operation, 0)
+    var object = body.operand(operation, 0)
+    var named = not body.function.value_at(number).name.is_empty()
+    var address = "(int64_t)(intptr_t)({object})"
+    var bytes = "(int64_t)sizeof(*({object}))"
+    var section = "Spite_Memory_Section_heap"
+    if shape.as_string(object_type) {
+        var inline_section = "Spite_Memory_Section_heap"
+        if named {
+            inline_section = "Spite_Memory_Section_stack"
+        }
+        address = "(int64_t)(intptr_t)spite_string_bytes(&({object}))"
+        bytes = "spite_string_length({object})"
+        section = "(SPITE_STRING_IS_HEAP({object}) ? Spite_Memory_Section_heap : SPITE_STRING_IS_INLINE({object}) ? {inline_section} : Spite_Memory_Section_constant)"
+    } else if shape.as_scalar(object_type) or shape.as_enum(object_type) {
+        if not named {
+            body.refuse("it reads where a value lives that has no name, and only a named value has memory of its own")
+            return
+        }
+        address = "(int64_t)(intptr_t)&({object})"
+        bytes = number_bytes(object_type)
+        section = "Spite_Memory_Section_stack"
+    } else if naming.counted_name(object_type).is_empty() or shape.as_nullable(object_type) or shape.as_union(object_type) {
+        body.refuse("it reads where a value lives that has no memory of its own")
+        return
+    } else if body.made_in_frame(number) {
+        section = "Spite_Memory_Section_stack"
+    }
+    var made = body.result_name(operation)
+    body.assign(operation.result, "Spite_Memory___allocate()")
+    body.emit("({made})->_address_ = {address};")
+    body.emit("({made})->_bytes_ = {bytes};")
+    body.emit("({made})->_section_ = {section};")
+}
+
+func number_bytes(object_type: Analysis.SpiteType): String {
+    var written = naming.c_type(object_type)
+    var described = naming.layout_of(object_type)
+    if described and described.information and described.information.memory_bytes > 0 {
+        return "(int64_t){described.information.memory_bytes}"
+    }
+    return "(int64_t)sizeof({written})"
 }
 
 func class_getter(target: String): String {
