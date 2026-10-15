@@ -5,6 +5,7 @@ var kinds: ValueKinds? = null
 var summaries = Dictionary<String, Summary>()
 var callers = Dictionary<String, List<String>>()
 var fresh_values = Dictionary<Integer, Boolean>()
+var one_operation = false
 
 func Effects(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -177,7 +178,7 @@ func note_store(made: Summary, function: Function, operation: Operation) {
     crash kinds
     var object = operation.operands.first()
     crash object
-    assert not function.is_constructor or object != function.receiver
+    assert one_operation or not function.is_constructor or object != function.receiver
     assert not fresh_values.has(object)
     var object_type = function.value_at(object).spite_type
     var layout = kinds.layout_of(object_type)
@@ -342,7 +343,9 @@ func operation_summary(function: Function, operation: Operation): Summary {
         return made
     }
     fresh_values = Dictionary<Integer, Boolean>()
+    one_operation = true
     note_operation(made, function, operation)
+    one_operation = false
     return made
 }
 

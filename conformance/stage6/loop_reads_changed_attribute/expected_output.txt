@@ -1,0 +1,2 @@
+in the constructor: 3 3
+in a function: 6 6

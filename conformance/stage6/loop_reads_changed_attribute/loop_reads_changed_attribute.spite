@@ -1,0 +1,26 @@
+var console = Console()
+var steps = 0
+var seen = List<Integer>()
+
+func LoopReadsChangedAttribute() {
+    while steps < 3 {
+        steps = steps + 1
+        seen.append(steps)
+    }
+    var first_count = seen.count()
+    console.print("in the constructor:", steps, first_count)
+    count_on()
+    var second_count = seen.count()
+    console.print("in a function:", steps, second_count)
+}
+
+func count_on() {
+    while steps < 6 {
+        step()
+    }
+}
+
+func step() {
+    steps = steps + 1
+    seen.append(steps)
+}
