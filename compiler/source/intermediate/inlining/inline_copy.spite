@@ -132,6 +132,7 @@ func copy_operation(operation: Operation, block_number: Integer): Operation {
     copied.layout = operation.layout
     copied.field = operation.field
     copied.literal = operation.literal
+    copied.target = operation.target
     copied.spite_type = operation.spite_type
     copied.site = operation.site
     copied.form = operation.form
