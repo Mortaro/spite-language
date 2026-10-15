@@ -146,9 +146,11 @@ func class_object(getter: String, target: String): String {
         singleton = layout.is_singleton
     }
     var name = sites.literal(shown)
+    output.need("singletons")
     var lines = [
         "static Spite_Class* {getter}_cache = 0;"
         "static int32_t {getter}_lock = 0;"
+        "static void {getter}_teardown(void) \{ Spite_Class* spite_cached = {getter}_cache; {getter}_cache = 0; Spite_Class___release(spite_cached); }"
         "Spite_Class* {getter}(void) \{"
         "Spite_Class* found = SPITE_SINGLETON_FOUND({getter}_cache);"
         "if (found != 0) return Spite_Class___retain(found);"
@@ -160,6 +162,7 @@ func class_object(getter: String, target: String): String {
     if singleton {
         lines.append("made->_singleton_ = true;")
     }
+    lines.append("spite_singleton_created({getter}_teardown);")
     lines.append("SPITE_SINGLETON_PUBLISH({getter}_cache, made);")
     lines.append("}")
     lines.append("SPITE_UNLOCK({getter}_lock);")
@@ -1516,6 +1519,12 @@ func tagged_wrap(body: Body, operation: Operation, given: Analysis.SpiteType) {
         body.assign(operation.result, "{maker}({wrapped})")
         return
     }
+    var enumerated = shape.as_enum(given)
+    if enumerated {
+        var enum_maker = tagged_maker_named(body, enumerated.c_name)
+        body.assign(operation.result, "{enum_maker}({wrapped})")
+        return
+    }
     var layout = naming.layout_of(given)
     if not layout {
         body.refuse("it puts a value into a tagged union whose class has no layout")
@@ -1547,6 +1556,10 @@ func string_box(body: Body, operation: Operation, wrapped: String): String {
 
 func tagged_maker(body: Body, kind: Analysis.Types.NumericKind): String {
     var value_class = "Spite{naming.scalar_label(kind)}"
+    return tagged_maker_named(body, value_class)
+}
+
+func tagged_maker_named(body: Body, value_class: String): String {
     var layout = lowered.layout_named(value_class)
     if not layout {
         body.refuse("a number is put in a tagged union, and the program has no layout '{value_class}' to tag it with")

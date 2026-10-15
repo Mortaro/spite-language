@@ -69,6 +69,7 @@ func print_machine() {
     machine = true
     output.need("machines")
     resume_count = 0
+    note_frames()
     declare_values()
     print_blocks()
     machine = false
@@ -277,6 +278,7 @@ func print_locked() {
 
 func print_lowered(c_name: String, storage: String) {
     note_placements()
+    note_frames()
     declare_values()
     print_blocks()
     var heading = signature(c_name)
@@ -1403,7 +1405,13 @@ func print_plain_store(operation: Operation) {
     var stored = operand(operation, 1)
     var stored_type = operand_type(operation, 1)
     var counted = counted_name_of(stored_type)
-    if counted.is_empty() {
+    var holding = operand_type(operation, 0)
+    var holder_layout = naming.layout_of(holding)
+    var row = false
+    if holder_layout {
+        row = holder_layout.kind == "row"
+    }
+    if counted.is_empty() or row {
         lines.append("{place} = {stored};")
         return
     }
@@ -1441,7 +1449,7 @@ func print_make(operation: Operation) {
         refuse("it makes '{operation.layout}', which has no layout")
         return
     }
-    if layout.is_value or layout.kind != "class" or layout.arrangement == "static" {
+    if layout.is_value or layout.kind != "class" and layout.kind != "row" or layout.arrangement == "static" {
         refuse("it makes '{operation.layout}', which is not an object made at run time")
         return
     }
@@ -1579,6 +1587,30 @@ func print_framed_make(operation: Operation, layout: Layout) {
     declarations.append("{written} {slot}_items[{room}];")
     lines.append("({name_of(operation.result)})->items_ = (int64_t)(intptr_t){slot}_items;")
     lines.append("({name_of(operation.result)})->capacity_ = {capacity};")
+}
+
+func note_frames() {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "make" and operation.form == "frame" and not operation.literal.is_empty() {
+                note_frame_list(operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_frame_list(operation: Operation) {
+    var layout = lowered.layout_named(operation.layout)
+    assert layout and layout.information
+    var element = layout.information.codegen_types.first()
+    assert element
+    var written = naming.c_type(element)
     var element_count = naming.counted_name(element)
     frame_lists[operation.result] = "{element_count}|{written}"
 }

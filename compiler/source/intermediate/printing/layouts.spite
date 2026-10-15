@@ -7,6 +7,7 @@ func print(layout: Layout) {
     assert not layout.is_value
     switch layout.kind {
         "class": print_class(layout)
+        "row": print_class(layout)
         "union": print_union(layout)
         "tagged union": print_tagged_union(layout)
         _: output.refuse("the layout '{layout.c_name}' is a '{layout.kind}', which the printer does not lay out")
@@ -302,6 +303,9 @@ func print_allocate_in(layout: Layout, identity: Integer) {
 
 func field_releases(layout: Layout, holder: String): List<String> {
     var lines = List<String>()
+    if layout.kind == "row" {
+        return lines
+    }
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
