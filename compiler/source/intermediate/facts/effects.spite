@@ -28,7 +28,11 @@ func own_summary(function: Function): Summary {
     var made = Summary()
     if function.is_intrinsic() {
         made.waits = is_waiting(function)
-        note_intrinsic(made, function.name)
+        note_intrinsic(made, function)
+        crash lowered
+        if made.waits and (lowered.makes_concurrents or lowered.makes_threads) {
+            made.unknown = true
+        }
         return made
     }
     if not function.not_lowered.is_empty() {
@@ -97,15 +101,40 @@ func is_waiting(function: Function): Boolean {
     return waiting_classes.contains(layout.qualified) and waiting_names.contains(function.name)
 }
 
-func note_intrinsic(made: Summary, name: String) {
+func note_intrinsic(made: Summary, function: Function) {
     crash intrinsics
+    crash kinds
+    var name = function.name
     assert not intrinsics.is_reading_name(name)
     if intrinsics.is_memory_write_name(name) {
         made.writes_memory = true
         made.releases = intrinsics.is_release_name(name)
         return
     }
-    made.unknown = true
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        if kinds.is_counted(parameter.spite_type) and parameter.ownership != "held" and parameter.ownership != "lent" {
+            made.releases = true
+        }
+        if takes_function_value(parameter.spite_type) {
+            made.calls_values = true
+            made.unknown = true
+        }
+        index = index + 1
+    }
+}
+
+func takes_function_value(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var types = Analysis.TypeShape()
+    var class_ref = types.as_class_ref(spite_type)
+    if not class_ref {
+        return false
+    }
+    return class_ref.has_signature or class_ref.c_name == "Spite_Function" or class_ref.c_name == "ForeignCallback"
 }
 
 func note_operation(made: Summary, function: Function, operation: Operation) {
@@ -188,7 +217,21 @@ func note_called(made: Summary, callee: String) {
 func note_dotted(made: Summary, callee: String) {
     crash intrinsics
     var owner = intrinsics.type_part(callee)
-    var known = ["String", "Nullable", "Union", "Boolean", "Symbol", "Enum", "Reference", "Reflection", "Function"]
+    var known = [
+        "String"
+        "Nullable"
+        "Union"
+        "Boolean"
+        "Symbol"
+        "Enum"
+        "Reference"
+        "Reflection"
+        "Function"
+        "Arguments"
+        "Singleton"
+    ]
+    var pure_object = ["Object.allocator"]
+    assert not pure_object.contains(callee)
     var pure_objects = ["Object.copy", "Object.deep_copy"]
     assert not pure_objects.contains(callee)
     assert not known.contains(owner)
