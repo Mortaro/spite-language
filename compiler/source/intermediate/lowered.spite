@@ -25,6 +25,10 @@ var foreign_files = List<String>()
 var foreign_namings = List<String>()
 var foreign_includes = List<String>()
 var foreign_headers = List<String>()
+var class_identities = List<String>()
+var analysis_lines = List<String>()
+var enum_numbers = Dictionary<String, Integer>()
+var removed_enum_values = List<String>()
 
 func add_layout(layout: Layout) {
     crash not layouts_by_name.has(layout.c_name)

@@ -2,6 +2,7 @@
 var output = Output()
 var lowered = Lowered()
 var naming = Naming()
+var hot = Hot()
 
 func print(layout: Layout) {
     assert not layout.is_value
@@ -23,9 +24,30 @@ func print_enum(information: Analysis.EnumInfo) {
         lines.append(enum_text)
         index = index + 1
     }
+    if lowered.hot_reload {
+        removed_enum_lines(information, lines)
+    }
     lines.append("} {information.c_name};")
     var lines_text = lines.join("\n")
     output.types.append(lines_text)
+    if lowered.hot_reload {
+        hot.layout_texts[information.c_name] = lines_text
+    }
+}
+
+# ../../../../docs/repl.md#live-reload---hot-reload
+func removed_enum_lines(information: Analysis.EnumInfo, lines: List<String>) {
+    var index = 0
+    while index < lowered.removed_enum_values.count() {
+        var parts = lowered.removed_enum_values[index].split(" ")
+        crash parts[0] and parts[1]
+        if parts[0] == information.c_name {
+            var key = "{information.c_name}_{parts[1]}"
+            crash lowered.enum_numbers[key]
+            lines.append("{key} = {lowered.enum_numbers[key]},")
+        }
+        index = index + 1
+    }
 }
 
 func print_enum_names(information: Analysis.EnumInfo) {
@@ -40,6 +62,15 @@ func print_enum_names(information: Analysis.EnumInfo) {
         names.append("case {name}_{value}: return \"{value}\";")
         index = index + 1
     }
+    index = 0
+    while index < lowered.removed_enum_values.count() {
+        var parts = lowered.removed_enum_values[index].split(" ")
+        crash parts[0] and parts[1]
+        if parts[0] == name {
+            names.append("case {name}_{parts[1]}: return \"{parts[1]}\";")
+        }
+        index = index + 1
+    }
     names.append("}")
     names.append("return \"\";")
     names.append("}")
@@ -52,6 +83,11 @@ func print_enum_names(information: Analysis.EnumInfo) {
 func enum_line(information: Analysis.EnumInfo, index: Integer): String {
     var value = information.values[index]
     crash value
+    var key = "{information.c_name}_{value}"
+    if lowered.hot_reload and lowered.enum_numbers.has(key) {
+        crash lowered.enum_numbers[key]
+        return "{key} = {lowered.enum_numbers[key]},"
+    }
     if not information.is_numbered() {
         return "{information.c_name}_{value},"
     }
@@ -115,9 +151,16 @@ func print_struct(layout: Layout) {
         lines.append(hidden[index])
         index = index + 1
     }
+    if layout.hot {
+        lines.append("void* spite_moved;")
+        lines.append("int64_t spite_live;")
+    }
     lines.append("};")
     var lines_text = lines.join("\n")
     output.structs.append(lines_text)
+    if layout.hot {
+        hot.print_layout(layout, lines_text)
+    }
 }
 
 func hidden_fields(c_name: String): List<String> {
@@ -201,6 +244,21 @@ func print_initialize(layout: Layout) {
         lines.append(hidden)
     }
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var initialize_body = lines.join("\n")
+        var receiving = ["{name}* self"]
+        hot.slot_support(
+            "{name}___init",
+            "void",
+            receiving,
+            initialize_body,
+            "{layout.qualified}'s attribute defaults",
+            name,
+        )
+        return
+    }
     output.prototypes.append("void {name}___init({name}* self);")
     var lines_text = lines.join("\n")
     output.supports.append(lines_text)
@@ -276,7 +334,9 @@ func print_allocate(layout: Layout) {
     if lowered.debug_memory {
         lines.append("#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {identity});\n#endif")
     }
+    hot.live_start(lines, layout, "self")
     lines.append("{name}___init(self);")
+    hot.live_add(lines, layout, "self")
     if output.tracked_layouts.contains(name) {
         lines.append("spite_track_{name}(self);")
         print_tracking(name)
@@ -287,6 +347,21 @@ func print_allocate(layout: Layout) {
     }
     lines.append("return self;")
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var allocate_body = lines.join("\n")
+        var nothing = List<String>()
+        hot.slot_support(
+            "{name}___allocate",
+            "{name}*",
+            nothing,
+            allocate_body,
+            "{layout.qualified}'s allocation",
+            name,
+        )
+        return
+    }
     output.prototypes.append("{name}* {name}___allocate(void);")
     var lines_text = lines.join("\n")
     output.supports.append(lines_text)
@@ -379,6 +454,7 @@ func print_counted(layout: Layout) {
     var hidden_text = hidden.join("\n")
     lines.append(hidden_text)
     lines.append("#ifdef SPITE_WEAK_{name}\nspite_weak_object_freed(self);\n#endif")
+    hot.live_remove(lines, layout)
     if output.tracked_layouts.contains(name) {
         lines.append("spite_untrack_{name}(self);")
     }
@@ -425,6 +501,7 @@ func print_singleton(layout: Layout) {
     var hidden_text = hidden.join("\n")
     discard.append(hidden_text)
     discard.append("#ifdef SPITE_WEAK_{name}\nspite_weak_object_freed(self);\n#endif")
+    hot.live_remove(discard, layout)
     discard.append("spite_singleton_free_later(self);")
     discard.append("}")
     var discard_text = discard.join("\n")

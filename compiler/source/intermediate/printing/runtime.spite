@@ -581,6 +581,9 @@ func main_function(): String {
         var name_table = class_name_table()
         lines.append(name_table)
     }
+    if lowered.hot_reload {
+        lines.append(output.hot_start)
+    }
     var started = entry_start()
     lines.append(started)
     if output.needs("singletons") {

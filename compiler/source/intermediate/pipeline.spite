@@ -6,6 +6,7 @@ var reached_unions = List<String>()
 var types = Analysis.TypeShape()
 var optimized = false
 var placed_allocators = List<String>()
+var hot_manifest = ""
 
 func Pipeline(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -21,8 +22,12 @@ func run(): String {
     var passes = Passes()
     passes.run(lowered)
     settle_held_layouts()
+    if lowered.hot_reload {
+        settle_hot()
+    }
     var printer = Printer()
     var written = printer.print(lowered)
+    hot_manifest = printer.hot_manifest
     var refused = printer.refusals()
     if not refused.is_empty() {
         error_message = "error: the C cannot be written from the high IR:\n{refused.join("\n")}"
@@ -169,9 +174,9 @@ func settle_held_layouts() {
 
 func settle_held(held: Analysis.SpiteType) {
     crash generator
-    var reference = types.as_class_ref(held)
-    assert reference and not lowered.layout_named(reference.c_name)
-    var information = generator.find_class_by_c_name(reference.c_name)
+    var held_name = generator.type_label(held)
+    assert not lowered.layout_named(held_name)
+    var information = generator.find_class_by_c_name(held_name)
     assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
     var made = Layout(information.c_name, information.qualified_dotted)
     made.information = information
@@ -222,6 +227,10 @@ func roots_of_runtime(): List<String> {
     lowered.concrete_functions.each(note_serving_roots)
     placed_allocators.each(roots.append)
     lowered.concrete_functions.each(note_pool_roots)
+    if generator.hot_reload {
+        note_roots("HotReload", ["start", "watch"], roots)
+        note_roots("Environment", ["Environment"], roots)
+    }
     if generator.scheduler_used {
         note_roots(
             "Scheduler",
@@ -362,6 +371,7 @@ func note_type(spite_type: Analysis.SpiteType?) {
     }
     var listed = types.as_list(spite_type)
     if listed {
+        settle_held(spite_type)
         note_type(listed.element)
         return
     }
@@ -384,4 +394,58 @@ func settle_union(described: Analysis.UnionInfo) {
     }
     made.members = described.members.map_c_names()
     lowered.add_layout(made)
+}
+
+# ../../../docs/repl.md#live-reload---hot-reload
+func settle_hot() {
+    crash generator
+    assert generator.hot_reload
+    lowered.class_identities = generator.class_identities
+    lowered.layouts.each(settle_hot_layout)
+    lowered.concrete_functions.each(settle_slot)
+    lowered.enums.each(settle_enum_numbers)
+    var analysis = generator.analysis_manifest_lines()
+    lowered.analysis_lines = List<String>()
+    var index = 0
+    while index < analysis.count() {
+        var line = analysis[index]
+        if not line.starts_with("owner ") {
+            lowered.analysis_lines.append(line)
+        }
+        index = index + 1
+    }
+}
+
+func settle_hot_layout(layout: Layout) {
+    crash generator
+    assert layout.information and layout.kind == "class" and not layout.is_value
+    layout.hot = generator.is_hot_class(layout.information)
+}
+
+func settle_slot(function: Function) {
+    crash generator
+    assert function.source and (function.intrinsic.is_empty() or function.intrinsic == "supplied")
+    assert function.singleton_of.is_empty() and function.locking.is_empty() and function.folded_into.is_empty()
+    assert function.not_lowered.is_empty() and not function.resumable and not function.waits
+    var owner = lowered.layout_named(function.owner)
+    assert owner and owner.information
+    assert function.intrinsic != "supplied" or not owner.hot and not function.source.supplied_body.starts_with("#define")
+    function.slotted = generator.is_slotted_function(owner.information, function.source)
+    function.shown = "{owner.qualified}.{function.name}"
+}
+
+func settle_enum_numbers(described: Analysis.EnumInfo) {
+    crash generator
+    var numbers = generator.enum_numbers(described)
+    var names = numbers.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        crash numbers[name]
+        lowered.enum_numbers["{described.c_name}_{name}"] = numbers[name]
+        if not described.values.contains(name) {
+            lowered.removed_enum_values.append("{described.c_name} {name}")
+        }
+        index = index + 1
+    }
 }

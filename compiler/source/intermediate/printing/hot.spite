@@ -1,0 +1,470 @@
+# ../../../../docs/repl.md#live-reload---hot-reload
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+var slot_names = List<String>()
+var slot_displays = List<String>()
+var slot_owners = List<String>()
+var exported_names = List<String>()
+var exported_prototypes = Dictionary<String, String>()
+var hashes = Dictionary<String, String>()
+var layout_texts = Dictionary<String, String>()
+var facts = Generation.ProgramFacts()
+
+func hash_of(text: String): String {
+    var hash = facts.text_hash(text)
+    return hash.to_string()
+}
+
+func slot(name: String, returned: String, parameters: List<String>, display: String, owner: String) {
+    var parameter_text = parameters.join(", ")
+    if parameters.is_empty() {
+        parameter_text = "void"
+    }
+    var arguments = List<String>()
+    var index = 0
+    while index < parameters.count() {
+        var parameter = parameters[index]
+        var named = parameter_name(parameter)
+        arguments.append(named)
+        index = index + 1
+    }
+    output.prototypes.append("{returned} {name}___hot({parameter_text});")
+    output.supports.append("static {returned} (*{name}___slot)({parameter_text}) = {name}___hot;")
+    var result = "return "
+    if returned == "void" {
+        result = ""
+    }
+    var heading = "{returned} {name}({parameter_text})"
+    output.prototypes.append("{heading};")
+    output.supports.append(
+        "{heading} \{\n{result}__atomic_load_n(&{name}___slot, __ATOMIC_ACQUIRE)({arguments.join(", ")});\n}",
+    )
+    output.runtime_place("{name}___hot")
+    slot_names.append(name)
+    slot_displays.append(display)
+    slot_owners.append(owner)
+}
+
+func parameter_name(parameter: String): String {
+    var trimmed = parameter.trim()
+    return trailing_name(trimmed)
+}
+
+func trailing_name(text: String): String {
+    var text_length = text.length()
+    var start = text_length
+    while start > 0 {
+        var code = text.code_at(start - 1)
+        if not is_name_code(code) {
+            return text.slice(start, text_length)
+        }
+        start = start - 1
+    }
+    return text
+}
+
+func is_name_code(code: Integer): Boolean {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func slot_support(
+    name: String,
+    returned: String,
+    parameters: List<String>,
+    body: String,
+    display: String,
+    owner: String,
+) {
+    var parameter_text = parameters.join(", ")
+    if parameters.is_empty() {
+        parameter_text = "void"
+    }
+    output.supports.append("{returned} {name}___hot({parameter_text}) \{\n{body}\n}")
+    slot(name, returned, parameters, display, owner)
+    note_hash(name, body)
+}
+
+func note_hash(name: String, text: String) {
+    hashes[name] = hash_of(text)
+}
+
+func note_function(printed: Function) {
+    var text = Text()
+    var written = text.function_text(printed)
+    note_hash(printed.c_name, written)
+}
+
+func live_start(lines: List<String>, layout: Layout, object: String) {
+    if layout.hot {
+        lines.append("{object}->spite_moved = 0;")
+        lines.append("{object}->spite_live = 0;")
+    }
+}
+
+func live_add(lines: List<String>, layout: Layout, object: String) {
+    if layout.hot {
+        lines.append("spite_live_add({layout.c_name}___live(), {object}, &{object}->spite_live);")
+    }
+}
+
+func live_remove(lines: List<String>, layout: Layout) {
+    if layout.hot {
+        lines.append("spite_live_remove({layout.c_name}___live(), self, &self->spite_live);")
+        lines.append("if (self->spite_moved != 0) SPITE_FREE(self->spite_moved);")
+    }
+}
+
+func print_layout(layout: Layout, struct_text: String) {
+    var name = layout.c_name
+    layout_texts[name] = struct_text
+    output.macros.append("#define {name}___fields(object) (object)")
+    var codec = Generation.TypeCodec()
+    codec.enums_by_name = true
+    var entries = List<String>()
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        crash field.spite_type
+        var releaser = field_releaser(layout, field)
+        var encoded = codec.encoded(field.spite_type)
+        var type_hash = facts.text_hash(encoded)
+        entries.append(
+            "\{ \"{field.name}\", \"{type_hash}\", (int64_t)offsetof({name}, {field.name}_), (int64_t)sizeof((({name}*)0)->{field.name}_), {releaser} }",
+        )
+        index = index + 1
+    }
+    entries.append("\{ 0, 0, 0, 0, 0 }")
+    var count = layout.stored_fields.count()
+    var shown = naming.escape_c(layout.qualified)
+    var descriptor = [
+        "const SpiteLayout* {name}___layout(void) \{"
+        "static const SpiteLayoutField fields[] = \{ {entries.join(", ")} };"
+        "static const SpiteLayout layout = \{ \"{shown}\", (int64_t)sizeof({name}), {count}, fields, 0 };"
+        "return &layout;"
+        "}"
+        "const SpiteLayout** {name}___layout_now(void) \{"
+        "static const SpiteLayout* now = 0;"
+        "if (now == 0) now = {name}___layout();"
+        "return &now;"
+        "}"
+        "SpiteLiveSet* {name}___live(void) \{"
+        "static SpiteLiveSet live = \{ 0, 0, 0, 0, 0 };"
+        "return &live;"
+        "}"
+    ]
+    output.prototypes.append("const SpiteLayout* {name}___layout(void);")
+    output.prototypes.append("const SpiteLayout** {name}___layout_now(void);")
+    output.prototypes.append("SpiteLiveSet* {name}___live(void);")
+    var descriptor_text = descriptor.join("\n")
+    output.supports.append(descriptor_text)
+    output.runtime_place("{name}___layout")
+    output.runtime_place("{name}___layout_now")
+    output.runtime_place("{name}___live")
+}
+
+func field_releaser(layout: Layout, field: Field): String {
+    crash field.spite_type
+    var counted = naming.counted_name(field.spite_type)
+    if counted.is_empty() {
+        return "0"
+    }
+    var written = naming.c_type(field.spite_type)
+    var releaser = "{layout.c_name}___release_field_{field.name}"
+    output.supports.append("static void {releaser}(void* place) \{\n{counted}___release(*({written}*)place);\n}")
+    return releaser
+}
+
+func getter_of(qualified: String): String {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        if not candidate.singleton_of.is_empty() {
+            var made = lowered.layout_named(candidate.singleton_of)
+            if made and made.qualified == qualified {
+                return candidate.c_name
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func function_named(owner_qualified: String, name: String): String {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        var owner = lowered.layout_named(candidate.owner)
+        if owner and owner.qualified == owner_qualified and candidate.name == name {
+            return candidate.c_name
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func constructor_of(qualified: String): String {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        var owner = lowered.layout_named(candidate.owner)
+        if owner and owner.qualified == qualified and candidate.is_constructor {
+            return candidate.c_name
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func prototypes(): String {
+    var lines = [
+        live_support_types()
+        "#include <time.h>"
+        "static int32_t spite_check_point_wanted = 0;"
+        "void spite_live_add(SpiteLiveSet* set, void* object, int64_t* place);"
+        "void spite_live_remove(SpiteLiveSet* set, void* object, int64_t* place);"
+        "void spite_world_enter(void);"
+        "void spite_world_leave(void);"
+        "void spite_world_park(void);"
+        "int32_t spite_world_stop(void);"
+        "void spite_world_start(void);"
+        "static void* spite_hot_reload_thread(void* unused);"
+        "static void* spite_hot_find(const char* name);"
+        "static int32_t spite_hot_install(const char* name, void* address);"
+        "void* spite_hot_realloc(void* pointer, size_t size);"
+        "void spite_hot_free(void* pointer);"
+        "int64_t* spite_machine_frames(const char* name, const char* shown);"
+        "static const char* spite_machine_waiting(const char* name);"
+        "void spite_settings_reread(void);"
+    ]
+    return lines.join("\n")
+}
+
+func supports(): String {
+    var lines = [
+        "void spite_live_add(SpiteLiveSet* set, void* object, int64_t* place) \{\nSPITE_LOCK(set->lock);\nif (set->count == set->capacity) \{\nset->capacity = set->capacity == 0 ? 64 : set->capacity * 2;\nset->objects = (void**)realloc(set->objects, (size_t)set->capacity * sizeof(void*));\nset->places = (int64_t**)realloc(set->places, (size_t)set->capacity * sizeof(int64_t*));\nif (set->objects == 0 || set->places == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: out of memory for the list of live objects a reload moves to a new layout\\n\");\nexit(1);\n}\n}\nset->objects[set->count] = object;\nset->places[set->count] = place;\n*place = set->count + 1;\nset->count = set->count + 1;\nSPITE_UNLOCK(set->lock);\n}"
+        "void spite_live_remove(SpiteLiveSet* set, void* object, int64_t* place) \{\nSPITE_LOCK(set->lock);\nint64_t index = *place - 1;\nif (index < 0 || index >= set->count || set->objects[index] != object) \{\nfflush(stdout);\nfprintf(stderr, \"spite: an object was released that the list of live objects does not hold\\n\");\nexit(1);\n}\nint64_t last = set->count - 1;\nset->objects[index] = set->objects[last];\nset->places[index] = set->places[last];\n*set->places[index] = index + 1;\nset->count = last;\n*place = 0;\nSPITE_UNLOCK(set->lock);\n}"
+        world_gate()
+        "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}"
+        "void spite_hot_free(void* pointer) \{\nSPITE_FREE(pointer);\n}"
+        "typedef struct SpiteMachineCount \{ struct SpiteMachineCount* next; char* name; char* shown; int64_t count; } SpiteMachineCount;\nstatic SpiteMachineCount* spite_machine_counts = 0;\nstatic char* spite_machine_text(const char* text) \{\nsize_t spite_length = strlen(text) + 1;\nchar* spite_kept = (char*)malloc(spite_length);\nif (spite_kept == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory for the table of the waits a reload holds for\\n\"); exit(1); }\nmemcpy(spite_kept, text, spite_length);\nreturn spite_kept;\n}\nint64_t* spite_machine_frames(const char* name, const char* shown) \{\nfor (SpiteMachineCount* spite_at = spite_machine_counts; spite_at != 0; spite_at = spite_at->next) if (strcmp(spite_at->name, name) == 0) return &spite_at->count;\nSpiteMachineCount* spite_made = (SpiteMachineCount*)malloc(sizeof(SpiteMachineCount));\nif (spite_made == 0) \{ fflush(stdout); fprintf(stderr, \"spite: out of memory for the table of the waits a reload holds for\\n\"); exit(1); }\nspite_made->name = spite_machine_text(name);\nspite_made->shown = spite_machine_text(shown);\nspite_made->count = 0;\nspite_made->next = spite_machine_counts;\nspite_machine_counts = spite_made;\nreturn &spite_made->count;\n}\nstatic const char* spite_machine_waiting(const char* name) \{\nfor (SpiteMachineCount* spite_at = spite_machine_counts; spite_at != 0; spite_at = spite_at->next) if (strcmp(spite_at->name, name) == 0 && spite_at->count > 0) return spite_at->shown;\nreturn 0;\n}"
+    ]
+    return lines.join("\n")
+}
+
+func closing(): String {
+    var watcher = getter_of("HotReload")
+    var watching = function_named("HotReload", "watch")
+    if watcher.is_empty() or watching.is_empty() {
+        output.refuse(
+            "a --hot-reload build watches its files through HotReload, and the program holds no HotReload or its watch",
+        )
+    }
+    var settings = List<String>()
+    var environment = getter_of("Environment")
+    var made_again = constructor_of("Environment")
+    if not environment.is_empty() and made_again.is_empty() {
+        output.refuse(
+            "a --hot-reload build makes Environment again when a reload changes it, and the program holds no constructor of Environment",
+        )
+    }
+    if not environment.is_empty() and not made_again.is_empty() {
+        settings.append(
+            "\{ Environment* environment = __atomic_load_n(&{environment}_cache, __ATOMIC_ACQUIRE); if (environment != 0) {made_again}(environment); }",
+        )
+    }
+    var build = getter_of("Build")
+    if not build.is_empty() {
+        settings.append(
+            "\{ Build* build = __atomic_load_n(&{build}_cache, __ATOMIC_ACQUIRE); if (build != 0) Build___init(build); }",
+        )
+    }
+    var names = List<String>()
+    var cells = List<String>()
+    var index = 0
+    while index < slot_names.count() {
+        names.append("\"{slot_names[index]}\"")
+        cells.append("(void**)&{slot_names[index]}___slot")
+        index = index + 1
+    }
+    names.append("0")
+    cells.append("0")
+    var starting = function_named("HotReload", "start")
+    if starting.is_empty() {
+        output.refuse("a --hot-reload build starts watching through HotReload.start, which the program does not hold")
+    }
+    output.hot_start = "\{ HotReload* spite_hot_reload = {watcher}(); {starting}(spite_hot_reload); }"
+    var symbols = symbol_table()
+    var lines = [
+        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\n{watching}({watcher}());\nreturn 0;\n}"
+        "static int32_t spite_settings_changed = 0;\nvoid spite_settings_reread(void) \{\nif (spite_settings_changed == 0) return;\nspite_settings_changed = 0;\n{settings.join("\n")}\n}"
+        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ if (address != 0) \{ __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); if (strcmp(name, \"{made_again}\") == 0 || strcmp(name, \"Build___init\") == 0) spite_settings_changed = 1; } return 1; }\n}\nreturn 0;\n}"
+        symbols
+    ]
+    return lines.join("\n")
+}
+
+func note_exports() {
+    exported_names = List<String>()
+    exported_prototypes = Dictionary<String, String>()
+    var index = 0
+    while index < output.prototypes.count() {
+        var line = output.prototypes[index].trim()
+        var name = declared_name(line)
+        if not name.is_empty() and output.defined.has(name) and not exported_prototypes.has(name) {
+            exported_names.append(name)
+            exported_prototypes[name] = line
+        }
+        index = index + 1
+    }
+}
+
+func declared_name(line: String): String {
+    if not line.ends_with(");") or line.starts_with("static") or line.starts_with("#") or line.starts_with("typedef") {
+        return ""
+    }
+    var open = line.index_of("(")
+    if open <= 0 or line.contains("\n") {
+        return ""
+    }
+    var head = line.slice(0, open).trim()
+    return trailing_name(head)
+}
+
+func symbol_table(): String {
+    note_exports()
+    var entries = List<String>()
+    var index = 0
+    while index < exported_names.count() {
+        entries.append("\{ \"{exported_names[index]}\", (void*)&{exported_names[index]} }")
+        index = index + 1
+    }
+    var shared = [
+        "spite_program_arguments"
+        "spite_check_point_wanted"
+        "spite_assert_trace"
+        "spite_assert_runs"
+        "spite_assert_newest"
+        "spite_assert_newest_count"
+        "spite_assert_total"
+    ]
+    var printed = output.printed_text
+    index = 0
+    while index < shared.count() {
+        var name = shared[index]
+        if name == "spite_check_point_wanted" or printed.contains(name) {
+            entries.append("\{ \"{name}\", (void*)&{name} }")
+        }
+        index = index + 1
+    }
+    entries.append("\{ 0, 0 }")
+    return "typedef struct SpiteHotSymbol \{ const char* name; void* address; } SpiteHotSymbol;\nstatic const SpiteHotSymbol spite_hot_symbols[] = \{ {entries.join(", ")} };\nstatic void* spite_hot_find(const char* name) \{\nfor (int64_t index = 0; spite_hot_symbols[index].name != 0; index = index + 1) \{\nif (strcmp(spite_hot_symbols[index].name, name) == 0) return spite_hot_symbols[index].address;\n}\nreturn 0;\n}"
+}
+
+func manifest(): String {
+    var lines = List<String>()
+    var index = 0
+    while index < exported_names.count() {
+        var name = exported_names[index]
+        crash exported_prototypes[name]
+        lines.append("function {name} {exported_prototypes[name]}")
+        index = index + 1
+    }
+    index = 0
+    while index < slot_names.count() and index < slot_displays.count() {
+        lines.append("slot {slot_names[index]} {slot_displays[index]}")
+        index = index + 1
+    }
+    index = 0
+    while index < lowered.class_names.count() and index < lowered.class_identities.count() {
+        lines.append("class {lowered.class_names[index]}\t{lowered.class_identities[index]}")
+        index = index + 1
+    }
+    var hashed = hashes.keys()
+    index = 0
+    while index < hashed.count() {
+        var name = hashed[index]
+        crash hashes[name]
+        lines.append("hash {name} {hashes[name]}")
+        index = index + 1
+    }
+    var laid_out = layout_texts.keys()
+    index = 0
+    while index < laid_out.count() {
+        var name = laid_out[index]
+        crash layout_texts[name]
+        var flat = layout_texts[name].replace("\n", " ")
+        lines.append("layout {name} {flat}")
+        index = index + 1
+    }
+    index = 0
+    while index < lowered.analysis_lines.count() {
+        lines.append(lowered.analysis_lines[index])
+        index = index + 1
+    }
+    index = 0
+    while index < slot_names.count() and index < slot_owners.count() {
+        lines.append("owner {slot_names[index]} {slot_owners[index]}")
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func world_gate(): String {
+    var declared = List<String>()
+    declared.append("#include <time.h>")
+    declared.append("void spite_world_enter(void);")
+    declared.append("void spite_world_leave(void);")
+    declared.append("void spite_world_park(void);")
+    declared.append("int32_t spite_world_stop(void);")
+    declared.append("void spite_world_start(void);")
+    var lines = List<String>()
+    lines.append("static int32_t spite_world_stopping = 0;")
+    lines.append("static int32_t spite_world_running = 0;")
+    lines.append("static SPITE_THREAD_LOCAL int32_t spite_world_mine = 0;")
+    lines.append("static void spite_world_join(int32_t held) \{")
+    lines.append("for (;;) \{")
+    lines.append("while (__atomic_load_n(&spite_world_stopping, __ATOMIC_ACQUIRE) != 0) \{}")
+    lines.append("__atomic_fetch_add(&spite_world_running, held, __ATOMIC_SEQ_CST);")
+    lines.append("if (__atomic_load_n(&spite_world_stopping, __ATOMIC_SEQ_CST) == 0) return;")
+    lines.append("__atomic_fetch_sub(&spite_world_running, held, __ATOMIC_SEQ_CST);")
+    lines.append("}")
+    lines.append("}")
+    lines.append("void spite_world_enter(void) \{")
+    lines.append(
+        "if (spite_world_mine > 0) \{ __atomic_fetch_add(&spite_world_running, 1, __ATOMIC_SEQ_CST); } else spite_world_join(1);",
+    )
+    lines.append("spite_world_mine = spite_world_mine + 1;")
+    lines.append("}")
+    lines.append("void spite_world_leave(void) \{")
+    lines.append("spite_world_mine = spite_world_mine - 1;")
+    lines.append("__atomic_fetch_sub(&spite_world_running, 1, __ATOMIC_SEQ_CST);")
+    lines.append("}")
+    lines.append("void spite_world_park(void) \{")
+    lines.append("int32_t held = spite_world_mine;")
+    lines.append("if (held == 0 || __atomic_load_n(&spite_world_stopping, __ATOMIC_SEQ_CST) == 0) return;")
+    lines.append("__atomic_fetch_sub(&spite_world_running, held, __ATOMIC_SEQ_CST);")
+    lines.append("spite_world_join(held);")
+    lines.append("}")
+    lines.append("int32_t spite_world_stop(void) \{")
+    lines.append("__atomic_store_n(&spite_world_stopping, 1, __ATOMIC_SEQ_CST);")
+    lines.append("time_t spite_deadline = time(0) + 10;")
+    lines.append("while (__atomic_load_n(&spite_world_running, __ATOMIC_SEQ_CST) > spite_world_mine) \{")
+    lines.append("__atomic_store_n(&spite_check_point_wanted, 1, __ATOMIC_RELEASE);")
+    lines.append(
+        "if (time(0) > spite_deadline) \{ __atomic_store_n(&spite_world_stopping, 0, __ATOMIC_SEQ_CST); return 0; }",
+    )
+    lines.append("}")
+    lines.append("return 1;")
+    lines.append("}")
+    lines.append("void spite_world_start(void) \{")
+    lines.append("__atomic_store_n(&spite_world_stopping, 0, __ATOMIC_SEQ_CST);")
+    lines.append("}")
+    var prototype_text = declared.join("\n")
+    var gate_text = lines.join("\n")
+    return "{prototype_text}\n{gate_text}"
+}
+
+func live_support_types(): String {
+    return "typedef struct SpiteLayoutField \{ const char* name; const char* type; int64_t offset; int64_t size; void (*release)(void*); } SpiteLayoutField;\ntypedef struct SpiteLayout \{ const char* name; int64_t size; int64_t count; const SpiteLayoutField* fields; int32_t fits; } SpiteLayout;\ntypedef struct SpiteLiveSet \{ void** objects; int64_t** places; int64_t count; int64_t capacity; int32_t lock; } SpiteLiveSet;"
+}
