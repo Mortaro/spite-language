@@ -36,8 +36,8 @@ func growth_sensitive(): List<String> {
     if smaller {
         smaller.depends_on.each(found.append)
     }
-    if kind != "less" {
-        larger_key().depends_on.each(found.append)
+    if kind != "less" and larger {
+        larger.depends_on.each(found.append)
     }
     return found
 }

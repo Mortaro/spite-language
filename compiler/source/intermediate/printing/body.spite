@@ -38,15 +38,90 @@ func print(printed: Function) {
         output.refuse("'{printed.c_name}' ({printed.owner}.{printed.name}) cannot be written: {printed.not_lowered}")
         return
     }
-    if not printed.locking.is_empty() or printed.resumable or printed.waits {
-        refuse("it locks its singleton or waits on concurrent work, which the printer does not write yet")
+    if printed.resumable or printed.waits {
+        refuse("it waits on concurrent work, whose state machine the printer does not write yet")
         return
     }
     if not printed.singleton_of.is_empty() {
         print_singleton_maker()
         return
     }
+    if not printed.locking.is_empty() {
+        print_locked()
+        return
+    }
     print_lowered(printed.c_name, "")
+}
+
+func guard_of(owner: String): String {
+    output.need("guards")
+    if not output.guards.contains(owner) {
+        output.guards.append(owner)
+    }
+    if is_read_guarded(owner) and not output.read_guards.contains(owner) {
+        output.read_guards.append(owner)
+        output.need("readers")
+    }
+    return "&{owner}___guard"
+}
+
+func is_read_guarded(owner: String): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        if candidate.owner == owner and candidate.locking == "reading" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func guard_enter(owner: String): String {
+    var guard = guard_of(owner)
+    if output.read_guards.contains(owner) {
+        return "spite_guard_enter_writing({guard}, {owner}___readers);"
+    }
+    return "spite_guard_enter({guard});"
+}
+
+func print_locked() {
+    var unguarded = "{function.c_name}___unguarded"
+    print_lowered(unguarded, "")
+    var heading = signature(function.c_name)
+    var arguments = List<String>()
+    if function.receiver >= 0 {
+        arguments.append("self")
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append("{function.parameters[index].name}_")
+        index = index + 1
+    }
+    var called = "{unguarded}({arguments.join(", ")})"
+    var guard = guard_of(function.owner)
+    var enter = guard_enter(function.owner)
+    var leave = "spite_guard_leave({guard});"
+    if function.locking == "reading" {
+        enter = "int64_t* spite_reading = spite_read_enter({guard}, {function.owner}___readers);"
+        leave = "spite_read_leave(spite_reading);"
+    }
+    var opening = "{heading} \{"
+    var lines = [opening, enter]
+    if answers_nothing() {
+        lines.append("{called};")
+        lines.append(leave)
+    } else {
+        var answered = answer_type()
+        lines.append("{answered} spite_guarded = {called};")
+        lines.append(leave)
+        lines.append("return spite_guarded;")
+    }
+    lines.append("}")
+    output.prototypes.append("{heading};")
+    var wrapper = lines.join("\n")
+    output.bodies.append(wrapper)
+    output.runtime_place(function.c_name)
 }
 
 func print_lowered(c_name: String, storage: String) {
@@ -126,6 +201,18 @@ func print_static_getter(layout: Layout) {
         "{answered} {getter}(void) \{\nstatic {layout.c_name} spite_object = \{ \{ 1, {identity} } };\nreturn &spite_object;\n}",
     )
     output.runtime_place(getter)
+}
+
+func source_place(operation: Operation): String {
+    var path = ""
+    if function.source {
+        path = function.source.source_path
+    }
+    var owner = lowered.layout_named(function.owner)
+    if path.is_empty() and owner and owner.information {
+        path = owner.information.source_path
+    }
+    return "{path}:{operation.line}"
 }
 
 func tag_expression(number: Integer): String {
@@ -383,6 +470,12 @@ func print_constant(operation: Operation) {
     if shape.as_string(made) or shape.is_symbol(made) {
         string_constants[operation.result] = operation.literal
     }
+    if shape.is_symbol(made) and operation.literal != "null" {
+        var symbol = sites.literal(operation.literal)
+        if not output.symbol_literals.contains(symbol) {
+            output.symbol_literals.append(symbol)
+        }
+    }
     var tagged_class = lowered.layout_named(operation.literal)
     if shape.is_symbol(made) and tagged_class {
         var identity = naming.class_id_of(tagged_class)
@@ -629,7 +722,7 @@ func print_known_call(operation: Operation, callee: Function) {
         intrinsics.print(this, operation)
         return
     }
-    var forms = ["", "moved", "borrowed", "in_place", "frame"]
+    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping"]
     if not forms.contains(operation.form) {
         refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
         return
@@ -658,7 +751,56 @@ func print_known_call(operation: Operation, callee: Function) {
         print_kept_store_call(operation, callee.c_name)
         return
     }
+    if operation.form == "unguarded" and not callee.locking.is_empty() {
+        print_plain_call(operation, "{callee.c_name}___unguarded")
+        return
+    }
+    if operation.form == "skipping" and not callee.locking.is_empty() {
+        print_skipping_call(operation, callee)
+        return
+    }
     print_plain_call(operation, callee.c_name)
+}
+
+func print_skipping_call(operation: Operation, callee: Function) {
+    var arguments = call_arguments(operation)
+    var flag = "spite_skipping_{callee.owner}"
+    assign(operation.result, "({flag} ? {callee.c_name}___unguarded({arguments}) : {callee.c_name}({arguments}))")
+}
+
+func enter_skipping(owner: String) {
+    var flag = "spite_skipping_{owner}"
+    var declared = "int32_t {flag} = 0;"
+    if not declarations.contains(declared) {
+        declarations.append(declared)
+    }
+    var guard = guard_of(owner)
+    output.need("skip")
+    lines.append("{flag} = spite_skip_enter((void*){guard});")
+}
+
+func leave_skipping(owner: String) {
+    var guard = guard_of(owner)
+    lines.append("spite_skip_leave(spite_skipping_{owner}, {guard});")
+}
+
+func enter_coarse(owner: String) {
+    var enter = guard_enter(owner)
+    lines.append(enter)
+}
+
+func leave_coarse(owner: String) {
+    var guard = guard_of(owner)
+    lines.append("spite_guard_leave({guard});")
+}
+
+func holder_owner(operation: Operation): String {
+    var holding = operand_type(operation, 0)
+    var layout = naming.layout_of(holding)
+    if not layout {
+        return ""
+    }
+    return layout.c_name
 }
 
 func print_borrowed_read(operation: Operation) {
@@ -690,15 +832,72 @@ func print_frame_buffer(operation: Operation, callee: Function) {
 func print_frame_free(operation: Operation, callee: Function) {
     var last = operation.operands.count() - 1
     var address_number = operand_number(operation, last)
-    var buffer = frame_buffers[address_number]
-    if not buffer {
-        refuse("it frees a frame buffer it cannot trace to where it was placed")
+    var placed = List<Integer>()
+    var visited = List<Integer>()
+    trace_buffer(address_number, placed, visited)
+    var placed_number = placed.first()
+    if placed.count() != 1 or not placed_number {
+        refuse("it frees a frame buffer it cannot trace to the one place that made it")
         return
     }
-    assert not fixed_buffers.has(address_number)
+    var buffer = "spite_buffer_{placed_number}"
+    assert not fixed_buffers.has(placed_number)
     var address = name_of(address_number)
     var arguments = call_arguments(operation)
     lines.append("if ({address} != (int64_t)(intptr_t){buffer}) {callee.c_name}({arguments});")
+}
+
+func trace_buffer(number: Integer, placed: List<Integer>, visited: List<Integer>) {
+    assert not visited.contains(number)
+    visited.append(number)
+    if is_frame_allocation(number) {
+        if not placed.contains(number) {
+            placed.append(number)
+        }
+        return
+    }
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = block.parameters.index_of(number)
+        if position {
+            trace_arrivals(block.number, position, placed, visited)
+        }
+        block_index = block_index + 1
+    }
+}
+
+func trace_arrivals(arrived: Integer, position: Integer, placed: List<Integer>, visited: List<Integer>) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var target_index = 0
+        while target_index < block.terminator.targets.count() {
+            var target = block.terminator.targets[target_index]
+            if target.block == arrived and position < target.arguments.count() {
+                trace_buffer(target.arguments[position], placed, visited)
+            }
+            target_index = target_index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func is_frame_allocation(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number and operation.kind == "call" and operation.form == "frame" {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
 }
 
 func print_kept_store_call(operation: Operation, c_name: String) {
@@ -745,19 +944,117 @@ func print_plain_call(operation: Operation, c_name: String) {
 }
 
 func print_load(operation: Operation) {
+    var place = field_place(operation)
+    if operation.form == "atomic" or operation.form == "atomic_fused" {
+        assign(operation.result, "__atomic_load_n(&{place}, __ATOMIC_ACQUIRE)")
+        return
+    }
+    if operation.form == "locked" {
+        var owner = holder_owner(operation)
+        var enter = guard_enter(owner)
+        var guard = guard_of(owner)
+        lines.append(enter)
+        assign(operation.result, place)
+        lines.append("spite_guard_leave({guard});")
+        return
+    }
     if not operation.form.is_empty() {
         refuse("it reads '{operation.field}' in the form '{operation.form}', which the printer does not write yet")
         return
     }
-    var place = field_place(operation)
     assign(operation.result, place)
 }
 
+func fused_change(operation: Operation): String {
+    var stored = operand_number(operation, 1)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var defining = block.operations[index]
+            if defining.result == stored and defining.operands.count() == 2 {
+                return fused_operand(defining)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return ""
+}
+
+func fused_operand(defining: Operation): String {
+    var first = defining.operands[0]
+    var second = defining.operands[1]
+    crash first and second
+    if is_fused_load(first) {
+        return name_of(second)
+    }
+    if is_fused_load(second) {
+        return name_of(first)
+    }
+    return ""
+}
+
+func is_fused_load(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number and operation.form == "atomic_fused" {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
 func print_store(operation: Operation) {
+    if operation.form == "atomic_sum" or operation.form == "atomic_subtract" {
+        print_fused_store(operation)
+        return
+    }
+    if operation.form == "atomic" {
+        var atomic_place = field_place(operation)
+        var atomic_value = operand(operation, 1)
+        lines.append("__atomic_store_n(&{atomic_place}, {atomic_value}, __ATOMIC_RELEASE);")
+        return
+    }
+    if operation.form == "locked" {
+        var owner = holder_owner(operation)
+        var enter = guard_enter(owner)
+        var guard = guard_of(owner)
+        lines.append(enter)
+        print_plain_store(operation)
+        lines.append("spite_guard_leave({guard});")
+        return
+    }
     if not operation.form.is_empty() {
         refuse("it writes '{operation.field}' in the form '{operation.form}', which the printer does not write yet")
         return
     }
+    print_plain_store(operation)
+}
+
+func print_fused_store(operation: Operation) {
+    var place = field_place(operation)
+    var change = fused_change(operation)
+    if change.is_empty() {
+        refuse("it changes '{operation.field}' atomically, and the change cannot be traced to the value it adds")
+        return
+    }
+    var builtin = "__atomic_add_fetch"
+    if operation.form == "atomic_subtract" {
+        builtin = "__atomic_sub_fetch"
+    }
+    lines.append("{builtin}(&{place}, {change}, __ATOMIC_ACQ_REL);")
+}
+
+func print_plain_store(operation: Operation) {
     var place = field_place(operation)
     var stored = operand(operation, 1)
     var stored_type = operand_type(operation, 1)
@@ -900,7 +1197,7 @@ func counted_name_of(counted: Analysis.SpiteType?): String {
 }
 
 func print_site(operation: Operation) {
-    assert operation.form != "unchecked"
+    assert operation.form != "unchecked" and operation.site >= 0
     var site = sites.site_at(operation.site)
     if not site {
         refuse("a check with no site")
@@ -1135,22 +1432,35 @@ func report_value(number: Integer) {
     var reported = type_of(number)
     var written = name_of(number)
     assert reported
+    var report_line = report_text(reported, written)
+    lines.append(report_line)
+}
+
+func report_text(reported: Analysis.SpiteType, written: String): String {
+    var nullable = shape.as_nullable(reported)
+    if nullable {
+        var inner = nullable.inner
+        var present = intrinsics.presence(written, inner)
+        var held = written
+        if not naming.is_reference(inner) {
+            held = "({written}).value"
+        }
+        var shown = report_text(inner, held)
+        return "if (!{present}) fputs(\"null\", stderr); else \{ {shown} }"
+    }
     if shape.as_string(reported) or shape.is_symbol(reported) {
-        lines.append("spite_crash_text(spite_string_bytes(&{written}), spite_string_length({written}));")
-        return
+        return "\{ SpiteString spite_shown = {written}; spite_crash_text(spite_string_bytes(&spite_shown), spite_string_length(spite_shown)); }"
     }
     var enumerated = shape.as_enum(reported)
     if enumerated {
-        lines.append("fputs({enumerated.c_name}___name({written}), stderr);")
-        return
+        return "fputs({enumerated.c_name}___name({written}), stderr);"
     }
     var kind = naming.kind_of(reported)
     if not kind {
         refuse("a crash shows a value that is neither text, an enum nor a number")
-        return
+        return ""
     }
-    var report_line = scalar_report(kind, written)
-    lines.append(report_line)
+    return scalar_report(kind, written)
 }
 
 func scalar_report(kind: Analysis.Types.NumericKind, written: String): String {

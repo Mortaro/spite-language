@@ -70,7 +70,7 @@ func judged(callee_name: String): Boolean {
     crash lowered
     crash kinds
     var callee = lowered.function_named(callee_name)
-    if not callee or callee.is_intrinsic() or callee.is_constructor or not callee.not_lowered.is_empty() {
+    if not callee or callee.is_intrinsic() or callee.is_constructor or not callee.not_lowered.is_empty() or not callee.singleton_of.is_empty() {
         return false
     }
     if callee.blocks.is_empty() or callee.blocks.count() > 6 or not kinds.is_library_layout(callee.owner) {
