@@ -380,7 +380,7 @@ func is_alive(): Boolean {
   error), only where a C library, a file format or the network fixes the numbers.
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
-  used on the union directly. Every member is a class of objects: `String`, a number, `Boolean` or `List<Byte>` is
+  used on the union directly. Every member is a class of objects: `String`, a number, `Boolean` or `List<Integer>` is
   refused as a member, so wrap it in a class of your own that keeps it in an attribute.
 - A `type` declares a shape (`label: String` and `render(Integer): String`, one per line, a required function
   naming the *types* it takes and never the names) and accepts any class, or
@@ -578,8 +578,8 @@ func is_alive(): Boolean {
 
 `Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
 a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
-`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long(position)`, ... each a `T?`; `read(): String?`, `write`,
-`append`, `exists`, `remove`, `move_to(path)`: renames or moves, `false` when something is already there; bytes are a `List<Byte>`: `read_bytes(): List<Byte>?`, `read_bytes_at(position, count): List<Byte>?`, `write_bytes(bytes)`, `append_bytes(bytes): Long?` where they start), `Directory(path)` (`path`, `name`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on;
+`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`map(): MappedFile?` for a file too big to read: `size()`, `mapped[position]`, `read_long_at(position)`, ... each a `T?`; `read(): String?`, `write`,
+`append`, `exists`, `remove`, `move_to(path)`: renames or moves, `false` when something is already there; bytes are a `Buffer`: `read_bytes(): Buffer?`, `read_bytes_at(position, count): Buffer?`, `write_bytes(bytes)`, `append_bytes(bytes): Long?` where they start), `Directory(path)` (`path`, `name`, `entries(): List<Directory.Entry>` (each entry a `Directory` or a `File`, switched on;
 one kind is `entries.filter_files()` or `filter_directories()`, never a helper of its own), `exists`, `create`, `move_to(path)`),
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only; each argument reaches the child whole, `-key=value with spaces` as `-key="value with spaces"` on Windows; `working_directory` and `environment_variables["NAME"] = "value"` set for the child alone), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
@@ -589,23 +589,27 @@ happens; `write` waits for the next line end, the next `read_line()` or the exit
 two threads never split each other, and everything is out before an exit, a crash report or a read.
 `Socket()` is TCP over IPv4 and IPv6 on every system (`connect("::1", port)`; `listen_everywhere` takes both): `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
 port)`, `connect_locally(port)`, `connect(host, port)`, then lines (`read_line(): String?`, `write_line(text)`) or
-bytes as a `List<Byte>` (`read_bytes(): List<Byte>?`, a fresh list of what arrived, `write_bytes(bytes)`), which wait.
+bytes as a `Buffer` (`read_bytes(): Buffer?`, a fresh buffer of what arrived, `write_bytes(bytes)`), which wait.
 A loop that must not wait (a game server's tick) calls `accept_client_now(): Socket?`, `read_line_now():
-String?`, `read_bytes_now(): List<Byte>` (empty is nothing yet) and `write_bytes_now(bytes):
+String?`, `read_bytes_now(): Buffer` (empty is nothing yet) and `write_bytes_now(bytes):
 Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
-answer an empty list or `null` and writes send nothing. Check `closed`, never a count of `-1`.
-**Numbers in bytes**: a `List<Byte>` has `read_<number>(position): <number>?` (`tiny`, `short`, `unsigned_short`,
-`integer`, `unsigned_integer`, `long`, `unsigned_long`, `float`, `double`, little-endian) and a `_big_endian` twin for
-each wider than a byte, `append_<number>(value)`, `write_<number>(position, value)` (halts outside) and
-`append_bytes(other, start, count)`; on any other list they are a compile error. Prove reads instead of narrowing
-each: `crash body + 13 <= bytes.count()` proves every read inside those 13 bytes, a loop `while position + 15 <
+answer an empty buffer or `null` and writes send nothing. Check `closed`, never a count of `-1`.
+**Bytes are a `Buffer`**, never a `List<Byte>` (a list has no byte functions; calling one is a compile error naming
+`Buffer`). A `Buffer` is still a run of bytes (`count()`, `buffer[index]`, `append(byte)`, templates) and adds:
+`byte_order` set once (`Buffer()` is `'little_endian'`, `Buffer('big_endian')`; there are no `_big_endian` functions),
+a `position` that `read_<number>(): <number>?` reads at and moves past, `read_<number>_at(position): <number>?`
+anywhere without moving (`byte`, `tiny`, `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`,
+`unsigned_long`, `float`, `double`; `byte` only as `read_byte()`), `append_<number>(value)`,
+`write_<number>_at(position, value)` (halts outside), `read_bytes(count)` / `read_bytes_at(position, count): Buffer?`,
+`append_bytes(other, start, count)`, `remaining()`, `reserve(count)` and `to_utf8_text(): String?`. Prove `_at` reads
+instead of narrowing each: `crash body + 13 <= bytes.count()` proves every read inside those 13 bytes, a loop `while position + 15 <
 bytes.count()` stepping `position = position + 16` reads each record with no test, and `crash height * stride <=
 pixels.count()` proves `pixels[row * stride + column]` inside `while row < height` and `while column < stride`.
-Memory a C library hands out (a mapped GPU buffer) is `ForeignBytes(address, count)`, with the same reads and
-writes, bounds checked. A program never reads or writes bytes through a `Memory.Address`: the old forms
+Memory a C library hands out (a mapped GPU buffer) is `ForeignBytes(address, count)`, with the same `_at` reads and
+writes and `byte_order`, bounds checked. A program never reads or writes bytes through a `Memory.Address`: the old forms
 (`read_bytes(position, count, address)`, `read_bytes_now(address, count)`, `read_memory`) are compile errors naming
 the plain form.
-`UdpSocket()` opens with `open()`, `open_locally(port)`, `open_everywhere(port)` or `open_at(host, port)` and sends one `List<Byte>` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.
+`UdpSocket()` opens with `open()`, `open_locally(port)`, `open_everywhere(port)` or `open_at(host, port)` and sends one `Buffer` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.
 `WebSocket()` speaks RFC 6455 (`ws`): a server takes a request from `next_request()` with `accept(request): Boolean`,
 a client calls `connect(host, port, request): Boolean`, then `send_text(text)`, `send_bytes(bytes)`,
 `send_ping(bytes)` and `receive(): WebSocket.Message?`, a union of `WebSocketText` (`.text`) and `WebSocketBinary`
@@ -647,11 +651,11 @@ rename attributes to match foreign JSON, and is `null` on a value of the wrong k
 reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
 to JSON crashes showing the value and the attribute (`shown=inf	path=Order.price`): check the number first
 if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
-`BinaryWriter<T>()` with `write(value): List<Byte>` (or `append_to(value, bytes)` to add to a buffer you have) and
+`BinaryWriter<T>()` with `write(value): Buffer` (or `append_to(value, bytes)` to add to a buffer you have) and
 `BinaryReader<T>()` with `read(bytes): T?`, `null` on bytes that are not exactly one `T`, and `read_from(bytes,
 start): T?` for the next value of many, starting at the last read's `position`; both are made once and reused;
 a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
-classes. A socket's or a file's bytes are a `List<Byte>` already, read the same way. To catch two ends built from
+classes. A socket's or a file's bytes are a `Buffer` already, read the same way. The pair is a typed serializer, the binary twin of the JSON one: whole values in, whole values out; single numbers at positions are the `Buffer`'s own reads. To catch two ends built from
 different classes, write `writer.schema()` (a `Long` the compiler works out from the classes, free to ask) once at
 the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...`
 and attributes holding a singleton are left out of both. A JSON key that is not an attribute's name comes from a map

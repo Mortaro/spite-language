@@ -15,6 +15,13 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D590's details** (your four points are decided; these were chosen while writing the spec): `MappedFile` and
+  `ForeignBytes` use the same `_at` names and take a `byte_order` (`ForeignBytes` has no position); `byte` reads only as
+  `read_byte()`, the list forms cover the rest; `remaining()`, `read_bytes(count)` and `read_bytes_at(position,
+  count): Buffer?` instead of a slice; the order is the enum `Buffer.ByteOrder`, made with `Buffer('big_endian')` and
+  settable any time, and a `position` set outside `0` to `count()` halts; only `_at` reads can be proven; the
+  binary format stays little-endian whatever the buffer's order and a serializer never moves its `position`. Each is
+  easy to change.
 - **D586, C written from the high level in every build, with no setting.** A function the high level's printer
   covers gets its C from the high level; everything else stays the generator's, and `check.sh` over the whole corpus
   is the proof. The other choice was a setting to turn it on, which costs a field in every program's C. Easy to

@@ -627,6 +627,21 @@ Also open, each a bug under D244, found cataloguing the compiler's proofs (proof
 - Run on Linux only so far; Windows and macOS are held to compiling by check.sh (the library is Spite over
   `Socket`, with nothing of its own per system).
 
+### Bytes are a Buffer (D590)
+- Not built: there is no `Buffer` class. `List<T>` still has the 53 byte functions guarded by `crash $element_type
+  == Byte` in `library/list.spite` (`read_<number>(position)`, `append_<number>`, `write_<number>(position, value)`,
+  their `_big_endian` twins, `append_bytes`, `to_utf8_text`), and `File`, `Socket`, `UdpSocket`, `WebSocket`,
+  `String.to_bytes`, `Base64`, `Deflate`, `Zlib`, `Gzip`, `Sha256`, `SecureRandom`, `Argon2.derive`,
+  `BinaryWriter`/`BinaryReader` and `ForeignBytes` still take and answer `List<Byte>`; `MappedFile` and
+  `ForeignBytes` still use the position-first names. `byte_order`, `position`, `remaining()`, the `_at` names and
+  the errors for a byte function on a `List`, a `_big_endian` name and a position-first form on a `Buffer` are not
+  built; `diagnostics/address_forms` and `diagnostics/byte_reads` still hold the `List<Byte>` texts.
+- Building it moves the library above the floor onto `Buffer` (the D566 handoff in `design/handoff.md`):
+  `BinaryInput` and `BinaryOutput` give way to the buffer's own position reads and appends, the read proofs and the
+  one-load optimisation move from `List<Byte>` to `Buffer`, and the docs' programs `byte_records`,
+  `mapped_records`, `byte_numbers` (docs/standard_library.md) and `binary_stream` (docs/json.md) get their titles
+  back so check.sh runs them again.
+
 ### Numbers in bytes (D536, bytes half)
 - Built: bytes are a `List<Byte>` for `File` (`read_bytes()`, `read_bytes_at`, `write_bytes`, `append_bytes`) and
   `Socket` (`read_bytes()`, `read_bytes_now()`, `write_bytes`, `write_bytes_now`); `List<Byte>` reads, appends and

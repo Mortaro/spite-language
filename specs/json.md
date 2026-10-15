@@ -41,12 +41,12 @@ var read = reader.read(text)            # Order?: null on text that is not an Or
 var order = reader.read_or_crash(text)  # Order: halts, naming the position and what was expected
 
 var packer = BinaryWriter<Order>()      # made once, reused for every order
-var bytes = packer.write(order)         # List<Byte>: never fails
-packer.append_to(order, frame)          # the same bytes, at the end of a List<Byte> the program has
+var bytes = packer.write(order)         # Buffer: never fails
+packer.append_to(order, frame)          # the same bytes, at the end of a Buffer the program has
 var unpacker = BinaryReader<Order>()    # made once, reused for every buffer
 var read = unpacker.read(bytes)         # Order?: null on bytes that are not exactly one Order
 var next = unpacker.read_from(frame, unpacker.position)  # the next value in a buffer of many
-var received = connection.read_bytes_now()   # List<Byte>: what a socket has
+var received = connection.read_bytes_now()   # Buffer: what a socket has
 var from_socket = unpacker.read(received)
 ```
 
@@ -60,14 +60,19 @@ makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagn
   type, and each call carries its own input: `write(value: T?): String`, which writes `null` for an empty `T?`,
   `read(text: String): T?` and `read_or_crash(text: String): T`, each reading the whole text as one value. Nothing
   is held between calls but the serializer's settings, so one writer or reader serves a whole program.
-- **A binary serializer is made with no arguments and reused, as a JSON one is**: `BinaryWriter<T>()` with
-  `write(value: T): List<Byte>` and `append_to(value: T, bytes: List<Byte>)`, and `BinaryReader<T>()` with
-  `read(bytes: List<Byte>): T?`, which reads one value that must fill the bytes, `read_from(bytes: List<Byte>,
-  start: Integer): T?`, which reads one value from `start` and leaves what follows. There is no reading from a
-  `Memory.Address`: bytes from a `Socket` or a `File` are a `List<Byte>` already, and `read_memory` in a program is
-  the error `a BinaryReader reads from a List<Byte>, not from memory at an address: write 'read(bytes)', or
-  'read_from(bytes, start)' to read one value and leave what follows`
-  ([standard_library.md](standard_library.md#bytes-are-a-listbyte)). The value a writer takes is a `T`, not a `T?`: an empty `T?` is narrowed by the caller, who then
+- **A binary serializer is made with no arguments and reused, as a JSON one is**, and it is a serializer and
+  nothing more: it turns a value of its type into bytes in a `Buffer` and back, as the JSON pair turns one into
+  text, while reading and writing single numbers at positions is the `Buffer`'s own
+  ([standard_library.md](standard_library.md#bytes-are-a-buffer)). `BinaryWriter<T>()` has
+  `write(value: T): Buffer` and `append_to(value: T, bytes: Buffer)`, and `BinaryReader<T>()` has
+  `read(bytes: Buffer): T?`, which reads one value that must fill the bytes, and `read_from(bytes: Buffer,
+  start: Integer): T?`, which reads one value from `start` and leaves what follows. The format's numbers are
+  little-endian whatever `byte_order` the buffer has, since the format does not change with the buffer, and neither
+  call moves the buffer's `position`. The cursors the walk writes and reads with are the library's own and no
+  program names them. There is no reading from a
+  `Memory.Address`: bytes from a `Socket` or a `File` are a `Buffer` already, and `read_memory` in a program is
+  the error `a BinaryReader reads from a Buffer, not from memory at an address: write 'read(bytes)', or
+  'read_from(bytes, start)' to read one value and leave what follows`. The value a writer takes is a `T`, not a `T?`: an empty `T?` is narrowed by the caller, who then
   knows whether anything was written (a `T?` inside a value has its presence byte). `position` is where the last
   successful read ended, so a buffer of many values is read by starting each `read_from` there; nothing else is
   held between calls.
@@ -108,9 +113,10 @@ The details:
   other type by its name. It is a bodiless declaration the compiler supplies, a C macro that is the constant,
   so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the
   same `T` answer the same value (`conformance/stage6/binary_schema`).
-- **The bytes are a `List<Byte>`**: one block, no count per byte, and a reader borrows nothing, since each
-  call reads the block of the list it is given and keeps nothing of it. `List<T>` has `reserve(count)` for this, making room for `count` items without making any;
-  the library's binary classes grow the list and write into its block directly, which only `library/` may do.
+- **The bytes are a `Buffer`**: one block, no count per byte, and a reader borrows nothing, since each
+  call reads the block of the buffer it is given and keeps nothing of it. `Buffer` has `reserve(count)` for this,
+  making room for `count` bytes without adding any, and the library's binary classes grow the buffer and write into
+  its block directly, which only `library/` may do.
 - **`BinaryReader` answers `null` for every bad input** (bad input is a normal condition, never a crash):
   bytes that end inside a value, a `Boolean` byte other than 0 or 1, a presence byte other than 0 or 1, an enum
   index past the enum's last value, a plain `Symbol` name the program does not use, and a count past the bytes

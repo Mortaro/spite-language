@@ -244,9 +244,9 @@ How a read is proven:
   only `names[base]`. Written with `<=`, `base + k <= names.count()` (or `names.count() >= base + k`), `k` a literal
   from 1 to 64, proves `names[base]` to `names[base + k - 1]`, which is how a header's size reads: after `crash
   body + 13 <= bytes.count()`, `bytes[body + 12]` is proven.
-- **A read of a width is proven by its last byte.** A `List<Byte>`'s `read_<number>(position)`
-  ([Bytes are a List<Byte>](standard_library.md#bytes-are-a-listbyte)) is proven when the read of its last byte,
-  `bytes[position + width - 1]`, is: `read_integer(body + 4)` by whatever proves `bytes[body + 7]`, with `body + 4 + 3`
+- **A read of a width is proven by its last byte.** A `Buffer`'s `read_<number>_at(position)`
+  ([Bytes are a Buffer](standard_library.md#bytes-are-a-buffer)) is proven when the read of its last byte,
+  `bytes[position + width - 1]`, is: `read_integer_at(body + 4)` by whatever proves `bytes[body + 7]`, with `body + 4 + 3`
   written `body + 7`. The read then answers the number itself, not a `T?`. A width read is proven like any other
   read, by a bound, a count, a counted loop's window or the guard below, and undone the same way.
 - **A position known not to be negative** needs no test below: an index that is a whole-number literal of 0 or
@@ -258,7 +258,7 @@ How a read is proven:
   stride`), with `rows` and `stride` names or literals, proves `list[row * stride + column]`, and a read of width `w`
   there, inside `while row < rows` and `while column < stride` (or `while column + k < stride` with `w - 1 <= k`)
   when `row` and `column` are locals that are never negative (above). A literal `stride` may take a literal column
-  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer(index * 16 + 4)`
+  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer_at(index * 16 + 4)`
   is proven, since `4 + 3 < 16`. Assigning `rows`, `stride` or the list, or shrinking the list, undoes the guard;
   assigning `row` or `column` undoes their loops' part, and inside a loop that has read them that is the error for a
   proof undone inside a loop (`conformance/stage6/list_byte_numbers`).

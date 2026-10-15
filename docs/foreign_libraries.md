@@ -72,6 +72,7 @@ that Win32 spells out in full (`count`, `buffer`, `window`, `size`, the second t
 | `String`, as a result (`_as_text`) | `const char*` | one copy; Spite never frees a buffer C owns |
 | an enum value | its integer | none |
 | `List<T>` of numbers | its element array, by address; C's writes come back into the list | none |
+| `Buffer` | its bytes, by address; C's writes come back into the buffer | none |
 | a `type` whose attributes are all numbers | a C struct in declaration order, by address; C's writes come back | none |
 | a function value, as an argument | a C function pointer for that call ([callbacks](#calling-back-into-spite)) | a thread-local store |
 | a class instance | never: its layout is the compiler's business | |
@@ -109,7 +110,7 @@ passes anyway:
 | `Byte`, `UnsignedShort`, `UnsignedInteger`, `UnsignedLong` | `uint64_t`, zero-extended |
 | `Float` | `float` |
 | `Double` | `double` |
-| `String`, `List<T>` of numbers, a number-only `type` | an address |
+| `String`, `List<T>` of numbers, `Buffer`, a number-only `type` | an address |
 
 On x64 (Windows and System V) and on 64-bit ARM, every integer argument travels in a 64-bit register or an 8-byte
 stack slot, and a C function reads the low bits of the width it declared, so a literal `0` reaches a `uint64_t`
@@ -412,7 +413,7 @@ func Packer(level: Integer) {
     crash handle != 0
 }
 
-func pack(input: List<Byte>, output: List<Byte>): Packing {
+func pack(input: Buffer, output: Buffer): Packing {
     var input_count = input.count()
     var output_count = output.count()
     var code = library.pack_block(handle, input, input_count, output, output_count)

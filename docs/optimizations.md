@@ -3510,8 +3510,8 @@ the plain C loop a C compiler can turn into vector instructions (SIMD), when the
   one more than the window, `at = at + 3` here, so a loop over records of three steps by a record.
 - **Nothing in the loop changes a list's size.** The body only declares and assigns numbers and `Boolean`s (its own
   locals, not attributes), reads and writes the items of lists of plain values (`[index]`, `get_at`, `set_at`,
-  `first`, `last`, `contains`, `index_of`, `count`, `is_empty`, and on a `List<Byte>` its `read_` and `write_`
-  number functions), and calls the maths functions of the number
+  `first`, `last`, `contains`, `index_of`, `count`, `is_empty`, and on a `Buffer` its `read_<number>_at` and
+  `write_<number>_at` functions), and calls the maths functions of the number
   classes. Any other call, even one to a function that looks harmless, keeps the loop as it was: a call is where a
   list could be resized through another name.
 - **The loop cannot be interrupted.** A `--repl`, `--repl-port` or `--hot-reload` build may run code between two
@@ -3590,22 +3590,23 @@ the same halt, named by the read (`conformance/stage6/proven_read_outside`).
 
 **The case:** [benchmarks/a_number_read_from_bytes_is_one_load](../benchmarks/a_number_read_from_bytes_is_one_load/).
 
-**What it does.** `bytes.read_integer(position)` and the other reads of a `List<Byte>`
-([standard_library.md](standard_library.md#numbers-in-bytes)) are library functions that compare the position with the
+**What it does.** `bytes.read_integer_at(position)` and the other reads of a `Buffer`
+([standard_library.md](standard_library.md#bytes-are-a-buffer)) are library functions that compare the position with the
 count and answer a `T?`. Where a proof covers the read
 ([proofs.md](proofs.md#a-proven-count-or-bound-proves-a-read-of-a-width)), the compiler writes the read itself in
-place of the call: one unaligned load from the list's block (a `memcpy` of the number's width, which the C compiler
-makes one instruction), and for a `_big_endian` read one byte swap (`__builtin_bswap32` and its kin) after it. Inside
-a counted loop that is all there is, the list's block and count read once before the loop, so a decoder walking
-records,
+place of the call: one unaligned load from the buffer's block (a `memcpy` of the number's width, which the C
+compiler makes one instruction), and for a `'big_endian'` buffer one byte swap (`__builtin_bswap32` and its kin)
+after it. Inside a counted loop that is all there is, the buffer's block, count and byte order read once before the
+loop (nothing in the loop may set them), so a decoder walking records,
 
 ```gdscript
-func decode(records: List<Byte>): Long {
+func decode(records: Buffer): Long {
+    records.byte_order = 'big_endian'
     var total: Long = 0
     var position = 0
     while position + 15 < records.count() {
-        var identity = records.read_integer_big_endian(position)
-        var kind = records.read_short_big_endian(position + 12)
+        var identity = records.read_integer_at(position)
+        var kind = records.read_short_at(position + 12)
         total = total + identity + kind
         position = position + 16
     }
@@ -3613,12 +3614,13 @@ func decode(records: List<Byte>): Long {
 }
 ```
 
-compiles to the loop a C programmer writes over a byte pointer. A proven `write_<number>` in a counted loop is one
+compiles to the loop a C programmer writes over a byte pointer. A proven `write_<number>_at` in a counted loop is one
 store the same way. A counted loop may step by more than one for this: `position = position + 16` last, under a
 window of `+ 15`.
 
-**When.** Every build, for a read on a `List<Byte>` named bare (a local, a parameter or an attribute). Outside a
-counted loop the read keeps one compare of its top, which the C compiler is told is never taken, since the list
+**When.** Every build, for a `_at` read on a `Buffer` named bare (a local, a parameter or an attribute); a read at
+the buffer's position, `read_<number>()`, stays the library's checked call. Outside a
+counted loop the read keeps one compare of its top, which the C compiler is told is never taken, since the buffer
 could have been shrunk through another name since the bound; a position not known to be non-negative adds the
 compare of its low end. `bytes[index]` on a list of numbers gets the same single compare when its index is known not
 to be negative.

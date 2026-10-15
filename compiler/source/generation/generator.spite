@@ -18559,7 +18559,7 @@ func method_call_on(
     return called
 }
 
-# ../../../specs/standard_library.md#bytes-are-a-listbyte
+# ../../../specs/standard_library.md#bytes-are-a-buffer
 func address_form_refusal(
     target: Analysis.ClassInfo,
     name: String,

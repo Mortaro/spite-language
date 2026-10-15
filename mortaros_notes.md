@@ -22,10 +22,6 @@ the engine still has a "os" folder for locks, writing os specific code is most l
 
 ---
 
-maybe List<Byte> should become a class Buffer that has all the methods we need to read information from the binary as different formats, BinaryWriter would then be able to use it and gives us control about how to best allocate it. the engine also seem to duplicate a lot of logic because we miss the Buffer class, the buffer class would just internally have a List<Byte> most likely, unless BinaryReader or Writer already cover it 
-
----
-
 do we actually need all these stages of conformance? we should only worrry about "current compiler" and not past ones if we have git history and no longer worry about bootstrap from scratch, once we have our own IR and backend and stop using C we also can stop releasing the bootstrap C in favor of just looking at tags. to be clear we only care about being able to build and run the current compiler, which makes us need the previous one, but we no longer need to bootstrap each stage in a row or even hold code or tests for old stages, as long as every test pass, we dont need binaries to be the same in the end
 
 ---
@@ -49,3 +45,7 @@ if modified and size
 ---
 
 .memory should become only getters to learn about the object and no longer a thing we can set as a move to remove manual memory management
+
+---
+
+a type and a generic are namespaced to the class file they are declared, weve been somehow using Number as a generic type and Nothing, so we have some leak on scope somewhere
