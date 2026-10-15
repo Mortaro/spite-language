@@ -1,11 +1,14 @@
-appended 47 bytes
--5 -300 -300 65000 -70000 258
-4000000000 -9000000000 9000000000000000000 1.5 -0.25
-big-endian bytes read little-endian: -11010
-258 big-endian ends with 1 2
-written in place: 1 past the end: true below 0: true
-a run copied out: 258
+appended 45 bytes
+-5 -300 65000 -70000 258 4000000000
+-9000000000 9000000000000000000 1.5 -0.25
+big-endian: 65000 258 1.5
+big-endian bytes read little-endian: 33619968
+written in place: 258
+a read past the end and one below 0 are null: true
+a run copied out: -292552704
 a header read under one bound: 6
 an image read by row and column: 66
-whole integers walked: 2016907440
+whole integers walked: -4506065045
+records: 1167
+a position walk leaves: 0
 foreign memory: 41 4 8 a read past its end: true

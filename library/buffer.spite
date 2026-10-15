@@ -141,35 +141,35 @@ func read_short(): Short? {
 
 func read_unsigned_short(): UnsignedShort? {
     assert _inside(position, 2)
-    var read = items.read_unsigned_short(position)
+    var read = _read_unsigned_short(position)
     position = position + 2
     return read
 }
 
 func read_integer(): Integer? {
     assert _inside(position, 4)
-    var read = items.read_integer(position)
+    var read = _read_integer(position)
     position = position + 4
     return read
 }
 
 func read_unsigned_integer(): UnsignedInteger? {
     assert _inside(position, 4)
-    var read = items.read_unsigned_integer(position)
+    var read = _read_unsigned_integer(position)
     position = position + 4
     return read
 }
 
 func read_long(): Long? {
     assert _inside(position, 8)
-    var read = items.read_long(position)
+    var read = _read_long(position)
     position = position + 8
     return read
 }
 
 func read_unsigned_long(): UnsignedLong? {
     assert _inside(position, 8)
-    var read = items.read_unsigned_long(position)
+    var read = _read_unsigned_long(position)
     position = position + 8
     return read
 }
@@ -205,27 +205,27 @@ func read_short_at(at: Integer): Short? {
 
 func read_unsigned_short_at(at: Integer): UnsignedShort? {
     assert _inside(at, 2)
-    return items.read_unsigned_short(at)
+    return _read_unsigned_short(at)
 }
 
 func read_integer_at(at: Integer): Integer? {
     assert _inside(at, 4)
-    return items.read_integer(at)
+    return _read_integer(at)
 }
 
 func read_unsigned_integer_at(at: Integer): UnsignedInteger? {
     assert _inside(at, 4)
-    return items.read_unsigned_integer(at)
+    return _read_unsigned_integer(at)
 }
 
 func read_long_at(at: Integer): Long? {
     assert _inside(at, 8)
-    return items.read_long(at)
+    return _read_long(at)
 }
 
 func read_unsigned_long_at(at: Integer): UnsignedLong? {
     assert _inside(at, 8)
-    return items.read_unsigned_long(at)
+    return _read_unsigned_long(at)
 }
 
 func read_float_at(at: Integer): Float? {
@@ -252,31 +252,31 @@ func append_short(value: Short) {
 
 func append_unsigned_short(value: UnsignedShort) {
     reserve(item_count + 2)
-    items.write_unsigned_short(item_count, value)
+    _write_unsigned_short(item_count, value)
     item_count = item_count + 2
 }
 
 func append_integer(value: Integer) {
     reserve(item_count + 4)
-    items.write_integer(item_count, value)
+    _write_integer(item_count, value)
     item_count = item_count + 4
 }
 
 func append_unsigned_integer(value: UnsignedInteger) {
     reserve(item_count + 4)
-    items.write_unsigned_integer(item_count, value)
+    _write_unsigned_integer(item_count, value)
     item_count = item_count + 4
 }
 
 func append_long(value: Long) {
     reserve(item_count + 8)
-    items.write_long(item_count, value)
+    _write_long(item_count, value)
     item_count = item_count + 8
 }
 
 func append_unsigned_long(value: UnsignedLong) {
     reserve(item_count + 8)
-    items.write_unsigned_long(item_count, value)
+    _write_unsigned_long(item_count, value)
     item_count = item_count + 8
 }
 
@@ -309,27 +309,27 @@ func write_short_at(at: Integer, value: Short) {
 
 func write_unsigned_short_at(at: Integer, value: UnsignedShort) {
     crash _inside(at, 2)
-    items.write_unsigned_short(at, value)
+    _write_unsigned_short(at, value)
 }
 
 func write_integer_at(at: Integer, value: Integer) {
     crash _inside(at, 4)
-    items.write_integer(at, value)
+    _write_integer(at, value)
 }
 
 func write_unsigned_integer_at(at: Integer, value: UnsignedInteger) {
     crash _inside(at, 4)
-    items.write_unsigned_integer(at, value)
+    _write_unsigned_integer(at, value)
 }
 
 func write_long_at(at: Integer, value: Long) {
     crash _inside(at, 8)
-    items.write_long(at, value)
+    _write_long(at, value)
 }
 
 func write_unsigned_long_at(at: Integer, value: UnsignedLong) {
     crash _inside(at, 8)
-    items.write_unsigned_long(at, value)
+    _write_unsigned_long(at, value)
 }
 
 func write_float_at(at: Integer, value: Float) {
@@ -461,44 +461,125 @@ func _write_short(at: Integer, value: Short) {
     items.write_short(at, value)
 }
 
-func _read_float(at: Integer): Float {
-    var pattern = _float_pattern(at)
-    return pattern.bits_as_float()
+func _read_unsigned_short(at: Integer): UnsignedShort {
+    if byte_order == 'big_endian' {
+        return items.read_unsigned_short_big_endian(at)
+    }
+    return items.read_unsigned_short(at)
 }
 
-func _write_float(at: Integer, value: Float) {
-    var pattern = value.bits()
+func _write_unsigned_short(at: Integer, value: UnsignedShort) {
     if byte_order == 'big_endian' {
-        items.write_unsigned_integer_big_endian(at, pattern)
+        items.write_unsigned_short_big_endian(at, value)
         return
     }
-    items.write_unsigned_integer(at, pattern)
+    items.write_unsigned_short(at, value)
 }
 
-func _read_double(at: Integer): Double {
-    var pattern = _double_pattern(at)
-    return pattern.bits_as_double()
-}
-
-func _write_double(at: Integer, value: Double) {
-    var pattern = value.bits()
+func _read_integer(at: Integer): Integer {
     if byte_order == 'big_endian' {
-        items.write_unsigned_long_big_endian(at, pattern)
+        return items.read_integer_big_endian(at)
+    }
+    return items.read_integer(at)
+}
+
+func _write_integer(at: Integer, value: Integer) {
+    if byte_order == 'big_endian' {
+        items.write_integer_big_endian(at, value)
         return
     }
-    items.write_unsigned_long(at, pattern)
+    items.write_integer(at, value)
 }
 
-func _float_pattern(at: Integer): UnsignedInteger {
+func _read_unsigned_integer(at: Integer): UnsignedInteger {
     if byte_order == 'big_endian' {
         return items.read_unsigned_integer_big_endian(at)
     }
     return items.read_unsigned_integer(at)
 }
 
+func _write_unsigned_integer(at: Integer, value: UnsignedInteger) {
+    if byte_order == 'big_endian' {
+        items.write_unsigned_integer_big_endian(at, value)
+        return
+    }
+    items.write_unsigned_integer(at, value)
+}
+
+func _read_long(at: Integer): Long {
+    if byte_order == 'big_endian' {
+        return items.read_long_big_endian(at)
+    }
+    return items.read_long(at)
+}
+
+func _write_long(at: Integer, value: Long) {
+    if byte_order == 'big_endian' {
+        items.write_long_big_endian(at, value)
+        return
+    }
+    items.write_long(at, value)
+}
+
+func _read_unsigned_long(at: Integer): UnsignedLong {
+    if byte_order == 'big_endian' {
+        return items.read_unsigned_long_big_endian(at)
+    }
+    return items.read_unsigned_long(at)
+}
+
+func _write_unsigned_long(at: Integer, value: UnsignedLong) {
+    if byte_order == 'big_endian' {
+        items.write_unsigned_long_big_endian(at, value)
+        return
+    }
+    items.write_unsigned_long(at, value)
+}
+
+func _read_float(at: Integer): Float {
+    if byte_order == 'big_endian' {
+        var pattern = _float_pattern(at)
+        return pattern.bits_as_float()
+    }
+    return items.read_float(at)
+}
+
+func _write_float(at: Integer, value: Float) {
+    if byte_order == 'big_endian' {
+        var pattern = value.bits()
+        items.write_unsigned_integer_big_endian(at, pattern)
+        return
+    }
+    items.write_float(at, value)
+}
+
+func _read_double(at: Integer): Double {
+    if byte_order == 'big_endian' {
+        var pattern = _double_pattern(at)
+        return pattern.bits_as_double()
+    }
+    return items.read_double(at)
+}
+
+func _write_double(at: Integer, value: Double) {
+    if byte_order == 'big_endian' {
+        var pattern = value.bits()
+        items.write_unsigned_long_big_endian(at, pattern)
+        return
+    }
+    items.write_double(at, value)
+}
+
+func _float_pattern(at: Integer): UnsignedInteger {
+    if byte_order == 'big_endian' {
+        return items.read_unsigned_integer_big_endian(at)
+    }
+    return _read_unsigned_integer(at)
+}
+
 func _double_pattern(at: Integer): Long {
     if byte_order == 'big_endian' {
         return items.read_unsigned_long_big_endian(at).bits_as_signed()
     }
-    return items.read_long(at)
+    return _read_long(at)
 }
