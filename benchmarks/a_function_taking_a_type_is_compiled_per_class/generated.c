@@ -341,6 +341,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2508,16 +2509,18 @@ double spite_temp_94 = (measure_ + measure_);
 return spite_temp_94;
 }
 void Ball_Ball(Ball* self, float starting_radius_) {
-self->radius_ = starting_radius_;
+(self)->radius_ = starting_radius_;
+return;
 }
 double Ball_to_double(Ball* self) {
 double spite_temp_95 = SpiteFloat_to_double((self->radius_ + self->radius_));
 return spite_temp_95;
 }
 void Crate_Crate(Crate* self, float starting_width_, float starting_height_, float starting_depth_) {
-self->width_ = starting_width_;
-self->height_ = starting_height_;
-self->depth_ = starting_depth_;
+(self)->width_ = starting_width_;
+(self)->height_ = starting_height_;
+(self)->depth_ = starting_depth_;
+return;
 }
 double Crate_to_double(Crate* self) {
 double spite_temp_96 = SpiteFloat_to_double(((self->width_ * self->height_) * self->depth_));

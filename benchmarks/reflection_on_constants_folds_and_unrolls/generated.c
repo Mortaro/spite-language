@@ -339,6 +339,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2580,10 +2581,19 @@ self->running_ = ({ int32_t spite_temp_125 = self->running_; int32_t spite_temp_
 }
 }
 void Stats_Stats(Stats* self, int32_t seed_) {
-self->strength_ = (seed_ % 20);
-self->agility_ = (seed_ % 17);
-self->wisdom_ = (seed_ % 13);
-self->stamina_ = (seed_ % 11);
+int32_t spite_high_1 = 20;
+int32_t spite_high_2 = (seed_ % spite_high_1);
+(self)->strength_ = spite_high_2;
+int32_t spite_high_3 = 17;
+int32_t spite_high_4 = (seed_ % spite_high_3);
+(self)->agility_ = spite_high_4;
+int32_t spite_high_5 = 13;
+int32_t spite_high_6 = (seed_ % spite_high_5);
+(self)->wisdom_ = spite_high_6;
+int32_t spite_high_7 = 11;
+int32_t spite_high_8 = (seed_ % spite_high_7);
+(self)->stamina_ = spite_high_8;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

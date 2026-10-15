@@ -339,6 +339,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2541,8 +2542,9 @@ int64_t spite_temp_114 = near_;
 return spite_temp_114;
 }
 void Point_Point(Point* self, int32_t starting_across_, int32_t starting_down_) {
-self->across_ = starting_across_;
-self->down_ = starting_down_;
+(self)->across_ = starting_across_;
+(self)->down_ = starting_down_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

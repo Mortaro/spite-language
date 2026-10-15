@@ -68,6 +68,9 @@ func note_fresh(block: Block) {
 
 func is_waiting(function: Function): Boolean {
     crash lowered
+    if not function.waiting_kind.is_empty() {
+        return true
+    }
     var layout = lowered.layout_named(function.owner)
     if not layout {
         return false

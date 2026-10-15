@@ -32,6 +32,7 @@ func prepare() {
     settle_settings()
     settle_layouts()
     lowered.runtime_roots = roots_of_runtime()
+    lowered.concrete_functions.each(settle_waiting_kind)
     var passes = Passes()
     passes.run(lowered)
     settle_held_layouts()
@@ -82,6 +83,14 @@ func baseline(host_text: String): String {
         index = index + 1
     }
     return lines.join("\n")
+}
+
+# ../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+func settle_waiting_kind(function: Function) {
+    crash generator
+    var owner = lowered.layout_named(function.owner)
+    assert function.source and owner and owner.information
+    function.waiting_kind = generator.waiting_kind(owner.information, function.source)
 }
 
 func has_error(): Boolean {
@@ -210,6 +219,10 @@ func settle_schema(function: Function) {
 }
 
 func settle_held_layouts() {
+    if runs_pieces() {
+        var piece_type: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Function")
+        settle_held(piece_type)
+    }
     var index = 0
     while index < lowered.layouts.count() {
         var layout = lowered.layouts[index]
@@ -218,6 +231,29 @@ func settle_held_layouts() {
         }
         index = index + 1
     }
+}
+
+func runs_pieces(): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        var block_index = 0
+        while block_index < function.blocks.count() {
+            var block = function.blocks[block_index]
+            var position = 0
+            while position < block.operations.count() {
+                var operation = block.operations[position]
+                var pieced = operation.callee == "Bands.run" or operation.callee == "Rows.run"
+                if pieced or operation.form == "overlap" or operation.form == "started" {
+                    return true
+                }
+                position = position + 1
+            }
+            block_index = block_index + 1
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func settle_held(held: Analysis.SpiteType) {

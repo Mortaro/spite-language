@@ -385,6 +385,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3191,7 +3192,8 @@ tick_ = (tick_ + 1);
 }
 }
 void Entity_Entity(Entity* self, int32_t new_id_) {
-self->id_ = new_id_;
+(self)->id_ = new_id_;
+return;
 }
 int64_t Position_get_place(Position* self) {
 int64_t wide_ = SpiteInteger_to_long(self->left_);
@@ -3214,8 +3216,9 @@ int32_t spite_temp_120 = ({ int32_t spite_temp_121 = ({ Nullable_Integer spite_t
 return spite_temp_120;
 }
 void Velocity_Velocity(Velocity* self, int32_t new_across_, int32_t new_down_) {
-self->across_ = new_across_;
-self->down_ = new_down_;
+(self)->across_ = new_across_;
+(self)->down_ = new_down_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

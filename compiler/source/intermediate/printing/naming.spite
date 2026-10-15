@@ -267,7 +267,11 @@ func counted_name(spite_type: Analysis.SpiteType): String {
     }
     var class_ref = shape.as_class_ref(spite_type)
     if class_ref {
-        if is_value_class(class_ref.c_name) or not lowered.layout_named(class_ref.c_name) {
+        var held = lowered.layout_named(class_ref.c_name)
+        if is_value_class(class_ref.c_name) or not held {
+            return ""
+        }
+        if held.is_singleton {
             return ""
         }
         return class_ref.c_name

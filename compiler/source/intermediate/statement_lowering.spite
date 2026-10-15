@@ -32,8 +32,11 @@ func lower_block(statements: List<Syntax.Statements.Statement>) {
 }
 
 func lower_statements(statements: List<Syntax.Statements.Statement>) {
+    var made = front()
     var index = 0
     while index < statements.count() and emitter.reachable() and not emitter.lowering_failed() {
+        made.borrow_statements = statements
+        made.borrow_index = index
         lower_statement(statements[index])
         index = index + 1
     }
@@ -62,6 +65,13 @@ func declaration(declared: Syntax.Statements.VariableDeclaration) {
         typed_declaration(declared, declared.type_reference, declared.value)
         return
     }
+    var made = front()
+    if made.constant_local(declared, emitter.scope, lowered_class) {
+        lowering().hold_binding()
+        return
+    }
+    assert not made.folds_dictionary_local(declared, emitter.scope, lowered_class)
+    made.folded_dictionaries.remove(declared.name)
     var value = lowering().lower(declared.value)
     var value_type = lowering().type_of(value)
     emitter.declare_local(declared.name, value, value_type)
@@ -280,6 +290,7 @@ func store_member(
 
 func if_statement(statement: Syntax.Statements.IfStatement) {
     crash statement.condition
+    lowering().restore_bindings()
     var made = front()
     var constant = made.constant_condition(statement.condition, emitter.scope, lowered_class)
     if constant == true {
@@ -329,6 +340,7 @@ func if_statement(statement: Syntax.Statements.IfStatement) {
 
 func while_statement(statement: Syntax.Statements.WhileStatement) {
     crash statement.condition
+    lowering().restore_bindings()
     var made = front()
     var constant = made.constant_condition(statement.condition, emitter.scope, lowered_class)
     assert constant != false

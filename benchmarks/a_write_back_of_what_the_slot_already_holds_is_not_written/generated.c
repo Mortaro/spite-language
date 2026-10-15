@@ -369,6 +369,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2729,7 +2730,8 @@ int32_t spite_temp_124 = List_Page_sum_words(self->pages_);
 return spite_temp_124;
 }
 void Page_Page(Page* self, int32_t starting_words_) {
-self->words_ = starting_words_;
+(self)->words_ = starting_words_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

@@ -381,6 +381,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3556,7 +3557,8 @@ List_Concurrent__Integer___release(nappings_);
 return spite_temp_158;
 }
 void Napper_Napper(Napper* self, int32_t new_number_) {
-self->number_ = new_number_;
+(self)->number_ = new_number_;
+return;
 }
 int32_t Napper_nap(Napper* self) {
 Program_sleep(self->program_, 2);
