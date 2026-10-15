@@ -28,8 +28,8 @@ func print(body: Body, operation: Operation) {
         "List": print_list(body, operation, word)
         "Foreign": print_foreign(body, operation, word)
         "Reflection": print_reflection(body, operation, word)
-        "Bands": body.refuse("it runs a loop in bands on threads, which the printer does not write yet")
-        "Rows": body.refuse("it runs rows of work on threads, which the printer does not write yet")
+        "Bands": body.assign(operation.result, "false")
+        "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
         _: print_number(body, operation, word)
     }
@@ -262,6 +262,25 @@ func crossed(argument: String, argument_type: Analysis.SpiteType, crossing: Stri
     return "({crossing})({argument})"
 }
 
+func print_rows(body: Body, operation: Operation) {
+    var names = operation.literal.split(",")
+    if names.count() != operation.operands.count() {
+        body.refuse("it runs a row of {names.count()} calls on {operation.operands.count()} receivers")
+        return
+    }
+    var index = 0
+    while index < names.count() {
+        var receiver = body.operand(operation, index)
+        var called = lowered.function_named(names[index])
+        if not called {
+            body.refuse("it runs '{names[index]}' in a row, which the program does not hold")
+            return
+        }
+        body.emit("{called.c_name}({receiver});")
+        index = index + 1
+    }
+}
+
 func print_list(body: Body, operation: Operation, word: String) {
     if word != "holds_table" {
         body.refuse("it calls 'List.{word}', which is no intrinsic")
@@ -300,6 +319,9 @@ func print_function_value(body: Body, operation: Operation, word: String) {
     if not called {
         body.refuse("it binds '{operation.literal}', which the program does not hold")
         return
+    }
+    if not output.bound_functions.contains(called.c_name) {
+        output.bound_functions.append(called.c_name)
     }
     if shape.as_string(owner_type) or shape.as_scalar(owner_type) {
         bind_value_owner(body, bound, owner, owner_type, called)

@@ -7,6 +7,7 @@ var body = Intermediate.Printing.Body()
 var layouts = Intermediate.Printing.Layouts()
 var runtime = Intermediate.Printing.Runtime()
 var copies = Intermediate.Printing.Copies()
+var machines = Intermediate.Printing.Machines()
 
 func print(lowered: Lowered): String {
     wire(lowered)
@@ -46,6 +47,11 @@ func wire(lowered: Lowered) {
     copies.made = List<String>()
     copies.table_written = false
     intrinsics.copies = copies
+    machines.output = made
+    machines.lowered = lowered
+    machines.naming = naming
+    machines.primitives = List<String>()
+    body.machines = machines
     body.output = made
     body.lowered = lowered
     body.naming = naming
@@ -65,9 +71,6 @@ func refuse_unbuilt(lowered: Lowered) {
     }
     if lowered.read_evaluate_print_loop {
         output.refuse("a REPL build answers questions about the running program, which the printer does not write yet")
-    }
-    if lowered.makes_concurrents {
-        output.refuse("the program waits on concurrent work, whose state machines the printer does not write yet")
     }
     if lowered.remote_loop {
         output.refuse("the program serves a REPL port, which the printer does not write yet")
@@ -89,11 +92,16 @@ func types_text(): String {
     var types = output.types.join("\n")
     var nullable_types = output.nullable_types.join("\n")
     var structs = output.structs.join("\n")
+    var frames = ""
+    if runtime.lowered.makes_concurrents {
+        var frame_types = output.frames.join("\n")
+        frames = "{machines.runtime_types()}\n{frame_types}"
+    }
     var site_lines = output.site_lines.join("\n")
     var literal_lines = output.literal_lines.join("\n")
     var macros = output.macros.join("\n")
     var headers = output.foreign_headers.join("\n")
-    return "{runtime.defines()}\n{runtime.header()}\n{headers}\n{runtime.early_types()}\n{runtime.assert_ring()}\n{runtime.string_layout()}\n{types}\n{runtime.prelude.structs()}\n{nullable_types}\n{structs}\n{site_lines}\n{literal_lines}\n{macros}"
+    return "{runtime.defines()}\n{runtime.header()}\n{headers}\n{runtime.early_types()}\n{runtime.assert_ring()}\n{runtime.string_layout()}\n{types}\n{runtime.prelude.structs()}\n{nullable_types}\n{structs}\n{frames}\n{site_lines}\n{literal_lines}\n{macros}"
 }
 
 func prototypes_text(): String {
@@ -120,6 +128,10 @@ func supports_text(lowered: Lowered): String {
     }
     var supports = output.supports.join("\n")
     var libraries = runtime.foreign_libraries()
+    if lowered.makes_concurrents {
+        var machine_runtime = machines.runtime_bodies()
+        libraries = "{libraries}\n{machine_runtime}"
+    }
     var guards = ""
     if output.needs("guards") {
         guards = runtime.guard_runtime()

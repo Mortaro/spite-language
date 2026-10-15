@@ -1,0 +1,337 @@
+# ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+var shape = Analysis.TypeShape()
+var primitives = List<String>()
+
+func waiting_kind(function: Function): String {
+    var layout = lowered.layout_named(function.owner)
+    if not layout {
+        return ""
+    }
+    var owner = layout.qualified
+    var name = function.name
+    if owner == "Program" and name == "sleep" {
+        return "sleep"
+    }
+    if owner == "ThreadPool" and name == "join" {
+        return "yield"
+    }
+    if owner == "Scheduler" and name == "wait_for" {
+        return "join"
+    }
+    var reads = owner == "Console" and name == "read_line_into"
+    var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into" or name == "first_readable")
+    var files = owner == "File" and (name == "read_into" or name == "write_text" or name == "write_from")
+    if reads or receives or files {
+        return "offload"
+    }
+    return ""
+}
+
+func scheduler_name(): String {
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.qualified == "Scheduler" {
+            return layout.c_name
+        }
+        index = index + 1
+    }
+    output.refuse("the program waits on concurrent work, and holds no Scheduler")
+    return "Scheduler"
+}
+
+func scheduler_getter(): String {
+    var scheduler = scheduler_name()
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        if candidate.singleton_of == scheduler {
+            return candidate.c_name
+        }
+        index = index + 1
+    }
+    output.refuse("the program waits on concurrent work, and holds no function that makes the Scheduler")
+    return "spite_missing_scheduler"
+}
+
+func scheduler_call(name: String): String {
+    var scheduler = scheduler_name()
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        if candidate.owner == scheduler and candidate.name == name {
+            return candidate.c_name
+        }
+        index = index + 1
+    }
+    output.refuse("the program waits on concurrent work, and holds no Scheduler.{name}, which waiting calls")
+    return "spite_missing_{name}"
+}
+
+func receiver_type(function: Function): String {
+    if function.receiver < 0 {
+        return "void*"
+    }
+    var receiver = function.value_at(function.receiver)
+    return naming.c_type(receiver.spite_type)
+}
+
+func answered_type(function: Function): String {
+    if not function.answer or shape.is_void(function.answer) {
+        return ""
+    }
+    return naming.c_type(function.answer)
+}
+
+func parameter_fields(function: Function): List<String> {
+    var fields = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var written = naming.c_type(parameter.spite_type)
+        fields.append("{written} {parameter.name}_;")
+        index = index + 1
+    }
+    return fields
+}
+
+func begin_text(function: Function): String {
+    var name = function.c_name
+    var parameters = ["{receiver_type(function)} self"]
+    var stores = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var written = naming.c_type(parameter.spite_type)
+        parameters.append("{written} {parameter.name}_")
+        stores.append("spite_frame->{parameter.name}_ = {parameter.name}_;")
+        index = index + 1
+    }
+    var signature = "static void* {name}___begin({parameters.join(", ")})"
+    output.prototypes.append("{signature};")
+    output.prototypes.append("static bool {name}___step(void* spite_raw);")
+    var lines = [
+        "{signature} \{"
+        "{name}___frame* spite_frame = ({name}___frame*)SPITE_MALLOC(sizeof({name}___frame));"
+        "if (spite_frame == 0) \{ fflush(stdout); fputs(\"spite: out of memory starting a concurrent call\\n\", stderr); exit(1); }"
+        "memset(spite_frame, 0, sizeof({name}___frame));"
+        "spite_frame->spite_head.step = {name}___step;"
+        "spite_frame->self = self;"
+        stores.join("\n")
+        "return spite_frame;"
+        "}"
+    ]
+    return lines.join("\n")
+}
+
+func frame_type(function: Function, fields: List<String>) {
+    var name = function.c_name
+    var result = ""
+    var answered = answered_type(function)
+    if not answered.is_empty() {
+        result = " {answered} spite_result;"
+    }
+    output.frames.append(
+        "typedef struct {name}___frame \{ SpiteFrame spite_head;{result} {receiver_type(function)} self; {fields.join(" ")} } {name}___frame;",
+    )
+}
+
+func ensure_primitive(function: Function, kind: String) {
+    assert not primitives.contains(function.c_name)
+    primitives.append(function.c_name)
+    var fields = parameter_fields(function)
+    var steps = ""
+    switch kind {
+        "sleep": steps = sleep_steps(function, fields)
+        "join": steps = join_steps(function)
+        _: steps = offload_steps(function, fields)
+    }
+    frame_type(function, fields)
+    var name = function.c_name
+    var begun = begin_text(function)
+    output.bodies.append(begun)
+    var getter = scheduler_getter()
+    var scheduler = scheduler_name()
+    output.bodies.append(
+        "static bool {name}___step(void* spite_raw) \{\n{name}___frame* spite_frame = ({name}___frame*)spite_raw;\n{scheduler}* spite_scheduler = {getter}();\n{steps}\nreturn spite_over;\n}",
+    )
+    output.runtime_place("{name}___step")
+}
+
+func first_parameter(function: Function): String {
+    var first = function.parameters.first()
+    if not first {
+        output.refuse("'{function.c_name}' waits on a value it does not take")
+        return "self"
+    }
+    return "{first.name}_"
+}
+
+func sleep_steps(function: Function, fields: List<String>): String {
+    var milliseconds = first_parameter(function)
+    var starting = scheduler_call("timer_start")
+    var ending = scheduler_call("timer_over")
+    fields.append("int64_t spite_deadline;")
+    return "if (spite_frame->spite_head.state == 0) \{ spite_frame->spite_deadline = {starting}(spite_scheduler, spite_frame->{milliseconds}); spite_frame->spite_head.state = 1; }\nbool spite_over = {ending}(spite_scheduler, spite_frame->spite_deadline);"
+}
+
+func join_steps(function: Function): String {
+    var frame = first_parameter(function)
+    var joins = scheduler_call("joins")
+    var over = "bool spite_over = {joins}(spite_frame->self, spite_frame->{frame});"
+    if answered_type(function).is_empty() {
+        return over
+    }
+    return "{over}\nif (spite_over) spite_frame->spite_result = true;"
+}
+
+func offload_steps(function: Function, fields: List<String>): String {
+    var starting = scheduler_call("offload_start")
+    var ending = scheduler_call("offload_over")
+    var name = function.c_name
+    offload_call(function)
+    fields.append("{name}___call spite_call;")
+    fields.append("int64_t spite_thread;")
+    var passed = ["spite_frame->self"]
+    var index = 0
+    while index < function.parameters.count() {
+        passed.append("spite_frame->{function.parameters[index].name}_")
+        index = index + 1
+    }
+    var call = "(int64_t)(intptr_t)&spite_frame->spite_call"
+    var lines = [
+        "if (spite_frame->spite_head.state == 0) \{"
+        "spite_frame->spite_call = ({name}___call)\{ \{ 0, &{name}___perform, spite_scheduler }, {passed.join(", ")} };"
+        "spite_frame->spite_thread = {starting}(spite_scheduler, {call}, (int64_t)(intptr_t)&spite_offload_thread);"
+        "spite_frame->spite_head.state = 1;"
+        "}"
+        "bool spite_over = {ending}(spite_scheduler, {call}, spite_frame->spite_thread);"
+    ]
+    if not answered_type(function).is_empty() {
+        lines.append("if (spite_over) spite_frame->spite_result = spite_frame->spite_call.result;")
+    }
+    return lines.join("\n")
+}
+
+func offload_call(function: Function) {
+    var name = function.c_name
+    assert not output.forwarders.contains("{name}___perform")
+    output.forwarders.append("{name}___perform")
+    var fields = ["SpiteOffload offload;", "{receiver_type(function)} self;"]
+    var passed = ["call->self"]
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var written = naming.c_type(parameter.spite_type)
+        fields.append("{written} {parameter.name}_;")
+        passed.append("call->{parameter.name}_")
+        index = index + 1
+    }
+    var stored = ""
+    var answered = answered_type(function)
+    if not answered.is_empty() {
+        fields.append("{answered} result;")
+        stored = "call->result = "
+    }
+    output.frames.append("typedef struct {name}___call \{ {fields.join(" ")} } {name}___call;")
+    output.prototypes.append("static void {name}___perform(void* raw);")
+    output.bodies.append(
+        "static void {name}___perform(void* raw) \{\n{name}___call* call = ({name}___call*)raw;\n{stored}{name}___waiting({passed.join(", ")});\n}",
+    )
+    output.runtime_place("{name}___perform")
+}
+
+func waiting_wrapper(function: Function, kind: String, heading: String) {
+    var name = function.c_name
+    var arguments = ["self"]
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append("{function.parameters[index].name}_")
+        index = index + 1
+    }
+    var waited = "{name}___waiting({arguments.join(", ")})"
+    var getter = scheduler_getter()
+    var scheduler = scheduler_name()
+    var waits_here = scheduler_call("waits_here")
+    var opening = "{heading} \{"
+    var lines = [opening, "{scheduler}* spite_scheduler = {getter}();"]
+    if kind == "yield" {
+        var yielding = scheduler_call("yield_now")
+        lines.append("{waited};")
+        lines.append("if (SPITE_GUARDS_HELD() == 0 && {waits_here}(spite_scheduler)) {yielding}(spite_scheduler);")
+    } else if kind == "sleep" {
+        var sleeping = scheduler_call("sleep")
+        var milliseconds = first_parameter(function)
+        lines.append(
+            "if (SPITE_GUARDS_HELD() == 0 && {waits_here}(spite_scheduler)) {sleeping}(spite_scheduler, {milliseconds}); else {waited};",
+        )
+    } else {
+        var offloaded = offload_lines(function, waited, arguments)
+        lines.append(offloaded)
+    }
+    lines.append("}")
+    var wrapper = lines.join("\n")
+    output.bodies.append(wrapper)
+}
+
+func offload_lines(function: Function, waited: String, arguments: List<String>): String {
+    var name = function.c_name
+    offload_call(function)
+    var waits_here = scheduler_call("waits_here")
+    var offloading = scheduler_call("offload")
+    var blocked = "{waited}; return;"
+    var answered = "return;"
+    if not answered_type(function).is_empty() {
+        blocked = "return {waited};"
+        answered = "return spite_call.result;"
+    }
+    var lines = [
+        "if (SPITE_GUARDS_HELD() != 0 || !{waits_here}(spite_scheduler)) \{ {blocked} }"
+        "{name}___call spite_call = \{ \{ 0, &{name}___perform, spite_scheduler }, {arguments.join(", ")} };"
+        "if (!{offloading}(spite_scheduler, (int64_t)(intptr_t)&spite_call, (int64_t)(intptr_t)&spite_offload_thread)) \{ {blocked} }"
+        answered
+    ]
+    return lines.join("\n")
+}
+
+func runtime_types(): String {
+    var lines = [
+        "typedef struct SpiteFrame \{ bool (*step)(void*); int32_t state; int32_t flags; void* work; } SpiteFrame;"
+        "#define SPITE_SUSPEND(point) do \{ spite_frame->spite_head.state = (point); return false; } while (0)"
+        "typedef struct SpiteOffload \{ int64_t done; void (*perform)(void*); void* scheduler; } SpiteOffload;"
+        "static void* spite_frame_start(Spite_Function* spite_work);"
+        "static void* spite_offload_thread(void* call);"
+    ]
+    if not output.needs("guards") {
+        lines.append("#define SPITE_GUARDS_HELD() 0")
+        lines.append("#define SPITE_GUARDS_COUNT(change) ((void)0)")
+    }
+    return lines.join("\n")
+}
+
+func runtime_bodies(): String {
+    var done = scheduler_call("offload_done")
+    var scheduler = scheduler_name()
+    var lines = [
+        "static void* spite_offload_thread(void* call) \{\nspite_fault_thread();\nSpiteOffload* offload = (SpiteOffload*)call;\noffload->perform(call);\n{done}(({scheduler}*)offload->scheduler, (int64_t)(intptr_t)call);\nreturn 0;\n}"
+        "static void* spite_frame_start(Spite_Function* spite_work) \{"
+        "if (spite_work == 0) return 0;"
+    ]
+    var index = 0
+    while index < output.bound_functions.count() {
+        var root = lowered.function_named(output.bound_functions[index])
+        if root and root.resumable and root.receiver >= 0 {
+            var owner_type = receiver_type(root)
+            lines.append(
+                "if (spite_work->spite_typed_call == (void*){root.c_name}) \{ SpiteFrame* spite_started = (SpiteFrame*){root.c_name}___begin(({owner_type})spite_work->spite_owner); spite_started->work = spite_work; Spite_Function___retain(spite_work); return spite_started; }",
+            )
+        }
+        index = index + 1
+    }
+    lines.append("return 0;")
+    lines.append("}")
+    return lines.join("\n")
+}

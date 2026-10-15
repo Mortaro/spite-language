@@ -4,6 +4,9 @@ var lowered = Lowered()
 var naming = Naming()
 var sites = Sites()
 var intrinsics = Intrinsics()
+var machines = Machines()
+var machine = false
+var resume_count = 0
 var shape = Analysis.TypeShape()
 var function = Function("", "", "")
 var lines = List<String>()
@@ -38,10 +41,6 @@ func print(printed: Function) {
         output.refuse("'{printed.c_name}' ({printed.owner}.{printed.name}) cannot be written: {printed.not_lowered}")
         return
     }
-    if printed.resumable or printed.waits {
-        refuse("it waits on concurrent work, whose state machine the printer does not write yet")
-        return
-    }
     if not printed.singleton_of.is_empty() {
         print_singleton_maker()
         return
@@ -51,6 +50,122 @@ func print(printed: Function) {
         return
     }
     print_lowered(printed.c_name, "")
+    if printed.resumable {
+        print_machine()
+    }
+}
+
+func print_machine() {
+    lines = List<String>()
+    declarations = List<String>()
+    string_constants = Dictionary<Integer, String>()
+    tag_sources = Dictionary<Integer, String>()
+    tag_constants = Dictionary<Integer, String>()
+    frame_lists = Dictionary<Integer, String>()
+    frame_buffers = Dictionary<Integer, String>()
+    fixed_buffers = Dictionary<Integer, Boolean>()
+    machine = true
+    resume_count = 0
+    declare_values()
+    print_blocks()
+    machine = false
+    var name = function.c_name
+    var fields = machines.parameter_fields(function)
+    var mapped = ["self"]
+    var index = 0
+    while index < function.parameters.count() {
+        mapped.append("{function.parameters[index].name}_")
+        index = index + 1
+    }
+    index = 0
+    while index < declarations.count() {
+        var declared = declarations[index]
+        var field = frame_field(declared)
+        fields.append(field)
+        var field_name = declared_name(declared)
+        mapped.append(field_name)
+        index = index + 1
+    }
+    var point = 1
+    var resumes = List<String>()
+    while point <= resume_count {
+        fields.append("void* spite_wait_{point};")
+        resumes.append("case {point}: goto spite_resume_{point};")
+        point = point + 1
+    }
+    machines.frame_type(function, fields)
+    var begun = machines.begin_text(function)
+    output.bodies.append(begun)
+    var defines = List<String>()
+    var undefines = List<String>()
+    index = 0
+    while index < mapped.count() {
+        defines.append("#define {mapped[index]} (spite_frame->{mapped[index]})")
+        undefines.append("#undef {mapped[index]}")
+        index = index + 1
+    }
+    var written = lines.join("\n")
+    output.bodies.append(
+        "static bool {name}___step(void* spite_raw) \{\n{name}___frame* spite_frame = ({name}___frame*)spite_raw;\nswitch (spite_frame->spite_head.state) \{ {resumes.join(" ")} default: break; }\n{defines.join("\n")}\n{written}\n{undefines.join("\n")}\n}",
+    )
+    output.runtime_place("{name}___step")
+}
+
+func frame_field(declared: String): String {
+    var assigned = declared.index_of(" = ")
+    if assigned > 0 {
+        var kept = declared.slice(0, assigned)
+        return "{kept};"
+    }
+    return declared
+}
+
+func declared_name(declared: String): String {
+    var field = frame_field(declared)
+    var field_length = field.length()
+    var end = field_length - 1
+    var bracket = field.index_of("[")
+    if bracket > 0 {
+        end = bracket
+    }
+    var start = end
+    while start > 0 and field.character_at(start - 1) != " " and field.character_at(start - 1) != "*" {
+        start = start - 1
+    }
+    return field.slice(start, end)
+}
+
+func print_wait_call(operation: Operation, callee: Function) {
+    resume_count = resume_count + 1
+    var point = resume_count
+    var slot = "spite_frame->spite_wait_{point}"
+    var arguments = call_arguments(operation)
+    lines.append("{slot} = {callee.c_name}___begin({arguments});")
+    lines.append("spite_resume_{point}: if (!{callee.c_name}___step({slot})) SPITE_SUSPEND({point});")
+    if is_declared(operation.result) {
+        assign(operation.result, "(({callee.c_name}___frame*){slot})->spite_result")
+    }
+    lines.append("SPITE_FREE({slot});")
+}
+
+func waits_in_machine(callee: Function): Boolean {
+    if not machine {
+        return false
+    }
+    if callee.resumable and not callee.blocks.is_empty() and callee.locking.is_empty() and callee.singleton_of.is_empty() {
+        return true
+    }
+    if callee.intrinsic != "supplied" {
+        return false
+    }
+    var kind = machines.waiting_kind(callee)
+    if kind.is_empty() or kind == "yield" {
+        return false
+    }
+    if not machines.primitives.contains(callee.c_name) {
+        machines.ensure_primitive(callee, kind)
+    }
+    return true
 }
 
 func guard_of(owner: String): String {
@@ -252,6 +367,17 @@ func print_supplied() {
     }
     if supplied.starts_with("#define") {
         output.macros.append(supplied)
+        return
+    }
+    var kind = machines.waiting_kind(function)
+    if lowered.makes_concurrents and not kind.is_empty() and kind != "join" {
+        var waited = signature("{function.c_name}___waiting")
+        output.prototypes.append("{waited};")
+        output.bodies.append("{waited} \{\n{supplied}\n}")
+        var wrapped = signature(function.c_name)
+        output.prototypes.append("{wrapped};")
+        machines.waiting_wrapper(function, kind, wrapped)
+        note_place(function.c_name)
         return
     }
     var heading = signature(function.c_name)
@@ -722,7 +848,11 @@ func print_known_call(operation: Operation, callee: Function) {
         intrinsics.print(this, operation)
         return
     }
-    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping"]
+    if waits_in_machine(callee) {
+        print_wait_call(operation, callee)
+        return
+    }
+    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping", "overlap", "started"]
     if not forms.contains(operation.form) {
         refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
         return
@@ -1378,11 +1508,19 @@ func print_return(terminator: Terminator) {
         if not answers_nothing() {
             refuse("it answers a value, and a block returns none")
         }
+        if machine {
+            lines.append("return true;")
+            return
+        }
         lines.append("return;")
         return
     }
     var answered_number = terminator_operand(terminator)
     var answered_value = name_of(answered_number)
+    if machine {
+        lines.append("\{ spite_frame->spite_result = {answered_value}; return true; }")
+        return
+    }
     lines.append("return {answered_value};")
 }
 
