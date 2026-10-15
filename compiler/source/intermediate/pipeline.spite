@@ -147,7 +147,7 @@ func settle_held(held: Analysis.SpiteType) {
 
 func settle_synthetic_value(layout: Layout) {
     crash generator
-    assert layout.is_value and not layout.value_type
+    assert layout.is_value
     if layout.c_name == "SpiteSymbol" {
         var symbol_type: Analysis.SpiteType = Analysis.Types.SymbolType()
         layout.value_type = symbol_type

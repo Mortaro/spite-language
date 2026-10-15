@@ -29,6 +29,7 @@ func print(body: Body, operation: Operation) {
         "Foreign": print_foreign(body, operation, word)
         "Reflection": print_reflection(body, operation, word)
         "Instances": print_instances(body, operation, word)
+        "Attribute": print_attribute(body, operation, word)
         "Bands": print_bands(body, operation)
         "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
@@ -45,6 +46,185 @@ func print_singleton_lock(body: Body, operation: Operation, word: String) {
         "leave_skipping": body.leave_skipping(owner)
         _: body.refuse("it calls 'Singleton.{word}', which is no intrinsic")
     }
+}
+
+func print_attribute(body: Body, operation: Operation, word: String) {
+    switch word {
+        "hold": attribute_hold(body, operation)
+        "place": attribute_place(body, operation)
+        _: body.refuse("it calls 'Attribute.{word}', which is no intrinsic")
+    }
+}
+
+func link_piece(pieces: List<String>, index: Integer): String {
+    if index >= pieces.count() {
+        return ""
+    }
+    var named = pieces[index].trim()
+    if named.is_empty() or not lowered.function_named(named) {
+        return ""
+    }
+    return named
+}
+
+func attribute_hold(body: Body, operation: Operation) {
+    var attribute = body.operand(operation, 0)
+    var held = body.operand(operation, 1)
+    var held_type = body.operand_type(operation, 1)
+    assert held_type
+    var counted = naming.counted_name(held_type)
+    var layout = naming.layout_of(held_type)
+    assert not counted.is_empty() and layout and not layout.is_value and not naming.is_tagged(held_type) and not shape.as_union(held_type)
+    var pieces = operation.target.split(",")
+    var attributes = link_piece(pieces, 0)
+    var functions = link_piece(pieces, 1)
+    var described_class = link_piece(pieces, 2)
+    body.emit("({attribute})->spite_held = (void*){counted}___retain({held});")
+    body.emit("({attribute})->spite_release_held = (void (*)(void*)){counted}___release;")
+    body.emit("({attribute})->spite_held_bytes = (int64_t)sizeof({layout.c_name});")
+    if not attributes.is_empty() {
+        body.emit("({attribute})->spite_held_attributes = (void* (*)(void*)){attributes};")
+    }
+    if not functions.is_empty() {
+        body.emit("({attribute})->spite_held_functions = (void* (*)(void*)){functions};")
+    }
+    if not described_class.is_empty() {
+        body.emit("({attribute})->spite_held_class = (void* (*)(void)){described_class};")
+    }
+    var listed = shape.as_list(held_type)
+    assert listed
+    var element = naming.c_type(listed.element)
+    body.emit(
+        "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }",
+    )
+}
+
+func attribute_place(body: Body, operation: Operation) {
+    var attribute = body.operand(operation, 0)
+    var owner = body.operand(operation, 1)
+    var layout = lowered.layout_named(operation.layout)
+    if not layout {
+        body.refuse("it places an attribute in '{operation.layout}', which has no layout")
+        return
+    }
+    var field = layout.field_named(operation.field)
+    if not field or not field.spite_type {
+        body.refuse("it places an attribute at '{operation.field}', which '{layout.c_name}' does not hold")
+        return
+    }
+    var name = layout.c_name
+    body.emit(
+        "({attribute})->spite_stored_address = (int64_t)(intptr_t)&({owner})->{field.name}_; ({attribute})->spite_stored_bytes = (int64_t)sizeof(({owner})->{field.name}_);",
+    )
+    var assign = assign_thunk(layout, field, operation)
+    var store = store_thunk(layout, field, operation)
+    assert not assign.is_empty() or not store.is_empty()
+    body.emit("({attribute})->spite_owner = (void*){name}___retain({owner});")
+    body.emit("({attribute})->spite_release_owner = (void (*)(void*)){name}___release;")
+    if not assign.is_empty() {
+        body.emit("({attribute})->spite_assign = {assign};")
+    }
+    if not store.is_empty() {
+        body.emit("({attribute})->spite_store = {store};")
+    }
+}
+
+func written_field(field: Field, operation: Operation, value: String): String {
+    var setter = lowered.function_named(operation.literal)
+    if setter {
+        return "{setter.c_name}(self, {value});"
+    }
+    crash field.spite_type
+    var counted = naming.counted_name(field.spite_type)
+    if counted.is_empty() {
+        return "self->{field.name}_ = {value};"
+    }
+    return "{counted}___release(self->{field.name}_);\nself->{field.name}_ = {value};"
+}
+
+func assign_thunk(layout: Layout, field: Field, operation: Operation): String {
+    crash field.spite_type
+    var field_type = field.spite_type
+    var parsed = parsed_lines(field_type, "text", "assigned", operation.target)
+    if parsed.is_empty() {
+        return ""
+    }
+    var thunk = "{layout.c_name}___assign_{field.name}"
+    if output.forwarders.contains(thunk) {
+        return thunk
+    }
+    output.forwarders.append(thunk)
+    output.need("string same")
+    var written = naming.c_type(field_type)
+    var guard = "if (SPITE_STRING_IS_NULL(text)) return false;"
+    if shape.as_nullable(field_type) {
+        guard = ""
+    }
+    var stored = written_field(field, operation, "assigned")
+    output.prototypes.append("static bool {thunk}(void* owner, void* slot, SpiteString text);")
+    output.supports.append(
+        "static bool {thunk}(void* owner, void* slot, SpiteString text) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\n{guard}\n{written} assigned;\n{parsed}\n{stored}\nreturn true;\n}",
+    )
+    output.runtime_place(thunk)
+    return thunk
+}
+
+func parsed_lines(spite_type: Analysis.SpiteType, text: String, target: String, parser: String): String {
+    if shape.as_string(spite_type) {
+        return "{target} = SpiteString___retain({text});"
+    }
+    var enumerated = shape.as_enum(spite_type)
+    if enumerated {
+        var chain = List<String>()
+        var index = 0
+        while index < enumerated.values.count() {
+            var value = enumerated.values[index]
+            var spelled = sites.literal(value)
+            chain.append("if (spite_string_same({text}, {spelled})) {target} = {enumerated.c_name}_{value};")
+            index = index + 1
+        }
+        chain.append("return false;")
+        return chain.join(" else ")
+    }
+    var scalar = shape.as_scalar(spite_type)
+    if scalar and scalar.kind == 'boolean_kind' {
+        var yes = sites.literal("true")
+        var no = sites.literal("false")
+        return "if (spite_string_same({text}, {yes})) {target} = true; else if (spite_string_same({text}, {no})) {target} = false; else return false;"
+    }
+    var parsing = lowered.function_named(parser)
+    if scalar and parsing {
+        var written = naming.c_type(spite_type)
+        var parsed_type = naming.c_type(parsing.answer)
+        return "\{ {parsed_type} spite_parsed = {parsing.c_name}(SpiteString___retain({text})); if (!spite_parsed.has_value) return false; {target} = ({written})spite_parsed.value; }"
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable and shape.as_string(nullable.inner) {
+        return "if (SPITE_STRING_IS_NULL({text})) {target} = SPITE_STRING_NULL; else {target} = SpiteString___retain({text});"
+    }
+    return ""
+}
+
+func store_thunk(layout: Layout, field: Field, operation: Operation): String {
+    crash field.spite_type
+    var field_type = field.spite_type
+    var stored_layout = naming.layout_of(field_type)
+    if not stored_layout or stored_layout.is_value or stored_layout.kind != "class" {
+        return ""
+    }
+    var thunk = "{layout.c_name}___store_{field.name}"
+    if output.forwarders.contains(thunk) {
+        return thunk
+    }
+    output.forwarders.append(thunk)
+    var identity = naming.class_id_of(stored_layout)
+    var stored = written_field(field, operation, "assigned")
+    output.prototypes.append("static bool {thunk}(void* owner, void* slot, void* object);")
+    output.supports.append(
+        "static bool {thunk}(void* owner, void* slot, void* object) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{stored_layout.c_name}* assigned = {stored_layout.c_name}___retain(({stored_layout.c_name}*)object);\n{stored}\nreturn true;\n}",
+    )
+    output.runtime_place(thunk)
+    return thunk
 }
 
 func print_instances(body: Body, operation: Operation, word: String) {
@@ -1450,7 +1630,7 @@ func union_value(body: Body, operation: Operation) {
         tagged_value(body, operation, held, made)
         return
     }
-    if shape.as_string(made) {
+    if shape.as_string(made) or shape.is_symbol(made) {
         body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}))->value)")
         return
     }
@@ -1465,7 +1645,7 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
     var tagged = naming.is_tagged(held_type)
     var layout = naming.layout_of(made)
     var scalar = shape.as_scalar(made)
-    if shape.as_string(made) {
+    if shape.as_string(made) or shape.is_symbol(made) {
         layout = lowered.layout_named("SpiteString")
     } else if scalar {
         layout = lowered.layout_named("Spite{naming.scalar_label(scalar.kind)}")
@@ -1482,7 +1662,7 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
 
 func tagged_value(body: Body, operation: Operation, held: String, made: Analysis.SpiteType) {
     var written = naming.c_type(made)
-    if shape.as_string(made) {
+    if shape.as_string(made) or shape.is_symbol(made) {
         body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}).value.object)->value)")
         return
     }
@@ -1514,7 +1694,7 @@ func plain_wrap(body: Body, operation: Operation, made: Analysis.SpiteType, give
         body.refuse("it puts a value of a tagged union into a union of objects")
         return
     }
-    if shape.as_string(given) {
+    if shape.as_string(given) or shape.is_symbol(given) {
         var boxed = string_box(body, operation, wrapped)
         body.assign(operation.result, boxed)
         return
@@ -1537,7 +1717,7 @@ func tagged_wrap(body: Body, operation: Operation, given: Analysis.SpiteType) {
         body.assign(operation.result, "spite_tagged_from_pointer((void*)({wrapped}))")
         return
     }
-    if shape.as_string(given) {
+    if shape.as_string(given) or shape.is_symbol(given) {
         var string_layout = string_identity(body)
         var boxed = string_box(body, operation, wrapped)
         body.assign(operation.result, "spite_tagged_object({string_layout}, {boxed})")
