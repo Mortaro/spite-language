@@ -404,6 +404,9 @@ func operation_span(operation: Operation, block_number: Integer): NumberSpan? {
         return constant_span(operation.literal, kind)
     }
     var limits = kind_span(kind)
+    if operation.kind == "load" and (operation.field == "item_count" or operation.field == "capacity") {
+        return NumberSpan(0, 2147483647)
+    }
     if operation.kind != "call" {
         return limits
     }
@@ -457,8 +460,13 @@ func call_span(operation: Operation, block_number: Integer, kind: Analysis.Types
         second = operand_span(operation, 1, block_number)
     }
     if meaning == "remainder" {
-        assert first
-        return first.remainder_by(second)
+        if first {
+            return first.remainder_by(second)
+        }
+        assert second
+        var below = second.largest_magnitude() - 1
+        var positive = below.maximum(0)
+        return NumberSpan(-positive, positive)
     }
     assert first
     if meaning == "divide" {
