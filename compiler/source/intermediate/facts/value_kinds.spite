@@ -21,7 +21,13 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
     if nullable {
         return layout_of(nullable.inner)
     }
-    return null
+    var united = types.as_union(spite_type)
+    if united {
+        return lowered.layout_named(united.c_name)
+    }
+    assert types.as_list(spite_type) or types.as_dictionary(spite_type)
+    var named = naming.label(spite_type)
+    return lowered.layout_named(named)
 }
 
 func lowered_layout(c_name: String): Layout? {
