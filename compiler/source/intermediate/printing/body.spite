@@ -975,7 +975,7 @@ func counted_name_of(counted: Analysis.SpiteType?): String {
 }
 
 func print_site(operation: Operation) {
-    assert operation.form != "unchecked"
+    assert operation.form != "unchecked" and operation.site >= 0
     var site = sites.site_at(operation.site)
     if not site {
         refuse("a check with no site")
@@ -1210,22 +1210,35 @@ func report_value(number: Integer) {
     var reported = type_of(number)
     var written = name_of(number)
     assert reported
+    var report_line = report_text(reported, written)
+    lines.append(report_line)
+}
+
+func report_text(reported: Analysis.SpiteType, written: String): String {
+    var nullable = shape.as_nullable(reported)
+    if nullable {
+        var inner = nullable.inner
+        var present = intrinsics.presence(written, inner)
+        var held = written
+        if not naming.is_reference(inner) {
+            held = "({written}).value"
+        }
+        var shown = report_text(inner, held)
+        return "if (!{present}) fputs(\"null\", stderr); else \{ {shown} }"
+    }
     if shape.as_string(reported) or shape.is_symbol(reported) {
-        lines.append("spite_crash_text(spite_string_bytes(&{written}), spite_string_length({written}));")
-        return
+        return "\{ SpiteString spite_shown = {written}; spite_crash_text(spite_string_bytes(&spite_shown), spite_string_length(spite_shown)); }"
     }
     var enumerated = shape.as_enum(reported)
     if enumerated {
-        lines.append("fputs({enumerated.c_name}___name({written}), stderr);")
-        return
+        return "fputs({enumerated.c_name}___name({written}), stderr);"
     }
     var kind = naming.kind_of(reported)
     if not kind {
         refuse("a crash shows a value that is neither text, an enum nor a number")
-        return
+        return ""
     }
-    var report_line = scalar_report(kind, written)
-    lines.append(report_line)
+    return scalar_report(kind, written)
 }
 
 func scalar_report(kind: Analysis.Types.NumericKind, written: String): String {

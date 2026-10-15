@@ -27,11 +27,69 @@ func print(body: Body, operation: Operation) {
         "Function": print_function_value(body, operation, word)
         "List": print_list(body, operation, word)
         "Foreign": print_foreign(body, operation, word)
+        "Reflection": print_reflection(body, operation, word)
         "Bands": body.refuse("it runs a loop in bands on threads, which the printer does not write yet")
         "Rows": body.refuse("it runs rows of work on threads, which the printer does not write yet")
         "Singleton": body.refuse("it takes a singleton's lock around a loop, which the printer does not write yet")
         _: print_number(body, operation, word)
     }
+}
+
+func print_reflection(body: Body, operation: Operation, word: String) {
+    if word != "class_object" {
+        body.refuse("it reads '{word}' by reflection, which the printer does not write yet")
+        return
+    }
+    var described = lowered.layout_named("Spite_Class")
+    if not described {
+        body.refuse("it reads a class object, and the program holds no Spite.Class layout")
+        return
+    }
+    var label = operation.target.replace(".", "_").replace("<", "_").replace(">", "_").replace(", ", "_").replace(
+        "?",
+        "_nullable",
+    )
+    var getter = "spite_class_object_{label}"
+    if not output.class_objects.contains(getter) {
+        output.class_objects.append(getter)
+        class_object(getter, operation.target)
+    }
+    body.assign(operation.result, "{getter}()")
+}
+
+func class_object(getter: String, target: String): String {
+    var shown = target
+    var singleton = false
+    var layout = lowered.layout_named(target)
+    if layout and layout.information {
+        shown = layout.information.simple_name
+        singleton = layout.is_singleton
+    }
+    var name = sites.literal(shown)
+    var lines = [
+        "static Spite_Class* {getter}_cache = 0;"
+        "static int32_t {getter}_lock = 0;"
+        "Spite_Class* {getter}(void) \{"
+        "Spite_Class* found = SPITE_SINGLETON_FOUND({getter}_cache);"
+        "if (found != 0) return Spite_Class___retain(found);"
+        "SPITE_LOCK({getter}_lock);"
+        "if ({getter}_cache == 0) \{"
+        "Spite_Class* made = Spite_Class___allocate();"
+        "made->_name_ = {name};"
+    ]
+    if singleton {
+        lines.append("made->_singleton_ = true;")
+    }
+    lines.append("SPITE_SINGLETON_PUBLISH({getter}_cache, made);")
+    lines.append("}")
+    lines.append("SPITE_UNLOCK({getter}_lock);")
+    lines.append("return Spite_Class___retain({getter}_cache);")
+    lines.append("}")
+    output.prototypes.append("Spite_Class* {getter}(void);")
+    var object_text = lines.join("\n")
+    output.supports.append(object_text)
+    output.runtime_place(getter)
+    return getter
 }
 
 func print_foreign(body: Body, operation: Operation, word: String) {
