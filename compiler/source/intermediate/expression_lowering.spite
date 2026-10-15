@@ -184,14 +184,17 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
         }
     }
     if result.code.starts_with("(\{") {
+        crash result.spite_type
         var enum_list = folded_enum_list(result.code, result.spite_type)
         if enum_list != -2 {
             return enum_list
         }
     }
     if result.code.starts_with("spite_namespace_object_") and result.code.ends_with("()") {
+        crash result.spite_type
         return namespace_object_named(result.code, result.spite_type)
     }
+    crash result.spite_type
     var folded_enum = types.as_enum(result.spite_type)
     if folded_enum {
         var enum_value = enum_value_named(folded_enum, result.code)
@@ -671,6 +674,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if namespaced != -2 {
         return namespaced
     }
+    crash member.object
     var symbol = shapes.as_identifier(member.object)
     if symbol and symbol.name == made.bound_symbol_name and not made.bound_symbol_name.is_empty() {
         return bound_symbol_member(member)
@@ -697,6 +701,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if reflected >= 0 or emitter.lowering_failed() {
         return reflected
     }
+    crash member.object
     if made.worth_reflecting(member.object, emitter.scope) {
         var whole: Syntax.Expressions.Expression = member
         var folded_read = made.folded_reflection(whole, emitter.scope, lowered_class)
@@ -704,6 +709,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
             return folded_constant(folded_read)
         }
     }
+    crash member.object
     var object = lower(member.object)
     var read = member_of_value(member, object)
     return path_narrowed(read, member)
@@ -900,7 +906,9 @@ func lower_index(indexed: Syntax.Expressions.IndexExpression): Integer {
     if made.is_bound_attributes_index(indexed) {
         return bound_attribute()
     }
+    crash indexed.object
     var object = lower(indexed.object)
+    crash indexed.index
     var got = index_of_value(object, indexed.index)
     var expression: Syntax.Expressions.Expression = indexed
     return path_narrowed(got, expression)
@@ -1107,6 +1115,7 @@ func typed_dictionary(
         crash entry.key
         crash entry.value
         var key = lower_toward(entry.key, dictionary.key)
+        crash entry.value
         var stored = lower_toward(entry.value, dictionary.element)
         var operands = [made_dictionary, key, stored]
         call_reached(dictionary_class, setter, operands)
@@ -1131,6 +1140,7 @@ func generic_construction(call: Syntax.Expressions.GenericCallExpression): Integ
         var element = made.resolve_generic_argument(call.type_arguments[0], namespace)
         return list_of_element(element)
     }
+    crash call.callee
     var template = made.try_resolve_static_path(call.callee, namespace)
     if not template {
         return not_lowered(null, "a generic class this lowering cannot find")
@@ -1365,6 +1375,7 @@ func lower_call(call: Syntax.Expressions.CallExpression): Integer {
         var arguments_type: Analysis.SpiteType = Analysis.Types.ArgumentsType()
         return emitter.constant(arguments_type, "program")
     }
+    crash call.callee
     var member = shapes.as_member(call.callee)
     if member {
         return member_call(member, call)
@@ -1481,6 +1492,7 @@ func value_call(held: Integer, arguments: List<Syntax.Expressions.Expression>): 
             values.append(gathered)
             index = arguments.count()
         } else {
+            crash arguments[index]
             var passed = lower_toward(arguments[index], parameter_type)
             values.append(passed)
             index = index + 1
@@ -1603,6 +1615,7 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
         }
     }
     if made.maths.is_member(member.name) and not made.maths.is_constant(member.name) {
+        crash member.object
         var folded_maths = made.folded_maths_call(member.name, member.object, call.arguments, lowered_class)
         if folded_maths {
             return folded_constant(folded_maths)
@@ -1668,6 +1681,7 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     if fused != -2 {
         return fused
     }
+    crash member.object
     var object = lower(member.object)
     return call_on_value(name, object, arguments)
 }
@@ -1691,6 +1705,7 @@ func fused_chain(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
         return -2
     }
     steps.reverse()
+    crash member.object
     var last_callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, member.name)
     var last_call = Syntax.Expressions.CallExpression(last_callee, arguments)
     steps.append(last_call)
@@ -2123,6 +2138,7 @@ func lower_unary(unary: Syntax.Expressions.UnaryExpression): Integer {
         var answer_type = known().typed_boolean()
         return emitter.emit_call_one("Boolean.not", operand, answer_type)
     }
+    crash unary.operand
     var negated_literal = shapes.as_integer_literal(unary.operand)
     if negated_literal {
         return negative_literal(negated_literal)
@@ -2258,10 +2274,12 @@ func joined_condition(binary: Syntax.Expressions.BinaryExpression, conjunction: 
     emitter.push_scope()
     if conjunction {
         apply(left.when_true, left.true_types)
+        crash binary.left
         front().narrow_proven_indices(binary.left, emitter.scope, lowered_class)
     } else {
         apply(left.when_false, left.false_types)
     }
+    crash binary.right
     var right = lower_condition(binary.right)
     emitter.pop_scope()
     var passed = [right.value]
@@ -2342,6 +2360,7 @@ func class_test(binary: Syntax.Expressions.BinaryExpression): Condition? {
     var made = front()
     var tested = made.tested_class_of(binary.right, lowered_class)
     assert tested
+    crash binary.left
     var static_left = made.try_resolve_static_path(binary.left, lowered_class.qualified_dotted)
     assert not static_left
     var subject = lower(binary.left)
@@ -2349,12 +2368,14 @@ func class_test(binary: Syntax.Expressions.BinaryExpression): Condition? {
     var made_condition = Condition(answered)
     var narrowed = made.instance_type_of(tested)
     if binary.operator == 'equal' {
+        crash binary.left
         made_condition.narrows_when_true(binary.left, narrowed)
         return made_condition
     }
     var answer_type = known().typed_boolean()
     var negated = emitter.emit_call_one("Boolean.not", answered, answer_type)
     var negated_condition = Condition(negated)
+    crash binary.left
     negated_condition.narrows_when_false(binary.left, narrowed)
     return negated_condition
 }
@@ -2407,15 +2428,20 @@ func lower_binary(binary: Syntax.Expressions.BinaryExpression): Integer {
     if operator == 'equal' or operator == 'not_equal' {
         var only_right = made.maybe_null_only_on_the_right(binary, emitter.scope, lowered_class)
         if only_right {
+            crash binary.left
+            crash binary.right
             var mirrored = Syntax.Expressions.BinaryExpression(operator, binary.right, binary.left)
             return lower_binary(mirrored)
         }
     }
+    crash binary.left
     var left_enum = shapes.as_enum_literal(binary.left)
+    crash binary.right
     var right_enum = shapes.as_enum_literal(binary.right)
     if left_enum and not right_enum {
         var swapped_right = lower(binary.right)
         var swapped_type = type_of(swapped_right)
+        crash binary.left
         var swapped_left = lower_toward(binary.left, swapped_type)
         var whole: Syntax.Expressions.Expression = binary
         return compare_values(operator, swapped_left, swapped_right, whole)
@@ -2430,6 +2456,7 @@ func lower_binary(binary: Syntax.Expressions.BinaryExpression): Integer {
         }
         return arithmetic_from(first, leftmost, pieces, binary)
     }
+    crash binary.left
     var left = lower(binary.left)
     return binary_after_left(binary, left)
 }
@@ -3525,6 +3552,7 @@ func foreign_callback(target: Analysis.ClassInfo, arguments: List<Syntax.Express
     if not where_context or not owner {
         return not_lowered(null, "a ForeignCallback this lowering cannot read")
     }
+    crash arguments[0]
     var function_name = made.callback_function_name(arguments[0])
     var function = owner.find_function(function_name)
     if not function {
@@ -3758,6 +3786,7 @@ func folded_dictionary_entry(indexed: Syntax.Expressions.IndexExpression): Integ
     var first_value = lower(first.value)
     var first_type = type_of(first_value)
     var answer = known().nullable_of(first_type)
+    crash indexed.index
     var wanted = Syntax.SourcePrinter().source_expression(indexed.index)
     var index = 0
     while index < literal.fields.count() {

@@ -1,0 +1,31 @@
+var console = Console()
+
+func MaybeNullIntoType() {
+    var held = pick(false)
+    show(held)
+    var box = Box()
+    var cat = Cat()
+    box.pet = cat
+    crash box.pet
+    empty(box)
+    keep(box.pet)
+}
+
+func pick(flag: Boolean): Anything? {
+    if flag {
+        return 3
+    }
+    return null
+}
+
+func show(value: Anything) {
+    console.print(value == Integer)
+}
+
+func empty(box: Box) {
+    box.pet = null
+}
+
+func keep(pet: Pet) {
+    console.print(pet == Cat)
+}

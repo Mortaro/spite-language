@@ -6,6 +6,7 @@ func ShapeOperators() {
     var held = List<Addable>()
     held.append(three)
     held.append(four)
+    crash held.count() > 1
     var total = combined(held[0], held[1])
     var total_text = total.describe()
     console.print(total_text)

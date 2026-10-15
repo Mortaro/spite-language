@@ -6,6 +6,7 @@ func ShapeOperatorUnlike() {
     var held = List<Addable>()
     held.append(coin)
     held.append(gem)
+    crash held.count() > 1
     var doubled = combined(held[0], held[0])
     var doubled_text = doubled.describe()
     console.print(doubled_text)
