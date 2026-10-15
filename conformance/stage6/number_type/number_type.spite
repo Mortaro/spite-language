@@ -18,8 +18,11 @@ func NumberType() {
     var float_total = sizes.total(floats)
     var float_span = sizes.span(floats)
     console.print("{float_best} {float_total} {float_span}")
-    var bytes = Tally<Byte>()
-    var small: List<Byte> = [7, 200, 10]
+    var bytes = ByteTally<Byte>()
+    var small = Buffer()
+    small.append(7)
+    small.append(200)
+    small.append(10)
     var byte_best = bytes.largest(small)
     var byte_total = bytes.total(small)
     var byte_span = bytes.span(small)

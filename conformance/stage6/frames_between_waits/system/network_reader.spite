@@ -10,8 +10,9 @@ func update_each() {
         watch.note_resumed()
         var index = 0
         while index < received.count() {
-            var value = received[index]
-            console.print("the reader received", value)
+            var held = received[index]
+            crash held
+            console.print("the reader received", held)
             reads = reads + 1
             index = index + 1
         }

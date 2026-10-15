@@ -2,7 +2,7 @@ var console = Console()
 
 func MappedFiles() {
     var store = File(".spite/mapped_files_records.bin")
-    var record = List<Byte>()
+    var record = Buffer()
     record.append_long(1111)
     record.append_long(2222)
     store.write_bytes(record)
@@ -23,12 +23,12 @@ func show_records(file: File) {
     var mapped = file.map()
     crash mapped
     var size = mapped.size()
-    var first = mapped.read_long(0)
-    var second = mapped.read_long(8)
+    var first = mapped.read_long_at(0)
+    var second = mapped.read_long_at(8)
     var tail = mapped.text(16, 4)
     var letter = mapped[16]
     crash first and second and tail and letter
-    var past_end = mapped.read_long(size - 4)
+    var past_end = mapped.read_long_at(size - 4)
     var before_start = mapped[-1]
     console.print(size, first, second, tail, letter, not past_end, not before_start)
 }
