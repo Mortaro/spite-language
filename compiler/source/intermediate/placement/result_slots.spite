@@ -29,33 +29,70 @@ func judged_fresh(callee: Function): String {
         return ""
     }
     var uses = Facts.Uses(callee)
-    var made = -1
+    var made = made_values(callee)
     var layout = ""
     var index = 0
-    while index < callee.blocks.count() {
-        var block = callee.blocks[index]
-        if block.terminator.kind == "return" {
-            var returned = block.terminator.operands.first()
-            if not returned {
-                return ""
-            }
-            var defining = uses.definition_of(returned)
-            if not defining or defining.kind != "make" or made >= 0 and made != returned {
-                return ""
-            }
-            made = returned
-            layout = defining.layout
+    while index < made.count() {
+        var defining = uses.definition_of(made[index])
+        if not defining or defining.kind != "make" or not layout.is_empty() and layout != defining.layout {
+            return ""
+        }
+        layout = defining.layout
+        if not stays_until_returned(callee, uses, made[index]) {
+            return ""
         }
         index = index + 1
     }
-    if made < 0 or not stays_until_returned(callee, uses, made) {
+    if made.is_empty() or made.count() != returns_of(callee) {
         return ""
     }
     crash kinds
-    if not kinds.class_is_counted(layout) or callee.c_name.starts_with("spite_") {
+    if not kinds.class_is_counted(layout) or callee.c_name.starts_with("spite_") or not holds_only_plain(layout) {
         return ""
     }
     return layout
+}
+
+func holds_only_plain(c_name: String): Boolean {
+    crash lowered
+    crash kinds
+    var layout = lowered.layout_named(c_name)
+    if not layout or not layout.information or layout.is_singleton {
+        return false
+    }
+    if layout.information.drop_function {
+        return false
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field_type = layout.stored_fields[index].spite_type
+        if kinds.is_counted(field_type) and not holds_singleton(field_type) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func holds_singleton(spite_type: Analysis.SpiteType?): Boolean {
+    crash kinds
+    var layout = kinds.layout_of(spite_type)
+    if not layout {
+        return false
+    }
+    return layout.is_singleton
+}
+
+func returns_of(callee: Function): Integer {
+    var count = 0
+    var index = 0
+    while index < callee.blocks.count() {
+        if callee.blocks[index].terminator.kind == "return" {
+            count = count + 1
+        }
+        index = index + 1
+    }
+    return count
 }
 
 func stays_until_returned(callee: Function, uses: Facts.Uses, made: Integer): Boolean {
@@ -136,16 +173,23 @@ func into_copy(callee: Function): String {
     }
     copies[callee.c_name] = name
     var copy = Facts.FunctionCopy().copied(callee, name)
-    var made = made_value(copy)
-    var made_type = copy.value_at(made).spite_type
+    var made = made_values(copy)
+    var first_made = made.first()
+    crash first_made
+    var made_type = copy.value_at(first_made).spite_type
     var into = copy.new_value(made_type, "parameter")
     copy.value_at(into).name = "spite_result"
     var parameter = Parameter("spite_result", made_type, into)
     parameter.ownership = "lent"
     copy.parameters.append(parameter)
-    drop_make(copy, made)
-    Facts.Rewrites().replace_value(copy, made, into)
+    var rewrites = Facts.Rewrites()
     var index = 0
+    while index < made.count() {
+        drop_make(copy, made[index])
+        rewrites.replace_value(copy, made[index], into)
+        index = index + 1
+    }
+    index = 0
     while index < copy.blocks.count() {
         var block = copy.blocks[index]
         if block.terminator.kind == "return" {
@@ -158,17 +202,18 @@ func into_copy(callee: Function): String {
     return name
 }
 
-func made_value(copy: Function): Integer {
+func made_values(copy: Function): List<Integer> {
+    var found = List<Integer>()
     var index = 0
     while index < copy.blocks.count() {
         var block = copy.blocks[index]
         var returned = block.terminator.operands.first()
-        if block.terminator.kind == "return" and returned {
-            return returned
+        if block.terminator.kind == "return" and returned and not found.contains(returned) {
+            found.append(returned)
         }
         index = index + 1
     }
-    return -1
+    return found
 }
 
 func drop_make(copy: Function, made: Integer) {

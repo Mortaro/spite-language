@@ -192,18 +192,34 @@ func touches_any(summary: Facts.Summary, watched: List<String>): Boolean {
 
 # ../../../../docs/optimizations.md#storing-an-object-into-a-list-counts-it-only-when-it-changes-the-slot
 func store_in_place(function: Function, uses: Facts.Uses, operation: Operation) {
+    assert fits_in_place(function, uses, operation)
+    operation.form = "in_place"
+    in_place_count = in_place_count + 1
+}
+
+func fits_in_place(function: Function, uses: Facts.Uses, operation: Operation): Boolean {
     crash kinds
-    assert not kinds.is_library_layout(function.owner)
+    crash intrinsics
+    if operation.kind != "call" or intrinsics.meaning(operation.callee) != "set_at" or not is_list_call(function, operation) {
+        return false
+    }
+    if kinds.is_library_layout(function.owner) {
+        return false
+    }
     var stored = operation.operands.last()
     crash stored
     var described = function.value_at(stored)
-    assert not described.name.is_empty() or is_parameter(function, stored)
-    assert described.spite_type and kinds.is_counted(described.spite_type)
-    assert stored_shape_fits(described.spite_type)
+    if described.name.is_empty() and not is_parameter(function, stored) {
+        return false
+    }
+    if not described.spite_type {
+        return false
+    }
+    if not kinds.is_counted(described.spite_type) or not stored_shape_fits(described.spite_type) {
+        return false
+    }
     var defining = uses.definition_of(stored)
-    assert not made_here(defining)
-    operation.form = "in_place"
-    in_place_count = in_place_count + 1
+    return not made_here(defining)
 }
 
 func stored_shape_fits(stored_type: Analysis.SpiteType): Boolean {

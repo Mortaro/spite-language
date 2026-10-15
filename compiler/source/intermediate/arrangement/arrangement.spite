@@ -4,6 +4,7 @@ var tables: TableCopies? = null
 var static_count = 0
 
 func run(lowered: Lowered) {
+    lowered.layouts.each(make_static)
     assert not lowered.is_inspectable()
     var effects = Facts.Effects(lowered)
     var made_slots = SlotLists(lowered, effects)
@@ -12,7 +13,6 @@ func run(lowered: Lowered) {
     var made_tables = TableCopies(lowered)
     tables = made_tables
     made_tables.copy_tables()
-    lowered.layouts.each(make_static)
 }
 
 # ../../../../docs/optimizations.md#singletons-that-hold-nothing-are-static-objects

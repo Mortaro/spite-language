@@ -42,7 +42,12 @@ func is_pure(operation: Operation, intrinsics: Intrinsics): Boolean {
         return true
     }
     var pure = ["Nullable.has", "Nullable.value", "Union.tag", "Union.value"]
-    return pure.contains(operation.callee)
+    if pure.contains(operation.callee) {
+        return true
+    }
+    var reading = ["get_at", "first", "last"]
+    var meaning = intrinsics.meaning(operation.callee)
+    return operation.callee.ends_with("___inside") and reading.contains(meaning)
 }
 
 func remove_unused(function: Function, intrinsics: Intrinsics): Integer {
