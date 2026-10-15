@@ -155,6 +155,13 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
     if result.code.starts_with("spite_class_object_") and result.code.ends_with("()") {
         return class_object_named(result.code, result.spite_type)
     }
+    var folds_objects = result.code.contains("spite_namespace_object_") or result.code.contains("spite_class_object_")
+    if result.code.starts_with("(\{") and folds_objects {
+        var folded = folded_list(result.code, result.spite_type)
+        if folded != -2 {
+            return folded
+        }
+    }
     if result.code.starts_with("spite_namespace_object_") and result.code.ends_with("()") {
         return namespace_object_named(result.code, result.spite_type)
     }
@@ -623,6 +630,12 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
         return folded_constant(folded)
     }
     var reflection_class = static_class.c_name == "Spite_Class" or static_class.c_name == "Spite_Namespace"
+    if member.name == "instances" and static_class.c_name == "Spite_Class" {
+        return every_class()
+    }
+    if member.name == "instances" and static_class.c_name == "Spite_Namespace" {
+        return every_namespace()
+    }
     if member.name == "instances" and not reflection_class and not static_class.is_generic_template {
         return live_instances(static_class)
     }
@@ -1597,7 +1610,7 @@ func class_call(
         return foreign_call(name, object, arguments)
     }
     if name.starts_with("parallel_each_") {
-        return not_lowered(null, "'{name}()', run on the thread pool")
+        return parallel_each(target, name, object)
     }
     var found = made.find_or_instantiate_function(target, name)
     if not found {
@@ -1736,7 +1749,7 @@ func container_call(name: String, object: Integer, arguments: List<Syntax.Expres
         return deep_copied(object)
     }
     if name.starts_with("parallel_each_") {
-        return not_lowered(null, "'{name}()' on a container")
+        return parallel_each(container, name, object)
     }
     var found = container.find_function(name)
     if found {
@@ -3541,4 +3554,98 @@ func live_instances(tracked: Analysis.ClassInfo): Integer {
     filled.literal = tracked.c_name
     filled.target = appender.function.c_name
     return listed
+}
+
+func parallel_each(owner: Analysis.ClassInfo, name: String, object: Integer): Integer {
+    var made = front()
+    var element = owner.codegen_types.first()
+    if not element {
+        return not_lowered(null, "'{name}()' on a container with no element type")
+    }
+    var names = [name]
+    var parallel = made.generate_parallel_each(owner, element, names)
+    if not parallel {
+        return not_lowered(null, "'{name}()', which the generator could not run on the thread pool")
+    }
+    var operands = [object]
+    return call_reached(owner, parallel, operands)
+}
+
+func folded_list(code: String, list_type: Analysis.SpiteType): Integer {
+    var listed = types.as_list(list_type)
+    if not listed {
+        return -2
+    }
+    var made_list = new_list(listed.element)
+    var appender = list_function(listed.element, "append")
+    var pieces = code.split(", spite_")
+    var index = 1
+    while index < pieces.count() {
+        var piece = pieces[index]
+        var end = piece.index_of("()")
+        if not end {
+            return -2
+        }
+        var name = "spite_{piece.slice(0, end)}()"
+        var item = folded_object(name, listed.element)
+        if item < 0 {
+            return -2
+        }
+        call_two_function(appender, made_list, item)
+        index = index + 1
+    }
+    return made_list
+}
+
+func folded_object(code: String, object_type: Analysis.SpiteType): Integer {
+    if code.starts_with("spite_namespace_object_") {
+        return namespace_object_named(code, object_type)
+    }
+    if code.starts_with("spite_class_object_") {
+        return class_object_named(code, object_type)
+    }
+    return -1
+}
+
+func every_class(): Integer {
+    var made = front()
+    var class_class = made.find_class_by_c_name("Spite_Class")
+    if not class_class {
+        return not_lowered(null, "every class, with no Spite.Class")
+    }
+    var class_type = known().class_type(class_class)
+    var made_list = new_list(class_type)
+    var appender = list_function(class_type, "append")
+    var index = 0
+    while index < made.classes.count() {
+        var listed = made.classes[index]
+        if made.is_listed_class(listed) {
+            var listed_type = made.class_type_of(listed)
+            var described = class_object_of(listed_type)
+            call_two_function(appender, made_list, described)
+        }
+        index = index + 1
+    }
+    return made_list
+}
+
+func every_namespace(): Integer {
+    var made = front()
+    var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+    if not namespace_class {
+        return not_lowered(null, "every namespace, with no Spite.Namespace")
+    }
+    var namespace_type = known().class_type(namespace_class)
+    var made_list = new_list(namespace_type)
+    var appender = list_function(namespace_type, "append")
+    var every = made.reflected_every_namespace()
+    var index = 0
+    while index < every.elements.count() {
+        var element = every.elements[index]
+        var code = made.ensure_namespace_object(element.name)
+        var described = namespace_object_named("{code}()", namespace_type)
+        call_two_function(appender, made_list, described)
+        index = index + 1
+    }
+    return made_list
 }
