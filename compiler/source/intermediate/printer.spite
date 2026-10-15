@@ -175,7 +175,7 @@ func supports_text(lowered: Lowered): String {
         guards = runtime.guard_runtime()
     }
     var library_prototypes = foreign_prototypes()
-    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{singletons}\n{table}\n{guards}\n{library_prototypes}\n{supports}\n{libraries}"
+    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{table}\n{singletons}\n{guards}\n{library_prototypes}\n{supports}\n{libraries}"
 }
 
 func foreign_prototypes(): String {
