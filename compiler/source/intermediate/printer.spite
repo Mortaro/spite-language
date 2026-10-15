@@ -31,6 +31,7 @@ func print_library(
     crash lowered.hot_reload
     print_pieces(lowered)
     note_hot_exports()
+    runtime.shared_redirects = hot.ring_redirects()
     var types = types_text()
     var hot_prototypes = hot.prototypes()
     var prototypes = prototypes_text()
@@ -79,9 +80,6 @@ func print_pieces(lowered: Lowered) {
     lowered.layouts.each(note_slots)
     lowered.layouts.each(note_weak)
     lowered.concrete_functions.each(body.print)
-    var macros = output.macros.join(" ")
-    var bodies = output.bodies.join(" ")
-    output.printed_text = "{macros} {bodies}"
     lowered.enums.each(layouts.print_enum_names)
     lowered.layouts.each(layouts.print)
     note_nothing_default()
@@ -260,7 +258,7 @@ func foreign_prototypes(): String {
 }
 
 func note_loop_tables(lowered: Lowered) {
-    assert output.printed_text.contains("spite_loop_class_names") or output.printed_text.contains("spite_loop_enum_names") or output.printed_text.contains("spite_loop_class_descriptions")
+    assert output.uses("spite_loop_class_names") or output.uses("spite_loop_enum_names") or output.uses("spite_loop_class_descriptions")
     var class_names = naming.escape_c(lowered.loop_class_names)
     var enum_names = naming.escape_c(lowered.loop_enum_names)
     var descriptions = naming.escape_c(lowered.loop_class_descriptions)
@@ -270,16 +268,19 @@ func note_loop_tables(lowered: Lowered) {
     output.support(
         "SpiteString spite_loop_class_names(void) \{ return spite_string_from_cstring_owned(\"{class_names}\"); }",
     )
+    output.name_piece("spite_loop_class_names")
     output.support(
         "SpiteString spite_loop_enum_names(void) \{ return spite_string_from_cstring_owned(\"{enum_names}\"); }",
     )
+    output.name_piece("spite_loop_enum_names")
     output.support(
         "SpiteString spite_loop_class_descriptions(void) \{ return spite_string_from_cstring_owned(\"{descriptions}\"); }",
     )
+    output.name_piece("spite_loop_class_descriptions")
 }
 
 func note_nothing_default() {
-    assert output.printed_text.contains("Nothing___default(")
+    assert output.uses("Nothing___default(")
     var nothing = naming.lowered.layout_named("Nothing")
     if not nothing {
         output.refuse("a concurrent call answers Nothing, and the program holds no Nothing layout")
@@ -291,6 +292,7 @@ func note_nothing_default() {
     }
     output.prototypes.append("static Nothing* Nothing___default(void);")
     output.support("static Nothing* Nothing___default(void) \{ return {made}; }")
+    output.name_piece("Nothing___default")
 }
 
 func note_maths() {
@@ -332,7 +334,7 @@ func note_maths() {
         "cbrt"
         "hypot"
     ]
-    if names.any(output.printed_text.contains) {
+    if names.any(output.uses) {
         output.need("maths")
     }
 }

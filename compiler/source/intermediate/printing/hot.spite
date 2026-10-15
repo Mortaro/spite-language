@@ -234,6 +234,7 @@ func field_releaser(layout: Layout, field: Field): String {
     var written = naming.c_type(field.spite_type)
     var releaser = "{layout.c_name}___release_field_{field.name}"
     output.support("static void {releaser}(void* place) \{\n{counted}___release(*({written}*)place);\n}")
+    output.name_piece(releaser)
     return releaser
 }
 
@@ -419,14 +420,13 @@ func symbol_table(): String {
         "spite_assert_newest"
         "spite_assert_newest_count"
         "spite_assert_total"
+        "spite_crashing"
+        "spite_crash_chain"
     ]
-    var printed = output.printed_text
     index = 0
     while index < shared.count() {
         var name = shared[index]
-        if name == "spite_check_point_wanted" or printed.contains(name) {
-            entries.append("\{ \"{name}\", (void*)&{name} }")
-        }
+        entries.append("\{ \"{name}\", (void*)&{name} }")
         index = index + 1
     }
     entries.append("\{ 0, 0 }")
@@ -445,7 +445,7 @@ func hash_tagged(pieces: List<String>, tags: List<String>) {
         var name_index = 0
         while name_index < named.count() {
             var name = named[name_index]
-            if not name.is_empty() and exported_prototypes.has(name) and not hashes.has(name) {
+            if not name.is_empty() and not hashes.has(name) {
                 note_hash(name, pieces[index])
             }
             name_index = name_index + 1
@@ -577,6 +577,7 @@ func library(
     note_changed_owners(reload, owners)
     grow_owners(reload, owners)
     note_stale(reload)
+    note_shared_state()
     note_layout_changes(reload)
     var index = 0
     while index < owners.count() {
@@ -588,8 +589,8 @@ func library(
     }
     note_installs(reload, owners)
     note_local_names(reload)
-    var kept_supports = included(output.supports, output.support_tags)
-    var bodies = included(output.bodies, output.body_tags)
+    var kept_supports = included(output.supports, output.support_tags, output.support_pure)
+    var bodies = included(output.bodies, output.body_tags, output.body_pure)
     var redirects = redirect_lines()
     var bind = bind_function()
     var parts = ["#define SPITE_RELOADED", types, declared, redirects, runtime_text, kept_supports, bodies, bind]
@@ -671,14 +672,57 @@ func references_any(caller: Function, names: List<String>): Boolean {
 }
 
 func note_stale(reload: Generation.HotReloadLibrary) {
+    var names = hashes.keys()
     var index = 0
-    while index < exported_names.count() {
-        var name = exported_names[index]
+    while index < names.count() {
+        var name = names[index]
         var slotted = slot_names.contains(name) or name.ends_with("___hot")
-        if not slotted and keeps_prototype(reload, name) and is_changed(reload, name) {
+        var exported = exported_prototypes.has(name)
+        var kept_static = not exported and reload.host_hashes.has(name)
+        if not slotted and exported and keeps_prototype(reload, name) and is_changed(reload, name) {
+            stale(name)
+        } else if not slotted and kept_static and is_changed(reload, name) {
             stale(name)
         }
         index = index + 1
+    }
+}
+
+func note_shared_state() {
+    var held = List<String>()
+    if lowered.debug_memory {
+        held.append("the table of allocations --debug-memory keeps")
+    }
+    if not output.weak_classes.is_empty() {
+        held.append("the table of Weak references")
+    }
+    if output.needs("guards") or output.needs("readers") or output.needs("skip") {
+        held.append("the guards of shared singletons")
+    }
+    if output.needs("callbacks") or output.needs("callback contexts") {
+        held.append("the Spite functions handed to C")
+    }
+    if output.tagged_names.has("spite_copy_table") {
+        held.append("the table deep_copy() keeps of what it copied")
+    }
+    if not output.tracked_layouts.is_empty() {
+        held.append("the lists of instances")
+    }
+    if not output.foreign_libraries.is_empty() {
+        held.append("the name of the foreign call each thread is in, which a crash report shows")
+    }
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        if layout.pooled {
+            held.append("the pool of {layout.qualified} objects")
+        }
+        index = index + 1
+    }
+    if not held.is_empty() {
+        problems.append(
+            "the running program keeps {held.join(", ")}, which a reload library printed from the high IR cannot share with it yet: restart the program to take the change",
+        )
     }
 }
 
@@ -767,32 +811,17 @@ func note_local_names(reload: Generation.HotReloadLibrary) {
         index = index + 1
     }
     redirected = kept
-    var shared = [
-        "spite_program_arguments"
-        "spite_check_point_wanted"
-        "spite_assert_trace"
-        "spite_assert_runs"
-        "spite_assert_newest"
-        "spite_assert_newest_count"
-        "spite_assert_total"
-    ]
-    index = 0
-    while index < shared.count() {
-        var name = shared[index]
-        if name == "spite_check_point_wanted" or output.printed_text.contains(name) {
-            redirected.append(name)
-        }
-        index = index + 1
-    }
+    redirected.append("spite_check_point_wanted")
 }
 
-func included(pieces: List<String>, tags: List<String>): String {
+func included(pieces: List<String>, tags: List<String>, pure: List<Boolean>): String {
     var kept = List<String>()
     var index = 0
-    while index < pieces.count() and index < tags.count() {
+    while index < pieces.count() and index < tags.count() and index < pure.count() {
         var named = tags[index].split(" ")
         var exported = false
         var local = false
+        var shared = List<String>()
         var name_index = 0
         while name_index < named.count() {
             var name = named[name_index]
@@ -800,6 +829,8 @@ func included(pieces: List<String>, tags: List<String>): String {
                 exported = true
                 if local_names.has(name) {
                     local = true
+                } else {
+                    shared.append(name)
                 }
             }
             if name.ends_with("___hot") and local_names.has(name) {
@@ -807,12 +838,42 @@ func included(pieces: List<String>, tags: List<String>): String {
             }
             name_index = name_index + 1
         }
-        if local or not exported {
+        if local and not shared.is_empty() {
+            problems.append(
+                "the reload would write '{shared.join("', '")}' again, which the running program holds and keeps: restart the program to take the change",
+            )
+        }
+        if local or not exported and pure[index] == true {
             kept.append(pieces[index])
         }
         index = index + 1
     }
     return kept.join("\n")
+}
+
+func ring_shared(): List<String> {
+    return [
+        "spite_program_arguments"
+        "spite_assert_trace"
+        "spite_assert_runs"
+        "spite_assert_newest"
+        "spite_assert_newest_count"
+        "spite_assert_total"
+        "spite_crashing"
+        "spite_crash_chain"
+    ]
+}
+
+func ring_redirects(): String {
+    var shared = ring_shared()
+    var lines = List<String>()
+    var index = 0
+    while index < shared.count() {
+        var name = shared[index]
+        lines.append("static __typeof__({name})* spite_host_{name} = 0;\n#define {name} (*spite_host_{name})")
+        index = index + 1
+    }
+    return lines.join("\n")
 }
 
 func redirect_lines(): String {
@@ -838,9 +899,15 @@ func bind_function(): String {
         "spite_host_free = (void (*)(void*))find(\"spite_hot_free\");"
         "if (spite_host_realloc == 0 || spite_host_free == 0) return \"spite_hot_realloc\";"
     ]
+    var bound = ring_shared()
     var index = 0
     while index < redirected.count() {
-        var name = redirected[index]
+        bound.append(redirected[index])
+        index = index + 1
+    }
+    index = 0
+    while index < bound.count() {
+        var name = bound[index]
         lines.append(
             "spite_host_{name} = (__typeof__(spite_host_{name}))find(\"{name}\"); if (spite_host_{name} == 0) return \"{name}\";",
         )

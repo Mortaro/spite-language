@@ -354,6 +354,7 @@ func union_class_of(read_type: Analysis.SpiteType): String {
     output.prototypes.append("static Spite_Class* {chooser}({written} self);")
     var chooser_text = lines.join("\n")
     output.support(chooser_text)
+    output.name_piece(chooser)
     return chooser
 }
 
@@ -898,6 +899,7 @@ func note_value_box(label: String, written: String) {
     output.support(
         "static void* spite_box_{label}({written} value) \{\nSpiteBox_{label}* self = (SpiteBox_{label}*)SPITE_MALLOC(sizeof(SpiteBox_{label}));\nif (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = 0;\nself->value = value;\nreturn self;\n}",
     )
+    output.name_piece("spite_box_{label}")
 }
 
 func value_forwarder(called: Function, box: String): String {

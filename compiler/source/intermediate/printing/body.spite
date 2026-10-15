@@ -116,6 +116,7 @@ func print_machine() {
     machines.frame_type(function, fields)
     var begun = machines.begin_text(function)
     output.body(begun)
+    output.name_piece("{function.c_name}___begin")
     var defines = List<String>()
     var undefines = List<String>()
     index = 0
@@ -365,6 +366,7 @@ func print_singleton_maker() {
     )
     var getter_text = getter_lines.join("\n")
     output.body(getter_text)
+    output.impure()
     output.runtime_place("{getter}_teardown")
     output.runtime_place(getter)
     output.runtime_place("{getter}_peek")
@@ -429,6 +431,7 @@ func print_supplied() {
         return
     }
     var supplied = function.source.supplied_body
+    output.supplied(supplied)
     if supplied.contains("spite_frame_start") or supplied.contains("SpiteFrame") {
         output.need("machines")
     }
@@ -454,6 +457,8 @@ func print_supplied() {
         var waited = signature("{function.c_name}___waiting")
         output.prototypes.append("{waited};")
         output.body("{waited} \{\n{supplied}\n}")
+        mark_supplied(supplied)
+        output.name_piece("{function.c_name}___waiting")
         var wrapped = signature(function.c_name)
         output.prototypes.append("{wrapped};")
         machines.waiting_wrapper(function, kind, wrapped)
@@ -464,6 +469,7 @@ func print_supplied() {
         var hot_heading = signature("{function.c_name}___hot")
         output.prototypes.append("{hot_heading};")
         output.body("{hot_heading} \{\n{supplied}\n}")
+        mark_supplied(supplied)
         note_place("{function.c_name}___hot")
         var parts = parameter_parts()
         var answered = answer_type()
@@ -473,7 +479,14 @@ func print_supplied() {
     var heading = signature(function.c_name)
     output.prototypes.append("{heading};")
     output.body("{heading} \{\n{supplied}\n}")
+    mark_supplied(supplied)
     note_place(function.c_name)
+}
+
+func mark_supplied(supplied: String) {
+    if supplied.contains("static ") {
+        output.impure()
+    }
 }
 
 func thread_entry() {
@@ -2014,6 +2027,7 @@ func report_text(reported: Analysis.SpiteType, written: String): String {
     }
     var enumerated = shape.as_enum(reported)
     if enumerated {
+        output.use("{enumerated.c_name}___name(")
         return "fputs({enumerated.c_name}___name({written}), stderr);"
     }
     var kind = naming.kind_of(reported)
