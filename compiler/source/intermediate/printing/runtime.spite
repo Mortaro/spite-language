@@ -1,0 +1,518 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+var prelude = Generation.Prelude()
+
+func header(): String {
+    var written = prelude.header()
+    var allocator = prelude.plain_allocator()
+    if lowered.debug_memory {
+        allocator = prelude.table_allocator()
+    } else if lowered.function_named("Memory_Heap_live_allocations") {
+        allocator = prelude.counted_allocator()
+    }
+    return written.replace("/*spite_allocator*/", allocator)
+}
+
+func defines(): String {
+    var lines = List<String>()
+    if lowered.threads {
+        lines.append("#define SPITE_THREADS")
+    }
+    if lowered.debug_memory {
+        lines.append("#define SPITE_DEBUG_MEMORY")
+    }
+    return lines.join("\n")
+}
+
+func assert_ring(): String {
+    var ring = "#define SPITE_COLD_PATH __attribute__((noinline))\n#define SPITE_CRASH_PATH __attribute__((cold))\n#define SPITE_CRASH_REPORT __attribute__((noinline, cold, noreturn))\nstatic const char* spite_assert_trace[32];\nstatic uint64_t spite_assert_runs[32];\nstatic int64_t spite_assert_total = 0;\nstatic const char* spite_assert_newest = 0;\nstatic uint64_t spite_assert_newest_count = 0;\nstatic inline uint64_t spite_assert_run(const char* spite_site, int64_t spite_entry) \{ return ((uint64_t)(uintptr_t)spite_site << 32) | (((uint64_t)spite_entry & 0xffu) << 24) | 1u; }\n#ifdef SPITE_THREADS\nstatic SPITE_COLD_PATH void spite_ring_assert(const char* spite_site) \{\nfor (int32_t spite_waited = 0; spite_waited < 1000;) \{\nint64_t spite_newest = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE) - 1;\nif (spite_newest < 0) break;\nuint64_t spite_run = __atomic_load_n(&spite_assert_runs[spite_newest % 32], __ATOMIC_ACQUIRE);\nif (((spite_run >> 24) & 0xffu) != ((uint64_t)spite_newest & 0xffu)) \{ spite_waited = spite_waited + 1; continue; }\nif ((uint32_t)(spite_run >> 32) != (uint32_t)(uintptr_t)spite_site || (spite_run & 0xffffffu) == 0xffffffu) break;\nif (__atomic_compare_exchange_n(&spite_assert_runs[spite_newest % 32], &spite_run, spite_run + 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;\n}\nint64_t spite_taken = __atomic_fetch_add(&spite_assert_total, 1, __ATOMIC_ACQ_REL);\n__atomic_store_n(&spite_assert_trace[spite_taken % 32], spite_site, __ATOMIC_RELAXED);\n__atomic_store_n(&spite_assert_runs[spite_taken % 32], spite_assert_run(spite_site, spite_taken), __ATOMIC_RELEASE);\n}\nstatic uint64_t spite_assert_count(int64_t spite_index) \{ return __atomic_load_n(&spite_assert_runs[spite_index % 32], __ATOMIC_ACQUIRE) & 0xffffffu; }\n#else\nstatic SPITE_COLD_PATH void spite_ring_assert(const char* spite_site) \{\nif (spite_site == spite_assert_newest) \{ spite_assert_newest_count = spite_assert_newest_count + 1; return; }\nif (spite_assert_total > 0) spite_assert_runs[(spite_assert_total - 1) % 32] = spite_assert_newest_count;\nspite_assert_trace[spite_assert_total % 32] = spite_site;\nspite_assert_total = spite_assert_total + 1;\nspite_assert_newest = spite_site;\nspite_assert_newest_count = 1;\n}\nstatic uint64_t spite_assert_count(int64_t spite_index) \{ return spite_index == spite_assert_total - 1 ? spite_assert_newest_count : spite_assert_runs[spite_index % 32]; }\n#endif\n#define SPITE_RING_ASSERT(site) spite_ring_assert(site)\nstatic int32_t spite_crashing = 0;\nstatic void (*spite_crash_chain)(void) = 0;\nstatic inline void spite_crash_text(const char* spite_bytes, int64_t spite_length) \{\nint64_t spite_kept = spite_length > 80 ? 80 : spite_length;\nwhile (spite_kept > 0 && spite_kept < spite_length && (spite_bytes[spite_kept] & 0xC0) == 0x80) spite_kept = spite_kept - 1;\nfwrite(spite_bytes, 1, (size_t)spite_kept, stderr);\nif (spite_kept < spite_length) fprintf(stderr, \"...(%lld bytes)\", (long long)spite_length);\n}\nstatic SPITE_CRASH_PATH void spite_crash_begin(void) \{\nif (__atomic_exchange_n(&spite_crashing, 1, __ATOMIC_ACQ_REL) != 0) \{ for (;;) \{ } }\n}\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_total = __atomic_load_n(&spite_assert_total, __ATOMIC_ACQUIRE);\nint64_t spite_kept = spite_total < 32 ? spite_total : 32;\nfor (int64_t spite_index = spite_total - spite_kept; spite_index < spite_total; spite_index = spite_index + 1) \{\nconst char* spite_site = spite_assert_trace[spite_index % 32];\nif (spite_site == 0) continue;\nuint64_t spite_repeats = spite_assert_count(spite_index);\nwhile (spite_index + 1 < spite_total && spite_assert_trace[(spite_index + 1) % 32] == spite_site) \{ spite_index = spite_index + 1; spite_repeats = spite_repeats + spite_assert_count(spite_index); }\nif (spite_repeats > 1) \{ fwrite(spite_site, 1, strlen(spite_site) - 1, stderr); fprintf(stderr, \"\\trepeated=%llu\\n\", (unsigned long long)spite_repeats); } else \{ fputs(spite_site, stderr); }\n}\nif (spite_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_total - 32)); }\nif (spite_crash_chain != 0) spite_crash_chain();\n}"
+    var traced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
+    if output.needs("crash report") {
+        traced = "#define SPITE_TRACE_ASSERT(site) (SPITE_RING_ASSERT(site))"
+    }
+    if lowered.trace_asserts {
+        traced = "#define SPITE_TRACE_ASSERT(site) (fflush(stdout), fputs((site), stderr), SPITE_RING_ASSERT(site))"
+    }
+    return "{ring}\n{traced}"
+}
+
+func string_layout(): String {
+    var string_class = lowered.layout_named("SpiteString")
+    if not string_class {
+        output.refuse("the program has no String layout, and every program needs one")
+        return ""
+    }
+    var bytes = string_class.field_named("_bytes")
+    var length = string_class.field_named("_length")
+    if string_class.stored_fields.count() != 2 or not bytes or not length {
+        output.refuse(
+            "library/string.spite declares the memory a String is, '_bytes: Memory.Address' and '_length: Long', and nothing else",
+        )
+    }
+    var lines = [
+        "struct SpiteString \{"
+        "int64_t _bytes_;"
+        "int64_t _length_;"
+        "};"
+        "typedef struct SpiteStringBlock \{ SpiteHeader header; int64_t capacity; char bytes[]; } SpiteStringBlock;"
+        "typedef struct SpiteBox_SpiteString \{ SpiteHeader header; SpiteString value; } SpiteBox_SpiteString;"
+        "_Static_assert(sizeof(SpiteString) == 16 && sizeof(SpiteStringBlock) == 16, \"a String is 16 bytes and its block's characters start 16 bytes in\");"
+        "#define SPITE_STRING_INLINE 15"
+        "#define SPITE_STRING_HEAP ((int64_t)0x4000000000000000)"
+        "#define SPITE_STRING_FORM(text) ((uint64_t)(text)._length_ >> 56)"
+        "#define SPITE_STRING_IS_INLINE(text) (SPITE_STRING_FORM(text) <= SPITE_STRING_INLINE)"
+        "#define SPITE_STRING_IS_HEAP(text) (SPITE_STRING_FORM(text) == 0x40)"
+        "#define SPITE_STRING_IS_CONSTANT(text) (SPITE_STRING_FORM(text) == 0x80)"
+        "#define SPITE_STRING_BLOCK(text) ((SpiteStringBlock*)(intptr_t)((text)._bytes_ - 16))"
+        "#define SPITE_STATIC_STRING(text, length) \{ (int64_t)(intptr_t)(text), (int64_t)(length) | INT64_MIN }"
+        "#define SPITE_STRING_NULL ((SpiteString)\{ 0, INT64_MIN })"
+        "#define SPITE_STRING_EMPTY ((SpiteString)\{ 0, (int64_t)SPITE_STRING_INLINE << 56 })"
+        "#define SPITE_STRING_IS_NULL(text) ((text)._bytes_ == 0 && (text)._length_ == INT64_MIN)"
+        "static inline int64_t spite_string_length(SpiteString text) \{"
+        "uint64_t form = (uint64_t)text._length_ >> 56;"
+        "if (form <= SPITE_STRING_INLINE) return (int64_t)(SPITE_STRING_INLINE - form);"
+        "return (int64_t)((uint64_t)text._length_ & 0x00FFFFFFFFFFFFFF);"
+        "}"
+        "static inline const char* spite_string_bytes(const SpiteString* text) \{"
+        "if (SPITE_STRING_IS_INLINE(*text)) return (const char*)text;"
+        "return (const char*)(intptr_t)text->_bytes_;"
+        "}"
+        "static inline int32_t spite_string_code_at(const SpiteString* text, int32_t index) \{"
+        "const char* bytes = spite_string_bytes(text);"
+        "int32_t length = (int32_t)spite_string_length(*text);"
+        "if (index < 0 || index > length) index = length;"
+        "return (int32_t)(uint8_t)bytes[index];"
+        "}"
+    ]
+    return lines.join("\n")
+}
+
+func string_identity(): Integer {
+    var string_class = lowered.layout_named("SpiteString")
+    if not string_class {
+        return 0
+    }
+    return naming.class_id_of(string_class)
+}
+
+func registration(pointer: String, class_id: Integer): String {
+    if not lowered.debug_memory {
+        return ""
+    }
+    return "#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object({pointer}, {class_id});\n#endif\n"
+}
+
+func string_prototypes(): String {
+    var lines = [
+        "SpiteString SpiteString___retain(SpiteString self);"
+        "void SpiteString___release(SpiteString self);"
+        "SpiteString SpiteString_append(SpiteString left, SpiteString right);"
+        "SpiteString spite_string_from_bytes(const char* bytes, int64_t length);"
+        "SpiteString spite_string_from_cstring_owned(const char* text);"
+        "SpiteString spite_string_join(int32_t count, const SpiteString* pieces);"
+        "static int64_t spite_long_digits(char* digits, int64_t value);"
+        "static SpiteStringBlock* spite_string_block(int64_t length);"
+        "static SpiteString spite_string_held(SpiteStringBlock* block, int64_t length);"
+    ]
+    return lines.join("\n")
+}
+
+func string_supports(): String {
+    var class_id = string_identity()
+    var registered = registration("block", class_id)
+    var freed = "SPITE_FREE(block);"
+    var lines = [
+        "static int64_t spite_long_digits(char* digits, int64_t value) \{\nchar reversed[24];\nint64_t count = 0;\nuint64_t rest = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;\ndo \{ reversed[count] = (char)('0' + rest % 10); count = count + 1; rest = rest / 10; } while (rest != 0);\nint64_t length = 0;\nif (value < 0) \{ digits[0] = '-'; length = 1; }\nwhile (count > 0) \{ count = count - 1; digits[length] = reversed[count]; length = length + 1; }\nreturn length;\n}"
+        "static SpiteStringBlock* spite_string_block(int64_t length) \{\nsize_t size = ((size_t)length + 17 + 15) & ~(size_t)15;\nSpiteStringBlock* block = (SpiteStringBlock*)SPITE_MALLOC(size);\nblock->header.ref_count = 1;\nblock->header.class_id = {class_id};\n{registered}block->capacity = (int64_t)size - 17;\nreturn block;\n}"
+        "static SpiteString spite_string_held(SpiteStringBlock* block, int64_t length) \{\nblock->bytes[length] = 0;\nSpiteString held;\nheld._bytes_ = (int64_t)(intptr_t)block->bytes;\nheld._length_ = length | SPITE_STRING_HEAP;\nreturn held;\n}"
+        "SpiteString SpiteString___retain(SpiteString self) \{\nif (SPITE_STRING_IS_HEAP(self)) SPITE_COUNT_UP(SPITE_STRING_BLOCK(self)->header.ref_count);\nreturn self;\n}"
+        "void SpiteString___release(SpiteString self) \{\nif (!SPITE_STRING_IS_HEAP(self)) return;\nSpiteStringBlock* block = SPITE_STRING_BLOCK(self);\nif (SPITE_COUNT_DOWN(block->header.ref_count) > 0) return;\n{freed}\n}"
+        "SpiteString spite_string_from_bytes(const char* bytes, int64_t length) \{\nif (length <= SPITE_STRING_INLINE) \{\nSpiteString made = \{ 0, 0 };\nif (length > 0) memcpy(&made, bytes, (size_t)length);\n((char*)&made)[15] = (char)(SPITE_STRING_INLINE - length);\nreturn made;\n}\nSpiteStringBlock* block = spite_string_block(length);\nmemcpy(block->bytes, bytes, (size_t)length);\nreturn spite_string_held(block, length);\n}"
+        "SpiteString spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}"
+        "SpiteString spite_string_join(int32_t count, const SpiteString* pieces) \{\nint64_t total = 0;\nfor (int32_t index = 0; index < count; index++) total += spite_string_length(pieces[index]);\nSpiteString made = \{ 0, 0 };\nSpiteStringBlock* block = 0;\nchar* at = (char*)&made;\nif (total > SPITE_STRING_INLINE) \{ block = spite_string_block(total); at = block->bytes; }\nfor (int32_t index = 0; index < count; index++) \{\nint64_t length = spite_string_length(pieces[index]);\nif (length > 0) memcpy(at, spite_string_bytes(&pieces[index]), (size_t)length);\nat += length;\n}\nif (block != 0) return spite_string_held(block, total);\n((char*)&made)[15] = (char)(SPITE_STRING_INLINE - total);\nreturn made;\n}"
+        "SpiteString SpiteString_append(SpiteString left, SpiteString right) \{\nint64_t left_length = spite_string_length(left);\nint64_t right_length = spite_string_length(right);\nint64_t total = left_length + right_length;\nconst char* right_bytes = spite_string_bytes(&right);\nif (SPITE_STRING_IS_INLINE(left) && total <= SPITE_STRING_INLINE) \{\nif (right_length > 0) memcpy((char*)&left + left_length, right_bytes, (size_t)right_length);\n((char*)&left)[15] = (char)(SPITE_STRING_INLINE - total);\nreturn left;\n}\nif (SPITE_STRING_IS_HEAP(left) && left._bytes_ != right._bytes_) \{\nSpiteStringBlock* block = SPITE_STRING_BLOCK(left);\nif (block->header.ref_count == 1) \{\nif (total > block->capacity) \{\nint64_t capacity = block->capacity * 2;\nif (capacity < total) capacity = total;\nsize_t size = ((size_t)capacity + 17 + 15) & ~(size_t)15;\nblock = (SpiteStringBlock*)SPITE_REALLOC(block, size);\n{registered}block->capacity = (int64_t)size - 17;\n}\nmemcpy(block->bytes + left_length, right_bytes, (size_t)right_length);\nreturn spite_string_held(block, total);\n}\n}\nint64_t capacity = left_length * 2;\nif (capacity < total) capacity = total;\nSpiteStringBlock* block = spite_string_block(capacity);\nif (left_length > 0) memcpy(block->bytes, spite_string_bytes(&left), (size_t)left_length);\nif (right_length > 0) memcpy(block->bytes + left_length, right_bytes, (size_t)right_length);\nSpiteString___release(left);\nreturn spite_string_held(block, total);\n}"
+    ]
+    return lines.join("\n")
+}
+
+func reporters(): List<String> {
+    var pieces = List<String>()
+    if output.needs("overflowed") {
+        pieces.append(
+            "static void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) __attribute__((noreturn, cold));\nstatic void spite_overflowed(const char* operation, const char* type, const char* symbol, int64_t left, int64_t right, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' does not fit in %s (%lld %s %lld), at %s\\n\", operation, type, (long long)left, symbol, (long long)right, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("overflowed unsigned") {
+        pieces.append(
+            "static void spite_overflowed_unsigned(const char* operation, const char* type, const char* symbol, uint64_t left, uint64_t right, const char* where) __attribute__((noreturn, cold));\nstatic void spite_overflowed_unsigned(const char* operation, const char* type, const char* symbol, uint64_t left, uint64_t right, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' does not fit in %s (%llu %s %llu), at %s\\n\", operation, type, (unsigned long long)left, symbol, (unsigned long long)right, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("divided by zero") {
+        pieces.append(
+            "static void spite_divided_by_zero(const char* operation, const char* where) __attribute__((noreturn, cold));\nstatic void spite_divided_by_zero(const char* operation, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' divided by zero, at %s\\n\", operation, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("narrowed") {
+        pieces.append(
+            "static void spite_narrowed(int64_t value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));\nstatic void spite_narrowed(int64_t value, const char* from, const char* to, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %lld, %s, does not fit in %s, at %s\\n\", (long long)value, from, to, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("narrowed unsigned") {
+        pieces.append(
+            "static void spite_narrowed_unsigned(uint64_t value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));\nstatic void spite_narrowed_unsigned(uint64_t value, const char* from, const char* to, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %llu, %s, does not fit in %s, at %s\\n\", (unsigned long long)value, from, to, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("narrowed decimal") {
+        pieces.append(
+            "static void spite_narrowed_decimal(double value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));\nstatic void spite_narrowed_decimal(double value, const char* from, const char* to, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: %.17g, %s, does not fit in %s, at %s\\n\", value, from, to, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("outside list") {
+        pieces.append(
+            "static void spite_outside_list(const char* read, const char* where) __attribute__((noreturn, cold));\nstatic void spite_outside_list(const char* read, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' is outside its list: a bound proves only the top of an index, and this one is below 0 or the list changed, at %s\\n\", read, where);\nexit(1);\n}",
+        )
+    }
+    if output.needs("switch missed") {
+        pieces.append(
+            "static void spite_switch_missed(const char* where) __attribute__((noreturn, cold));\nstatic void spite_switch_missed(const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: a switch met a case it does not cover, at %s\\n\", where);\nexit(1);\n}",
+        )
+    }
+    return pieces
+}
+
+func helpers(): List<String> {
+    var pieces = List<String>()
+    if output.needs("string same") {
+        pieces.append(
+            "static inline bool spite_string_same(SpiteString left, SpiteString right) \{\nint64_t length = spite_string_length(left);\nif (length != spite_string_length(right)) return false;\nreturn length == 0 || memcmp(spite_string_bytes(&left), spite_string_bytes(&right), (size_t)length) == 0;\n}",
+        )
+    }
+    if output.needs("string box") {
+        var box = string_box()
+        pieces.append(box)
+    }
+    var index = 0
+    while index < output.tagged_makers.count() {
+        var maker = tagged_maker(output.tagged_makers[index])
+        pieces.append(maker)
+        index = index + 1
+    }
+    return pieces
+}
+
+func string_box(): String {
+    var class_id = string_identity()
+    var registered = registration("self", class_id)
+    return "void* spite_box_SpiteString(SpiteString value);\nvoid spite_string_box_release(void* self);\nvoid* spite_box_SpiteString(SpiteString value) \{\nSpiteBox_SpiteString* self = (SpiteBox_SpiteString*)SPITE_MALLOC(sizeof(SpiteBox_SpiteString));\nif (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = {class_id};\n{registered}self->value = value;\nreturn self;\n}\nvoid spite_string_box_release(void* self) \{\nSpiteBox_SpiteString* box = (SpiteBox_SpiteString*)self;\nif (box->header.class_id < 0) return;\nif (SPITE_COUNT_DOWN(box->header.ref_count) > 0) return;\nSpiteString___release(box->value);\nSPITE_FREE(box);\n}"
+}
+
+func tagged_maker(value_class: String): String {
+    var layout = lowered.layout_named(value_class)
+    if not layout {
+        output.refuse("a number is tagged with '{value_class}', which has no layout")
+        return ""
+    }
+    var class_id = naming.class_id_of(layout)
+    var written = naming.value_c_type(layout)
+    return "static inline SpiteTagged spite_tagged_{value_class}({written} value) \{\nSpiteTagged tagged;\ntagged.tag = {class_id};\ntagged.plain = 1;\ntagged.value.bits = 0;\nmemcpy(&tagged.value, &value, sizeof(value));\nreturn tagged;\n}"
+}
+
+func early_types(): String {
+    var lines = List<String>()
+    if output.needs("framed") {
+        lines.append("#define SPITE_FRAMED_COUNT 1073741824")
+    }
+    if output.needs("maths") {
+        lines.append("#include <math.h>")
+    }
+    return lines.join("\n")
+}
+
+func singleton_prototypes(): String {
+    var lines = [
+        "bool spite_singleton_tracked(void);"
+        "void spite_singleton_created(void (*teardown)(void));"
+        "void spite_singleton_used_after_exit(const char* name);"
+        "void spite_singletons_destroy(void);"
+        "void spite_singleton_free_later(void* object);"
+        "void spite_singleton_check_circle(const char* name);"
+        "void spite_singleton_making(const char* name);"
+        "void spite_singleton_made(void);"
+    ]
+    return lines.join("\n")
+}
+
+func singleton_supports(): String {
+    var tracked = "return true;"
+    if lowered.debug_memory {
+        tracked = "#ifdef SPITE_DEBUG_MEMORY\nreturn !spite_allocation_table_busy;\n#else\nreturn true;\n#endif"
+    }
+    var lines = [
+        "static SPITE_THREAD_LOCAL const char* spite_singletons_making[64];"
+        "static SPITE_THREAD_LOCAL int32_t spite_singletons_making_count = 0;"
+        "void spite_singleton_check_circle(const char* name) \{"
+        "int32_t kept = spite_singletons_making_count < 64 ? spite_singletons_making_count : 64;"
+        "int32_t first = 0;"
+        "while (first < kept && strcmp(spite_singletons_making[first], name) != 0) first = first + 1;"
+        "if (first == kept) return;"
+        "fflush(stdout);"
+        "if (first + 1 == kept) \{"
+        "fprintf(stderr, \"spite: singleton '%s' is asked for while it is being made: a singleton cannot reach itself as it initialises\\n\", name);"
+        "exit(1);"
+        "}"
+        "fprintf(stderr, \"spite: singleton '%s'\", name);"
+        "for (int32_t step = first + 1; step < kept; step = step + 1) \{"
+        "fprintf(stderr, step == first + 1 ? \" binds '%s'\" : \", which binds '%s'\", spite_singletons_making[step]);"
+        "}"
+        "fprintf(stderr, \", which binds '%s'\", name);"
+        "fputs(\": singletons initialise each other in a circle\\n\", stderr);"
+        "exit(1);"
+        "}"
+        "void spite_singleton_making(const char* name) \{"
+        "if (spite_singletons_making_count < 64) spite_singletons_making[spite_singletons_making_count] = name;"
+        "spite_singletons_making_count = spite_singletons_making_count + 1;"
+        "}"
+        "void spite_singleton_made(void) \{"
+        "spite_singletons_making_count = spite_singletons_making_count - 1;"
+        "}"
+        "static void (**spite_singleton_teardowns)(void) = 0;"
+        "static int32_t spite_singleton_total = 0;"
+        "static int32_t spite_singleton_capacity = 0;"
+        "static int32_t spite_singleton_list_lock = 0;"
+        "bool spite_singleton_tracked(void) \{"
+        tracked
+        "}"
+        "void spite_singleton_created(void (*teardown)(void)) \{"
+        "if (!spite_singleton_tracked()) return;"
+        "SPITE_LOCK(spite_singleton_list_lock);"
+        "if (spite_singleton_total == spite_singleton_capacity) \{"
+        "spite_singleton_capacity = spite_singleton_capacity == 0 ? 16 : spite_singleton_capacity * 2;"
+        "spite_singleton_teardowns = (void (**)(void))realloc(spite_singleton_teardowns, (size_t)spite_singleton_capacity * sizeof(void (*)(void)));"
+        "if (spite_singleton_teardowns == 0) \{ fflush(stdout); fputs(\"spite: out of memory keeping a singleton\\n\", stderr); exit(1); }"
+        "}"
+        "spite_singleton_teardowns[spite_singleton_total] = teardown;"
+        "spite_singleton_total = spite_singleton_total + 1;"
+        "SPITE_UNLOCK(spite_singleton_list_lock);"
+        "}"
+        "void spite_singleton_used_after_exit(const char* name) \{"
+        "fflush(stdout);"
+        "fprintf(stderr, \"spite: a drop() at exit used the singleton %s after it was destroyed: singletons are destroyed in reverse order of when they were made, so keep %s in an attribute of the singleton whose drop() uses it\\n\", name, name);"
+        "exit(1);"
+        "}"
+        "static bool spite_singletons_ending = false;"
+        "static void** spite_singletons_freed = 0;"
+        "static int32_t spite_singletons_freed_total = 0;"
+        "static int32_t spite_singletons_freed_capacity = 0;"
+        "void spite_singleton_free_later(void* object) \{"
+        "if (!spite_singletons_ending) \{ SPITE_FREE(object); return; }"
+        "if (spite_singletons_freed_total == spite_singletons_freed_capacity) \{"
+        "spite_singletons_freed_capacity = spite_singletons_freed_capacity == 0 ? 16 : spite_singletons_freed_capacity * 2;"
+        "spite_singletons_freed = (void**)realloc(spite_singletons_freed, (size_t)spite_singletons_freed_capacity * sizeof(void*));"
+        "if (spite_singletons_freed == 0) \{ fflush(stdout); fputs(\"spite: out of memory freeing singletons\\n\", stderr); exit(1); }"
+        "}"
+        "spite_singletons_freed[spite_singletons_freed_total] = object;"
+        "spite_singletons_freed_total = spite_singletons_freed_total + 1;"
+        "}"
+        "void spite_singletons_destroy(void) \{"
+        "fflush(stdout);"
+        "spite_singletons_ending = true;"
+        "while (spite_singleton_total > 0) \{"
+        "spite_singleton_total = spite_singleton_total - 1;"
+        "spite_singleton_teardowns[spite_singleton_total]();"
+        "}"
+        "free(spite_singleton_teardowns);"
+        "for (int32_t index = 0; index < spite_singletons_freed_total; index = index + 1) SPITE_FREE(spite_singletons_freed[index]);"
+        "free(spite_singletons_freed);"
+        "spite_singletons_ending = false;"
+        "}"
+    ]
+    return lines.join("\n")
+}
+
+func allocation_table(): String {
+    var found = lowered.layout_named("AllocationTable")
+    if not found {
+        output.refuse(
+            "a --debug-memory build keeps its allocations in AllocationTable, which the program does not hold",
+        )
+        return ""
+    }
+    var table = found.c_name
+    var made = maker_of(table)
+    if made.is_empty() {
+        output.refuse("a --debug-memory build makes AllocationTable, and the program holds no function that makes it")
+        return ""
+    }
+    var wanted = ["resize", "free", "register_object", "name_classes", "report", "live_allocations", "live_bytes"]
+    var index = 0
+    while index < wanted.count() {
+        var called = "{table}_{wanted[index]}"
+        if not lowered.function_named(called) {
+            output.refuse("a --debug-memory build calls '{called}', which the program does not hold")
+        }
+        index = index + 1
+    }
+    var entered = "{table}* spite_table = spite_allocation_table_enter();"
+    var leave = "spite_allocation_table_leave();"
+    var lines = [
+        "#ifdef SPITE_DEBUG_MEMORY"
+        "static {table}* spite_allocation_table = 0;"
+        "static SPITE_THREAD_LOCAL bool spite_allocation_table_busy = false;"
+        "#ifdef SPITE_THREADS"
+        "static int32_t spite_allocation_table_lock = 0;"
+        "#endif"
+        "static void spite_allocation_table_leave(void) \{"
+        "spite_allocation_table_busy = false;"
+        "#ifdef SPITE_THREADS"
+        "__atomic_store_n(&spite_allocation_table_lock, 0, __ATOMIC_RELEASE);"
+        "#endif"
+        "}"
+        "static {table}* spite_allocation_table_enter(void) \{"
+        "#ifdef SPITE_THREADS"
+        "while (__atomic_exchange_n(&spite_allocation_table_lock, 1, __ATOMIC_ACQUIRE) != 0) \{}"
+        "#endif"
+        "spite_allocation_table_busy = true;"
+        "if (spite_allocation_table == 0) spite_allocation_table = {made}();"
+        "return spite_allocation_table;"
+        "}"
+        "void* spite_debug_realloc(void* pointer, size_t size) \{"
+        "if (spite_allocation_table_busy) return realloc(pointer, size);"
+        entered
+        "void* result = (void*)(intptr_t){table}_resize(spite_table, (int64_t)(intptr_t)pointer, (int64_t)size);"
+        leave
+        "return result;"
+        "}"
+        "void spite_debug_free(void* pointer) \{"
+        "if (pointer == 0) return;"
+        "if (spite_allocation_table_busy) \{ free(pointer); return; }"
+        entered
+        "{table}_free(spite_table, (int64_t)(intptr_t)pointer);"
+        leave
+        "}"
+        "void spite_debug_register_object(void* pointer, int32_t class_id) \{"
+        "if (pointer == 0 || spite_allocation_table_busy) return;"
+        entered
+        "{table}_register_object(spite_table, (int64_t)(intptr_t)pointer, class_id);"
+        leave
+        "}"
+        "void spite_debug_set_class_names(const char* const* names, int64_t count) \{"
+        entered
+        "{table}_name_classes(spite_table, (int64_t)(intptr_t)names, count);"
+        leave
+        "}"
+        "void spite_debug_report(void) \{"
+        entered
+        "{table}_report(spite_table);"
+        leave
+        "}"
+        "int64_t spite_live_allocation_count(void) \{"
+        entered
+        "int64_t count = {table}_live_allocations(spite_table);"
+        leave
+        "return count;"
+        "}"
+        "int64_t spite_live_byte_count(void) \{"
+        entered
+        "int64_t bytes = {table}_live_bytes(spite_table);"
+        leave
+        "return bytes;"
+        "}"
+        "#endif"
+    ]
+    return lines.join("\n")
+}
+
+func class_name_table(): String {
+    var names = List<String>()
+    var index = 0
+    while index < lowered.class_names.count() {
+        var escaped = naming.escape_c(lowered.class_names[index])
+        names.append("\"{escaped}\"")
+        index = index + 1
+    }
+    return "static const char* spite_debug_class_name_table[] = \{ {names.join(", ")} };\nspite_debug_set_class_names(spite_debug_class_name_table, {lowered.class_names.count()});"
+}
+
+func places_table(): String {
+    var lines = List<String>()
+    lines.append(
+        "typedef struct SpiteFunctionPlace \{ const void* start; const char* owner; const char* name; int32_t line; } SpiteFunctionPlace;",
+    )
+    lines.append("int main(int argument_count, char** argument_values);")
+    lines.append("static const SpiteFunctionPlace spite_function_places[] = \{")
+    var index = 0
+    while index < output.places.count() {
+        lines.append(output.places[index])
+        index = index + 1
+    }
+    lines.append("\{(const void*)&main, \"-\\t-\", \"main\", 0},")
+    lines.append("\{0, 0, 0, 0}")
+    lines.append("};")
+    return lines.join("\n")
+}
+
+func faults(): String {
+    var native = Generation.NativeFaults()
+    var table = places_table()
+    var fault_defines = native.defines(false, true)
+    var handler = native.handler()
+    return "{table}\n{fault_defines}\n{handler}"
+}
+
+func main_function(): String {
+    var lines = List<String>()
+    lines.append("int main(int argument_count, char** argument_values) \{")
+    lines.append("spite_fault_install();")
+    lines.append(
+        "spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };",
+    )
+    lines.append("#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif")
+    if lowered.debug_memory {
+        var name_table = class_name_table()
+        lines.append(name_table)
+    }
+    var started = entry_start()
+    lines.append(started)
+    if output.needs("singletons") {
+        lines.append("spite_singletons_destroy();")
+    }
+    if lowered.debug_memory {
+        lines.append("spite_debug_report();")
+    }
+    lines.append("return 0;")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func entry_start(): String {
+    var started = lowered.function_named(lowered.entry)
+    if not started {
+        output.refuse("the program starts at '{lowered.entry}', which the program does not hold")
+        return ""
+    }
+    return entry_call(started)
+}
+
+func maker_of(c_name: String): String {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        if function.singleton_of == c_name {
+            return function.c_name
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func entry_call(started: Function): String {
+    if started.receiver >= 0 or not started.parameters.is_empty() {
+        output.refuse("the program starts at '{started.c_name}', which takes values, and main has none to give")
+    }
+    if started.answer and not naming.shape.is_void(started.answer) {
+        output.refuse("the program starts at '{started.c_name}', which answers a value main would drop")
+    }
+    return "{started.c_name}();"
+}

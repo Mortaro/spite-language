@@ -5,6 +5,15 @@ var concrete_functions = List<Function>()
 var functions_by_name = Dictionary<String, Function>()
 var sites = List<Site>()
 var entry = ""
+var enums = List<Analysis.EnumInfo>()
+var class_names = List<String>()
+var debug_memory = false
+var trace_asserts = false
+var bare_crash_sites = false
+var threads = false
+var hot_reload = false
+var read_evaluate_print_loop = false
+var scheduler_used = false
 
 func add_layout(layout: Layout) {
     crash not layouts_by_name.has(layout.c_name)

@@ -1,0 +1,88 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+
+func site_at(number: Integer): Site? {
+    if number < 0 or number >= lowered.sites.count() {
+        output.refuse("a check names the site {number}, which Lowered.sites does not hold")
+        return null
+    }
+    return lowered.sites[number]
+}
+
+func located(number: Integer): String {
+    var site = site_at(number)
+    if not site {
+        return "\"\""
+    }
+    return symbol(number, "{site.path}:{site.line} in {site.owner}.{site.function}")
+}
+
+func crash_line(number: Integer): String {
+    var site = site_at(number)
+    if not site {
+        return "\"\""
+    }
+    return symbol(number, "spite.crash\t{site.identity}{report_place(site)}")
+}
+
+func assert_line(number: Integer, answered: String): String {
+    var site = site_at(number)
+    if not site {
+        return "\"\""
+    }
+    return symbol(number, "spite.assert\t{site.identity}{report_place(site)}\tanswered={answered}\n")
+}
+
+func report_place(site: Site): String {
+    if lowered.bare_crash_sites {
+        return ""
+    }
+    return "\t{site.path}:{site.line}\t{site.owner}\t{site.function}"
+}
+
+func symbol(number: Integer, text: String): String {
+    var known = output.site_names[number]
+    if known {
+        return known
+    }
+    var name = "spite_site_{number}()"
+    output.site_names[number] = name
+    var escaped = naming.escape_c(text)
+    output.site_lines.append("#define {name} \"{escaped}\"")
+    return name
+}
+
+func source_text(number: Integer): String {
+    var site = site_at(number)
+    if not site {
+        return ""
+    }
+    return naming.escape_c(site.text)
+}
+
+func literal(text: String): String {
+    var known = output.literal_names[text]
+    if known {
+        return known
+    }
+    var name = "spite_lit_{output.literal_lines.count()}"
+    output.literal_names[text] = name
+    var escaped = naming.escape_c(text)
+    output.literal_lines.append("static SpiteString {name} = SPITE_STATIC_STRING(\"{escaped}\", {text.length()});")
+    return name
+}
+
+func boxed_literal(text: String): String {
+    var name = literal(text)
+    var boxed = "{name}_box"
+    if not output.boxed_literals.contains(boxed) {
+        output.boxed_literals.append(boxed)
+        var escaped = naming.escape_c(text)
+        output.literal_lines.append(
+            "static SpiteBox_SpiteString {boxed} = \{ \{ 0, -1 }, SPITE_STATIC_STRING(\"{escaped}\", {text.length()}) };",
+        )
+    }
+    return boxed
+}

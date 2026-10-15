@@ -1,0 +1,512 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+
+func print(layout: Layout) {
+    assert not layout.is_value
+    switch layout.kind {
+        "class": print_class(layout)
+        "union": print_union(layout)
+        "tagged union": print_tagged_union(layout)
+        _: output.refuse("the layout '{layout.c_name}' is a '{layout.kind}', which the printer does not lay out")
+    }
+}
+
+func print_enum(information: Analysis.EnumInfo) {
+    var lines = List<String>()
+    lines.append("typedef enum \{")
+    var index = 0
+    while index < information.values.count() {
+        var enum_text = enum_line(information, index)
+        lines.append(enum_text)
+        index = index + 1
+    }
+    lines.append("} {information.c_name};")
+    var lines_text = lines.join("\n")
+    output.types.append(lines_text)
+}
+
+func print_enum_names(information: Analysis.EnumInfo) {
+    var name = information.c_name
+    assert output.printed_text.contains("{name}___name(")
+    var names = List<String>()
+    names.append("const char* {name}___name({name} value) \{")
+    names.append("switch (value) \{")
+    var index = 0
+    while index < information.values.count() {
+        var value = information.values[index]
+        names.append("case {name}_{value}: return \"{value}\";")
+        index = index + 1
+    }
+    names.append("}")
+    names.append("return \"\";")
+    names.append("}")
+    output.prototypes.append("const char* {name}___name({name} value);")
+    var names_text = names.join("\n")
+    output.supports.append(names_text)
+    output.runtime_place("{name}___name")
+}
+
+func enum_line(information: Analysis.EnumInfo, index: Integer): String {
+    var value = information.values[index]
+    crash value
+    if not information.is_numbered() {
+        return "{information.c_name}_{value},"
+    }
+    var number = information.numbers[index]
+    crash number
+    return "{information.c_name}_{value} = {number},"
+}
+
+func print_class(layout: Layout) {
+    var name = layout.c_name
+    if layout.arrangement != "object" {
+        output.refuse("'{name}' is arranged as '{layout.arrangement}', which the printer does not lay out")
+        return
+    }
+    output.types.append("typedef struct {name} {name};")
+    print_struct(layout)
+    if layout.is_singleton and layout.allocation == "static" {
+        print_static_singleton(layout)
+        return
+    }
+    print_initialize(layout)
+    if layout.allocation == "pool" {
+        print_pool(layout)
+    }
+    print_allocate(layout)
+    if layout.is_singleton {
+        print_singleton(layout)
+    } else {
+        print_counted(layout)
+    }
+    if output.framed_layouts.contains(name) {
+        print_framed(layout)
+    }
+    if output.copied_layouts.contains(name) {
+        print_copy(layout)
+    }
+}
+
+func print_struct(layout: Layout) {
+    var lines = List<String>()
+    lines.append("struct {layout.c_name} \{")
+    lines.append("SpiteHeader header;")
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var written = naming.c_type(field.spite_type)
+        lines.append("{written} {field.name}_;")
+        index = index + 1
+    }
+    var hidden = hidden_fields(layout.c_name)
+    index = 0
+    while index < hidden.count() {
+        lines.append(hidden[index])
+        index = index + 1
+    }
+    lines.append("};")
+    var lines_text = lines.join("\n")
+    output.structs.append(lines_text)
+}
+
+func hidden_fields(c_name: String): List<String> {
+    if c_name == "Spite_Function" {
+        return [
+            "void* spite_owner;"
+            "void (*spite_release_owner)(void*);"
+            "void (*spite_call)(void*);"
+            "void* spite_typed_call;"
+            "void* spite_text_call;"
+            "void (*spite_add_arguments)(Spite_Function*);"
+            "int32_t spite_arguments_lock;"
+        ]
+    }
+    if c_name == "Spite_Attribute" {
+        return [
+            "void* spite_owner;"
+            "void (*spite_release_owner)(void*);"
+            "bool (*spite_assign)(void*, void*, SpiteString);"
+            "bool (*spite_store)(void*, void*, void*);"
+            "void* (*spite_held_class)(void);"
+            "void* spite_held;"
+            "void (*spite_release_held)(void*);"
+            "void* (*spite_held_attributes)(void*);"
+            "void* (*spite_held_functions)(void*);"
+            "int64_t spite_held_bytes;"
+            "int64_t spite_stored_address;"
+            "int64_t spite_stored_bytes;"
+            "int64_t spite_buffer_address;"
+            "int64_t spite_buffer_bytes;"
+        ]
+    }
+    return List<String>()
+}
+
+func hidden_releases(c_name: String): List<String> {
+    if c_name == "Spite_Function" {
+        return [
+            "if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);"
+        ]
+    }
+    if c_name == "Spite_Attribute" {
+        return [
+            "if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);"
+            "if (self->spite_held != 0 && self->spite_release_held != 0) self->spite_release_held(self->spite_held);"
+        ]
+    }
+    return List<String>()
+}
+
+func print_static_singleton(layout: Layout) {
+    var name = layout.c_name
+    print_uncounted(layout)
+    if output.copied_layouts.contains(name) {
+        output.prototypes.append("{name}* {name}_copy({name}* self);")
+        output.supports.append("{name}* {name}_copy({name}* self) \{ return self; }")
+    }
+}
+
+func print_uncounted(layout: Layout) {
+    var name = layout.c_name
+    output.prototypes.append("static inline {name}* {name}___retain({name}* self);")
+    output.prototypes.append("static inline void {name}___release({name}* self);")
+    output.supports.append("static inline {name}* {name}___retain({name}* self) \{ return self; }")
+    output.supports.append("static inline void {name}___release({name}* self) \{ (void)self; }")
+}
+
+func print_initialize(layout: Layout) {
+    var name = layout.c_name
+    var lines = List<String>()
+    lines.append("void {name}___init({name}* self) \{")
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var starting = naming.zero(field.spite_type)
+        lines.append("self->{field.name}_ = {starting};")
+        index = index + 1
+    }
+    var hidden = hidden_starts(name)
+    if not hidden.is_empty() {
+        lines.append(hidden)
+    }
+    lines.append("}")
+    output.prototypes.append("void {name}___init({name}* self);")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}___init")
+}
+
+func hidden_starts(c_name: String): String {
+    if c_name == "Spite_Function" {
+        return "self->spite_owner = 0; self->spite_release_owner = 0; self->spite_call = 0; self->spite_typed_call = 0; self->spite_text_call = 0; self->spite_add_arguments = 0; self->spite_arguments_lock = 0;"
+    }
+    if c_name == "Spite_Attribute" {
+        return "self->spite_owner = 0; self->spite_release_owner = 0; self->spite_assign = 0; self->spite_store = 0; self->spite_held_class = 0; self->spite_held = 0; self->spite_release_held = 0; self->spite_held_attributes = 0; self->spite_held_functions = 0; self->spite_held_bytes = 0; self->spite_stored_address = 0; self->spite_stored_bytes = 0; self->spite_buffer_address = 0; self->spite_buffer_bytes = 0;"
+    }
+    return ""
+}
+
+func print_pool(layout: Layout) {
+    var name = layout.c_name
+    if layout.is_singleton {
+        output.refuse(
+            "the singleton '{layout.qualified}' is placed in a pool, and a singleton is freed at exit by the heap",
+        )
+        return
+    }
+    var pool = "{name}___pool"
+    var lines = [
+        "static {name}* {pool}_free = 0;"
+        "static char* {pool}_next = 0;"
+        "static char* {pool}_end = 0;"
+        "static size_t {pool}_count = 0;"
+        "static void {pool}_grow(void) \{"
+        "if ({pool}_count == 0) \{ {pool}_count = 16; } else if ({pool}_count * sizeof({name}) < 262144) \{ {pool}_count = {pool}_count * 2; }"
+        "char* chunk = (char*)SPITE_MALLOC({pool}_count * sizeof({name}) + 63);"
+        "if (chunk == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }"
+        "{pool}_next = (char*)(((uintptr_t)chunk + 63) & ~(uintptr_t)63);"
+        "{pool}_end = {pool}_next + {pool}_count * sizeof({name});"
+        "}"
+        "static inline {name}* {pool}_take(void) \{"
+        "{name}* self = {pool}_free;"
+        "if (self != 0) \{ {pool}_free = *({name}**)self; return self; }"
+        "if ({pool}_next == {pool}_end) {pool}_grow();"
+        "self = ({name}*){pool}_next;"
+        "{pool}_next = {pool}_next + sizeof({name});"
+        "return self;"
+        "}"
+        "static inline void {pool}_give({name}* self) \{"
+        "*({name}**)self = {pool}_free;"
+        "{pool}_free = self;"
+        "}"
+    ]
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{pool}_grow")
+    output.runtime_place("{pool}_take")
+    output.runtime_place("{pool}_give")
+}
+
+func print_allocate(layout: Layout) {
+    var name = layout.c_name
+    var identity = naming.class_id_of(layout)
+    var lines = List<String>()
+    lines.append("{name}* {name}___allocate(void) \{")
+    if layout.allocation == "pool" {
+        lines.append("{name}* self = {name}___pool_take();")
+    } else {
+        lines.append("{name}* self = ({name}*)SPITE_MALLOC(sizeof({name}));")
+    }
+    lines.append(
+        "if (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }",
+    )
+    lines.append("self->header.ref_count = 1;")
+    lines.append("self->header.class_id = {identity};")
+    if lowered.debug_memory {
+        lines.append("#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {identity});\n#endif")
+    }
+    lines.append("{name}___init(self);")
+    lines.append("return self;")
+    lines.append("}")
+    output.prototypes.append("{name}* {name}___allocate(void);")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}___allocate")
+}
+
+func field_releases(layout: Layout, holder: String): List<String> {
+    var lines = List<String>()
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var counted = counted_field(field)
+        if not counted.is_empty() {
+            lines.append("{counted}___release({holder}->{field.name}_);")
+        }
+        index = index + 1
+    }
+    return lines
+}
+
+func counted_field(field: Field): String {
+    if not field.spite_type {
+        output.refuse("the field '{field.name}' has no type")
+        return ""
+    }
+    return naming.counted_name(field.spite_type)
+}
+
+func drop_call(layout: Layout): String {
+    if not layout.information or not layout.information.drop_function {
+        return ""
+    }
+    var dropping = layout.information.drop_function
+    if not lowered.function_named(dropping.c_name) {
+        output.refuse("'{layout.qualified}' has a drop() the program does not hold, so releasing it cannot run it")
+        return ""
+    }
+    return "{dropping.c_name}(self);"
+}
+
+func print_counted(layout: Layout) {
+    var name = layout.c_name
+    output.prototypes.append("static inline {name}* {name}___retain({name}* self);")
+    output.prototypes.append("static inline void {name}___release({name}* self);")
+    output.prototypes.append("void {name}___free({name}* self);")
+    output.supports.append(
+        "static inline {name}* {name}___retain({name}* self) \{\nif (self != 0) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
+    )
+    output.supports.append(
+        "static inline void {name}___release({name}* self) \{\nif (self == 0) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{name}___free(self);\n}",
+    )
+    var lines = List<String>()
+    lines.append("void {name}___free({name}* self) \{")
+    var dropping = drop_call(layout)
+    if not dropping.is_empty() {
+        lines.append(dropping)
+    }
+    var released = field_releases(layout, "self")
+    var hidden = hidden_releases(name)
+    var released_text = released.join("\n")
+    lines.append(released_text)
+    var hidden_text = hidden.join("\n")
+    lines.append(hidden_text)
+    lines.append("#ifdef SPITE_WEAK_{name}\nspite_weak_object_freed(self);\n#endif")
+    if layout.allocation == "pool" {
+        lines.append("{name}___pool_give(self);")
+    } else {
+        lines.append("SPITE_FREE(self);")
+    }
+    lines.append("}")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}___retain")
+    output.runtime_place("{name}___release")
+    output.runtime_place("{name}___free")
+}
+
+func print_singleton(layout: Layout) {
+    var name = layout.c_name
+    output.need("singletons")
+    print_uncounted(layout)
+    output.prototypes.append("void {name}___destroy({name}* self);")
+    output.prototypes.append("void {name}___discard({name}* self);")
+    var destroy = List<String>()
+    destroy.append("void {name}___destroy({name}* self) \{")
+    destroy.append("if (self == 0) return;")
+    var dropping = drop_call(layout)
+    if not dropping.is_empty() {
+        destroy.append(dropping)
+    }
+    destroy.append("{name}___discard(self);")
+    destroy.append("}")
+    var destroy_text = destroy.join("\n")
+    output.supports.append(destroy_text)
+    var discard = List<String>()
+    discard.append("void {name}___discard({name}* self) \{")
+    discard.append("if (self == 0) return;")
+    var released = field_releases(layout, "self")
+    var hidden = hidden_releases(name)
+    var released_text = released.join("\n")
+    discard.append(released_text)
+    var hidden_text = hidden.join("\n")
+    discard.append(hidden_text)
+    discard.append("#ifdef SPITE_WEAK_{name}\nspite_weak_object_freed(self);\n#endif")
+    discard.append("spite_singleton_free_later(self);")
+    discard.append("}")
+    var discard_text = discard.join("\n")
+    output.supports.append(discard_text)
+    output.runtime_place("{name}___destroy")
+    output.runtime_place("{name}___discard")
+    if output.copied_layouts.contains(name) {
+        output.prototypes.append("{name}* {name}_copy({name}* self);")
+        output.supports.append("{name}* {name}_copy({name}* self) \{ return self; }")
+    }
+}
+
+func print_framed(layout: Layout) {
+    var name = layout.c_name
+    var identity = naming.class_id_of(layout)
+    output.need("framed")
+    output.prototypes.append("static {name}* {name}___framed({name}* self);")
+    output.prototypes.append("static void {name}___unframe({name}* self);")
+    output.supports.append(
+        "static {name}* {name}___framed({name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {identity};\n{name}___init(self);\nreturn self;\n}",
+    )
+    var lines = List<String>()
+    lines.append("static void {name}___unframe({name}* self) \{")
+    var dropping = drop_call(layout)
+    if not dropping.is_empty() {
+        lines.append(dropping)
+    }
+    var released = field_releases(layout, "self")
+    var released_text = released.join("\n")
+    lines.append(released_text)
+    lines.append("(void)self;")
+    lines.append("}")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}___framed")
+    output.runtime_place("{name}___unframe")
+}
+
+func print_copy(layout: Layout) {
+    var name = layout.c_name
+    var lines = List<String>()
+    lines.append("{name}* {name}_copy({name}* self) \{")
+    lines.append("{name}* spite_copy = {name}___allocate();")
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var copied = copied_field(field)
+        lines.append(copied)
+        index = index + 1
+    }
+    lines.append("return spite_copy;")
+    lines.append("}")
+    output.prototypes.append("{name}* {name}_copy({name}* self);")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}_copy")
+}
+
+func copied_field(field: Field): String {
+    var counted = counted_field(field)
+    if counted.is_empty() {
+        return "spite_copy->{field.name}_ = self->{field.name}_;"
+    }
+    return "spite_copy->{field.name}_ = {counted}___retain(self->{field.name}_);"
+}
+
+func print_union(layout: Layout) {
+    var name = layout.c_name
+    output.types.append("typedef void* {name};")
+    output.prototypes.append("{name} {name}___retain({name} self);")
+    output.prototypes.append("void {name}___release({name} self);")
+    output.supports.append(
+        "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
+    )
+    var lines = List<String>()
+    lines.append("void {name}___release({name} self) \{")
+    lines.append("if (self == 0) return;")
+    var index = 0
+    while index < layout.members.count() {
+        var member = layout.members[index]
+        var released = member_release(member, "self", "((SpiteHeader*)(self))->class_id")
+        if not released.is_empty() {
+            lines.append(released)
+        }
+        index = index + 1
+    }
+    lines.append("}")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}___retain")
+    output.runtime_place("{name}___release")
+}
+
+func print_tagged_union(layout: Layout) {
+    var name = layout.c_name
+    output.types.append("typedef SpiteTagged {name};")
+    output.prototypes.append("{name} {name}___retain({name} self);")
+    output.prototypes.append("void {name}___release({name} self);")
+    output.supports.append(
+        "{name} {name}___retain({name} self) \{\nif (self.plain == 0 && self.value.object != 0) SPITE_COUNT_UP(((SpiteHeader*)self.value.object)->ref_count);\nreturn self;\n}",
+    )
+    var lines = List<String>()
+    lines.append("void {name}___release({name} self) \{")
+    lines.append("if (self.plain != 0 || self.value.object == 0) return;")
+    var index = 0
+    while index < layout.members.count() {
+        var member = layout.members[index]
+        var released = member_release(member, "self.value.object", "(self).tag")
+        if not released.is_empty() {
+            lines.append(released)
+        }
+        index = index + 1
+    }
+    lines.append("}")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}___retain")
+    output.runtime_place("{name}___release")
+}
+
+func member_release(member: String, object: String, tag: String): String {
+    var layout = lowered.layout_named(member)
+    if not layout {
+        output.refuse("a union holds '{member}', which has no layout")
+        return ""
+    }
+    var identity = naming.class_id_of(layout)
+    if member == "SpiteString" {
+        output.need("string box")
+        return "if ({tag} == {identity}) \{ spite_string_box_release({object}); return; }"
+    }
+    if layout.is_value {
+        return ""
+    }
+    return "if ({tag} == {identity}) \{ {member}___release(({member}*){object}); return; }"
+}

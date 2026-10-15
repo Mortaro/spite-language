@@ -1,0 +1,454 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-form
+var shape = Analysis.TypeShape()
+var output = Output()
+var lowered = Lowered()
+
+func c_type(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        output.refuse("a value has no type, so its C type cannot be written")
+        return "void"
+    }
+    var scalar = shape.as_scalar(spite_type)
+    if scalar {
+        return scalar_c_type(scalar.kind)
+    }
+    if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
+        return "SpiteString"
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        return class_c_type(class_ref.c_name)
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return nullable_c_type(nullable)
+    }
+    var enumerated = shape.as_enum(spite_type)
+    if enumerated {
+        return enumerated.c_name
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        return "{label(spite_type)}*"
+    }
+    if shape.as_dictionary(spite_type) {
+        return "{label(spite_type)}*"
+    }
+    var united = shape.as_union(spite_type)
+    if united {
+        return united.c_name
+    }
+    if shape.is_void(spite_type) {
+        return "void"
+    }
+    if shape.is_arguments(spite_type) {
+        return "SpiteArguments"
+    }
+    output.refuse("a type the printer has no C type for")
+    return "void"
+}
+
+func class_c_type(c_name: String): String {
+    var layout = lowered.layout_named(c_name)
+    if layout and layout.is_value {
+        return value_c_type(layout)
+    }
+    return "{c_name}*"
+}
+
+func value_c_type(layout: Layout): String {
+    if not layout.value_type {
+        output.refuse("the value class '{layout.qualified}' does not say which value it is (Layout.value_type)")
+        return "void"
+    }
+    return c_type(layout.value_type)
+}
+
+func nullable_c_type(nullable: Analysis.Types.NullableType): String {
+    var inner = nullable.inner
+    if is_reference(inner) {
+        return c_type(inner)
+    }
+    var struct_name = "Nullable_{label(inner)}"
+    if not output.nullable_labels.contains(struct_name) {
+        output.nullable_labels.append(struct_name)
+        var held = c_type(inner)
+        output.nullable_types.append("typedef struct \{ bool has_value; {held} value; } {struct_name};")
+    }
+    return struct_name
+}
+
+func scalar_c_type(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "int32_t"
+        'long_kind': return "int64_t"
+        'tiny_kind': return "int8_t"
+        'short_kind': return "int16_t"
+        'byte_kind': return "uint8_t"
+        'unsigned_short_kind': return "uint16_t"
+        'unsigned_integer_kind': return "uint32_t"
+        'unsigned_long_kind': return "uint64_t"
+        'address_kind': return "int64_t"
+        'float_kind': return "float"
+        'double_kind': return "double"
+        _: return "bool"
+    }
+}
+
+func label(spite_type: Analysis.SpiteType): String {
+    var scalar = shape.as_scalar(spite_type)
+    if scalar {
+        return scalar_label(scalar.kind)
+    }
+    if shape.as_string(spite_type) {
+        return "String"
+    }
+    if shape.is_symbol(spite_type) {
+        return "Symbol"
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        return class_ref.c_name
+    }
+    var enumerated = shape.as_enum(spite_type)
+    if enumerated {
+        return enumerated.c_name
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        var element = listed.element
+        return "List_{label(element)}"
+    }
+    var dictionary = shape.as_dictionary(spite_type)
+    if dictionary {
+        return dictionary_label(dictionary)
+    }
+    var united = shape.as_union(spite_type)
+    if united {
+        return united.c_name
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return "Nullable_{label(inner)}"
+    }
+    return "Value"
+}
+
+func dictionary_label(dictionary: Analysis.Types.DictionaryType): String {
+    var element = dictionary.element
+    var key = dictionary.key
+    var suffix = ""
+    if not shape.as_string(key) {
+        suffix = "_by_{label(key)}"
+    }
+    return "Dictionary_{label(element)}{suffix}"
+}
+
+func scalar_label(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "Integer"
+        'long_kind': return "Long"
+        'tiny_kind': return "Tiny"
+        'short_kind': return "Short"
+        'byte_kind': return "Byte"
+        'unsigned_short_kind': return "UnsignedShort"
+        'unsigned_integer_kind': return "UnsignedInteger"
+        'unsigned_long_kind': return "UnsignedLong"
+        'address_kind': return "Memory_Address"
+        'float_kind': return "Float"
+        'double_kind': return "Double"
+        _: return "Boolean"
+    }
+}
+
+func display(spite_type: Analysis.SpiteType): String {
+    var scalar = shape.as_scalar(spite_type)
+    if scalar {
+        if scalar.kind == 'address_kind' {
+            return "Memory.Address"
+        }
+        return scalar_label(scalar.kind)
+    }
+    return label(spite_type)
+}
+
+func with_article(name: String): String {
+    var vowels = ["A", "E", "I", "O", "U"]
+    var first_letter = name.slice(0, 1)
+    if vowels.contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+func is_reference(spite_type: Analysis.SpiteType): Boolean {
+    if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
+        return true
+    }
+    if shape.as_list(spite_type) or shape.as_dictionary(spite_type) or shape.as_union(spite_type) {
+        return true
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        return not is_value_class(class_ref.c_name)
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return is_reference(inner)
+    }
+    return false
+}
+
+func is_value_class(c_name: String): Boolean {
+    var layout = lowered.layout_named(c_name)
+    if not layout {
+        return false
+    }
+    return layout.is_value
+}
+
+func is_tagged(spite_type: Analysis.SpiteType): Boolean {
+    var united = shape.as_union(spite_type)
+    if not united {
+        var nullable = shape.as_nullable(spite_type)
+        if not nullable {
+            return false
+        }
+        var inner = nullable.inner
+        return is_tagged(inner)
+    }
+    var layout = lowered.layout_named(united.c_name)
+    if not layout {
+        output.refuse("the union '{united.c_name}' has no layout, so whether it is tagged is not known")
+        return false
+    }
+    return layout.kind == "tagged union"
+}
+
+func counted_name(spite_type: Analysis.SpiteType): String {
+    if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
+        return "SpiteString"
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        if is_value_class(class_ref.c_name) {
+            return ""
+        }
+        return class_ref.c_name
+    }
+    if shape.as_list(spite_type) or shape.as_dictionary(spite_type) {
+        return label(spite_type)
+    }
+    var united = shape.as_union(spite_type)
+    if united {
+        return united.c_name
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return counted_name(inner)
+    }
+    return ""
+}
+
+func zero(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        output.refuse("a field has no type, so its starting value cannot be written")
+        return "0"
+    }
+    var scalar = shape.as_scalar(spite_type)
+    if scalar {
+        return scalar_zero(scalar.kind)
+    }
+    if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
+        return "SPITE_STRING_EMPTY"
+    }
+    var enumerated = shape.as_enum(spite_type)
+    if enumerated {
+        return first_enum_value(enumerated)
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return null_value(nullable)
+    }
+    if is_tagged(spite_type) {
+        return "SPITE_TAGGED_NULL"
+    }
+    return "0"
+}
+
+func first_enum_value(enumerated: Analysis.Types.EnumType): String {
+    var first = enumerated.values.first()
+    if not first {
+        output.refuse("the enum '{enumerated.c_name}' has no values")
+        return "0"
+    }
+    return "{enumerated.c_name}_{first}"
+}
+
+func scalar_zero(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'boolean_kind': return "false"
+        'float_kind': return "0.0f"
+        'double_kind': return "0.0"
+        _: return "0"
+    }
+}
+
+func null_value(nullable: Analysis.Types.NullableType): String {
+    var inner = nullable.inner
+    if shape.as_string(inner) or shape.is_symbol(inner) {
+        return "SPITE_STRING_NULL"
+    }
+    if is_tagged(inner) {
+        return "SPITE_TAGGED_NULL"
+    }
+    if is_reference(inner) {
+        return "0"
+    }
+    var struct_name = nullable_c_type(nullable)
+    return "(({struct_name})\{ .has_value = false })"
+}
+
+func kind_of(spite_type: Analysis.SpiteType?): Analysis.Types.NumericKind? {
+    assert spite_type
+    var scalar = shape.as_scalar(spite_type)
+    assert scalar
+    return scalar.kind
+}
+
+func is_signed(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind' or kind == 'address_kind'
+}
+
+func is_unsigned(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind' or kind == 'unsigned_long_kind'
+}
+
+func is_decimal(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'float_kind' or kind == 'double_kind'
+}
+
+func is_whole(kind: Analysis.Types.NumericKind): Boolean {
+    return is_signed(kind) or is_unsigned(kind)
+}
+
+func bits(kind: Analysis.Types.NumericKind): Integer {
+    switch kind {
+        'tiny_kind': return 8
+        'byte_kind': return 8
+        'short_kind': return 16
+        'unsigned_short_kind': return 16
+        'integer_kind': return 32
+        'unsigned_integer_kind': return 32
+        'float_kind': return 32
+        'boolean_kind': return 1
+        _: return 64
+    }
+}
+
+func limit_name(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'tiny_kind': return "INT8"
+        'byte_kind': return "UINT8"
+        'short_kind': return "INT16"
+        'unsigned_short_kind': return "UINT16"
+        'integer_kind': return "INT32"
+        'unsigned_integer_kind': return "UINT32"
+        'unsigned_long_kind': return "UINT64"
+        _: return "INT64"
+    }
+}
+
+func widens(from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): Boolean {
+    if is_decimal(to) or to == 'boolean_kind' {
+        return true
+    }
+    if is_decimal(from) {
+        return false
+    }
+    var from_bits = bits(from)
+    var to_bits = bits(to)
+    if from_bits > to_bits {
+        return false
+    }
+    var from_signed = is_signed(from)
+    if from_signed == is_signed(to) {
+        return true
+    }
+    return not from_signed and from_bits < to_bits
+}
+
+func operand_cast(kind: Analysis.Types.NumericKind): String {
+    if is_unsigned(kind) {
+        return "(uint64_t)"
+    }
+    return "(int64_t)"
+}
+
+func layout_of(spite_type: Analysis.SpiteType?): Layout? {
+    assert spite_type
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        return lowered.layout_named(class_ref.c_name)
+    }
+    if shape.as_list(spite_type) or shape.as_dictionary(spite_type) {
+        var named = label(spite_type)
+        return lowered.layout_named(named)
+    }
+    var united = shape.as_union(spite_type)
+    if united {
+        return lowered.layout_named(united.c_name)
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return layout_of(nullable.inner)
+    }
+    return null
+}
+
+func class_id_of(layout: Layout): Integer {
+    if not layout.information {
+        output.refuse("the layout '{layout.c_name}' has no class, so its class id is not known")
+        return 0
+    }
+    return layout.information.class_id
+}
+
+func escape_c(text: String): String {
+    var result = List<String>()
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        var piece = escaped_code(code, text, index)
+        result.append(piece)
+        index = index + 1
+    }
+    return result.join("")
+}
+
+func escaped_code(code: Integer, text: String, index: Integer): String {
+    switch code {
+        34: return "\\\""
+        92: return "\\\\"
+        10: return "\\n"
+        13: return "\\r"
+        9: return "\\t"
+        63: return "\\?"
+        _: {
+            if code < 32 or code > 126 {
+                return octal(code)
+            }
+            return text.slice(index, index + 1)
+        }
+    }
+}
+
+func octal(code: Integer): String {
+    var high = code / 64
+    var middle = code / 8 % 8
+    var low = code % 8
+    return "\\{high}{middle}{low}"
+}

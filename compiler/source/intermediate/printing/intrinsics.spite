@@ -1,0 +1,670 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-intrinsics
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+var sites = Sites()
+var shape = Analysis.TypeShape()
+
+func print(body: Body, operation: Operation) {
+    var parts = operation.callee.split(".")
+    var word = parts.last()
+    var owner = parts.first()
+    if not word or not owner or parts.count() < 2 {
+        body.refuse("it calls '{operation.callee}', which names no intrinsic")
+        return
+    }
+    switch owner {
+        "String": print_string(body, operation, word)
+        "Symbol": print_symbol(body, operation, word)
+        "Nullable": print_nullable(body, operation, word)
+        "Union": print_union(body, operation, word)
+        "Reference": print_reference(body, operation, word)
+        "Object": print_object(body, operation, word)
+        "Arguments": print_arguments(body, operation, word)
+        "Enum": print_enum(body, operation, word)
+        "Boolean": print_boolean(body, operation, word)
+        _: print_number(body, operation, word)
+    }
+}
+
+func print_symbol(body: Body, operation: Operation, word: String) {
+    switch word {
+        "text": symbol_text(body, operation)
+        "equals": symbol_equals(body, operation)
+        _: body.refuse("it calls 'Symbol.{word}', which is no intrinsic")
+    }
+}
+
+func symbol_text(body: Body, operation: Operation) {
+    var text = body.operand(operation, 0)
+    body.assign(operation.result, text)
+}
+
+func symbol_equals(body: Body, operation: Operation) {
+    var first_number = body.operand_number(operation, 0)
+    var second_number = body.operand_number(operation, 1)
+    var first_tag = body.tag_expression(first_number)
+    var second_tag = body.tag_expression(second_number)
+    if not first_tag.is_empty() and not second_tag.is_empty() {
+        body.assign(operation.result, "({first_tag} == {second_tag})")
+        return
+    }
+    string_equals(body, operation)
+}
+
+func print_reference(body: Body, operation: Operation, word: String) {
+    if word != "equals" {
+        body.refuse("it calls 'Reference.{word}', which is no intrinsic")
+        return
+    }
+    var first = body.operand(operation, 0)
+    var second = body.operand(operation, 1)
+    var compared = body.operand_type(operation, 0)
+    assert compared
+    if naming.is_tagged(compared) {
+        body.assign(
+            operation.result,
+            "(({first}).tag == ({second}).tag && ({first}).plain == ({second}).plain && ({first}).value.bits == ({second}).value.bits)",
+        )
+        return
+    }
+    if shape.as_string(compared) or shape.is_symbol(compared) {
+        body.assign(
+            operation.result,
+            "(({first})._bytes_ == ({second})._bytes_ && ({first})._length_ == ({second})._length_)",
+        )
+        return
+    }
+    body.assign(operation.result, "((void*)({first}) == (void*)({second}))")
+}
+
+func print_object(body: Body, operation: Operation, word: String) {
+    if word != "copy" {
+        body.refuse("it calls 'Object.{word}', which is no intrinsic")
+        return
+    }
+    var copied = body.operand(operation, 0)
+    var copied_type = body.operand_type(operation, 0)
+    var layout = naming.layout_of(copied_type)
+    if not layout or layout.kind != "class" or layout.is_value {
+        body.refuse("it copies something that is not an object of a class")
+        return
+    }
+    if not output.copied_layouts.contains(layout.c_name) {
+        output.copied_layouts.append(layout.c_name)
+    }
+    body.assign(operation.result, "{layout.c_name}_copy({copied})")
+}
+
+func print_arguments(body: Body, operation: Operation, word: String) {
+    var arguments = body.operand(operation, 0)
+    switch word {
+        "count": body.assign(operation.result, "((int32_t)SpiteArguments_count(&{arguments}))")
+        "get": arguments_get(body, operation, arguments)
+        "flag": arguments_flag(body, operation, arguments)
+        _: body.refuse("it calls 'Arguments.{word}', which is no intrinsic")
+    }
+}
+
+func arguments_get(body: Body, operation: Operation, arguments: String) {
+    var position = body.operand(operation, 1)
+    body.assign(operation.result, "SpiteArguments_get(&{arguments}, (int64_t)({position}))")
+}
+
+func arguments_flag(body: Body, operation: Operation, arguments: String) {
+    var flag = body.operand(operation, 1)
+    body.assign(operation.result, "SpiteArguments_lookup(&{arguments}, spite_string_bytes(&{flag}))")
+}
+
+func print_enum(body: Body, operation: Operation, word: String) {
+    if word != "to_integer" {
+        print_number(body, operation, word)
+        return
+    }
+    var converted = body.operand(operation, 0)
+    body.assign(operation.result, "((int32_t)({converted}))")
+}
+
+func print_boolean(body: Body, operation: Operation, word: String) {
+    if word != "and" {
+        print_number(body, operation, word)
+        return
+    }
+    var first = body.operand(operation, 0)
+    var second = body.operand(operation, 1)
+    body.assign(operation.result, "({first} && {second})")
+}
+
+func print_number(body: Body, operation: Operation, word: String) {
+    switch word {
+        "sum": arithmetic(body, operation, "+", "__builtin_add_overflow")
+        "subtract": arithmetic(body, operation, "-", "__builtin_sub_overflow")
+        "multiply": arithmetic(body, operation, "*", "__builtin_mul_overflow")
+        "divide": division(body, operation)
+        "remainder": remainder(body, operation)
+        "equals": comparison(body, operation, "==")
+        "less_than": comparison(body, operation, "<")
+        "greater_than": comparison(body, operation, ">")
+        "negate": negation(body, operation)
+        "not": logical_not(body, operation)
+        _: conversion(body, operation, word)
+    }
+}
+
+func number_kind(body: Body, operation: Operation): Analysis.Types.NumericKind? {
+    var computed = body.operand_type(operation, 0)
+    var kind = naming.kind_of(computed)
+    if not kind {
+        body.refuse("it calls '{operation.callee}' on something that is not a number")
+    }
+    return kind
+}
+
+func located(body: Body, operation: Operation): String {
+    if operation.site < 0 {
+        body.refuse("the checked '{operation.callee}' has no site to report from")
+        return "\"\""
+    }
+    return sites.located(operation.site)
+}
+
+func overflow_failure(kind: Analysis.Types.NumericKind): String {
+    if naming.is_unsigned(kind) {
+        output.need("overflowed unsigned")
+        return "spite_overflowed_unsigned"
+    }
+    output.need("overflowed")
+    return "spite_overflowed"
+}
+
+func shown_type(body: Body, operation: Operation): String {
+    var computed = body.operand_type(operation, 0)
+    if not computed {
+        return "a number"
+    }
+    var shown = naming.display(computed)
+    return naming.with_article(shown)
+}
+
+func operand_c_type(body: Body, operation: Operation): String {
+    var computed = body.operand_type(operation, 0)
+    return naming.c_type(computed)
+}
+
+func arithmetic(body: Body, operation: Operation, symbol: String, builtin: String) {
+    var first = body.operand(operation, 0)
+    var second = body.operand(operation, 1)
+    var kind = number_kind(body, operation)
+    assert kind
+    var written = operand_c_type(body, operation)
+    if not naming.is_whole(kind) or operation.form == "unchecked" {
+        body.assign(operation.result, "({written})({first} {symbol} {second})")
+        return
+    }
+    if operation.form == "wrapping" {
+        var bits = naming.bits(kind)
+        body.assign(operation.result, "({written})((uint{bits}_t){first} {symbol} (uint{bits}_t){second})")
+        return
+    }
+    var target = body.result_name(operation)
+    var failure = overflow_failure(kind)
+    var place = located(body, operation)
+    var text = sites.source_text(operation.site)
+    var shown = shown_type(body, operation)
+    var cast = naming.operand_cast(kind)
+    body.emit(
+        "if (__builtin_expect({builtin}({first}, {second}, &{target}), 0)) {failure}(\"{text}\", \"{shown}\", \"{symbol}\", {cast}{first}, {cast}{second}, {place});",
+    )
+}
+
+func zero_check(body: Body, operation: Operation, divisor: String) {
+    assert operation.form != "nonzero"
+    output.need("divided by zero")
+    var place = located(body, operation)
+    var text = sites.source_text(operation.site)
+    body.emit("if (__builtin_expect({divisor} == 0, 0)) spite_divided_by_zero(\"{text}\", {place});")
+}
+
+func division(body: Body, operation: Operation) {
+    var dividend = body.operand(operation, 0)
+    var divisor = body.operand(operation, 1)
+    var kind = number_kind(body, operation)
+    assert kind
+    var written = operand_c_type(body, operation)
+    if naming.is_decimal(kind) or operation.form == "unchecked" {
+        body.assign(operation.result, "({written})({dividend} / {divisor})")
+        return
+    }
+    zero_check(body, operation, divisor)
+    if not naming.is_signed(kind) {
+        body.assign(operation.result, "({written})({dividend} / {divisor})")
+        return
+    }
+    output.need("overflowed")
+    var target = body.result_name(operation)
+    var place = located(body, operation)
+    var text = sites.source_text(operation.site)
+    var shown = shown_type(body, operation)
+    body.emit(
+        "if ({divisor} == -1) \{ if (__builtin_expect(__builtin_sub_overflow(({written})0, {dividend}, &{target}), 0)) spite_overflowed(\"{text}\", \"{shown}\", \"/\", (int64_t){dividend}, (int64_t){divisor}, {place}); } else {target} = ({written})({dividend} / {divisor});",
+    )
+}
+
+func remainder(body: Body, operation: Operation) {
+    var dividend = body.operand(operation, 0)
+    var divisor = body.operand(operation, 1)
+    var kind = number_kind(body, operation)
+    assert kind
+    var written = operand_c_type(body, operation)
+    if naming.is_decimal(kind) {
+        decimal_remainder(body, operation, kind)
+        return
+    }
+    if operation.form == "unchecked" {
+        body.assign(operation.result, "({written})({dividend} % {divisor})")
+        return
+    }
+    zero_check(body, operation, divisor)
+    if not naming.is_signed(kind) {
+        body.assign(operation.result, "({written})({dividend} % {divisor})")
+        return
+    }
+    body.assign(operation.result, "({divisor} == -1 ? ({written})0 : ({written})({dividend} % {divisor}))")
+}
+
+func decimal_remainder(body: Body, operation: Operation, kind: Analysis.Types.NumericKind) {
+    var dividend = body.operand(operation, 0)
+    var divisor = body.operand(operation, 1)
+    output.need("maths")
+    var library_function = "fmod"
+    if kind == 'float_kind' {
+        library_function = "fmodf"
+    }
+    body.assign(operation.result, "{library_function}({dividend}, {divisor})")
+}
+
+func comparison(body: Body, operation: Operation, symbol: String) {
+    var first = body.operand(operation, 0)
+    var second = body.operand(operation, 1)
+    body.assign(operation.result, "({first} {symbol} {second})")
+}
+
+func logical_not(body: Body, operation: Operation) {
+    var first = body.operand(operation, 0)
+    body.assign(operation.result, "(!{first})")
+}
+
+func negation(body: Body, operation: Operation) {
+    var negated = body.operand(operation, 0)
+    var kind = number_kind(body, operation)
+    assert kind
+    var written = operand_c_type(body, operation)
+    if not naming.is_whole(kind) or operation.form == "unchecked" {
+        body.assign(operation.result, "({written})(-{negated})")
+        return
+    }
+    if operation.form == "wrapping" {
+        var bits = naming.bits(kind)
+        body.assign(operation.result, "({written})(0 - (uint{bits}_t){negated})")
+        return
+    }
+    var target = body.result_name(operation)
+    var failure = overflow_failure(kind)
+    var place = located(body, operation)
+    var text = sites.source_text(operation.site)
+    var shown = shown_type(body, operation)
+    var cast = naming.operand_cast(kind)
+    body.emit(
+        "if (__builtin_expect(__builtin_sub_overflow(({written})0, {negated}, &{target}), 0)) {failure}(\"{text}\", \"{shown}\", \"-\", {cast}0, {cast}{negated}, {place});",
+    )
+}
+
+func conversion(body: Body, operation: Operation, word: String) {
+    if not word.starts_with("to_") {
+        body.refuse("it calls '{operation.callee}', which is no intrinsic the printer knows")
+        return
+    }
+    var converted = body.operand(operation, 0)
+    var from = body.operand_type(operation, 0)
+    var to = body.type_of(operation.result)
+    var from_kind = naming.kind_of(from)
+    var to_kind = naming.kind_of(to)
+    if not from_kind or not to_kind or not from or not to {
+        body.refuse("it calls '{operation.callee}' between values that are not both numbers")
+        return
+    }
+    var written = naming.c_type(to)
+    if not needs_check(from_kind, to_kind) or operation.form == "unchecked" {
+        body.assign(operation.result, "(({written})({converted}))")
+        return
+    }
+    var outside = outside_condition(converted, from_kind, to_kind)
+    var failure = narrowing_failure(from_kind)
+    var place = located(body, operation)
+    var widened = naming.operand_cast(from_kind)
+    if naming.is_decimal(from_kind) {
+        widened = "(double)"
+    }
+    var from_shown = naming.display(from)
+    var to_shown = naming.display(to)
+    var from_name = naming.with_article(from_shown)
+    var to_name = naming.with_article(to_shown)
+    body.emit(
+        "if (__builtin_expect({outside}, 0)) {failure}({widened}{converted}, \"{from_name}\", \"{to_name}\", {place});",
+    )
+    body.assign(operation.result, "(({written}){converted})")
+}
+
+func needs_check(from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): Boolean {
+    if not naming.is_whole(to) {
+        return false
+    }
+    if naming.is_decimal(from) {
+        return true
+    }
+    return naming.is_whole(from) and not naming.widens(from, to)
+}
+
+func narrowing_failure(kind: Analysis.Types.NumericKind): String {
+    if naming.is_decimal(kind) {
+        output.need("narrowed decimal")
+        return "spite_narrowed_decimal"
+    }
+    if naming.is_unsigned(kind) {
+        output.need("narrowed unsigned")
+        return "spite_narrowed_unsigned"
+    }
+    output.need("narrowed")
+    return "spite_narrowed"
+}
+
+func outside_condition(value: String, from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): String {
+    var limit = naming.limit_name(to)
+    var to_bits = naming.bits(to)
+    if naming.is_decimal(from) {
+        return decimal_outside(value, to, to_bits, limit)
+    }
+    var from_signed = naming.is_signed(from)
+    var to_signed = naming.is_signed(to)
+    if from_signed and to_signed {
+        return "{value} < {limit}_MIN || {value} > {limit}_MAX"
+    }
+    if from_signed {
+        return "{value} < 0 || {value} > {limit}_MAX"
+    }
+    return "{value} > {limit}_MAX"
+}
+
+func decimal_outside(value: String, to: Analysis.Types.NumericKind, to_bits: Integer, limit: String): String {
+    if naming.is_unsigned(to) {
+        return "!((double){value} > -1.0 && (double){value} < {power_of_two(to_bits)})"
+    }
+    if to_bits == 64 {
+        return "!((double){value} >= -9223372036854775808.0 && (double){value} < 9223372036854775808.0)"
+    }
+    return "!((double){value} > (double){limit}_MIN - 1.0 && (double){value} < (double){limit}_MAX + 1.0)"
+}
+
+func power_of_two(bits: Integer): String {
+    switch bits {
+        8: return "256.0"
+        16: return "65536.0"
+        32: return "4294967296.0"
+        _: return "18446744073709551616.0"
+    }
+}
+
+func print_string(body: Body, operation: Operation, word: String) {
+    switch word {
+        "join": join(body, operation)
+        "equals": string_equals(body, operation)
+        _: body.refuse("it calls 'String.{word}', which is no intrinsic")
+    }
+}
+
+func join(body: Body, operation: Operation) {
+    var parts = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var part = body.operand(operation, index)
+        parts.append(part)
+        index = index + 1
+    }
+    if parts.is_empty() {
+        body.assign(operation.result, "SPITE_STRING_EMPTY")
+        return
+    }
+    body.assign(operation.result, "spite_string_join({parts.count()}, (SpiteString[]) \{ {parts.join(", ")} })")
+}
+
+func string_equals(body: Body, operation: Operation) {
+    var first = body.operand(operation, 0)
+    var second = body.operand(operation, 1)
+    output.need("string same")
+    body.assign(operation.result, "spite_string_same({first}, {second})")
+}
+
+func print_nullable(body: Body, operation: Operation, word: String) {
+    switch word {
+        "has": nullable_has(body, operation)
+        "value": nullable_value(body, operation)
+        "wrap": nullable_wrap(body, operation)
+        _: body.refuse("it calls 'Nullable.{word}', which is no intrinsic")
+    }
+}
+
+func nullable_inner(body: Body, operation: Operation): Analysis.SpiteType? {
+    var tested = body.operand_type(operation, 0)
+    assert tested
+    var nullable = shape.as_nullable(tested)
+    if not nullable {
+        body.refuse("it calls '{operation.callee}' on a value that cannot be null")
+        return null
+    }
+    return nullable.inner
+}
+
+func nullable_has(body: Body, operation: Operation) {
+    var tested = body.operand(operation, 0)
+    var inner = nullable_inner(body, operation)
+    assert inner
+    if shape.as_string(inner) or shape.is_symbol(inner) {
+        body.assign(operation.result, "(!SPITE_STRING_IS_NULL({tested}))")
+        return
+    }
+    if naming.is_tagged(inner) {
+        body.assign(operation.result, "SPITE_TAGGED_PRESENT({tested})")
+        return
+    }
+    if naming.is_reference(inner) {
+        body.assign(operation.result, "({tested} != 0)")
+        return
+    }
+    body.assign(operation.result, "({tested}).has_value")
+}
+
+func nullable_value(body: Body, operation: Operation) {
+    var tested = body.operand(operation, 0)
+    var inner = nullable_inner(body, operation)
+    assert inner
+    if naming.is_reference(inner) {
+        body.assign(operation.result, tested)
+        return
+    }
+    body.assign(operation.result, "({tested}).value")
+}
+
+func nullable_wrap(body: Body, operation: Operation) {
+    var wrapped = body.operand(operation, 0)
+    var made = body.type_of(operation.result)
+    assert made
+    var nullable = shape.as_nullable(made)
+    if not nullable {
+        body.refuse("it calls 'Nullable.wrap' into a value that is not nullable")
+        return
+    }
+    var inner = nullable.inner
+    if naming.is_reference(inner) {
+        body.assign(operation.result, wrapped)
+        return
+    }
+    var written = naming.c_type(made)
+    body.assign(operation.result, "(({written})\{ .has_value = true, .value = {wrapped} })")
+}
+
+func print_union(body: Body, operation: Operation, word: String) {
+    switch word {
+        "tag": union_tag(body, operation)
+        "value": union_value(body, operation)
+        "wrap": union_wrap(body, operation)
+        _: body.refuse("it calls 'Union.{word}', which is no intrinsic")
+    }
+}
+
+func union_tag(body: Body, operation: Operation) {
+    var tested = body.operand(operation, 0)
+    var tested_type = body.operand_type(operation, 0)
+    var answered = body.type_of(operation.result)
+    assert tested_type and answered
+    var tag = "(((SpiteHeader*)({tested}))->class_id)"
+    if naming.is_tagged(tested_type) {
+        tag = "({tested}).tag"
+    }
+    if shape.as_scalar(answered) {
+        body.assign(operation.result, tag)
+        return
+    }
+    body.tag_sources[operation.result] = tag
+}
+
+func union_value(body: Body, operation: Operation) {
+    var held = body.operand(operation, 0)
+    var held_type = body.operand_type(operation, 0)
+    var made = body.type_of(operation.result)
+    assert held_type and made
+    var written = naming.c_type(made)
+    if naming.is_tagged(held_type) {
+        tagged_value(body, operation, held, made)
+        return
+    }
+    if shape.as_string(made) {
+        body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}))->value)")
+        return
+    }
+    if not naming.is_reference(made) {
+        body.refuse("it reads a '{written}' out of a union that holds only objects")
+        return
+    }
+    body.assign(operation.result, "(({written})({held}))")
+}
+
+func tagged_value(body: Body, operation: Operation, held: String, made: Analysis.SpiteType) {
+    var written = naming.c_type(made)
+    if shape.as_string(made) {
+        body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}).value.object)->value)")
+        return
+    }
+    if naming.is_tagged(made) {
+        body.assign(operation.result, held)
+        return
+    }
+    if naming.is_reference(made) {
+        body.assign(operation.result, "(({written})({held}).value.object)")
+        return
+    }
+    body.assign(operation.result, "SPITE_TAGGED_VALUE({held}, {written})")
+}
+
+func union_wrap(body: Body, operation: Operation) {
+    var made = body.type_of(operation.result)
+    var given = body.operand_type(operation, 0)
+    assert made and given
+    if naming.is_tagged(made) {
+        tagged_wrap(body, operation, given)
+        return
+    }
+    plain_wrap(body, operation, made, given)
+}
+
+func plain_wrap(body: Body, operation: Operation, made: Analysis.SpiteType, given: Analysis.SpiteType) {
+    var wrapped = body.operand(operation, 0)
+    if naming.is_tagged(given) {
+        body.refuse("it puts a value of a tagged union into a union of objects")
+        return
+    }
+    if shape.as_string(given) {
+        var boxed = string_box(body, operation, wrapped)
+        body.assign(operation.result, boxed)
+        return
+    }
+    if not naming.is_reference(given) {
+        body.refuse("it puts a value that is not an object into a union of objects")
+        return
+    }
+    var written = naming.c_type(made)
+    body.assign(operation.result, "(({written})({wrapped}))")
+}
+
+func tagged_wrap(body: Body, operation: Operation, given: Analysis.SpiteType) {
+    var wrapped = body.operand(operation, 0)
+    if naming.is_tagged(given) {
+        body.assign(operation.result, wrapped)
+        return
+    }
+    if shape.as_union(given) {
+        body.assign(operation.result, "spite_tagged_from_pointer((void*)({wrapped}))")
+        return
+    }
+    if shape.as_string(given) {
+        var string_layout = string_identity(body)
+        var boxed = string_box(body, operation, wrapped)
+        body.assign(operation.result, "spite_tagged_object({string_layout}, {boxed})")
+        return
+    }
+    var scalar = shape.as_scalar(given)
+    if scalar {
+        var maker = tagged_maker(body, scalar.kind)
+        body.assign(operation.result, "{maker}({wrapped})")
+        return
+    }
+    var layout = naming.layout_of(given)
+    if not layout {
+        body.refuse("it puts a value into a tagged union whose class has no layout")
+        return
+    }
+    var identity = naming.class_id_of(layout)
+    body.assign(operation.result, "spite_tagged_object({identity}, (void*)({wrapped}))")
+}
+
+func string_identity(body: Body): Integer {
+    var string_layout = lowered.layout_named("SpiteString")
+    if not string_layout {
+        body.refuse("text is put in a tagged union, and the program has no String layout")
+        return 0
+    }
+    return naming.class_id_of(string_layout)
+}
+
+func string_box(body: Body, operation: Operation, wrapped: String): String {
+    var number = body.operand_number(operation, 0)
+    var literal = body.string_constants[number]
+    if literal {
+        var boxed = sites.boxed_literal(literal)
+        return "((void*)&{boxed})"
+    }
+    output.need("string box")
+    return "spite_box_SpiteString({wrapped})"
+}
+
+func tagged_maker(body: Body, kind: Analysis.Types.NumericKind): String {
+    var value_class = "Spite{naming.scalar_label(kind)}"
+    var layout = lowered.layout_named(value_class)
+    if not layout {
+        body.refuse("a number is put in a tagged union, and the program has no layout '{value_class}' to tag it with")
+        return "spite_missing"
+    }
+    if not output.tagged_makers.contains(value_class) {
+        output.tagged_makers.append(value_class)
+    }
+    return "spite_tagged_{value_class}"
+}

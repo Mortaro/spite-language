@@ -6,6 +6,10 @@ var stored_fields = List<Field>()
 var is_value = false
 var is_singleton = false
 var arrangement = "object"
+var kind = "class"
+var members = List<String>()
+var allocation = "heap"
+var value_type: Analysis.SpiteType? = null
 
 func Layout(starting_c_name: String, starting_qualified: String) {
     c_name = starting_c_name

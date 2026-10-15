@@ -1,0 +1,944 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+var sites = Sites()
+var intrinsics = Intrinsics()
+var shape = Analysis.TypeShape()
+var function = Function("", "", "")
+var lines = List<String>()
+var declarations = List<String>()
+var parameter_names = Dictionary<Integer, String>()
+var string_constants = Dictionary<Integer, String>()
+var tag_sources = Dictionary<Integer, String>()
+var tag_constants = Dictionary<Integer, String>()
+
+func print(printed: Function) {
+    function = printed
+    assert printed.intrinsic.is_empty() or printed.intrinsic == "supplied"
+    lines = List<String>()
+    declarations = List<String>()
+    parameter_names = Dictionary<Integer, String>()
+    string_constants = Dictionary<Integer, String>()
+    tag_sources = Dictionary<Integer, String>()
+    tag_constants = Dictionary<Integer, String>()
+    note_parameters()
+    if printed.intrinsic == "supplied" {
+        print_supplied()
+        return
+    }
+    if not printed.not_lowered.is_empty() {
+        output.refuse("'{printed.c_name}' ({printed.owner}.{printed.name}) cannot be written: {printed.not_lowered}")
+        return
+    }
+    if not printed.singleton_of.is_empty() {
+        print_singleton_maker()
+        return
+    }
+    print_lowered(printed.c_name, "")
+}
+
+func print_lowered(c_name: String, storage: String) {
+    declare_values()
+    print_blocks()
+    var heading = signature(c_name)
+    output.prototypes.append("{storage}{heading};")
+    var declared = declarations.join("\n")
+    var written = lines.join("\n")
+    output.bodies.append("{storage}{heading} \{\n{declared}\n{written}\n}")
+    note_place(c_name)
+}
+
+func print_singleton_maker() {
+    var layout = lowered.layout_named(function.singleton_of)
+    if not layout {
+        refuse("it makes the singleton '{function.singleton_of}', which has no layout")
+        return
+    }
+    if layout.allocation == "static" {
+        print_static_getter(layout)
+        return
+    }
+    var maker = "{function.c_name}___make"
+    print_lowered(maker, "static ")
+    output.need("singletons")
+    var getter = function.c_name
+    var name = layout.c_name
+    var shown = naming.escape_c(layout.qualified)
+    var answered = answer_type()
+    var getter_lines = [
+        "static {answered} {getter}_cache = 0;"
+        "static bool {getter}_destroyed = false;"
+        "static int32_t {getter}_lock = 0;"
+        "static void {getter}_teardown(void) \{"
+        "{answered} object = {getter}_cache;"
+        "{getter}_cache = 0;"
+        "{getter}_destroyed = true;"
+        "{name}___destroy(object);"
+        "}"
+        "{answered} {getter}(void) \{"
+        "{answered} found = SPITE_SINGLETON_FOUND({getter}_cache);"
+        "if (found != 0) return found;"
+        "spite_singleton_check_circle(\"{shown}\");"
+        "SPITE_LOCK({getter}_lock);"
+        "if ({getter}_cache == 0) \{"
+        "if ({getter}_destroyed) spite_singleton_used_after_exit(\"{shown}\");"
+        "spite_singleton_making(\"{shown}\");"
+        "{answered} made = {maker}();"
+        "spite_singleton_made();"
+        "spite_singleton_created({getter}_teardown);"
+        "SPITE_SINGLETON_PUBLISH({getter}_cache, made);"
+        "}"
+        "SPITE_UNLOCK({getter}_lock);"
+        "return {getter}_cache;"
+        "}"
+    ]
+    output.prototypes.append("{answered} {getter}(void);")
+    var getter_text = getter_lines.join("\n")
+    output.bodies.append(getter_text)
+    output.runtime_place("{getter}_teardown")
+    output.runtime_place(getter)
+}
+
+func print_static_getter(layout: Layout) {
+    if not layout.stored_fields.is_empty() {
+        refuse(
+            "the singleton '{layout.qualified}' is kept in static memory, which cannot hold the starting values of its fields",
+        )
+        return
+    }
+    var identity = naming.class_id_of(layout)
+    var getter = function.c_name
+    var answered = answer_type()
+    output.prototypes.append("{answered} {getter}(void);")
+    output.bodies.append(
+        "{answered} {getter}(void) \{\nstatic {layout.c_name} spite_object = \{ \{ 1, {identity} } };\nreturn &spite_object;\n}",
+    )
+    output.runtime_place(getter)
+}
+
+func tag_expression(number: Integer): String {
+    var source = tag_sources[number]
+    if source {
+        return source
+    }
+    var constant = tag_constants[number]
+    if constant {
+        return constant
+    }
+    return ""
+}
+
+func note_parameters() {
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        parameter_names[parameter.value] = "{parameter.name}_"
+        index = index + 1
+    }
+}
+
+func print_supplied() {
+    if not function.source {
+        output.refuse("the supplied function '{function.c_name}' has no source, so its body is not known")
+        return
+    }
+    var supplied = function.source.supplied_body
+    if supplied.is_empty() {
+        output.refuse("the supplied function '{function.c_name}' has no supplied body")
+        return
+    }
+    if supplied.ends_with("the schema hash, written when the function is emitted */") {
+        output.refuse("'{function.c_name}' answers a schema hash, which the printer does not work out")
+        return
+    }
+    if supplied.starts_with("#define") {
+        output.macros.append(supplied)
+        return
+    }
+    var heading = signature(function.c_name)
+    output.prototypes.append("{heading};")
+    output.bodies.append("{heading} \{\n{supplied}\n}")
+    note_place(function.c_name)
+}
+
+func signature(c_name: String): String {
+    var parts = List<String>()
+    if function.receiver >= 0 {
+        var receiving = receiver_type()
+        parts.append("{receiving} self")
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var written = naming.c_type(parameter.spite_type)
+        parts.append("{written} {parameter.name}_")
+        index = index + 1
+    }
+    if parts.is_empty() {
+        parts.append("void")
+    }
+    var answered = answer_type()
+    return "{answered} {c_name}({parts.join(", ")})"
+}
+
+func receiver_type(): String {
+    if function.receiver < 0 or function.receiver >= function.values.count() {
+        output.refuse("'{function.c_name}' has a receiver but no value for it")
+        return "void*"
+    }
+    var receiver = function.value_at(function.receiver)
+    return naming.c_type(receiver.spite_type)
+}
+
+func answer_type(): String {
+    if not function.answer {
+        return "void"
+    }
+    return naming.c_type(function.answer)
+}
+
+func answers_nothing(): Boolean {
+    if not function.answer {
+        return true
+    }
+    return shape.is_void(function.answer)
+}
+
+func note_place(c_name: String) {
+    var owner = lowered.layout_named(function.owner)
+    if not function.source or not owner {
+        output.runtime_place(c_name)
+        return
+    }
+    var file = function.source.source_path
+    if file.is_empty() and owner.information {
+        file = owner.information.source_path
+    }
+    output.place(c_name, "{file}\t{owner.qualified}", function.name, function.source.line)
+}
+
+func declare_values() {
+    var index = 0
+    while index < function.values.count() {
+        var value = function.values[index]
+        if is_declared(value.number) {
+            var written = naming.c_type(value.spite_type)
+            declarations.append("{written} v{value.number};")
+        }
+        index = index + 1
+    }
+}
+
+func is_declared(number: Integer): Boolean {
+    if number < 0 or number >= function.values.count() {
+        return false
+    }
+    if function.receiver >= 0 and number == function.receiver or parameter_names.has(number) {
+        return false
+    }
+    var value = function.value_at(number)
+    if not value.spite_type {
+        return false
+    }
+    return not shape.is_void(value.spite_type)
+}
+
+func name_of(number: Integer): String {
+    if function.receiver >= 0 and number == function.receiver {
+        return "self"
+    }
+    var parameter = parameter_names[number]
+    if parameter {
+        return parameter
+    }
+    if tag_sources.has(number) {
+        refuse(
+            "a union's tag v{number} is used as a value, and the printer writes a tag only to compare it or switch on it",
+        )
+        return "0"
+    }
+    if not is_declared(number) {
+        output.refuse("'{function.c_name}' reads the value v{number}, which holds nothing it can name")
+        return "0"
+    }
+    return "v{number}"
+}
+
+func type_of(number: Integer): Analysis.SpiteType? {
+    if number < 0 or number >= function.values.count() {
+        output.refuse("'{function.c_name}' reads the value v{number}, which it does not have")
+        return null
+    }
+    var value = function.value_at(number)
+    return value.spite_type
+}
+
+func operand_number(operation: Operation, index: Integer): Integer {
+    if index >= operation.operands.count() {
+        output.refuse("a '{operation.kind}' in '{function.c_name}' has no operand {index}")
+        return -1
+    }
+    return operation.operands[index]
+}
+
+func operand(operation: Operation, index: Integer): String {
+    var number = operand_number(operation, index)
+    if number < 0 {
+        return "0"
+    }
+    return name_of(number)
+}
+
+func operand_type(operation: Operation, index: Integer): Analysis.SpiteType? {
+    var number = operand_number(operation, index)
+    assert number >= 0
+    return type_of(number)
+}
+
+func emit(line: String) {
+    lines.append(line)
+}
+
+func declare(line: String) {
+    declarations.append(line)
+}
+
+func assign(result: Integer, expression: String) {
+    if not is_declared(result) {
+        lines.append("{expression};")
+        return
+    }
+    lines.append("{name_of(result)} = {expression};")
+}
+
+func result_name(operation: Operation): String {
+    if not is_declared(operation.result) {
+        output.refuse("a '{operation.callee}' in '{function.c_name}' makes no value to write its answer into")
+        return "spite_missing"
+    }
+    return name_of(operation.result)
+}
+
+func refuse(why: String) {
+    output.refuse("'{function.c_name}' ({function.owner}.{function.name}): {why}")
+}
+
+func print_blocks() {
+    if function.blocks.is_empty() {
+        refuse("it has no blocks")
+        return
+    }
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        lines.append("block_{block.number}:;")
+        print_operations(block)
+        print_terminator(block.terminator)
+        index = index + 1
+    }
+}
+
+func print_operations(block: Block) {
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        print_operation(operation)
+        index = index + 1
+    }
+}
+
+func print_operation(operation: Operation) {
+    switch operation.kind {
+        "constant": print_constant(operation)
+        "call": print_call(operation)
+        "load": print_load(operation)
+        "store": print_store(operation)
+        "make": print_make(operation)
+        "retain": print_retain(operation)
+        "release": print_release(operation)
+        "site": print_site(operation)
+        _: refuse("an operation '{operation.kind}', which the printer does not write")
+    }
+}
+
+func print_constant(operation: Operation) {
+    var made = type_of(operation.result)
+    if not made {
+        refuse("a constant '{operation.literal}' of no type")
+        return
+    }
+    if shape.as_string(made) or shape.is_symbol(made) {
+        string_constants[operation.result] = operation.literal
+    }
+    var tagged_class = lowered.layout_named(operation.literal)
+    if shape.is_symbol(made) and tagged_class {
+        var identity = naming.class_id_of(tagged_class)
+        tag_constants[operation.result] = identity
+    }
+    var written = constant_text(made, operation.literal)
+    assign(operation.result, written)
+}
+
+func constant_text(made: Analysis.SpiteType, literal: String): String {
+    var nullable = shape.as_nullable(made)
+    if nullable {
+        return nullable_constant(nullable, literal)
+    }
+    if shape.as_string(made) or shape.is_symbol(made) {
+        return sites.literal(literal)
+    }
+    if shape.is_arguments(made) {
+        return "spite_program_arguments"
+    }
+    var enumerated = shape.as_enum(made)
+    if enumerated {
+        var value = literal.replace("'", "")
+        return "{enumerated.c_name}_{value}"
+    }
+    var scalar = shape.as_scalar(made)
+    if not scalar {
+        refuse("a constant '{literal}' of a type that has no literal")
+        return "0"
+    }
+    return scalar_constant(scalar.kind, literal)
+}
+
+func nullable_constant(nullable: Analysis.Types.NullableType, literal: String): String {
+    if literal == "null" {
+        return naming.null_value(nullable)
+    }
+    var inner = nullable.inner
+    var held = constant_text(inner, literal)
+    if naming.is_reference(inner) {
+        return held
+    }
+    var written = naming.c_type(nullable)
+    return "(({written})\{ .has_value = true, .value = {held} })"
+}
+
+func scalar_constant(kind: Analysis.Types.NumericKind, literal: String): String {
+    if kind == 'boolean_kind' {
+        return boolean_constant(literal)
+    }
+    if naming.is_decimal(kind) {
+        return decimal_constant(kind, literal)
+    }
+    return whole_constant(kind, literal)
+}
+
+func boolean_constant(literal: String): String {
+    if literal != "true" and literal != "false" {
+        refuse("a Boolean constant '{literal}'")
+    }
+    return literal
+}
+
+func whole_constant(kind: Analysis.Types.NumericKind, literal: String): String {
+    if literal == "-9223372036854775808" {
+        return "INT64_MIN"
+    }
+    if literal == "-2147483648" {
+        return "INT32_MIN"
+    }
+    if not is_whole_literal(literal) {
+        refuse("a whole number constant '{literal}' that is not written in digits")
+        return "0"
+    }
+    switch kind {
+        'long_kind': return "{literal}LL"
+        'address_kind': return "{literal}LL"
+        'unsigned_long_kind': return "{literal}ULL"
+        'unsigned_integer_kind': return "{literal}U"
+        _: return literal
+    }
+}
+
+func is_whole_literal(literal: String): Boolean {
+    var digits = literal
+    if digits.starts_with("-") {
+        var digits_length = digits.length()
+        digits = digits.slice(1, digits_length)
+    }
+    var allowed = "0123456789"
+    if digits.starts_with("0x") {
+        var hex_length = digits.length()
+        digits = digits.slice(2, hex_length)
+        allowed = "0123456789abcdefABCDEF"
+    }
+    if digits.is_empty() {
+        return false
+    }
+    var index = 0
+    while index < digits.length() {
+        var character = digits.character_at(index)
+        if not allowed.contains(character) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func decimal_constant(kind: Analysis.Types.NumericKind, literal: String): String {
+    var suffix = ""
+    var precision = ""
+    if kind == 'float_kind' {
+        suffix = "f"
+        precision = "f"
+    }
+    switch literal {
+        "infinity": return "__builtin_inf{precision}()"
+        "-infinity": return "(-__builtin_inf{precision}())"
+        "not_a_number": return "__builtin_nan{precision}(\"\")"
+        _: {}
+    }
+    if not is_decimal_literal(literal) {
+        refuse("a decimal constant '{literal}' that is not written in digits")
+        return "0"
+    }
+    if literal.contains(".") or literal.contains("e") or literal.contains("E") {
+        return "{literal}{suffix}"
+    }
+    return "{literal}.0{suffix}"
+}
+
+func is_decimal_literal(literal: String): Boolean {
+    if literal.is_empty() {
+        return false
+    }
+    var index = 0
+    while index < literal.length() {
+        var character = literal.character_at(index)
+        if not "0123456789.-+eE".contains(character) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func print_call(operation: Operation) {
+    var callee = lowered.function_named(operation.callee)
+    if callee {
+        print_known_call(operation, callee)
+        return
+    }
+    if operation.callee.contains(".") {
+        intrinsics.print(this, operation)
+        return
+    }
+    if is_copy_call(operation.callee) {
+        print_plain_call(operation, operation.callee)
+        return
+    }
+    refuse("it calls '{operation.callee}', which the program does not hold")
+}
+
+func is_copy_call(callee: String): Boolean {
+    if not callee.ends_with("_copy") {
+        return false
+    }
+    var callee_length = callee.length()
+    var copied = callee.slice(0, callee_length - 5)
+    var layout = lowered.layout_named(copied)
+    if not layout {
+        return false
+    }
+    if not output.copied_layouts.contains(copied) {
+        output.copied_layouts.append(copied)
+    }
+    return true
+}
+
+func print_known_call(operation: Operation, callee: Function) {
+    if not callee.intrinsic.is_empty() and callee.intrinsic != "supplied" {
+        intrinsics.print(this, operation)
+        return
+    }
+    var expected = callee.parameters.count()
+    if callee.receiver >= 0 {
+        expected = expected + 1
+    }
+    if expected != operation.operands.count() {
+        refuse("it calls '{callee.c_name}' with {operation.operands.count()} values, and it takes {expected}")
+        return
+    }
+    print_plain_call(operation, callee.c_name)
+}
+
+func print_plain_call(operation: Operation, c_name: String) {
+    var arguments = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var argument = operand(operation, index)
+        arguments.append(argument)
+        index = index + 1
+    }
+    assign(operation.result, "{c_name}({arguments.join(", ")})")
+}
+
+func print_load(operation: Operation) {
+    var place = field_place(operation)
+    assign(operation.result, place)
+}
+
+func print_store(operation: Operation) {
+    var place = field_place(operation)
+    var stored = operand(operation, 1)
+    lines.append("{place} = {stored};")
+}
+
+func field_place(operation: Operation): String {
+    var holder = operand(operation, 0)
+    var holding = operand_type(operation, 0)
+    var layout = naming.layout_of(holding)
+    if not layout {
+        refuse("it reaches the field '{operation.field}' of something that is not an object")
+        return "spite_missing"
+    }
+    if layout.arrangement != "object" {
+        refuse(
+            "it reaches the field '{operation.field}' of '{layout.c_name}', arranged as '{layout.arrangement}', which the printer does not lay out",
+        )
+        return "spite_missing"
+    }
+    if not layout.field_named(operation.field) {
+        refuse("it reaches the field '{operation.field}', which '{layout.c_name}' does not have")
+        return "spite_missing"
+    }
+    if layout.is_value {
+        return "({holder}).{operation.field}_"
+    }
+    return "({holder})->{operation.field}_"
+}
+
+func print_make(operation: Operation) {
+    var layout = lowered.layout_named(operation.layout)
+    if not layout {
+        refuse("it makes '{operation.layout}', which has no layout")
+        return
+    }
+    if layout.is_value or layout.kind != "class" or layout.allocation == "static" {
+        refuse("it makes '{operation.layout}', which is not an object made at run time")
+        return
+    }
+    if operation.form == "framed" {
+        print_framed_make(operation, layout)
+        return
+    }
+    if not operation.form.is_empty() {
+        refuse("it makes '{operation.layout}' in the form '{operation.form}', which the printer does not write")
+        return
+    }
+    assign(operation.result, "{layout.c_name}___allocate()")
+}
+
+func print_framed_make(operation: Operation, layout: Layout) {
+    var slot = "spite_slot_{operation.result}"
+    declarations.append("{layout.c_name} {slot};")
+    if not output.framed_layouts.contains(layout.c_name) {
+        output.framed_layouts.append(layout.c_name)
+    }
+    assign(operation.result, "{layout.c_name}___framed(&{slot})")
+}
+
+func print_retain(operation: Operation) {
+    var counted = operand_type(operation, 0)
+    var held = operand(operation, 0)
+    var name = counted_name_of(counted)
+    if name.is_empty() {
+        refuse("it retains a value that is not counted")
+        return
+    }
+    assign(operation.result, "{name}___retain({held})")
+}
+
+func print_release(operation: Operation) {
+    var counted = operand_type(operation, 0)
+    var held = operand(operation, 0)
+    var name = counted_name_of(counted)
+    if name.is_empty() {
+        refuse("it releases a value that is not counted")
+        return
+    }
+    if operation.form == "framed" {
+        lines.append("{name}___unframe({held});")
+        return
+    }
+    lines.append("{name}___release({held});")
+}
+
+func counted_name_of(counted: Analysis.SpiteType?): String {
+    if not counted {
+        return ""
+    }
+    return naming.counted_name(counted)
+}
+
+func print_site(operation: Operation) {
+    assert operation.form != "unchecked"
+    var site = sites.site_at(operation.site)
+    if not site {
+        refuse("a check with no site")
+        return
+    }
+    var condition = operand(operation, 0)
+    var text = sites.source_text(operation.site)
+    switch site.kind {
+        "bounds": {
+            print_reported_check(
+                condition,
+                "spite_outside_list(\"{text}\", {sites.located(operation.site)});",
+                "outside list",
+            )
+        }
+        "division": {
+            print_reported_check(
+                condition,
+                "spite_divided_by_zero(\"{text}\", {sites.located(operation.site)});",
+                "divided by zero",
+            )
+        }
+        "crash": print_crash_check(operation, condition)
+        _: refuse("a check of the kind '{site.kind}', which the printer does not write")
+    }
+}
+
+func print_reported_check(condition: String, report: String, piece: String) {
+    output.need(piece)
+    lines.append("if (__builtin_expect(!({condition}), 0)) {report}")
+}
+
+func print_crash_check(operation: Operation, condition: String) {
+    lines.append("if (__builtin_expect(!({condition}), 0)) \{")
+    var shown = List<Integer>()
+    var index = 1
+    while index < operation.operands.count() {
+        var number = operand_number(operation, index)
+        shown.append(number)
+        index = index + 1
+    }
+    crash_report(operation.site, shown)
+    lines.append("}")
+}
+
+func print_terminator(terminator: Terminator) {
+    switch terminator.kind {
+        "jump": print_jump(terminator)
+        "branch": print_branch(terminator)
+        "switch": print_switch(terminator)
+        "return": print_return(terminator)
+        "halt": crash_report(terminator.site, terminator.operands)
+        _: refuse("a block ends in '{terminator.kind}', which the printer does not write")
+    }
+}
+
+func target_at(terminator: Terminator, index: Integer): Target? {
+    if index >= terminator.targets.count() {
+        refuse("a '{terminator.kind}' has no target {index}")
+        return null
+    }
+    return terminator.targets[index]
+}
+
+func terminator_operand(terminator: Terminator): Integer {
+    var first = terminator.operands.first()
+    if not first {
+        refuse("a '{terminator.kind}' has no value")
+        return -1
+    }
+    return first
+}
+
+func print_jump(terminator: Terminator) {
+    var target = target_at(terminator, 0)
+    assert target
+    var moved_text = transfer(target)
+    lines.append(moved_text)
+}
+
+func print_branch(terminator: Terminator) {
+    var taken = target_at(terminator, 0)
+    var dropped = target_at(terminator, 1)
+    assert taken and dropped
+    var tested_number = terminator_operand(terminator)
+    var tested = name_of(tested_number)
+    var first = transfer(taken)
+    var second = transfer(dropped)
+    lines.append("if ({tested}) \{ {first} } else \{ {second} }")
+}
+
+func print_switch(terminator: Terminator) {
+    var switched_number = terminator_operand(terminator)
+    var switched = tag_expression(switched_number)
+    if switched.is_empty() {
+        switched = name_of(switched_number)
+    }
+    var switched_type = type_of(switched_number)
+    lines.append("switch ({switched}) \{")
+    var covered = false
+    var index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var moved = transfer(target)
+        if target.tag.is_empty() or target.tag == "_" {
+            covered = true
+            lines.append("default: \{ {moved} }")
+        } else {
+            var label = case_label(target.tag, switched_type)
+            lines.append("case {label}: \{ {moved} }")
+        }
+        index = index + 1
+    }
+    if not covered {
+        output.need("switch missed")
+        var missed = naming.escape_c(function.c_name)
+        lines.append("default: spite_switch_missed(\"{missed}\");")
+    }
+    lines.append("}")
+}
+
+func case_label(tag: String, switched_type: Analysis.SpiteType?): String {
+    if switched_type {
+        var enumerated = shape.as_enum(switched_type)
+        if enumerated {
+            var value = tag.replace("'", "")
+            return "{enumerated.c_name}_{value}"
+        }
+    }
+    var layout = lowered.layout_named(tag)
+    if layout {
+        return naming.class_id_of(layout)
+    }
+    if not is_whole_literal(tag) {
+        refuse("a switch case '{tag}' that is neither an enum value, a class nor a number")
+    }
+    return tag
+}
+
+func transfer(target: Target): String {
+    if target.block < 0 or target.block >= function.blocks.count() {
+        refuse("a jump to block {target.block}, which it does not have")
+        return "abort();"
+    }
+    var arrived = function.block_at(target.block)
+    if arrived.parameters.count() != target.arguments.count() {
+        refuse(
+            "a jump hands block {target.block} {target.arguments.count()} values for {arrived.parameters.count()} parameters",
+        )
+        return "abort();"
+    }
+    if target.arguments.is_empty() {
+        return "goto block_{target.block};"
+    }
+    var held = List<String>()
+    var moved = List<String>()
+    var index = 0
+    while index < target.arguments.count() {
+        var argument = name_of(target.arguments[index])
+        crash arrived.parameters[index]
+        var parameter = name_of(arrived.parameters[index])
+        var parameter_type = type_of(arrived.parameters[index])
+        var written = naming.c_type(parameter_type)
+        held.append("{written} spite_moved_{index} = {argument};")
+        moved.append("{parameter} = spite_moved_{index};")
+        index = index + 1
+    }
+    return "\{ {held.join(" ")} {moved.join(" ")} } goto block_{target.block};"
+}
+
+func print_return(terminator: Terminator) {
+    if terminator.site >= 0 {
+        var answered = assert_answer()
+        output.need("assert trace")
+        lines.append("SPITE_TRACE_ASSERT({sites.assert_line(terminator.site, answered)});")
+    }
+    if terminator.operands.is_empty() {
+        if not answers_nothing() {
+            refuse("it answers a value, and a block returns none")
+        }
+        lines.append("return;")
+        return
+    }
+    var answered_number = terminator_operand(terminator)
+    var answered_value = name_of(answered_number)
+    lines.append("return {answered_value};")
+}
+
+func assert_answer(): String {
+    if not function.answer or shape.is_void(function.answer) {
+        return "nothing"
+    }
+    if shape.as_nullable(function.answer) {
+        return "null"
+    }
+    return "empty"
+}
+
+func crash_report(site_number: Integer, shown: List<Integer>) {
+    var site = sites.site_at(site_number)
+    if not site {
+        refuse("a crash with no site")
+        lines.append("abort();")
+        return
+    }
+    output.need("crash report")
+    lines.append("spite_crash_begin();")
+    lines.append("fflush(stdout);")
+    lines.append("fputs({sites.crash_line(site_number)}, stderr);")
+    var note_index = 0
+    while note_index < site.notes.count() {
+        var note = naming.escape_c(site.notes[note_index])
+        lines.append("fputs(\"\\t{note}\", stderr);")
+        note_index = note_index + 1
+    }
+    if shown.count() > site.shown.count() {
+        refuse("a crash shows {shown.count()} values and its site names {site.shown.count()}")
+    }
+    var index = 0
+    while index < shown.count() and index < site.shown.count() {
+        var shown_label = naming.escape_c(site.shown[index])
+        lines.append("fputs(\"\\t{shown_label}=\", stderr);")
+        report_value(shown[index])
+        index = index + 1
+    }
+    lines.append("fputs(\"\\n\", stderr);")
+    lines.append("spite_report_assert_trace();")
+    lines.append("exit(1);")
+}
+
+func report_value(number: Integer) {
+    var reported = type_of(number)
+    var written = name_of(number)
+    assert reported
+    if shape.as_string(reported) or shape.is_symbol(reported) {
+        lines.append("spite_crash_text(spite_string_bytes(&{written}), spite_string_length({written}));")
+        return
+    }
+    var enumerated = shape.as_enum(reported)
+    if enumerated {
+        lines.append("fputs({enumerated.c_name}___name({written}), stderr);")
+        return
+    }
+    var kind = naming.kind_of(reported)
+    if not kind {
+        refuse("a crash shows a value that is neither text, an enum nor a number")
+        return
+    }
+    var report_line = scalar_report(kind, written)
+    lines.append(report_line)
+}
+
+func scalar_report(kind: Analysis.Types.NumericKind, written: String): String {
+    if kind == 'boolean_kind' {
+        return "fputs({written} ? \"true\" : \"false\", stderr);"
+    }
+    if naming.is_decimal(kind) {
+        return "fprintf(stderr, \"%.17g\", (double){written});"
+    }
+    if naming.is_unsigned(kind) {
+        return "fprintf(stderr, \"%llu\", (unsigned long long){written});"
+    }
+    return "fprintf(stderr, \"%lld\", (long long){written});"
+}

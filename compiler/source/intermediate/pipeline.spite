@@ -1,0 +1,41 @@
+# ../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var generator: Generation.Generator? = null
+var error_message = ""
+
+func Pipeline(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+func run(): String {
+    crash generator
+    var lowering = Lowering(generator)
+    var lowered = lowering.lower()
+    settle_settings(lowered)
+    var passes = Passes()
+    passes.run(lowered)
+    var printer = Printer()
+    var written = printer.print(lowered)
+    var refused = printer.refusals()
+    if not refused.is_empty() {
+        error_message = "error: the C cannot be written from the high IR:\n{refused.join("\n")}"
+        return ""
+    }
+    return written
+}
+
+func has_error(): Boolean {
+    return not error_message.is_empty()
+}
+
+func settle_settings(lowered: Lowered) {
+    crash generator
+    lowered.debug_memory = generator.debug_memory
+    lowered.trace_asserts = generator.trace_asserts
+    lowered.bare_crash_sites = generator.bare_crash_sites
+    lowered.threads = generator.builder.threads
+    lowered.hot_reload = generator.hot_reload
+    lowered.read_evaluate_print_loop = generator.read_evaluate_print_loop or generator.remote_loop_port > 0
+    lowered.scheduler_used = generator.scheduler_used
+    lowered.class_names = generator.class_names_by_id
+    lowered.enums = generator.enums
+}

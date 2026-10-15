@@ -1,0 +1,162 @@
+# ../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var output = Intermediate.Printing.Output()
+var naming = Intermediate.Printing.Naming()
+var sites = Intermediate.Printing.Sites()
+var intrinsics = Intermediate.Printing.Intrinsics()
+var body = Intermediate.Printing.Body()
+var layouts = Intermediate.Printing.Layouts()
+var runtime = Intermediate.Printing.Runtime()
+
+func print(lowered: Lowered): String {
+    wire(lowered)
+    refuse_unbuilt(lowered)
+    lowered.enums.each(layouts.print_enum)
+    lowered.concrete_functions.each(body.print)
+    var macros = output.macros.join(" ")
+    var bodies = output.bodies.join(" ")
+    output.printed_text = "{macros} {bodies}"
+    lowered.enums.each(layouts.print_enum_names)
+    lowered.layouts.each(layouts.print)
+    note_maths()
+    var written = assembled(lowered)
+    note_reached(written)
+    return written
+}
+
+func refusals(): List<String> {
+    return output.refusals
+}
+
+func wire(lowered: Lowered) {
+    var made = Intermediate.Printing.Output()
+    output = made
+    naming.output = made
+    naming.lowered = lowered
+    sites.output = made
+    sites.lowered = lowered
+    sites.naming = naming
+    intrinsics.output = made
+    intrinsics.lowered = lowered
+    intrinsics.naming = naming
+    intrinsics.sites = sites
+    body.output = made
+    body.lowered = lowered
+    body.naming = naming
+    body.sites = sites
+    body.intrinsics = intrinsics
+    layouts.output = made
+    layouts.lowered = lowered
+    layouts.naming = naming
+    runtime.output = made
+    runtime.lowered = lowered
+    runtime.naming = naming
+}
+
+func refuse_unbuilt(lowered: Lowered) {
+    if lowered.hot_reload {
+        output.refuse("a --hot-reload build swaps code in a running program, which the printer does not write yet")
+    }
+    if lowered.read_evaluate_print_loop {
+        output.refuse("a REPL build answers questions about the running program, which the printer does not write yet")
+    }
+    if lowered.scheduler_used {
+        output.refuse("the program waits on concurrent work, whose state machines the printer does not write yet")
+    }
+    if lowered.entry == "main" {
+        output.refuse("the program starts at a function named 'main', which is the name of C's own entry")
+    }
+}
+
+func assembled(lowered: Lowered): String {
+    var types = types_text()
+    var declared = prototypes_text()
+    var supported = supports_text(lowered)
+    var bodies = output.bodies.join("\n")
+    return "{types}\n{declared}\n{supported}\n{bodies}\n{runtime.faults()}\n{runtime.main_function()}\n"
+}
+
+func types_text(): String {
+    var types = output.types.join("\n")
+    var nullable_types = output.nullable_types.join("\n")
+    var structs = output.structs.join("\n")
+    var site_lines = output.site_lines.join("\n")
+    var literal_lines = output.literal_lines.join("\n")
+    var macros = output.macros.join("\n")
+    return "{runtime.defines()}\n{runtime.header()}\n{runtime.early_types()}\n{runtime.assert_ring()}\n{runtime.string_layout()}\n{types}\n{runtime.prelude.structs()}\n{nullable_types}\n{structs}\n{site_lines}\n{literal_lines}\n{macros}"
+}
+
+func prototypes_text(): String {
+    var singletons = ""
+    if output.needs("singletons") {
+        singletons = runtime.singleton_prototypes()
+    }
+    var prototypes = output.prototypes.join("\n")
+    return "{runtime.string_prototypes()}\n{runtime.prelude.prototypes()}\n{singletons}\n{prototypes}"
+}
+
+func supports_text(lowered: Lowered): String {
+    var reporters = runtime.reporters()
+    var helpers = runtime.helpers()
+    var reported = reporters.join("\n")
+    var helped = helpers.join("\n")
+    var singletons = ""
+    if output.needs("singletons") {
+        singletons = runtime.singleton_supports()
+    }
+    var table = ""
+    if lowered.debug_memory {
+        table = runtime.allocation_table()
+    }
+    var supports = output.supports.join("\n")
+    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{singletons}\n{table}\n{supports}"
+}
+
+func note_maths() {
+    var names = [
+        "sqrt"
+        "sin("
+        "sinf("
+        "cos("
+        "cosf("
+        "tan("
+        "tanf("
+        "asin"
+        "acos"
+        "atan"
+        "pow("
+        "powf("
+        "exp("
+        "expf("
+        "exp2"
+        "log("
+        "logf("
+        "log2"
+        "log10"
+        "floor("
+        "floorf("
+        "ceil("
+        "ceilf("
+        "round("
+        "roundf("
+        "trunc("
+        "truncf("
+        "fmod"
+        "fabs"
+        "isnan"
+        "isinf"
+        "isfinite"
+        "fmin"
+        "fmax"
+        "cbrt"
+        "hypot"
+    ]
+    if names.any(output.printed_text.contains) {
+        output.need("maths")
+    }
+}
+
+func note_reached(written: String) {
+    if written.contains("spite_weak_table") or written.contains("spite_weak_find") {
+        output.refuse("the program holds a Weak reference, whose table the printer does not write yet")
+    }
+}

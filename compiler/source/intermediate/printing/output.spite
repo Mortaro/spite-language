@@ -1,0 +1,57 @@
+# ../../../../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+var types = List<String>()
+var nullable_types = List<String>()
+var structs = List<String>()
+var macros = List<String>()
+var prototypes = List<String>()
+var supports = List<String>()
+var bodies = List<String>()
+var places = List<String>()
+var refusals = List<String>()
+var needed = List<String>()
+var literal_names = Dictionary<String, String>()
+var literal_lines = List<String>()
+var boxed_literals = List<String>()
+var site_names = Dictionary<Integer, String>()
+var site_lines = List<String>()
+var nullable_labels = List<String>()
+var tagged_makers = List<String>()
+var framed_layouts = List<String>()
+var copied_layouts = List<String>()
+var printed_text = ""
+
+func refuse(why: String) {
+    if not refusals.contains(why) {
+        refusals.append(why)
+    }
+}
+
+func need(piece: String) {
+    if not needed.contains(piece) {
+        needed.append(piece)
+    }
+}
+
+func needs(piece: String): Boolean {
+    return needed.contains(piece)
+}
+
+func place(c_name: String, owner: String, name: String, line: Integer) {
+    var where = escaped_place(owner)
+    var named = escaped_place(name)
+    places.append("\{(const void*)&{c_name}, \"{where}\", \"{named}\", {line}},")
+}
+
+func runtime_place(c_name: String) {
+    places.append("\{(const void*)&{c_name}, \"-\\t-\", \"{c_name}\", 0},")
+}
+
+func escaped_place(text: String): String {
+    var backslashes = text.replace("\\", "\\\\")
+    var quotes = backslashes.replace("\"", "\\\"")
+    return quotes.replace("\t", "\\t")
+}
+
+func is_refused(): Boolean {
+    return not refusals.is_empty()
+}
