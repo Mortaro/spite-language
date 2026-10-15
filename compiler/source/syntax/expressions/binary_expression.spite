@@ -2,6 +2,8 @@ var operator: BinaryOperator = 'add'
 var left: Expression? = null
 var right: Expression? = null
 var is_text_join = false
+var lowered = ""
+var lowered_line = 0
 
 func BinaryExpression(starting_operator: BinaryOperator, left_expression: Expression, right_expression: Expression) {
     operator = starting_operator

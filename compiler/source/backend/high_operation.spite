@@ -19,6 +19,7 @@ var operands = List<Integer>()
 var operator = ""
 var literal = ""
 var condition_text = ""
+var syntax: Syntax.Expressions.BinaryExpression? = null
 
 func HighOperation(starting_kind: String, starting_line: Integer) {
     kind = starting_kind

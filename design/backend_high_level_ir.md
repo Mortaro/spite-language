@@ -240,17 +240,25 @@ What the printer writes today, and why the rest is not yet its:
 | reads and writes of such a field, through the receiver or a parameter | yes |
 | comparisons, `not`, and `and` and `or` (as the branches they are) | yes |
 | `if`, `while` and `return` | yes |
-| arithmetic | no: the generator decides per site whether an overflow check is needed, and writes the report it prints |
+| `+`, `-` and `*` on whole numbers, with or without their overflow check, and `/` and `%` where no check is needed | yes, with the generator's decision for that site (see below) |
+| `/` and `%` that check for zero or for the one quotient that overflows, and `%` on fractions | no: the printer does not write those checks yet |
 | a fraction's literal | no: the generator writes it with the precision of the value beside it |
 | calls | no: the generator names copies (`___held_0`, `___for_0_Integer`), inlines and folds |
 | a value of a class, a list, a text or a nullable type | no: retains and releases are the generator's |
 | `assert` and `crash` | no: their site and their report are the generator's |
 | a field of a singleton or a value class | no: the generator lays those out its own way |
-| a parameter the function owns (one not lent or held) | no: the generator releases it at the end |
+| a parameter the function owns (one not lent or held) | yes: released at every way out, last parameter first, unless its release may wait for another thread |
 | an answer of any type but a number or a Boolean | no: the generator converts to it (`Number`, a text from a number) |
 | a value written or answered as a number of another type (`Integer` into `Byte`) | no: the generator checks the narrowing |
-| a constructor | no: the generator wraps its body in the object it makes |
+| a constructor's body | yes: the object is made by `___make` around it, which is still the generator's |
 | an object parameter that is lent or held | yes: reading one to reach its fields borrows it |
+
+**Decisions still made by the generator, read as facts.** Whether an operation needs its overflow check is decided by
+the generator's range analysis (a counter that only counts up to a bound cannot overflow), which has not moved onto
+the high level yet. The generator records that decision on the expression it made it for (`lowered`: `plain`,
+`overflow`, `division`, `remainder` or `held`, and the line), never as C, and the printer writes the C for it. In the
+same way the generator says which parameters the function owns, and how each is released. Each such fact is a
+bridge: it goes when its decision is a pass over the high level.
 
 The printer writes control flow from the blocks' edges: a block that ends in a `loop` is a `while (1)` whose condition
 is printed inside it and leaves by `break`, a `branch` with `taken` and `dropped` edges is an `if` and its `else`, up to

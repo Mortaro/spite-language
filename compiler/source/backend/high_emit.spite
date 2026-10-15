@@ -4,6 +4,7 @@ var function = HighFunction("", "", "")
 var answers_nothing = true
 var answered_type: Analysis.SpiteType? = null
 var borrowed = List<String>()
+var releases = List<String>()
 var lines = List<String>()
 var refused = ""
 var names = Dictionary<Integer, String>()
@@ -157,13 +158,27 @@ func check_holder(operation: HighOperation) {
 
 func check_computation(operation: HighOperation) {
     if c_operator(operation.operator).is_empty() {
-        refuse("the operator '{operation.operator}', whose overflow check is still the generator's")
+        refuse("the operator '{operation.operator}', which the generator writes its own way")
+        return
     }
     var index = 0
     while index < operation.operands.count() {
         var operand = operation.operands[index]
         check_scalar(operand, "an operand")
         index = index + 1
+    }
+    assert operation.operator != "logical_not"
+    var first = operation.operands[0]
+    var second = operation.operands[1]
+    crash first
+    check_same_kind(second, first)
+    if not operation.syntax {
+        refuse("a computation the walk did not keep the expression of")
+        return
+    }
+    var lowered = operation.syntax.lowered
+    if lowered != "plain" and lowered != "overflow" {
+        refuse("a computation the generator writes as '{lowered}', which the printer does not write yet")
     }
 }
 
@@ -245,6 +260,16 @@ func c_operator(operator: String): String {
         written = ">="
     } else if operator == "logical_not" {
         written = "!"
+    } else if operator == "add" {
+        written = "+"
+    } else if operator == "subtract" {
+        written = "-"
+    } else if operator == "multiply" {
+        written = "*"
+    } else if operator == "divide" {
+        written = "/"
+    } else if operator == "modulo" {
+        written = "%"
     }
     return written
 }
@@ -375,10 +400,62 @@ func print_computation(operation: HighOperation) {
     }
     var second = operation.operands[1]
     crash second
+    if operation.syntax and operation.syntax.lowered == "overflow" {
+        print_checked(operation, operation.syntax, name, first, second)
+        return
+    }
     lines.append("{written} {name} = ({name_of(first)} {symbol} {name_of(second)});")
 }
 
+func generator_of(): Generation.Generator {
+    crash program
+    crash program.generator
+    return program.generator
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func print_checked(
+    operation: HighOperation,
+    syntax: Syntax.Expressions.BinaryExpression,
+    name: String,
+    first: Integer,
+    second: Integer,
+) {
+    crash program
+    var generator = generator_of()
+    var made = value_type(operation.result)
+    crash made
+    var scalar = types.as_scalar(made)
+    crash scalar
+    var written = c_type(operation.result)
+    var left = "{name}_left"
+    var right = "{name}_right"
+    lines.append("{written} {left} = {name_of(first)};")
+    lines.append("{written} {right} = {name_of(second)};")
+    lines.append("{written} {name};")
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = syntax
+    var spelled = printer.source_expression(expression)
+    var source = generator.escape_c_string(spelled)
+    var display = generator.type_display_name(made)
+    var shown = generator.with_article(display)
+    var symbol = generator.binary_operator_symbol(syntax.operator)
+    var cast = generator.operand_cast(scalar.kind)
+    var failure = generator.overflow_failure(scalar.kind)
+    var builtin = generator.overflow_builtin(syntax.operator)
+    var place = generator.located(
+        generator.current_path,
+        syntax.lowered_line,
+        generator.current_owner,
+        generator.current_function,
+    )
+    lines.append(
+        "if (__builtin_expect({builtin}({left}, {right}, &{name}), 0)) {failure}(\"{source}\", \"{shown}\", \"{symbol}\", {cast}{left}, {cast}{right}, {place});",
+    )
+}
+
 func print_return(operation: HighOperation) {
+    releases.each(lines.append)
     var answered = answered_by(operation)
     if answered < 0 {
         lines.append("return;")

@@ -11894,6 +11894,7 @@ func generate_unfolded_binary(
 ): ExpressionResult {
     crash binary.left
     crash binary.right
+    binary.lowered = ""
     if binary.operator == 'equal' or binary.operator == 'not_equal' {
         var tested_class = tested_class_of(binary.right, class_information)
         if tested_class {
@@ -12098,6 +12099,7 @@ func binary_after_left(
     if not decimal_remainder.is_empty() {
         code = "{decimal_remainder}({left_code}, {right_code})"
     }
+    note_lowered(binary, checked, guarded, decimal_remainder, held)
     if comparing {
         if not held.is_empty() {
             code = "(\{ {held.join(" ")} bool spite_same = {code}; {releases.join(" ")} spite_same; })"
@@ -12162,6 +12164,31 @@ func right_operand_code(
         return "(({c_type_name(left_type)})({right_value}))"
     }
     return cast(right_value, right_type, left_type)
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func note_lowered(
+    binary: Syntax.Expressions.BinaryExpression,
+    checked: String,
+    guarded: String,
+    decimal_remainder: String,
+    held: List<String>,
+) {
+    var lowered = "plain"
+    if not checked.is_empty() {
+        lowered = "division"
+    }
+    if not guarded.is_empty() {
+        lowered = "overflow"
+    }
+    if not decimal_remainder.is_empty() {
+        lowered = "remainder"
+    }
+    if not held.is_empty() {
+        lowered = "held"
+    }
+    binary.lowered = lowered
+    binary.lowered_line = current_line
 }
 
 func checked_division(
@@ -47297,12 +47324,14 @@ func print_from_high_level(information: Analysis.ClassInfo, function: Analysis.F
     assert not program.is_library(information)
     var why = why_the_generator_writes(function, body_start)
     if why.is_empty() {
+        var readable = List<String>()
+        var releases = List<String>()
+        note_parameter_ownership(function, readable, releases)
         var walk = Backend.HighWalk(program, information, function)
         crash walk.recorded
         walk.recorded.fold_facts()
-        var borrowed = function.lent_parameters.copy()
-        function.held_parameters.each(borrowed.append)
-        var emit = Backend.HighEmit(program, walk.recorded, function.return_type, borrowed)
+        var emit = Backend.HighEmit(program, walk.recorded, function.return_type, readable)
+        emit.releases = releases
         if emit.printed() {
             var end = builder.user_count()
             builder.remove_user_range(body_start, end)
@@ -47330,15 +47359,11 @@ func why_the_generator_writes(function: Analysis.FunctionInfo, body_start: Integ
     if function.result_slot {
         return "it answers into a result slot"
     }
-    if function.is_constructor {
-        return "it is a constructor, which the generator wraps in the object it makes"
-    }
     var index = 0
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
-        var owned = type_needs_drop(parameter.type)
-        if owned and not function.lent_parameters.contains(parameter.name) and not function.held_parameters.contains(parameter.name) {
-            return "it owns a parameter, which the generator releases"
+        if owns_parameter(function, parameter) and drop_may_wait(parameter.type) {
+            return "it owns a parameter whose release may wait for another thread"
         }
         index = index + 1
     }
@@ -47356,6 +47381,33 @@ func high_level_program(): Backend.HighProgram {
     made.prepare()
     high_level = made
     return made
+}
+
+func owns_parameter(function: Analysis.FunctionInfo, parameter: Analysis.ParamInfo): Boolean {
+    if function.lent_parameters.contains(parameter.name) or function.held_parameters.contains(parameter.name) {
+        return false
+    }
+    return type_needs_drop(parameter.type)
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func note_parameter_ownership(function: Analysis.FunctionInfo, readable: List<String>, releases: List<String>) {
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        readable.append(parameter.name)
+        index = index + 1
+    }
+    index = function.parameters.count() - 1
+    while index >= 0 {
+        var parameter = function.parameters[index]
+        crash parameter
+        if owns_parameter(function, parameter) {
+            var code = c_value_name(parameter.name)
+            releases.append("{release_call(parameter.type, code)};")
+        }
+        index = index - 1
+    }
 }
 
 # ../../../design/backend_high_level_ir.md#c-written-from-the-high-level

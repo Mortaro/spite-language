@@ -862,6 +862,7 @@ func walk_computation(binary: Syntax.Expressions.BinaryExpression): Integer {
     var right = walk_value(binary.right)
     var operation = add_operation("computation", current_line)
     operation.operator = binary.operator
+    operation.syntax = binary
     operation.reads_value(left)
     operation.reads_value(right)
     operation.takes(left)
