@@ -17,7 +17,7 @@ func header(): String {
 
 func defines(): String {
     var lines = List<String>()
-    if lowered.makes_threads {
+    if lowered.makes_threads or output.needs("threads") {
         lines.append("#define SPITE_THREADS")
     }
     if lowered.debug_memory {

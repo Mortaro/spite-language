@@ -28,7 +28,7 @@ func print(body: Body, operation: Operation) {
         "List": print_list(body, operation, word)
         "Foreign": print_foreign(body, operation, word)
         "Reflection": print_reflection(body, operation, word)
-        "Bands": body.assign(operation.result, "false")
+        "Bands": print_bands(body, operation)
         "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
         _: print_number(body, operation, word)
@@ -465,12 +465,39 @@ func crossed(argument: String, argument_type: Analysis.SpiteType, crossing: Stri
     return "({crossing})({argument})"
 }
 
+func pool_function(name: String): String {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        var owner = lowered.layout_named(candidate.owner)
+        if owner and owner.qualified == "ThreadPool" and (candidate.name == name or name == "maker" and not candidate.singleton_of.is_empty()) {
+            return candidate.c_name
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func piece_value(name: String, owner: String, piece: String): String {
+    return "Spite_Function {name}; memset(&{name}, 0, sizeof({name})); {name}.header.ref_count = SPITE_FRAMED_COUNT; {name}.spite_owner = (void*)({owner}); {name}.spite_typed_call = (void*)&{piece};"
+}
+
 func print_rows(body: Body, operation: Operation) {
     var names = operation.literal.split(",")
     if names.count() != operation.operands.count() {
         body.refuse("it runs a row of {names.count()} calls on {operation.operands.count()} receivers")
         return
     }
+    var pool = pool_function("maker")
+    var submit = pool_function("submit")
+    var joining = pool_function("join")
+    var parallel = not pool.is_empty() and not submit.is_empty() and not joining.is_empty() and lowered.layout_named("Spite_Function")
+    if parallel {
+        output.need("framed")
+        output.need("threads")
+        body.emit("\{ int64_t spite_row_states[{names.count()}];")
+    }
+    var calls = List<String>()
     var index = 0
     while index < names.count() {
         var receiver = body.operand(operation, index)
@@ -479,9 +506,83 @@ func print_rows(body: Body, operation: Operation) {
             body.refuse("it runs '{names[index]}' in a row, which the program does not hold")
             return
         }
-        body.emit("{called.c_name}({receiver});")
+        if parallel and index > 0 {
+            var piece = row_piece(called)
+            var value = piece_value("spite_row_piece_{index}", receiver, piece)
+            body.emit(
+                "{value} {submit}({pool}(), &spite_row_piece_{index}, 0, 1, (int64_t)(intptr_t)&spite_row_states[{index}]);",
+            )
+            calls.append("{joining}({pool}(), (int64_t)(intptr_t)&spite_row_states[{index}]);")
+        } else {
+            body.emit("{called.c_name}({receiver});")
+        }
         index = index + 1
     }
+    if parallel {
+        var joins = calls.join(" ")
+        body.emit(joins)
+        body.emit("}")
+    }
+}
+
+func row_piece(called: Function): String {
+    var piece = "spite_row_piece_{called.c_name}"
+    if output.forwarders.contains(piece) {
+        return piece
+    }
+    output.forwarders.append(piece)
+    var owner_type = "void*"
+    if called.receiver >= 0 {
+        var receiver = called.value_at(called.receiver)
+        owner_type = naming.c_type(receiver.spite_type)
+    }
+    output.prototypes.append("static void {piece}(void* owner, int32_t first, int32_t end);")
+    output.supports.append(
+        "static void {piece}(void* owner, int32_t first, int32_t end) \{\n(void)first; (void)end;\n{called.c_name}(({owner_type})owner);\n}",
+    )
+    output.runtime_place(piece)
+    return piece
+}
+
+func print_bands(body: Body, operation: Operation) {
+    var listed = body.operand(operation, 0)
+    var threshold = body.operand(operation, 1)
+    var listed_type = body.operand_type(operation, 0)
+    var layout = naming.layout_of(listed_type)
+    var member = lowered.function_named(operation.literal)
+    var pool = pool_function("maker")
+    var running = pool_function("run_bands")
+    if not layout or not member or not layout.information or layout.qualified != "List" or pool.is_empty() or running.is_empty() or not lowered.layout_named("Spite_Function") {
+        body.assign(operation.result, "false")
+        return
+    }
+    var piece = band_piece(layout, member)
+    output.need("framed")
+    output.need("threads")
+    var value = piece_value("spite_band_piece", listed, piece)
+    body.assign(
+        operation.result,
+        "(\{ {layout.c_name}* spite_band_list = {listed}; int32_t spite_band_n = spite_band_list->item_count_; bool spite_band_ok = spite_band_n >= {threshold}; for (int32_t spite_band_i = 0; spite_band_ok && spite_band_i < spite_band_n; spite_band_i++) spite_band_ok = ((SpiteHeader*)(((void**)(intptr_t)spite_band_list->items_)[spite_band_i]))->ref_count == 1; if (spite_band_ok) \{ {value} {running}({pool}(), &spite_band_piece, spite_band_n); } spite_band_ok; })",
+    )
+}
+
+func band_piece(layout: Layout, member: Function): String {
+    var piece = "spite_band_piece_{layout.c_name}_{member.c_name}"
+    if output.forwarders.contains(piece) {
+        return piece
+    }
+    output.forwarders.append(piece)
+    var item_type = "void*"
+    if member.receiver >= 0 {
+        var receiver = member.value_at(member.receiver)
+        item_type = naming.c_type(receiver.spite_type)
+    }
+    output.prototypes.append("static void {piece}(void* owner, int32_t first, int32_t end);")
+    output.supports.append(
+        "static void {piece}(void* owner, int32_t first, int32_t end) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\nfor (int32_t spite_index = first; spite_index < end; spite_index++) {member.c_name}((({item_type}*)(intptr_t)self->items_)[spite_index]);\n}",
+    )
+    output.runtime_place(piece)
+    return piece
 }
 
 func print_list(body: Body, operation: Operation, word: String) {
@@ -990,6 +1091,14 @@ func comparison(body: Body, operation: Operation, symbol: String) {
 
 func logical_not(body: Body, operation: Operation) {
     var first = body.operand(operation, 0)
+    var tested = body.operand_type(operation, 0)
+    assert tested
+    var nullable = shape.as_nullable(tested)
+    if nullable {
+        var present = presence(first, nullable.inner)
+        body.assign(operation.result, "(!{present})")
+        return
+    }
     body.assign(operation.result, "(!{first})")
 }
 
