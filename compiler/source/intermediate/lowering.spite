@@ -5,6 +5,7 @@ var types = Analysis.TypeShape()
 var made_singletons = 0
 var made_layouts = 0
 var foreign_written = false
+var made_reflections = 0
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -36,6 +37,11 @@ func lower(): Lowered {
         if instances.opens_foreign and not foreign_written {
             foreign_written = true
             write_foreign_runtime(instances)
+            settled = false
+        }
+        while made_reflections < instances.reflection_names.count() {
+            write_reflection(instances, made_reflections)
+            made_reflections = made_reflections + 1
             settled = false
         }
         while made_layouts < instances.layout_classes.count() {
@@ -296,4 +302,79 @@ func write_foreign_runtime(instances: Instances) {
         }
         index = index + 1
     }
+}
+
+func write_reflection(instances: Instances, position: Integer) {
+    crash instances.reflection_names[position]
+    crash instances.reflection_kinds[position]
+    crash instances.reflection_classes[position]
+    var name = instances.reflection_names[position]
+    var kind = instances.reflection_kinds[position]
+    var described = instances.reflection_classes[position]
+    if kind == "class_object" {
+        write_class_object(instances, name)
+        return
+    }
+    if kind == "namespace_object" {
+        crash instances.reflection_texts[position]
+        var dotted = instances.reflection_texts[position]
+        write_namespace_object(instances, name, dotted)
+        return
+    }
+    var function = synthetic_function(name, kind, described)
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var made = instances.front()
+    var function_class = made.find_class_by_c_name("Spite_Function")
+    crash function_class
+    var element = instances.class_type(function_class)
+    var answer = made.list_type_of(element)
+    function.answer = answer
+    var described_function = synthetic_description(kind, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    var listed = -1
+    if kind == "attributes" {
+        listed = reflection.attributes_of(described, function.receiver)
+        function.answer = emitter.type_of(listed)
+    } else {
+        listed = reflection.functions_of(described, function.receiver)
+    }
+    emitter.returns(listed)
+    finish_body(function, emitter)
+}
+
+func write_class_object(instances: Instances, name: String) {
+    var made = instances.front()
+    var class_class = made.find_class_by_c_name("Spite_Class")
+    crash class_class
+    var maker = synthetic_function(name, "class_object", class_class)
+    var class_type = instances.class_type(class_class)
+    maker.answer = class_type
+    maker.singleton_of = class_class.c_name
+    var described_function = synthetic_description("class_object", name, class_type)
+    var emitter = start_body(maker, class_class, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, class_class, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    var object = reflection.class_object(name)
+    emitter.returns(object)
+    finish_body(maker, emitter)
+}
+
+func write_namespace_object(instances: Instances, name: String, dotted: String) {
+    var made = instances.front()
+    var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+    crash namespace_class
+    var maker = synthetic_function(name, "namespace_object", namespace_class)
+    var namespace_type = instances.class_type(namespace_class)
+    maker.answer = namespace_type
+    maker.singleton_of = namespace_class.c_name
+    var described_function = synthetic_description("namespace_object", name, namespace_type)
+    var emitter = start_body(maker, namespace_class, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, namespace_class, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    var object = reflection.namespace_object(dotted)
+    emitter.returns(object)
+    finish_body(maker, emitter)
 }

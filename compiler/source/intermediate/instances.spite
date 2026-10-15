@@ -11,6 +11,10 @@ var singleton_names = List<String>()
 var singleton_arguments = List<List<Syntax.Expressions.Expression>>()
 var singleton_keys = Dictionary<String, Integer>()
 var opens_foreign = false
+var reflection_names = List<String>()
+var reflection_kinds = List<String>()
+var reflection_classes = List<Analysis.ClassInfo>()
+var reflection_texts = List<String>()
 
 func Instances(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -303,4 +307,14 @@ func field_declaration(information: Analysis.ClassInfo, name: String): Syntax.St
 
 func has_pending(): Boolean {
     return not pending_functions.is_empty()
+}
+
+func reflection_maker(name: String, kind: String, information: Analysis.ClassInfo, text: String): String {
+    if not reflection_names.contains(name) {
+        reflection_names.append(name)
+        reflection_kinds.append(kind)
+        reflection_classes.append(information)
+        reflection_texts.append(text)
+    }
+    return name
 }

@@ -196,3 +196,15 @@ Every function the lowering reaches is one the generator already made concrete: 
 (`List_Integer`), a template instance, a specialised copy. The lowering asks the generator to resolve a name, a
 type, a codegen value or a question folded while compiling, with the generator's own context set for the function
 it lowers, so the decision is made once, by the same code, and the IR holds only its answer.
+
+## Reflection as code
+
+What reflection reads at run time is written as ordinary code over the library's `Spite` classes, never as an
+intrinsic. A class object is a call of `spite_class_object_<label>`, a function the lowering writes with
+`singleton_of` set to `Spite_Class`: it makes the `Spite.Class`, stores its flags, and fills its attribute
+declarations and functions when the program asks for them. `value.attributes` and `value.functions` are calls of
+`<class>___attributes(value)` and `<class>___functions(value)`, which make each `Spite.Attribute`,
+`Spite.Function` and `Spite.Argument` with its constructor, store its index and value, and append it to a list. A
+listed function is bound to its object with `Function.bind`, the same intrinsic a function value uses. Only what
+the printer must know about C stays an intrinsic: the memory a value lives in (`Reflection.memory`) and the class
+of a union's value (`Reflection.class`).
