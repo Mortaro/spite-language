@@ -406,6 +406,10 @@ func print_supplied() {
         output.macros.append(supplied)
         return
     }
+    var inline_inner = held_inline(function)
+    if not inline_inner.is_empty() {
+        supplied = slot_hook(function.name, inline_inner)
+    }
     var kind = machines.waiting_kind(function)
     if lowered.makes_concurrents and not kind.is_empty() and kind != "join" {
         var waited = signature("{function.c_name}___waiting")
@@ -421,6 +425,41 @@ func print_supplied() {
     output.prototypes.append("{heading};")
     output.bodies.append("{heading} \{\n{supplied}\n}")
     note_place(function.c_name)
+}
+
+func held_inline(memory: Function): String {
+    var owner = lowered.layout_named(memory.owner)
+    if not owner or owner.qualified != "TypedMemory" or not owner.information {
+        return ""
+    }
+    var element = owner.information.codegen_types.first()
+    if not element {
+        return ""
+    }
+    var inner = naming.label(element)
+    if output.slot_inners.contains(inner) {
+        return inner
+    }
+    return ""
+}
+
+func slot_hook(name: String, inner: String): String {
+    var slot = "&(({inner}*)(intptr_t)address_)"
+    var slots = "(({inner}*)(intptr_t)address_)"
+    if not output.framed_layouts.contains(inner) {
+        output.framed_layouts.append(inner)
+    }
+    switch name {
+        "read_value": return "return {inner}___retain({slot}[index_]);"
+        "write_value": return "{inner}* spite_slot = {slot}[index_];\nmemcpy(spite_slot, value_, sizeof({inner}));\nspite_slot->header.ref_count = SPITE_FRAMED_COUNT;\nvalue_->items_ = 0;\nvalue_->item_count_ = 0;\nvalue_->capacity_ = 0;\n{inner}___release(value_);"
+        "release_value": return "{inner}___unframe({slot}[index_]);"
+        "value_bytes": return "return (int64_t)sizeof({inner});"
+        "swap_values": return "{inner} spite_held = {slots}[first_index_];\n{slots}[first_index_] = {slots}[second_index_];\n{slots}[second_index_] = spite_held;"
+        _: {
+            refuse("its list holds '{inner}' lists in place, and '{name}' has no form for them")
+            return ""
+        }
+    }
 }
 
 func signature(c_name: String): String {
@@ -977,6 +1016,14 @@ func print_borrowed_read(operation: Operation) {
     var index = operand(operation, 2)
     var answered = type_of(operation.result)
     var written = naming.c_type(answered)
+    var memory = lowered.function_named(operation.callee)
+    if memory {
+        var inner = held_inline(memory)
+        if not inner.is_empty() {
+            assign(operation.result, "(&(({inner}*)(intptr_t)({address}))[{index}])")
+            return
+        }
+    }
     assign(operation.result, "(({written}*)(intptr_t)({address}))[{index}]")
 }
 
@@ -1244,7 +1291,7 @@ func field_place(operation: Operation): String {
         refuse("it reaches the field '{operation.field}' of something that is not an object")
         return "spite_missing"
     }
-    if layout.arrangement != "object" and layout.arrangement != "static" {
+    if layout.arrangement != "object" and layout.arrangement != "static" and layout.arrangement != "slots" {
         refuse(
             "it reaches the field '{operation.field}' of '{layout.c_name}', arranged as '{layout.arrangement}', which the printer does not lay out",
         )

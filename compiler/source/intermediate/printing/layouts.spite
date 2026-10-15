@@ -61,14 +61,10 @@ func enum_line(information: Analysis.EnumInfo, index: Integer): String {
 
 func print_class(layout: Layout) {
     var name = layout.c_name
-    if layout.arrangement != "object" and layout.arrangement != "static" {
+    var arranged = ["object", "static", "slots"]
+    if not arranged.contains(layout.arrangement) {
         output.refuse("'{name}' is arranged as '{layout.arrangement}', which the printer does not lay out yet")
         return
-    }
-    if not layout.thread_form.is_empty() and layout.thread_form != "read_only" {
-        output.refuse(
-            "the singleton '{layout.qualified}' is shared by threads as '{layout.thread_form}', which the printer does not write yet",
-        )
     }
     if layout.copy_with_table and output.copied_layouts.contains(name) {
         output.refuse(
