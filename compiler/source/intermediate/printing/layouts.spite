@@ -89,6 +89,9 @@ func print_class(layout: Layout) {
     if output.copied_layouts.contains(name) {
         print_copy(layout)
     }
+    if output.copied_in.contains(name) {
+        print_copy_in(layout)
+    }
 }
 
 func print_struct(layout: Layout) {
@@ -487,6 +490,28 @@ func print_copy(layout: Layout) {
     var lines_text = lines.join("\n")
     output.supports.append(lines_text)
     output.runtime_place("{name}_copy")
+}
+
+func print_copy_in(layout: Layout) {
+    var name = layout.c_name
+    var signature = "{name}* {name}_copy_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address, {name}* self)"
+    var lines = [
+        "{signature} \{"
+        "{name}* spite_copy = {name}___allocate_in(spite_allocator, spite_give_back, spite_address);"
+    ]
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var copied = copied_field(field)
+        lines.append(copied)
+        index = index + 1
+    }
+    lines.append("return spite_copy;")
+    lines.append("}")
+    output.prototypes.append("{signature};")
+    var lines_text = lines.join("\n")
+    output.supports.append(lines_text)
+    output.runtime_place("{name}_copy_in")
 }
 
 func copied_field(field: Field): String {

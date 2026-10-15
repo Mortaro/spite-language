@@ -833,8 +833,8 @@ func print_object(body: Body, operation: Operation, word: String) {
     }
     if word == "place" {
         var placed_number = body.operand_number(operation, 0)
-        if not body.placements.has(placed_number) {
-            body.refuse("it places an object in an allocator after it was made elsewhere")
+        if not body.made_here(placed_number) {
+            body.refuse("it places an object in an allocator that was not made or copied on the line before")
         }
         return
     }
@@ -854,6 +854,15 @@ func print_object(body: Body, operation: Operation, word: String) {
     var layout = naming.layout_of(copied_type)
     if not layout or layout.kind != "class" or layout.is_value {
         body.refuse("it copies something that is not an object of a class")
+        return
+    }
+    if body.placements.has(operation.result) {
+        var head = body.placement_head(operation.result, layout)
+        assert not head.is_empty()
+        if not output.copied_in.contains(layout.c_name) {
+            output.copied_in.append(layout.c_name)
+        }
+        body.assign(operation.result, "{layout.c_name}_copy_in({head}, {copied})")
         return
     }
     if not output.copied_layouts.contains(layout.c_name) {
