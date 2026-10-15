@@ -29,6 +29,7 @@ var reload_renames_text = ""
 var breakpoint_sites = List<String>()
 var prompt_code = ""
 var breakpoint_requests = List<String>()
+var writes_from_intermediate = false
 
 func Compiler() {
     load "source"
@@ -439,7 +440,23 @@ func generator_pass(
     var prototypes = prelude.prototypes()
     var bodies = prelude.bodies()
     generated_code = generator.generate(discovery, header, structs, prototypes, bodies)
+    if writes_from_intermediate and not generator.has_error {
+        write_from_intermediate(generator)
+    }
     return generator
+}
+
+# ../design/proposals/desugared_high_ir.md#the-contracts-between-the-pieces
+func write_from_intermediate(generator: Generation.Generator) {
+    var pipeline = Intermediate.Pipeline(generator)
+    pipeline.optimized = is_on("optimized")
+    var written = pipeline.run()
+    if pipeline.has_error() {
+        console.error(pipeline.error_message)
+        program.exit(1)
+        return
+    }
+    generated_code = written
 }
 
 func report_error(message: String) {

@@ -115,8 +115,12 @@ The code lives in `compiler/source/intermediate/` (namespace `Intermediate`, so 
 remove one.
 
 **Running it.** `Pipeline(generator).run()` lowers, runs the passes in order, and prints. While it is being built it
-runs only when the `Build` setting `intermediate_c` is on, and its C replaces the generator's whole; the day the whole
-corpus passes, the setting and the generator are deleted together.
+runs only in a compiler built with `writes_from_intermediate` set in `compiler.spite` (never committed on), and its C
+replaces the generator's whole; no `Build` setting, so no program's C moves for it (D585). The day the whole corpus
+passes, the switch and the generator are deleted together.
+
+**A store** consumes the value it stores, and the printer releases what the field held before it (the ownership pass
+inserts no release for it), as the generator does.
 
 **Lowering** (`Lowering`, and `Instances` for monomorphisation) writes, for every function `main` can reach:
 
