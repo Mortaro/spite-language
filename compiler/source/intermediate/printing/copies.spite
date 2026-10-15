@@ -1,0 +1,306 @@
+# ../../../../docs/memory.md#do-call-copydeep_copy-for-an-independent-object
+var output = Output()
+var lowered = Lowered()
+var naming = Naming()
+var shape = Analysis.TypeShape()
+var made = List<String>()
+var table_written = false
+
+func copied(spite_type: Analysis.SpiteType?, code: String): String {
+    if not spite_type {
+        output.refuse("a deep copy of a value with no type")
+        return code
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return copied_nullable(nullable, code)
+    }
+    var counted = naming.counted_name(spite_type)
+    if shape.as_string(spite_type) or shape.is_symbol(spite_type) or shape.is_arguments(spite_type) {
+        return "{counted}___retain({code})"
+    }
+    if counted.is_empty() {
+        return code
+    }
+    var layout = naming.layout_of(spite_type)
+    if not layout {
+        output.refuse("a deep copy of '{counted}', which has no layout")
+        return code
+    }
+    if layout.is_singleton {
+        return "{counted}___retain({code})"
+    }
+    var own = own_deep_copy(layout)
+    if not own.is_empty() {
+        return "(({code}) == 0 ? 0 : {own}({code}))"
+    }
+    var function_name = ensure(layout)
+    return "{function_name}({code})"
+}
+
+func copied_nullable(nullable: Analysis.Types.NullableType, code: String): String {
+    var inner = nullable.inner
+    if naming.is_reference(inner) {
+        return copied(inner, code)
+    }
+    return code
+}
+
+func own_deep_copy(layout: Layout): String {
+    if not layout.information {
+        return ""
+    }
+    var declared = layout.information.find_function("deep_copy")
+    if not declared {
+        return ""
+    }
+    if not lowered.function_named(declared.c_name) {
+        output.refuse("'{layout.qualified}' declares its own deep_copy, which the program does not hold")
+        return ""
+    }
+    return declared.c_name
+}
+
+func ensure(layout: Layout): String {
+    var function_name = "{layout.c_name}___deep_copy"
+    if made.contains(function_name) {
+        return function_name
+    }
+    made.append(function_name)
+    var written = naming.c_type_of_layout(layout)
+    output.prototypes.append("{written} {function_name}({written} self);")
+    output.runtime_place(function_name)
+    if layout.kind == "union" or layout.kind == "tagged union" {
+        union_copy(layout, function_name, written)
+        return function_name
+    }
+    if layout.qualified == "List" {
+        list_copy(layout, function_name)
+        return function_name
+    }
+    if layout.qualified == "Dictionary" {
+        dictionary_copy(layout, function_name)
+        return function_name
+    }
+    if layout.qualified == "Weak" {
+        output.refuse("a deep copy reaches a Weak reference, which the printer does not write yet")
+        return function_name
+    }
+    class_copy(layout, function_name)
+    return function_name
+}
+
+func class_copy(layout: Layout, function_name: String) {
+    var name = layout.c_name
+    var lines = ["{name}* {function_name}({name}* self) \{", "if (self == 0) return 0;"]
+    if layout.copy_with_table {
+        write_table()
+        lines.append("{name}* seen = ({name}*)spite_copy_table_find(self);")
+        lines.append("if (seen != 0) return {name}___retain(seen);")
+        lines.append("bool spite_opened = spite_copy_table_open();")
+    }
+    lines.append("{name}* copied = {name}___allocate();")
+    if layout.copy_with_table {
+        lines.append("spite_copy_table_add(self, copied);")
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var copied_field = copied(field.spite_type, "self->{field.name}_")
+        lines.append("copied->{field.name}_ = {copied_field};")
+        index = index + 1
+    }
+    if layout.copy_with_table {
+        lines.append("if (spite_opened) spite_copy_table_close();")
+    }
+    lines.append("return copied;")
+    lines.append("}")
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
+}
+
+func element_of(layout: Layout, position: Integer): Analysis.SpiteType? {
+    if not layout.information {
+        output.refuse("'{layout.c_name}' has no class, so what it holds is not known")
+        return null
+    }
+    return layout.information.codegen_types[position]
+}
+
+func list_copy(layout: Layout, function_name: String) {
+    var name = layout.c_name
+    var element = element_of(layout, 0)
+    assert element
+    var written = naming.c_type(element)
+    var item = copied(element, "((({written}*)(intptr_t)self->items_)[spite_index])")
+    var kept = kept_fields(layout, ["items", "item_count", "capacity"])
+    var lines = [
+        "{name}* {function_name}({name}* self) \{"
+        "if (self == 0) return 0;"
+        "{name}* copied = {name}___allocate();"
+        kept
+        "copied->item_count_ = self->item_count_;"
+        "copied->capacity_ = self->item_count_;"
+        "copied->items_ = 0;"
+        "if (self->item_count_ > 0) \{"
+        "{written}* spite_items = ({written}*)SPITE_MALLOC(sizeof({written}) * (size_t)self->item_count_);"
+        "if (spite_items == 0) \{ fflush(stdout); fputs(\"spite: out of memory copying a list\\n\", stderr); exit(1); }"
+        "for (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) spite_items[spite_index] = {item};"
+        "copied->items_ = (int64_t)(intptr_t)spite_items;"
+        "}"
+        "return copied;"
+        "}"
+    ]
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
+}
+
+func kept_fields(layout: Layout, skipped: List<String>): String {
+    var lines = List<String>()
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        if not skipped.contains(field.name) {
+            var kept = kept_field(field)
+            lines.append(kept)
+        }
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func kept_field(field: Field): String {
+    if not field.spite_type {
+        return ""
+    }
+    var counted = naming.counted_name(field.spite_type)
+    if counted.is_empty() {
+        return "copied->{field.name}_ = self->{field.name}_;"
+    }
+    return "copied->{field.name}_ = {counted}___retain(self->{field.name}_);"
+}
+
+func dictionary_copy(layout: Layout, function_name: String) {
+    var name = layout.c_name
+    var keys = layout.field_named("entry_keys")
+    var values = layout.field_named("entry_values")
+    if not keys or not values or not layout.field_named("slots") or not layout.field_named("slot_count") {
+        output.refuse("'{name}' is not laid out as the dictionary a deep copy knows")
+        return
+    }
+    var keys_layout = naming.layout_of(keys.spite_type)
+    if not keys_layout {
+        output.refuse("the keys of '{name}' have no layout")
+        return
+    }
+    var kept_keys = shallow_list(keys_layout)
+    var copied_values = copied(values.spite_type, "self->entry_values_")
+    var kept = kept_fields(layout, ["entry_keys", "entry_values", "slots"])
+    var lines = [
+        "{name}* {function_name}({name}* self) \{"
+        "if (self == 0) return 0;"
+        "{name}* copied = {name}___allocate();"
+        kept
+        "copied->entry_keys_ = {kept_keys}(self->entry_keys_);"
+        "copied->entry_values_ = {copied_values};"
+        "copied->slots_ = 0;"
+        "if (self->slots_ != 0) \{"
+        "void* spite_slots = SPITE_MALLOC((size_t)self->slot_count_ * 8);"
+        "if (spite_slots == 0) \{ fflush(stdout); fputs(\"spite: out of memory copying a dictionary\\n\", stderr); exit(1); }"
+        "memcpy(spite_slots, (void*)(intptr_t)self->slots_, (size_t)self->slot_count_ * 8);"
+        "copied->slots_ = (int64_t)(intptr_t)spite_slots;"
+        "}"
+        "return copied;"
+        "}"
+    ]
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
+}
+
+func shallow_list(layout: Layout): String {
+    var function_name = "{layout.c_name}___kept_copy"
+    if made.contains(function_name) {
+        return function_name
+    }
+    made.append(function_name)
+    var name = layout.c_name
+    var element = element_of(layout, 0)
+    if not element {
+        return function_name
+    }
+    var written = naming.c_type(element)
+    var counted = naming.counted_name(element)
+    var item = "(({written}*)(intptr_t)self->items_)[spite_index]"
+    if not counted.is_empty() {
+        item = "{counted}___retain({item})"
+    }
+    var kept = kept_fields(layout, ["items", "item_count", "capacity"])
+    output.prototypes.append("{name}* {function_name}({name}* self);")
+    var lines = [
+        "{name}* {function_name}({name}* self) \{"
+        "if (self == 0) return 0;"
+        "{name}* copied = {name}___allocate();"
+        kept
+        "copied->item_count_ = self->item_count_;"
+        "copied->capacity_ = self->item_count_;"
+        "copied->items_ = 0;"
+        "if (self->item_count_ > 0) \{"
+        "{written}* spite_items = ({written}*)SPITE_MALLOC(sizeof({written}) * (size_t)self->item_count_);"
+        "if (spite_items == 0) \{ fflush(stdout); fputs(\"spite: out of memory copying a list\\n\", stderr); exit(1); }"
+        "for (int64_t spite_index = 0; spite_index < self->item_count_; spite_index = spite_index + 1) spite_items[spite_index] = {item};"
+        "copied->items_ = (int64_t)(intptr_t)spite_items;"
+        "}"
+        "return copied;"
+        "}"
+    ]
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
+    output.runtime_place(function_name)
+    return function_name
+}
+
+func union_copy(layout: Layout, function_name: String, written: String) {
+    var tagged = layout.kind == "tagged union"
+    var lines = ["{written} {function_name}({written} self) \{"]
+    if tagged {
+        lines.append("if (self.plain != 0 || self.value.object == 0) return self;")
+    } else {
+        lines.append("if (self == 0) return 0;")
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member = layout.members[index]
+        var copied_member = member_copy(member, tagged, written)
+        if not copied_member.is_empty() {
+            lines.append(copied_member)
+        }
+        index = index + 1
+    }
+    lines.append("return {layout.c_name}___retain(self);")
+    lines.append("}")
+    var copy_text = lines.join("\n")
+    output.supports.append(copy_text)
+}
+
+func member_copy(member: String, tagged: Boolean, written: String): String {
+    var layout = lowered.layout_named(member)
+    if not layout or layout.is_value or layout.is_singleton {
+        return ""
+    }
+    var identity = naming.class_id_of(layout)
+    var member_type: Analysis.SpiteType = Analysis.Types.ClassRefType(member)
+    if tagged {
+        var tagged_copy = copied(member_type, "(({member}*)self.value.object)")
+        return "if (self.tag == {identity}) return spite_tagged_object({identity}, (void*)({tagged_copy}));"
+    }
+    var plain_copy = copied(member_type, "(({member}*)self)")
+    return "if (((SpiteHeader*)self)->class_id == {identity}) return (({written})({plain_copy}));"
+}
+
+func write_table() {
+    assert not table_written
+    table_written = true
+    output.supports.append(
+        "typedef struct \{ void* from; void* to; } spite_copy_pair;\nstatic SPITE_THREAD_LOCAL spite_copy_pair* spite_copy_pairs = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_count = 0;\nstatic SPITE_THREAD_LOCAL uint64_t spite_copy_capacity = 0;\nstatic SPITE_THREAD_LOCAL bool spite_copy_open = false;\nstatic uint64_t spite_copy_slot(void* from, uint64_t capacity) \{ return (((uint64_t)(uintptr_t)from >> 4) * 11400714819323198485ull) & (capacity - 1); }\nstatic void* spite_copy_table_find(void* from) \{\nif (!spite_copy_open) return 0;\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) \{ if (spite_copy_pairs[slot].from == from) return spite_copy_pairs[slot].to; slot = (slot + 1) & (spite_copy_capacity - 1); }\nreturn 0;\n}\nstatic bool spite_copy_table_open(void) \{\nif (spite_copy_open) return false;\nspite_copy_capacity = 64;\nspite_copy_count = 0;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nspite_copy_open = true;\nreturn true;\n}\nstatic void spite_copy_table_add(void* from, void* to) \{\nif ((spite_copy_count + 1) * 2 > spite_copy_capacity) \{\nuint64_t old_capacity = spite_copy_capacity;\nspite_copy_pair* old_pairs = spite_copy_pairs;\nspite_copy_capacity = old_capacity * 2;\nspite_copy_pairs = (spite_copy_pair*)calloc(spite_copy_capacity, sizeof(spite_copy_pair));\nif (spite_copy_pairs == 0) \{ fprintf(stderr, \"spite: out of memory remembering the objects of a deep copy\\n\"); abort(); }\nfor (uint64_t index = 0; index < old_capacity; index = index + 1) \{\nif (old_pairs[index].from == 0) continue;\nuint64_t moved = spite_copy_slot(old_pairs[index].from, spite_copy_capacity);\nwhile (spite_copy_pairs[moved].from != 0) moved = (moved + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[moved] = old_pairs[index];\n}\nfree(old_pairs);\n}\nuint64_t slot = spite_copy_slot(from, spite_copy_capacity);\nwhile (spite_copy_pairs[slot].from != 0) slot = (slot + 1) & (spite_copy_capacity - 1);\nspite_copy_pairs[slot].from = from;\nspite_copy_pairs[slot].to = to;\nspite_copy_count = spite_copy_count + 1;\n}\nstatic SPITE_THREAD_LOCAL void (*spite_copy_closing)(void) = 0;\nstatic void spite_copy_table_close(void) \{\nif (spite_copy_closing != 0) spite_copy_closing();\nfree(spite_copy_pairs);\nspite_copy_pairs = 0;\nspite_copy_capacity = 0;\nspite_copy_count = 0;\nspite_copy_open = false;\n}",
+    )
+}

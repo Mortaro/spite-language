@@ -4,6 +4,7 @@ var lowered = Lowered()
 var naming = Naming()
 var sites = Sites()
 var shape = Analysis.TypeShape()
+var copies = Copies()
 
 func print(body: Body, operation: Operation) {
     var parts = operation.callee.split(".")
@@ -249,6 +250,13 @@ func print_reference(body: Body, operation: Operation, word: String) {
 func print_object(body: Body, operation: Operation, word: String) {
     if word == "allocator" {
         object_allocator(body, operation)
+        return
+    }
+    if word == "deep_copy" {
+        var copied_value = body.operand(operation, 0)
+        var copied_type = body.operand_type(operation, 0)
+        var deep = copies.copied(copied_type, copied_value)
+        body.assign(operation.result, deep)
         return
     }
     if word != "copy" {

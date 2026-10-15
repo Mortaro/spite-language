@@ -6,6 +6,7 @@ var intrinsics = Intermediate.Printing.Intrinsics()
 var body = Intermediate.Printing.Body()
 var layouts = Intermediate.Printing.Layouts()
 var runtime = Intermediate.Printing.Runtime()
+var copies = Intermediate.Printing.Copies()
 
 func print(lowered: Lowered): String {
     wire(lowered)
@@ -39,6 +40,12 @@ func wire(lowered: Lowered) {
     intrinsics.lowered = lowered
     intrinsics.naming = naming
     intrinsics.sites = sites
+    copies.output = made
+    copies.lowered = lowered
+    copies.naming = naming
+    copies.made = List<String>()
+    copies.table_written = false
+    intrinsics.copies = copies
     body.output = made
     body.lowered = lowered
     body.naming = naming

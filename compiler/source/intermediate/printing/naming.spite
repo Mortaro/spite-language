@@ -412,6 +412,13 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
     return null
 }
 
+func c_type_of_layout(layout: Layout): String {
+    if layout.kind == "union" or layout.kind == "tagged union" {
+        return layout.c_name
+    }
+    return "{layout.c_name}*"
+}
+
 func class_id_of(layout: Layout): Integer {
     if not layout.information {
         output.refuse("the layout '{layout.c_name}' has no class, so its class id is not known")
