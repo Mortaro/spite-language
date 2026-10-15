@@ -30,7 +30,8 @@ func note_function_values(function: Function) {
         var index = 0
         while index < block.operations.count() {
             var operation = block.operations[index]
-            if operation.kind == "constant" and not operation.literal.is_empty() {
+            var names_function = operation.kind == "constant" or operation.callee == "Function.bind"
+            if names_function and not operation.literal.is_empty() {
                 passed_as_values[operation.literal] = true
             }
             index = index + 1

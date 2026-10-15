@@ -272,7 +272,7 @@ func note_concurrent_entries(function: Function, found: List<String>) {
         while index < block.operations.count() {
             var operation = block.operations[index]
             if operation.kind == "call" and starts_concurrent(operation) {
-                note_passed_functions(uses, operation, found)
+                note_passed_functions(function, uses, operation, found)
             }
             if operation.form == "started" or operation.form == "overlap" {
                 found.append(operation.callee)
@@ -299,13 +299,34 @@ func starts_concurrent(operation: Operation): Boolean {
     return layout.qualified == "Concurrent"
 }
 
-func note_passed_functions(uses: Facts.Uses, operation: Operation, found: List<String>) {
+func note_bound(function: Function, uses: Facts.Uses, made: Integer, found: List<String>) {
+    crash lowered
+    var reached = uses.uses_of(made)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.position >= 0 {
+            var block = function.block_at(place.block)
+            crash block.operations[place.position]
+            var binding = block.operations[place.position]
+            if binding.callee == "Function.bind" and lowered.function_named(binding.literal) {
+                found.append(binding.literal)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func note_passed_functions(function: Function, uses: Facts.Uses, operation: Operation, found: List<String>) {
     crash lowered
     var index = 0
     while index < operation.operands.count() {
         var defining = uses.definition_of(operation.operands[index])
         if defining and defining.kind == "constant" and lowered.function_named(defining.literal) {
             found.append(defining.literal)
+        }
+        if defining and defining.kind == "make" and defining.result >= 0 {
+            note_bound(function, uses, defining.result, found)
         }
         index = index + 1
     }

@@ -25,7 +25,8 @@ func note_taken(function: Function) {
         var index = 0
         while index < block.operations.count() {
             var operation = block.operations[index]
-            if operation.kind == "constant" and lowered.function_named(operation.literal) {
+            var names_function = operation.kind == "constant" or operation.callee == "Function.bind"
+            if names_function and lowered.function_named(operation.literal) {
                 taken[operation.literal] = true
             }
             index = index + 1
@@ -112,6 +113,10 @@ func stored_at(function: Function, place: Place): Integer {
         return -1
     }
     var operation = block.operations[place.position]
+    if operation.callee == "Function.bind" and taken.has(operation.literal) {
+        entries[operation.literal] = true
+        return -1
+    }
     if operation.kind != "store" {
         return -1
     }

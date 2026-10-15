@@ -118,7 +118,12 @@ func derived_escapes(function: Function, uses: Facts.Uses, operation: Operation,
     if owner == "Address" and (meaning == "sum" or meaning == "subtract") and operation.result >= 0 {
         return escapes_through(function, uses, operation.result, depth + 1)
     }
-    return false
+    var aliasing = ["Nullable.wrap", "Union.wrap", "Symbol.text"]
+    if aliasing.contains(operation.callee) and operation.result >= 0 {
+        return escapes_through(function, uses, operation.result, depth + 1)
+    }
+    var keeping = ["Function.bind", "Object.place"]
+    return keeping.contains(operation.callee) or owner == "Foreign"
 }
 
 func position_keeps(operation: Operation, position: Integer): Boolean {

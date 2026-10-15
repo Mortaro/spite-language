@@ -188,7 +188,9 @@ func note_called(made: Summary, callee: String) {
 func note_dotted(made: Summary, callee: String) {
     crash intrinsics
     var owner = intrinsics.type_part(callee)
-    var known = ["String", "Nullable", "Union", "Boolean"]
+    var known = ["String", "Nullable", "Union", "Boolean", "Symbol", "Enum", "Reference", "Reflection", "Function"]
+    var pure_objects = ["Object.copy", "Object.deep_copy"]
+    assert not pure_objects.contains(callee)
     assert not known.contains(owner)
     if owner == "Parallel" or owner == "Concurrent" {
         made.starts_threads = true
