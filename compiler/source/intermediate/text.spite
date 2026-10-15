@@ -33,7 +33,9 @@ func layout_text(lowered: Lowered, layout: Layout): String {
 func function_text(function: Function): String {
     var lines = List<String>()
     var parameters = List<String>()
-    parameters.append("v{function.receiver}: receiver")
+    if function.receiver >= 0 {
+        parameters.append("v{function.receiver}: receiver")
+    }
     var index = 0
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
@@ -88,7 +90,10 @@ func operation_text(function: Function, operation: Operation): String {
     var operands = values_text(operation.operands)
     var what = "{operation.kind} {operands}"
     if operation.kind == "constant" {
-        what = "constant {operation.literal}"
+        var shown_literal = operation.literal.replace("\n", "\\n")
+        what = "constant {shown_literal}"
+    } else if operation.kind == "call" and not operation.target.is_empty() {
+        what = "call {operation.callee}({operands}) of {operation.target}"
     } else if operation.kind == "call" {
         what = "call {operation.callee}({operands})"
     } else if operation.kind == "load" {
@@ -123,7 +128,11 @@ func terminator_text(terminator: Terminator): String {
         index = index + 1
     }
     var operands = values_text(terminator.operands)
-    return "{terminator.kind} {operands} {targets.join(", ")}"
+    var site = ""
+    if terminator.site >= 0 {
+        site = " site {terminator.site}"
+    }
+    return "{terminator.kind} {operands} {targets.join(", ")}{site}"
 }
 
 func values_text(numbers: List<Integer>): String {
@@ -169,6 +178,16 @@ func type_text(spite_type: Analysis.SpiteType?): String {
     }
     if types.is_void(spite_type) {
         return "nothing"
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        return "Dictionary<{type_text(dictionary.key)}, {type_text(dictionary.element)}>"
+    }
+    if types.is_symbol(spite_type) {
+        return "Symbol"
+    }
+    if types.is_arguments(spite_type) {
+        return "Arguments"
     }
     return "a type"
 }

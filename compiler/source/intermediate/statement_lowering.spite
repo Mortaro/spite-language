@@ -1,0 +1,854 @@
+# ../../../design/proposals/desugared_high_ir.md#lowering-a-body
+var emitter = Emitter()
+var expressions: ExpressionLowering? = null
+var lowered_class = Analysis.ClassInfo("", "", "", "", 0)
+var shapes = Analysis.AstShape()
+var types = Analysis.TypeShape()
+
+func StatementLowering(starting_expressions: ExpressionLowering) {
+    expressions = starting_expressions
+    emitter = starting_expressions.emitter
+    lowered_class = starting_expressions.lowered_class
+}
+
+func lowering(): ExpressionLowering {
+    crash expressions
+    return expressions
+}
+
+func front(): Generation.Generator {
+    return lowering().front()
+}
+
+func known(): Instances {
+    return lowering().known()
+}
+
+func lower_block(statements: List<Syntax.Statements.Statement>) {
+    emitter.push_frame()
+    lower_statements(statements)
+    emitter.pop_frame()
+}
+
+func lower_statements(statements: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < statements.count() and emitter.reachable() and not emitter.lowering_failed() {
+        lower_statement(statements[index])
+        index = index + 1
+    }
+}
+
+func lower_statement(statement: Syntax.Statements.Statement) {
+    if statement.line > 0 {
+        emitter.line = statement.line
+    }
+    switch statement {
+        Syntax.Statements.VariableDeclaration: declaration(statement)
+        Syntax.Statements.AssignmentStatement: assignment(statement)
+        Syntax.Statements.IfStatement: if_statement(statement)
+        Syntax.Statements.WhileStatement: while_statement(statement)
+        Syntax.Statements.SwitchStatement: switch_statement(statement)
+        Syntax.Statements.AssertStatement: assert_statement(statement)
+        Syntax.Statements.ReturnStatement: return_statement(statement)
+        Syntax.Statements.ExpressionStatement: expression_statement(statement)
+        _: emitter.fail_lowering("a declaration inside a function")
+    }
+}
+
+func declaration(declared: Syntax.Statements.VariableDeclaration) {
+    crash declared.value
+    if declared.type_reference {
+        typed_declaration(declared, declared.type_reference, declared.value)
+        return
+    }
+    var value = lowering().lower(declared.value)
+    var value_type = lowering().type_of(value)
+    emitter.declare_local(declared.name, value, value_type)
+}
+
+func typed_declaration(
+    declared: Syntax.Statements.VariableDeclaration,
+    type_reference: Syntax.Types.Type,
+    initial: Syntax.Expressions.Expression,
+) {
+    var made = front()
+    var resolved = made.resolve_type(type_reference, lowered_class.qualified_dotted)
+    if not resolved {
+        emitter.fail_lowering("the type of '{declared.name}', which this lowering cannot read")
+        return
+    }
+    var value = lowering().lower_toward(initial, resolved)
+    emitter.declare_local(declared.name, value, resolved)
+}
+
+func expression_statement(statement: Syntax.Statements.ExpressionStatement) {
+    crash statement.value
+    lowering().lower(statement.value)
+}
+
+func return_statement(statement: Syntax.Statements.ReturnStatement) {
+    if not statement.value {
+        emitter.returns(-1)
+        return
+    }
+    var described = lowering().lowered_function()
+    var answer = described.return_type
+    var value = lowering().lower_toward(statement.value, answer)
+    emitter.returns(value)
+}
+
+func assignment(statement: Syntax.Statements.AssignmentStatement) {
+    crash statement.target
+    crash statement.value
+    var made = front()
+    var reflected = made.reflected_assignment_target(statement.target, emitter.scope, lowered_class)
+    if reflected {
+        var rewritten = Syntax.Statements.AssignmentStatement(reflected, statement.value)
+        rewritten.line = statement.line
+        assignment(rewritten)
+        return
+    }
+    var identifier = shapes.as_identifier(statement.target)
+    if identifier {
+        assign_name(identifier.name, statement.value)
+        return
+    }
+    var indexed = shapes.as_index(statement.target)
+    if indexed {
+        assign_index(indexed, statement.value)
+        return
+    }
+    var member = shapes.as_member(statement.target)
+    if member {
+        assign_member(member, statement.value)
+        return
+    }
+    emitter.fail_lowering("an assignment to this kind of target")
+}
+
+func assign_name(name: String, assigned: Syntax.Expressions.Expression) {
+    var held = emitter.local_named(name)
+    if held {
+        crash held.declared
+        var value = lowering().lower_toward(assigned, held.declared)
+        held.value = value
+        emitter.name_value(value, name)
+        forget_unless_wrapped(name, value, held.declared)
+        return
+    }
+    var field = lowered_class.find_field(name)
+    if not field {
+        emitter.fail_lowering("an assignment to '{name}', which is neither a local nor an attribute")
+        return
+    }
+    var field_type = field.type
+    var stored = lowering().lower_toward(assigned, field_type)
+    var own_object = lowering().receiver
+    emitter.store_field(own_object, name, stored)
+    forget_unless_wrapped(name, stored, field_type)
+}
+
+func forget_unless_wrapped(path: String, value: Integer, declared: Analysis.SpiteType) {
+    assert types.as_nullable(declared) and not emitter.wrapped_values.has(value)
+    var narrowed = emitter.scope.written_type(path)
+    if narrowed {
+        emitter.scope.declare(path, declared)
+    }
+    var crossed = List<String>()
+    emitter.scope.forget_path(path, true, crossed)
+}
+
+func assign_index(indexed: Syntax.Expressions.IndexExpression, assigned: Syntax.Expressions.Expression) {
+    crash indexed.object
+    crash indexed.index
+    var made = front()
+    if made.is_bound_member_index(indexed) {
+        var rewritten = made.bound_member_expression(indexed)
+        var rewritten_member = shapes.as_member(rewritten)
+        if not rewritten_member {
+            emitter.fail_lowering("an assignment through a walked member that is not an attribute")
+            return
+        }
+        assign_member(rewritten_member, assigned)
+        return
+    }
+    if made.is_bound_attributes_index(indexed) {
+        assign_name(made.bound_field_name, assigned)
+        return
+    }
+    var object = lowering().lower(indexed.object)
+    var object_type = lowering().type_of(object)
+    var owner = made.class_of_type(object_type)
+    if not owner {
+        emitter.fail_lowering("an assignment through an index on a value with no class")
+        return
+    }
+    var writer = made.find_or_instantiate_function(owner, "set_at")
+    if not writer {
+        emitter.fail_lowering("an assignment through an index on '{owner.qualified_dotted}', which has no set_at")
+        return
+    }
+    var arguments = List<Syntax.Expressions.Expression>()
+    arguments.append(indexed.index)
+    arguments.append(assigned)
+    lowering().call_with_arguments(owner, writer, object, arguments)
+}
+
+func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax.Expressions.Expression) {
+    crash member.object
+    var made = front()
+    var static_class = made.try_resolve_static_path(member.object, lowered_class.qualified_dotted)
+    if static_class {
+        emitter.fail_lowering("an assignment to a member of a class object")
+        return
+    }
+    if member.name == "allocator" {
+        place_with_allocator(member, assigned)
+        return
+    }
+    var object = lowering().lower(member.object)
+    var object_type = lowering().type_of(object)
+    var listed_field = made.library_list_field(object_type, member.name, lowered_class)
+    if listed_field {
+        var listed_type = listed_field.type
+        var listed_value = lowering().lower_toward(assigned, listed_type)
+        emitter.store_field(object, member.name, listed_value)
+        return
+    }
+    var object_nullable = types.as_nullable(object_type)
+    if object_nullable {
+        var present_object = lowering().checked_present(object, object_nullable.inner)
+        store_through(member, present_object, assigned)
+        return
+    }
+    store_through(member, object, assigned)
+}
+
+func store_through(
+    member: Syntax.Expressions.MemberExpression,
+    object: Integer,
+    assigned: Syntax.Expressions.Expression,
+) {
+    var made = front()
+    var object_type = lowering().type_of(object)
+    var united = types.as_union(object_type)
+    if united {
+        union_store(united.c_name, member.name, object, assigned)
+        return
+    }
+    var class_ref = types.as_class_ref(object_type)
+    if not class_ref or class_ref.has_signature {
+        emitter.fail_lowering("an assignment to '{member.name}' through a value that is not an object")
+        return
+    }
+    var target = made.find_class_by_c_name(class_ref.c_name)
+    if not target {
+        emitter.fail_lowering("an assignment to a member of a class with no description")
+        return
+    }
+    store_member(target, member, object, assigned)
+}
+
+func store_member(
+    target: Analysis.ClassInfo,
+    member: Syntax.Expressions.MemberExpression,
+    object: Integer,
+    assigned: Syntax.Expressions.Expression,
+) {
+    var made = front()
+    var setter = made.find_setter(target, member.name, lowered_class)
+    if setter {
+        var arguments = [assigned]
+        lowering().call_with_arguments(target, setter, object, arguments)
+        return
+    }
+    var field = target.find_field(member.name)
+    if not field {
+        emitter.fail_lowering("an assignment to '{member.name}', which '{target.qualified_dotted}' does not hold")
+        return
+    }
+    var field_type = field.type
+    var stored = lowering().lower_toward(assigned, field_type)
+    emitter.store_field(object, member.name, stored)
+    var target_expression: Syntax.Expressions.Expression = member
+    var path = made.operand_text(target_expression)
+    if not path.is_empty() {
+        forget_unless_wrapped(path, stored, field_type)
+    }
+}
+
+func if_statement(statement: Syntax.Statements.IfStatement) {
+    crash statement.condition
+    var made = front()
+    var constant = made.constant_condition(statement.condition, emitter.scope, lowered_class)
+    if constant == true {
+        lower_block(statement.then_branch)
+        return
+    }
+    if constant == false {
+        lower_block(statement.else_branch)
+        return
+    }
+    var count = emitter.locals.count()
+    var before = emitter.snapshot(count)
+    var condition = lowering().lower_condition(statement.condition)
+    assert not emitter.lowering_failed()
+    var then_block = emitter.new_block()
+    var else_block = emitter.new_block()
+    emitter.branch(condition.value, then_block, else_block)
+    var incomings = List<Incoming>()
+    emitter.enter_block(then_block)
+    emitter.push_frame()
+    lowering().apply(condition.when_true, condition.true_types)
+    made.narrow_proven_indices(statement.condition, emitter.scope, lowered_class)
+    lower_statements(statement.then_branch)
+    var then_arrives = emitter.incoming(count)
+    emitter.pop_frame()
+    if then_arrives {
+        incomings.append(then_arrives)
+    }
+    emitter.restore(before)
+    emitter.enter_block(else_block)
+    emitter.push_frame()
+    lowering().apply(condition.when_false, condition.false_types)
+    lower_statements(statement.else_branch)
+    var else_arrives = emitter.incoming(count)
+    emitter.pop_frame()
+    if else_arrives {
+        incomings.append(else_arrives)
+    }
+    emitter.arrive(incomings, count)
+    var leaves = not statement.has_else_branch and not then_arrives
+    if leaves and emitter.reachable() {
+        lowering().apply(condition.when_false, condition.false_types)
+        var kept = made.negated_condition(statement.condition)
+        made.narrow_proven_indices(kept, emitter.scope, lowered_class)
+    }
+}
+
+func while_statement(statement: Syntax.Statements.WhileStatement) {
+    crash statement.condition
+    var made = front()
+    var constant = made.constant_condition(statement.condition, emitter.scope, lowered_class)
+    assert constant != false
+    var count = emitter.locals.count()
+    var assigned = List<String>()
+    collect_assigned(statement.body, assigned)
+    var carried = List<Integer>()
+    var position = 0
+    while position < count {
+        var held = emitter.local_at(position)
+        if assigned.contains(held.name) {
+            carried.append(position)
+        }
+        position = position + 1
+    }
+    var header = emitter.loop_header(carried)
+    if shapes.is_true_literal(statement.condition) {
+        endless_loop(statement, header, carried)
+        return
+    }
+    var condition = lowering().lower_condition(statement.condition)
+    assert not emitter.lowering_failed()
+    var body_block = emitter.new_block()
+    var exit_block = emitter.new_block()
+    emitter.branch(condition.value, body_block, exit_block)
+    emitter.enter_block(body_block)
+    emitter.push_frame()
+    emitter.scope.is_loop = true
+    lowering().apply(condition.when_true, condition.true_types)
+    made.narrow_proven_indices(statement.condition, emitter.scope, lowered_class)
+    lower_statements(statement.body)
+    if emitter.reachable() {
+        emitter.back_edge(header, carried)
+    }
+    emitter.pop_frame()
+    emitter.enter_block(exit_block)
+    emitter.reset_carried(header, carried)
+}
+
+func endless_loop(statement: Syntax.Statements.WhileStatement, header: Integer, carried: List<Integer>) {
+    emitter.push_frame()
+    emitter.scope.is_loop = true
+    lower_statements(statement.body)
+    if emitter.reachable() {
+        emitter.back_edge(header, carried)
+    }
+    emitter.pop_frame()
+    emitter.current = -1
+}
+
+func collect_assigned(statements: List<Syntax.Statements.Statement>, assigned: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_assigned_in(statements[index], assigned)
+        index = index + 1
+    }
+}
+
+func collect_assigned_in(statement: Syntax.Statements.Statement, assigned: List<String>) {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: note_assigned(statement.target, assigned)
+        Syntax.Statements.IfStatement: collect_branches(statement.then_branch, statement.else_branch, assigned)
+        Syntax.Statements.WhileStatement: collect_assigned(statement.body, assigned)
+        Syntax.Statements.SwitchStatement: collect_cases(statement.cases, assigned)
+        _: return
+    }
+}
+
+func collect_branches(
+    then_branch: List<Syntax.Statements.Statement>,
+    else_branch: List<Syntax.Statements.Statement>,
+    assigned: List<String>,
+) {
+    collect_assigned(then_branch, assigned)
+    collect_assigned(else_branch, assigned)
+}
+
+func collect_cases(cases: List<Syntax.Statements.SwitchCase>, assigned: List<String>) {
+    var index = 0
+    while index < cases.count() {
+        var switch_case = cases[index]
+        collect_assigned(switch_case.body, assigned)
+        index = index + 1
+    }
+}
+
+func note_assigned(target: Syntax.Expressions.Expression?, assigned: List<String>) {
+    assert target
+    var identifier = shapes.as_identifier(target)
+    if identifier and not assigned.contains(identifier.name) {
+        assigned.append(identifier.name)
+    }
+}
+
+func assert_statement(statement: Syntax.Statements.AssertStatement) {
+    if not statement.value {
+        fail_check(statement)
+        return
+    }
+    var sides = List<Syntax.Expressions.Expression>()
+    var made = front()
+    made.collect_and_sides(statement.value, sides)
+    var index = 0
+    while index < sides.count() and emitter.reachable() and not emitter.lowering_failed() {
+        assert_side(statement, sides[index])
+        index = index + 1
+    }
+}
+
+func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expressions.Expression) {
+    var made = front()
+    var decided = made.folded_check(side, emitter.scope, lowered_class)
+    assert decided != true
+    if decided == false {
+        fail_check(statement)
+        return
+    }
+    var condition = lowering().lower_condition(side)
+    assert not emitter.lowering_failed()
+    var pass_block = emitter.new_block()
+    var fail_block = emitter.new_block()
+    emitter.branch(condition.value, pass_block, fail_block)
+    emitter.enter_block(fail_block)
+    fail_check(statement)
+    emitter.enter_block(pass_block)
+    lowering().apply(condition.when_true, condition.true_types)
+    made.narrow_proven_indices(side, emitter.scope, lowered_class)
+}
+
+func fail_check(statement: Syntax.Statements.AssertStatement) {
+    if statement.is_crash {
+        halt_here("crash", statement.condition_text)
+        return
+    }
+    var described = lowering().lowered_function()
+    var answer = described.return_type
+    var defaulted = lowering().default_of(answer)
+    emitter.returns(defaulted)
+}
+
+func halt_here(kind: String, text: String) {
+    var site_number = emitter.site(kind, text)
+    var shown = List<Integer>()
+    var labels = List<String>()
+    var position = emitter.floor
+    while position < emitter.locals.count() {
+        var held = emitter.local_at(position)
+        if shown_type(held.declared) {
+            shown.append(held.value)
+            labels.append(held.name)
+        }
+        position = position + 1
+    }
+    var site = emitter.lowered.sites[site_number]
+    crash site
+    site.shown = labels
+    emitter.halt(site_number, shown)
+}
+
+func shown_type(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var plain = spite_type
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.inner
+    }
+    if types.as_string(plain) or types.as_enum(plain) {
+        return true
+    }
+    if types.as_scalar(plain) {
+        return true
+    }
+    return false
+}
+
+func switch_statement(statement: Syntax.Statements.SwitchStatement) {
+    crash statement.subject
+    var subject = lowering().lower(statement.subject)
+    var subject_type = lowering().type_of(subject)
+    if types.as_nullable(subject_type) {
+        nullable_switch(statement, subject)
+        return
+    }
+    var united = types.as_union(subject_type)
+    if united {
+        union_switch(statement, subject, united.c_name)
+        return
+    }
+    if types.as_string(subject_type) {
+        text_switch(statement, subject)
+        return
+    }
+    value_switch(statement, subject)
+}
+
+func case_names(switch_case: Syntax.Statements.SwitchCase): String {
+    if not switch_case.type_reference {
+        return ""
+    }
+    var named = shapes.as_named_type(switch_case.type_reference)
+    if not named {
+        return ""
+    }
+    return named.path.join(".")
+}
+
+func lower_switch_case(
+    body: List<Syntax.Statements.Statement>,
+    count: Integer,
+    before: List<Integer>,
+    incomings: List<Incoming>,
+) {
+    emitter.restore(before)
+    lower_statements(body)
+    var arrives = emitter.incoming(count)
+    emitter.pop_frame()
+    if arrives {
+        incomings.append(arrives)
+    }
+    emitter.current = -1
+}
+
+func nullable_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer) {
+    crash statement.subject
+    var subject_expression = statement.subject
+    var count = emitter.locals.count()
+    var before = emitter.snapshot(count)
+    var boolean = known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", subject, boolean)
+    var value_block = emitter.new_block()
+    var null_block = emitter.new_block()
+    emitter.branch(present, value_block, null_block)
+    var subject_type = lowering().type_of(subject)
+    var inner = lowering().without_nullable(subject_type)
+    var incomings = List<Incoming>()
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        var named = case_names(switch_case)
+        var case_block = value_block
+        if named == "Null" {
+            case_block = null_block
+        }
+        emitter.enter_block(case_block)
+        emitter.push_frame()
+        if named != "Null" {
+            lowering().narrow_one(subject_expression, inner)
+        }
+        lower_switch_case(switch_case.body, count, before, incomings)
+        index = index + 1
+    }
+    emitter.arrive(incomings, count)
+}
+
+func union_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer, union_name: String) {
+    crash statement.subject
+    var subject_expression = statement.subject
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union or described_union.is_shape {
+        emitter.fail_lowering("a switch over a union with no description")
+        return
+    }
+    var count = emitter.locals.count()
+    var before = emitter.snapshot(count)
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", subject, tag_type)
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var bodies = List<List<Syntax.Statements.Statement>>()
+    var classes = List<Analysis.ClassInfo>()
+    var covered = List<String>()
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        var case_class = union_case_class(switch_case, described_union)
+        if case_class {
+            covered.append(case_class.c_name)
+            add_union_case(case_class, switch_case.body, tags, targets, bodies, classes)
+        }
+        if case_names(switch_case) == "_" {
+            add_rest_cases(described_union, covered, switch_case.body, tags, targets, bodies, classes)
+        }
+        index = index + 1
+    }
+    emitter.switch_on(tag, tags, targets)
+    var incomings = List<Incoming>()
+    index = 0
+    while index < targets.count() {
+        crash bodies[index]
+        crash classes[index]
+        var body = bodies[index]
+        var case_class = classes[index]
+        emitter.enter_block(targets[index])
+        emitter.push_frame()
+        var narrowed = known().class_type(case_class)
+        lowering().narrow_one(subject_expression, narrowed)
+        lower_switch_case(body, count, before, incomings)
+        index = index + 1
+    }
+    emitter.arrive(incomings, count)
+}
+
+func union_case_class(
+    switch_case: Syntax.Statements.SwitchCase,
+    described_union: Analysis.UnionInfo,
+): Analysis.ClassInfo? {
+    assert switch_case.type_reference
+    assert case_names(switch_case) != "_"
+    var made = front()
+    var case_class = made.class_of_type_reference(switch_case.type_reference, described_union.owner_namespace)
+    if case_class {
+        return case_class
+    }
+    return made.class_of_type_reference(switch_case.type_reference, lowered_class.qualified_dotted)
+}
+
+func add_union_case(
+    case_class: Analysis.ClassInfo,
+    body: List<Syntax.Statements.Statement>,
+    tags: List<String>,
+    targets: List<Integer>,
+    bodies: List<List<Syntax.Statements.Statement>>,
+    classes: List<Analysis.ClassInfo>,
+) {
+    tags.append(case_class.c_name)
+    var target = emitter.new_block()
+    targets.append(target)
+    bodies.append(body)
+    classes.append(case_class)
+}
+
+func add_rest_cases(
+    described_union: Analysis.UnionInfo,
+    covered: List<String>,
+    body: List<Syntax.Statements.Statement>,
+    tags: List<String>,
+    targets: List<Integer>,
+    bodies: List<List<Syntax.Statements.Statement>>,
+    classes: List<Analysis.ClassInfo>,
+) {
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        if not covered.contains(member.c_name) {
+            add_union_case(member, body, tags, targets, bodies, classes)
+        }
+        index = index + 1
+    }
+}
+
+func value_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer) {
+    var count = emitter.locals.count()
+    var before = emitter.snapshot(count)
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        var tag = case_tag(switch_case)
+        tags.append(tag)
+        var target = emitter.new_block()
+        targets.append(target)
+        index = index + 1
+    }
+    emitter.switch_on(subject, tags, targets)
+    var incomings = List<Incoming>()
+    index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        emitter.push_frame()
+        lower_switch_case(switch_case.body, count, before, incomings)
+        index = index + 1
+    }
+    emitter.arrive(incomings, count)
+}
+
+func case_tag(switch_case: Syntax.Statements.SwitchCase): String {
+    if not switch_case.value {
+        return "_"
+    }
+    var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(switch_case.value)
+    var literal = shapes.as_enum_literal(switch_case.value)
+    if literal {
+        return literal.value
+    }
+    return written
+}
+
+func text_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer) {
+    var count = emitter.locals.count()
+    var before = emitter.snapshot(count)
+    var incomings = List<Incoming>()
+    var boolean = known().typed_boolean()
+    var index = 0
+    while index < statement.cases.count() and emitter.reachable() {
+        var switch_case = statement.cases[index]
+        if not switch_case.value {
+            emitter.push_frame()
+            lower_switch_case(switch_case.body, count, before, incomings)
+        } else {
+            var written = lowering().lower(switch_case.value)
+            var same = emitter.emit_call_two("String.equals", subject, written, boolean)
+            text_case(same, switch_case.body, count, before, incomings)
+        }
+        index = index + 1
+    }
+    var falls = emitter.incoming(count)
+    if falls {
+        incomings.append(falls)
+    }
+    emitter.arrive(incomings, count)
+}
+
+func text_case(
+    same: Integer,
+    body: List<Syntax.Statements.Statement>,
+    count: Integer,
+    before: List<Integer>,
+    incomings: List<Incoming>,
+) {
+    var case_block = emitter.new_block()
+    var next_block = emitter.new_block()
+    emitter.branch(same, case_block, next_block)
+    emitter.enter_block(case_block)
+    emitter.push_frame()
+    lower_switch_case(body, count, before, incomings)
+    emitter.restore(before)
+    emitter.enter_block(next_block)
+}
+
+func union_store(union_name: String, name: String, object: Integer, assigned: Syntax.Expressions.Expression) {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union or described_union.members.is_empty() {
+        emitter.fail_lowering("an assignment to '{name}' through a union with no members")
+        return
+    }
+    var field_type = union_field_type(described_union, name)
+    if not field_type {
+        emitter.fail_lowering(
+            "an assignment to '{name}', which the union '{described_union.simple_name}' does not hold",
+        )
+        return
+    }
+    var value = lowering().lower_toward(assigned, field_type)
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", object, tag_type)
+    var joined = emitter.new_block()
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        tags.append(member.c_name)
+        var target = emitter.new_block()
+        targets.append(target)
+        index = index + 1
+    }
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        store_member_value(member, name, object, value)
+        emitter.jump_plain(joined)
+        index = index + 1
+    }
+    emitter.enter_block(joined)
+}
+
+func union_field_type(described_union: Analysis.UnionInfo, name: String): Analysis.SpiteType? {
+    var made = front()
+    if described_union.is_shape {
+        return made.shape_field_type(described_union, name)
+    }
+    var first_member = described_union.members.first()
+    assert first_member
+    var field = first_member.find_field(name)
+    assert field
+    return field.type
+}
+
+func store_member_value(member: Analysis.ClassInfo, name: String, object: Integer, value: Integer) {
+    var made = front()
+    var narrowed_type = lowering().member_type(member)
+    var narrowed = emitter.emit_call_one("Union.value", object, narrowed_type)
+    var setter = made.find_setter(member, name, lowered_class)
+    if setter {
+        crash setter.parameters[0]
+        var parameter_type = setter.parameters[0].type
+        var converted = lowering().convert(value, parameter_type)
+        var operands = [narrowed, converted]
+        lowering().call_reached(member, setter, operands)
+        return
+    }
+    var field = member.find_field(name)
+    if not field {
+        emitter.fail_lowering("an assignment to '{name}', which a member of a union does not hold")
+        return
+    }
+    var stored = lowering().convert(value, field.type)
+    emitter.store_field(narrowed, name, stored)
+}
+
+func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned: Syntax.Expressions.Expression) {
+    crash member.object
+    var memory = shapes.as_member(member.object)
+    if not memory or memory.name != "memory" {
+        emitter.fail_lowering("an assignment to an allocator that is not an object's")
+        return
+    }
+    crash memory.object
+    var object = lowering().lower(memory.object)
+    var allocator = lowering().lower(assigned)
+    var operands = [object, allocator]
+    emitter.emit_call("Object.place", operands, null)
+}

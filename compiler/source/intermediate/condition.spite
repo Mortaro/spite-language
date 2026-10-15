@@ -1,0 +1,29 @@
+# ../../../design/proposals/desugared_high_ir.md#lowering-a-body
+var value = -1
+var when_true = List<Syntax.Expressions.Expression>()
+var true_types = List<Analysis.SpiteType>()
+var when_false = List<Syntax.Expressions.Expression>()
+var false_types = List<Analysis.SpiteType>()
+
+func Condition(starting_value: Integer) {
+    value = starting_value
+}
+
+func narrows_when_true(expression: Syntax.Expressions.Expression, narrowed: Analysis.SpiteType) {
+    when_true.append(expression)
+    true_types.append(narrowed)
+}
+
+func narrows_when_false(expression: Syntax.Expressions.Expression, narrowed: Analysis.SpiteType) {
+    when_false.append(expression)
+    false_types.append(narrowed)
+}
+
+func swapped(negated: Integer): Condition {
+    var made = Condition(negated)
+    made.when_true = when_false
+    made.true_types = false_types
+    made.when_false = when_true
+    made.false_types = true_types
+    return made
+}

@@ -17,6 +17,9 @@ var enums = List<Analysis.EnumInfo>()
 var class_names = List<String>()
 var trace_asserts = false
 var bare_crash_sites = false
+var foreign_files = List<String>()
+var foreign_namings = List<String>()
+var foreign_headers = List<String>()
 
 func add_layout(layout: Layout) {
     crash not layouts_by_name.has(layout.c_name)

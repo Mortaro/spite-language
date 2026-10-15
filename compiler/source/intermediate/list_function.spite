@@ -1,0 +1,8 @@
+# ../../../design/proposals/desugared_high_ir.md#monomorphisation
+var owner: Analysis.ClassInfo? = null
+var function: Analysis.FunctionInfo? = null
+
+func ListFunction(starting_owner: Analysis.ClassInfo, starting_function: Analysis.FunctionInfo?) {
+    owner = starting_owner
+    function = starting_function
+}

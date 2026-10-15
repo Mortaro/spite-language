@@ -11,6 +11,7 @@ var site = -1
 var form = ""
 var line = 0
 var kept_because = ""
+var target = ""
 
 func Operation(starting_kind: String, starting_line: Integer) {
     kind = starting_kind

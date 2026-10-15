@@ -1,6 +1,8 @@
 # ../../../design/proposals/desugared_high_ir.md#the-pipeline
 var generator: Generation.Generator? = null
 var lowered = Lowered()
+var types = Analysis.TypeShape()
+var made_singletons = 0
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -8,48 +10,118 @@ func Lowering(starting_generator: Generation.Generator) {
 
 func lower(): Lowered {
     crash generator
-    var classes = generator.classes
-    var index = 0
-    while index < classes.count() {
-        var information = classes[index]
-        if not information.is_generic_template {
-            lower_class(information)
+    var made = generator
+    var instances = Instances(made)
+    write_main(instances)
+    var settled = false
+    while not settled {
+        settled = true
+        while instances.has_pending() {
+            var owner = instances.pending_classes.remove_last()
+            var reached = instances.pending_functions.remove_last()
+            crash owner
+            crash reached
+            lower_reached(instances, owner, reached)
+            settled = false
         }
-        index = index + 1
+        while made_singletons < instances.singleton_names.count() {
+            write_singleton(instances, made_singletons)
+            made_singletons = made_singletons + 1
+            settled = false
+        }
     }
+    write_layouts(instances)
+    lowered.foreign_files = made.foreign_library_files
+    lowered.foreign_namings = made.foreign_library_namings
+    lowered.foreign_headers = made.foreign_library_headers
     return lowered
 }
 
-func lower_class(information: Analysis.ClassInfo) {
-    var layout = Layout(information.c_name, information.qualified_dotted)
-    layout.information = information
-    layout.is_value = information.is_value_class
-    layout.is_singleton = information.is_singleton
-    var index = 0
-    while index < information.fields.count() {
-        var declared = information.fields[index]
-        var declared_type = declared.type
-        var field = Field(declared.name, declared_type)
-        layout.stored_fields.append(field)
-        index = index + 1
-    }
-    lowered.add_layout(layout)
-    index = 0
-    while index < information.declared_functions.count() {
-        var declared_function = information.declared_functions[index]
-        lower_function(information, declared_function)
-        index = index + 1
-    }
+func write_main(instances: Instances) {
+    crash generator
+    var launcher = generator.find_class_by_qualified("Launcher")
+    assert launcher
+    var main = synthetic_function("spite_main", "main", launcher)
+    var nothing = instances.typed_nothing()
+    main.answer = nothing
+    var described = synthetic_description("main", "spite_main", nothing)
+    var emitter = start_body(main, launcher, described, instances)
+    var expressions = ExpressionLowering(emitter, instances, launcher, described, -1)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    expressions.construct(launcher, no_arguments)
+    emitter.returns(-1)
+    finish_body(main, emitter)
+    lowered.entry = main.c_name
+    instances.reach_layout(launcher)
 }
 
-func lower_function(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {
-    assert not declared.c_name.is_empty() and not lowered.function_named(declared.c_name)
+func write_singleton(instances: Instances, position: Integer) {
+    crash instances.singleton_classes[position]
+    crash instances.singleton_names[position]
+    crash instances.singleton_arguments[position]
+    var target = instances.singleton_classes[position]
+    var name = instances.singleton_names[position]
+    var arguments = instances.singleton_arguments[position]
+    var maker = synthetic_function(name, "singleton", target)
+    var made_type = instances.class_type(target)
+    maker.answer = made_type
+    maker.singleton_of = target.c_name
+    var described = synthetic_description("singleton", name, made_type)
+    var emitter = start_body(maker, target, described, instances)
+    var expressions = ExpressionLowering(emitter, instances, target, described, -1)
+    var object = expressions.construct_as(target, arguments, made_type)
+    emitter.returns(object)
+    finish_body(maker, emitter)
+}
+
+func synthetic_function(c_name: String, name: String, owner: Analysis.ClassInfo): Function {
+    var made = Function(c_name, name, owner.c_name)
+    lowered.add_function(made)
+    return made
+}
+
+func synthetic_description(name: String, c_name: String, answer: Analysis.SpiteType): Analysis.FunctionInfo {
+    var parameters = List<Analysis.ParamInfo>()
+    var body = List<Syntax.Statements.Statement>()
+    return Analysis.FunctionInfo(name, c_name, parameters, answer, body, false)
+}
+
+func start_body(
+    function: Function,
+    information: Analysis.ClassInfo,
+    described: Analysis.FunctionInfo,
+    instances: Instances,
+): Emitter {
+    instances.enter_function(information, described)
+    var emitter = Emitter()
+    emitter.function = function
+    emitter.lowered = lowered
+    emitter.path = instances.source_path_of(information, described)
+    emitter.owner_name = information.qualified_dotted
+    emitter.function_name = described.name
+    emitter.line = described.line
+    var entry = emitter.new_block()
+    emitter.enter_block(entry)
+    return emitter
+}
+
+func finish_body(function: Function, emitter: Emitter) {
+    if emitter.lowering_failed() {
+        function.blocks = List<Block>()
+        function.not_lowered = emitter.failure
+        return
+    }
+    function.not_lowered = ""
+}
+
+func lower_reached(instances: Instances, information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {
+    assert not lowered.function_named(declared.c_name)
     var function = Function(declared.c_name, declared.name, information.c_name)
     function.source = declared
     function.answer = declared.return_type
     function.is_constructor = declared.is_constructor
     function.specialised_from = declared.specialised_from
-    var receiver_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
+    var receiver_type = instances.receiver_type(information)
     function.receiver = function.new_value(receiver_type, "receiver")
     var index = 0
     while index < declared.parameters.count() {
@@ -61,6 +133,67 @@ func lower_function(information: Analysis.ClassInfo, declared: Analysis.Function
         function.parameters.append(parameter)
         index = index + 1
     }
-    function.not_lowered = "its body is not lowered yet"
     lowered.add_function(function)
+    var supplied = not declared.has_body or not declared.supplied_body.is_empty()
+    if supplied {
+        function.intrinsic = "supplied"
+        return
+    }
+    lower_body(instances, information, declared, function)
+}
+
+func lower_body(
+    instances: Instances,
+    information: Analysis.ClassInfo,
+    declared: Analysis.FunctionInfo,
+    function: Function,
+) {
+    var emitter = start_body(function, information, declared, instances)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        crash parameter.spite_type
+        emitter.declare_local(parameter.name, parameter.value, parameter.spite_type)
+        index = index + 1
+    }
+    var expressions = ExpressionLowering(emitter, instances, information, declared, function.receiver)
+    var statements = StatementLowering(expressions)
+    statements.lower_block(declared.body)
+    if emitter.reachable() {
+        fall_off_end(expressions, declared)
+    }
+    finish_body(function, emitter)
+}
+
+func fall_off_end(expressions: ExpressionLowering, declared: Analysis.FunctionInfo) {
+    var answer = declared.return_type
+    var defaulted = expressions.default_of(answer)
+    expressions.emitter.returns(defaulted)
+}
+
+func write_layouts(instances: Instances) {
+    var index = 0
+    while index < instances.layout_classes.count() {
+        var information = instances.layout_classes[index]
+        write_layout(instances, information)
+        index = index + 1
+    }
+}
+
+func write_layout(instances: Instances, information: Analysis.ClassInfo) {
+    assert not lowered.layout_named(information.c_name)
+    var layout = Layout(information.c_name, information.qualified_dotted)
+    layout.information = information
+    layout.is_value = information.is_value_class
+    layout.is_singleton = information.is_singleton
+    var index = 0
+    while index < information.fields.count() {
+        var declared = information.fields[index]
+        var declared_type = declared.type
+        var field = Field(declared.name, declared_type)
+        layout.stored_fields.append(field)
+        instances.reach_type(declared_type)
+        index = index + 1
+    }
+    lowered.add_layout(layout)
 }

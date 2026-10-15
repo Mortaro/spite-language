@@ -1,0 +1,303 @@
+# ../../../design/proposals/desugared_high_ir.md#monomorphisation
+var generator: Generation.Generator? = null
+var types = Analysis.TypeShape()
+var pending_classes = List<Analysis.ClassInfo>()
+var pending_functions = List<Analysis.FunctionInfo>()
+var reached_functions = Dictionary<String, Boolean>()
+var layout_classes = List<Analysis.ClassInfo>()
+var reached_layouts = Dictionary<String, Boolean>()
+var singleton_classes = List<Analysis.ClassInfo>()
+var singleton_names = List<String>()
+var singleton_arguments = List<List<Syntax.Expressions.Expression>>()
+var singleton_keys = Dictionary<String, Integer>()
+
+func Instances(starting_generator: Generation.Generator) {
+    generator = starting_generator
+    starting_generator.item_values_on = false
+}
+
+func front(): Generation.Generator {
+    crash generator
+    return generator
+}
+
+func reach(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    if not reached_functions.has(function.c_name) {
+        reached_functions[function.c_name] = true
+        pending_classes.append(information)
+        pending_functions.append(function)
+    }
+    reach_layout(information)
+    return function.c_name
+}
+
+func reach_layout(information: Analysis.ClassInfo) {
+    assert not reached_layouts.has(information.c_name)
+    reached_layouts[information.c_name] = true
+    layout_classes.append(information)
+}
+
+func reach_type(spite_type: Analysis.SpiteType?) {
+    assert spite_type
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        reach_type(nullable.inner)
+        return
+    }
+    var made = front()
+    var described = made.class_of_type(spite_type)
+    assert described
+    reach_layout(described)
+}
+
+func singleton_maker(
+    information: Analysis.ClassInfo,
+    arguments: List<Syntax.Expressions.Expression>,
+    key: String,
+): String {
+    var name = "spite_singleton_{information.c_name}{key}"
+    if not singleton_names.contains(name) {
+        singleton_names.append(name)
+        singleton_classes.append(information)
+        singleton_arguments.append(arguments)
+    }
+    reach_layout(information)
+    return name
+}
+
+func singleton_number(shown: String): Integer {
+    if not singleton_keys.has(shown) {
+        var next = singleton_keys.count()
+        singleton_keys[shown] = next
+    }
+    crash singleton_keys[shown]
+    return singleton_keys[shown]
+}
+
+func enter_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var made = front()
+    made.current_class = information
+    made.current_owner = information.qualified_dotted
+    made.current_function = function.name
+    made.current_function_c_name = function.c_name
+    made.current_path = source_path_of(information, function)
+    made.current_line = function.line
+    made.bind_symbol_of(function)
+    made.bind_reflected_of(function)
+    made.in_specialised_copy = not function.specialised_from.is_empty()
+}
+
+func enter_class(information: Analysis.ClassInfo) {
+    var made = front()
+    made.current_class = information
+    made.current_owner = information.qualified_dotted
+    made.current_path = information.source_path
+}
+
+func source_path_of(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    if function.source_path.is_empty() {
+        return information.source_path
+    }
+    return function.source_path
+}
+
+func same(left: Analysis.SpiteType, right: Analysis.SpiteType): Boolean {
+    var made = front()
+    return made.types_equal(left, right)
+}
+
+func receiver_type(information: Analysis.ClassInfo): Analysis.SpiteType {
+    var made = front()
+    if information.is_value_class {
+        return made.value_class_type(information)
+    }
+    return Analysis.Types.ClassRefType(information.c_name)
+}
+
+func scalar(kind: Analysis.Types.NumericKind): Analysis.SpiteType {
+    return Analysis.Types.ScalarType(kind)
+}
+
+func typed_boolean(): Analysis.SpiteType {
+    return scalar('boolean_kind')
+}
+
+func typed_integer(): Analysis.SpiteType {
+    return scalar('integer_kind')
+}
+
+func typed_long(): Analysis.SpiteType {
+    return scalar('long_kind')
+}
+
+func typed_float(): Analysis.SpiteType {
+    return scalar('float_kind')
+}
+
+func typed_string(): Analysis.SpiteType {
+    return Analysis.Types.StringType()
+}
+
+func typed_nothing(): Analysis.SpiteType {
+    return Analysis.Types.VoidType()
+}
+
+func typed_symbol(): Analysis.SpiteType {
+    return Analysis.Types.SymbolType()
+}
+
+func nullable_of(inner: Analysis.SpiteType): Analysis.SpiteType {
+    return Analysis.Types.NullableType(inner)
+}
+
+func class_type(information: Analysis.ClassInfo): Analysis.SpiteType {
+    return Analysis.Types.ClassRefType(information.c_name)
+}
+
+func scalar_name(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "Integer"
+        'long_kind': return "Long"
+        'tiny_kind': return "Tiny"
+        'short_kind': return "Short"
+        'byte_kind': return "Byte"
+        'unsigned_short_kind': return "UnsignedShort"
+        'unsigned_integer_kind': return "UnsignedInteger"
+        'unsigned_long_kind': return "UnsignedLong"
+        'address_kind': return "Address"
+        'float_kind': return "Float"
+        'double_kind': return "Double"
+        _: return "Boolean"
+    }
+}
+
+func scalar_word(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "integer"
+        'long_kind': return "long"
+        'tiny_kind': return "tiny"
+        'short_kind': return "short"
+        'byte_kind': return "byte"
+        'unsigned_short_kind': return "unsigned_short"
+        'unsigned_integer_kind': return "unsigned_integer"
+        'unsigned_long_kind': return "unsigned_long"
+        'address_kind': return "address"
+        'float_kind': return "float"
+        'double_kind': return "double"
+        _: return "boolean"
+    }
+}
+
+func is_decimal_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'float_kind' or kind == 'double_kind'
+}
+
+func is_signed(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
+}
+
+func is_unsigned(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind' or kind == 'unsigned_long_kind'
+}
+
+func is_checked(kind: Analysis.Types.NumericKind): Boolean {
+    return is_signed(kind) or is_unsigned(kind)
+}
+
+func bit_width(kind: Analysis.Types.NumericKind): Integer {
+    switch kind {
+        'tiny_kind': return 8
+        'byte_kind': return 8
+        'short_kind': return 16
+        'unsigned_short_kind': return 16
+        'integer_kind': return 32
+        'unsigned_integer_kind': return 32
+        'float_kind': return 32
+        'boolean_kind': return 1
+        _: return 64
+    }
+}
+
+func widens_without_check(from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): Boolean {
+    var from_bits = bit_width(from)
+    var to_bits = bit_width(to)
+    if from_bits > to_bits {
+        return false
+    }
+    var from_signed = is_signed(from)
+    var to_signed = is_signed(to)
+    if from_signed == to_signed {
+        return true
+    }
+    return not from_signed and from_bits < to_bits
+}
+
+func lowest(kind: Analysis.Types.NumericKind): Long {
+    switch kind {
+        'tiny_kind': return -128
+        'short_kind': return -32768
+        'integer_kind': return -2147483648
+        'long_kind': return Long.smallest
+        _: return 0
+    }
+}
+
+func highest(kind: Analysis.Types.NumericKind): Long {
+    switch kind {
+        'tiny_kind': return 127
+        'byte_kind': return 255
+        'short_kind': return 32767
+        'unsigned_short_kind': return 65535
+        'integer_kind': return 2147483647
+        'unsigned_integer_kind': return 4294967295
+        _: return Long.largest
+    }
+}
+
+func owner_name(spite_type: Analysis.SpiteType): String {
+    var scalar_type = types.as_scalar(spite_type)
+    if scalar_type {
+        return scalar_name(scalar_type.kind)
+    }
+    if types.as_string(spite_type) {
+        return "String"
+    }
+    if types.as_enum(spite_type) {
+        return "Enum"
+    }
+    if types.is_symbol(spite_type) {
+        return "Symbol"
+    }
+    return "Reference"
+}
+
+func type_text(spite_type: Analysis.SpiteType?): String {
+    var text = Text()
+    return text.type_text(spite_type)
+}
+
+func file_statements(information: Analysis.ClassInfo): List<Syntax.Statements.Statement> {
+    var made = front()
+    var discovered = made.discovered_classes[information.entry_index]
+    assert discovered
+    return discovered.file.statements
+}
+
+func field_declaration(information: Analysis.ClassInfo, name: String): Syntax.Statements.VariableDeclaration? {
+    var shapes = Analysis.AstShape()
+    var statements = file_statements(information)
+    var found: Syntax.Statements.VariableDeclaration? = null
+    var index = 0
+    while index < statements.count() {
+        var declared = shapes.as_variable_declaration(statements[index])
+        if declared and declared.name == name {
+            found = declared
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func has_pending(): Boolean {
+    return not pending_functions.is_empty()
+}
