@@ -28,6 +28,7 @@ func print(body: Body, operation: Operation) {
         "List": print_list(body, operation, word)
         "Foreign": print_foreign(body, operation, word)
         "Reflection": print_reflection(body, operation, word)
+        "Instances": print_instances(body, operation, word)
         "Bands": print_bands(body, operation)
         "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
@@ -44,6 +45,26 @@ func print_singleton_lock(body: Body, operation: Operation, word: String) {
         "leave_skipping": body.leave_skipping(owner)
         _: body.refuse("it calls 'Singleton.{word}', which is no intrinsic")
     }
+}
+
+func print_instances(body: Body, operation: Operation, word: String) {
+    var tracked = lowered.layout_named(operation.literal)
+    var appending = lowered.function_named(operation.target)
+    if word != "fill" or not tracked or not appending {
+        body.refuse(
+            "it lists the live instances of '{operation.literal}', and the class or the list's append '{operation.target}' is not held",
+        )
+        return
+    }
+    var name = tracked.c_name
+    if not output.tracked_layouts.contains(name) {
+        output.tracked_layouts.append(name)
+    }
+    var filled = body.operand(operation, 0)
+    var registry = "spite_instances_{name}"
+    body.emit(
+        "for (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) {appending.c_name}({filled}, {name}___retain({registry}[spite_index]));",
+    )
 }
 
 func print_reflection(body: Body, operation: Operation, word: String) {
