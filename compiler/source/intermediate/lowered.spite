@@ -20,8 +20,6 @@ var bare_crash_sites = false
 var foreign_files = List<String>()
 var foreign_namings = List<String>()
 var foreign_includes = List<String>()
-var foreign_files = List<String>()
-var foreign_namings = List<String>()
 var foreign_headers = List<String>()
 
 func add_layout(layout: Layout) {
