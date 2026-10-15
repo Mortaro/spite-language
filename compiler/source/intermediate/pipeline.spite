@@ -53,6 +53,7 @@ func settle_settings() {
     lowered.foreign_includes = List<String>()
     generator.foreign_library_headers.each(note_foreign_header)
     lowered.enums = generator.enums
+    settle_loop_tables()
 }
 
 func note_foreign_header(header: String) {
@@ -66,6 +67,46 @@ func note_foreign_header(header: String) {
         return
     }
     lowered.foreign_includes.append("#include <{header}>")
+}
+
+func settle_loop_tables() {
+    crash generator
+    assert generator.read_evaluate_print_loop
+    var names = List<String>()
+    var blocks = List<String>()
+    var index = 0
+    while index < generator.classes.count() {
+        var information = generator.classes[index]
+        if generator.is_listed_class(information) {
+            if not information.is_singleton {
+                var class_name = generator.singleton_display_name(information)
+                names.append(class_name)
+            }
+            var block = generator.class_description(information)
+            blocks.append(block)
+        }
+        index = index + 1
+    }
+    var enum_lines = List<String>()
+    index = 0
+    while index < generator.enums.count() {
+        var described = generator.enums[index]
+        var owner = generator.find_class_by_qualified(described.owner_qualified)
+        if owner and generator.is_listed_class(owner) {
+            var quoted = List<String>()
+            var value_index = 0
+            while value_index < described.values.count() {
+                quoted.append("'{described.values[value_index]}'")
+                value_index = value_index + 1
+            }
+            var shown = generator.enum_display_name(described)
+            enum_lines.append("{shown}: {quoted.join(", ")}")
+        }
+        index = index + 1
+    }
+    lowered.loop_class_names = names.join("\n")
+    lowered.loop_enum_names = enum_lines.join("\n")
+    lowered.loop_class_descriptions = blocks.join("\n\n")
 }
 
 func settle_layouts() {
