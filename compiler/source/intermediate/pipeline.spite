@@ -219,6 +219,10 @@ func settle_schema(function: Function) {
 }
 
 func settle_held_layouts() {
+    if runs_pieces() {
+        var piece_type: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Function")
+        settle_held(piece_type)
+    }
     var index = 0
     while index < lowered.layouts.count() {
         var layout = lowered.layouts[index]
@@ -227,6 +231,29 @@ func settle_held_layouts() {
         }
         index = index + 1
     }
+}
+
+func runs_pieces(): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        var block_index = 0
+        while block_index < function.blocks.count() {
+            var block = function.blocks[block_index]
+            var position = 0
+            while position < block.operations.count() {
+                var operation = block.operations[position]
+                var pieced = operation.callee == "Bands.run" or operation.callee == "Rows.run"
+                if pieced or operation.form == "overlap" or operation.form == "started" {
+                    return true
+                }
+                position = position + 1
+            }
+            block_index = block_index + 1
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func settle_held(held: Analysis.SpiteType) {

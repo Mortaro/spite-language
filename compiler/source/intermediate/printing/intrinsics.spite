@@ -806,7 +806,9 @@ func print_bands(body: Body, operation: Operation) {
     var pool = pool_function("maker")
     var running = pool_function("run_bands")
     if not layout or not member or not layout.information or layout.qualified != "List" or pool.is_empty() or running.is_empty() or not lowered.layout_named("Spite_Function") {
-        body.assign(operation.result, "false")
+        body.refuse(
+            "it runs '{operation.literal}' in bands, and the list's layout, that function, the thread pool's maker or run_bands, or Spite.Function is not held",
+        )
         return
     }
     var piece = band_piece(layout, member)
