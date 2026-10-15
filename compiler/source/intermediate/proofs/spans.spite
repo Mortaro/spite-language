@@ -244,6 +244,34 @@ func refine_from_edge(block_number: Integer) {
     var condition = deciding.operands.first()
     crash condition
     refine_condition(condition, taken == block_number, from, block_number, 0)
+    refine_sums(from, block_number)
+}
+
+func refine_sums(header: Integer, into: Integer) {
+    crash flow
+    crash function
+    assert flow.is_loop_header(header)
+    var body = flow.body_of(header)
+    assert body.contains(into)
+    var count = function.block_at(header).parameters.count()
+    var position = 0
+    while position < count {
+        var loop = LoopShape(header, position, this)
+        var counted = loop.counter_span(position)
+        if not counted {
+            refine_sum(loop, header, into, position)
+        }
+        position = position + 1
+    }
+}
+
+func refine_sum(loop: LoopShape, header: Integer, into: Integer, position: Integer) {
+    crash function
+    var inside = loop.body_span()
+    assert inside
+    var parameter = function.block_at(header).parameters[position]
+    crash parameter
+    refine(into, parameter, inside)
 }
 
 func refine_condition(condition: Integer, holds: Boolean, from: Integer, into: Integer, depth: Integer) {
