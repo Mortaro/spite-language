@@ -441,7 +441,7 @@ func place_operation(
         }
         index = index + 1
     }
-    if not moved.is_empty() and not retained_any and operation.form.is_empty() {
+    if operation.kind == "call" and not moved.is_empty() and not retained_any and operation.form.is_empty() {
         operation.form = "moved"
     }
     var users = operation_users(operation, block_number, position)

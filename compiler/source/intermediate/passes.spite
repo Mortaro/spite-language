@@ -20,6 +20,12 @@ func run(lowered: Lowered) {
     tidy(lowered)
 }
 
+func drop_unreachable_blocks(function: Function) {
+    assert not function.blocks.is_empty()
+    var branches = Proofs.BranchFolding()
+    branches.drop_unreachable(function)
+}
+
 func tidy(lowered: Lowered) {
     var intrinsics = Facts.Intrinsics(lowered)
     var rewrites = Facts.Rewrites()
@@ -30,6 +36,7 @@ func tidy(lowered: Lowered) {
         if not function.blocks.is_empty() {
             rewrites.remove_unused(function, intrinsics)
         }
+        drop_unreachable_blocks(function)
         index = index + 1
     }
 }

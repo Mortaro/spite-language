@@ -9,7 +9,12 @@ func Consumption(starting_lowered: Lowered) {
 }
 
 func is_projection(operation: Operation): Boolean {
-    return operation.kind == "call" and (operation.callee == "Nullable.value" or operation.callee == "Union.value")
+    var projections = ["Nullable.value", "Union.value", "Symbol.text"]
+    return operation.kind == "call" and projections.contains(operation.callee)
+}
+
+func is_wrap(operation: Operation): Boolean {
+    return operation.kind == "call" and (operation.callee == "Nullable.wrap" or operation.callee == "Union.wrap")
 }
 
 func consumes(operation: Operation, value: Integer): Boolean {
@@ -31,6 +36,9 @@ func consumes_position(operation: Operation, position: Integer): Boolean {
         return position > 0
     }
     if operation.kind == "call" and operation.callee == "String.join" and operation.form == "in_place" {
+        return position == 0
+    }
+    if is_wrap(operation) {
         return position == 0
     }
     if operation.kind != "call" or position == 0 or operation.form == "in_place" {

@@ -116,7 +116,12 @@ func is_narrowing(callee: String): Boolean {
 func is_comparison(callee: String): Boolean {
     var operation = operation_part(callee)
     var compared = ["equals", "less_than", "greater_than"]
-    return is_dotted(callee) and compared.contains(operation)
+    var owner = type_part(callee)
+    var kind = kind_named(owner)
+    if not is_dotted(callee) or not compared.contains(operation) or not kind {
+        return false
+    }
+    return kind != 'float_kind' and kind != 'double_kind' and kind != 'address_kind'
 }
 
 func kind_named(name: String): Analysis.Types.NumericKind? {

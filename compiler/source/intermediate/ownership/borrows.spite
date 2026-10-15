@@ -57,6 +57,9 @@ func classified(value: Integer): String {
     if not defining {
         return "owned"
     }
+    if defining.kind == "call" and defining.callee == "Union.tag" {
+        return "plain"
+    }
     if defining.kind == "constant" {
         return "static"
     }
