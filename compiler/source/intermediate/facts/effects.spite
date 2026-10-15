@@ -300,6 +300,11 @@ func of(callee: String): Summary {
         crash summaries[callee]
         return summaries[callee]
     }
+    crash lowered
+    var late = lowered.function_named(callee)
+    if late {
+        return late_summary(late)
+    }
     var unknowable = Summary()
     crash intrinsics
     if intrinsics.is_number_operation(callee) {
@@ -330,5 +335,20 @@ func operation_summary(function: Function, operation: Operation): Summary {
     }
     fresh_values = Dictionary<Integer, Boolean>()
     note_operation(made, function, operation)
+    return made
+}
+
+func late_summary(function: Function): Summary {
+    var made = own_summary(function)
+    summaries[function.c_name] = made
+    var reached = Summary()
+    var index = 0
+    while index < made.callees.count() {
+        var callee = made.callees[index]
+        var inner = of(callee)
+        reached.adds(inner)
+        index = index + 1
+    }
+    made.adds(reached)
     return made
 }

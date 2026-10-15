@@ -94,7 +94,7 @@ func prove_call(
         return
     }
     if callee == "Nullable.value" and operation.site >= 0 {
-        prove_present_value(operation, place, relations)
+        prove_present_value(function, operation, place, relations)
         return
     }
     prove_read(function, operation, place, spans, relations)
@@ -283,7 +283,7 @@ func read_is_present(function: Function, tested: Integer, relations: Relations):
         return false
     }
     var callee = relations.lowered_function(defining.callee)
-    if not callee or callee.name != "get_at" {
+    if not callee or read_width(callee.name) == 0 {
         return false
     }
     var element = element_of(function, defining)
@@ -299,10 +299,10 @@ func element_of(function: Function, read: Operation): Analysis.SpiteType? {
     return nullable.inner
 }
 
-func prove_present_value(operation: Operation, place: Facts.Place, relations: Relations) {
+func prove_present_value(function: Function, operation: Operation, place: Facts.Place, relations: Relations) {
     var tested = operation.operands.first()
     crash tested
-    assert relations.proves_present(tested, place)
+    assert relations.proves_present(tested, place) or read_is_present(function, tested, relations)
     operation.form = "unchecked"
 }
 
