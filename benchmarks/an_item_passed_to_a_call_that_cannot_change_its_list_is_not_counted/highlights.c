@@ -18,6 +18,6 @@ int32_t Playlist_listen(Playlist* self, int32_t count_) {
 }
 
 int32_t Playlist_length_of___held_0(Playlist* self, Track* track_) {
-    int32_t spite_temp_14 = (track_)->seconds_;
-    return spite_temp_14;
+    int32_t spite_high_1 = (track_)->seconds_;
+    return spite_high_1;
 }

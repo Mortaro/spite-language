@@ -94,10 +94,10 @@ for expected in conformance/*/*/expected_high_level.txt; do
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
     [ -z "$line" ] && continue
-    if ! grep -qxF -- "$line" "$reports/$name.txt"; then
+    if ! grep -qxF -e "$line" "$reports/$name.txt"; then
       missing=$((missing + 1))
       echo "FAILED: the high level report of '$program' does not hold: $line"
-      grep -F -- "${line%% it *}" "$reports/$name.txt" | head -3
+      grep -F -e "${line%% it *}" "$reports/$name.txt" | head -3
     fi
   done < "$expected"
 done

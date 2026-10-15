@@ -1,121 +1,123 @@
-# To do: IR-1 and IR-2, the high level of the IR (branch `backend-ir`)
+# To do: the high level of the IR (branch `backend-ir`)
 
-For the next model to pick up. Started by Space Bunny Free, stopped by its rate limit; reviewed by Claude Opus 5.5 on
-2026-10-10; continued by Space Bunny Free on 2026-10-11 and 12. Read first, in order: `AGENTS.md`, [the proposal and
-its review](proposals/high_level_ir.md) (the review at its end overrides the proposal), [what was built and what it
-covers](backend_high_level_ir.md), and decisions D558 to D561, D569, D583 to D585 in [decisions.md](decisions.md).
+For the next model to pick up. Started by Space Bunny Free, reviewed by Claude Opus 5.5 on 2026-10-10, continued by
+Space Bunny Free on 2026-10-11 to 14, then reviewed and continued by Claude Opus 5.5 on 2026-10-14. Read first, in
+order: `AGENTS.md`, [the proposal and its review](proposals/high_level_ir.md) (the review at its end overrides the
+proposal), [what is built and what it covers](backend_high_level_ir.md), and decisions D558 to D561, D569, D583 to
+D585 in [decisions.md](decisions.md).
+
+## The goal, from Mortaro (2026-10-14)
+
+1. **No optimisation reads generated C text.** Every decision the compiler makes is made on a structure.
+2. **The final C is written from the high level**, before the low level exists, so that when the low level and the
+   machine code arrive, every decision is already on the IR and only the printing changes.
+
+**Done means every line of C comes from the IR** (Mortaro, 2026-10-14): not only the function bodies the printer
+covers, but the classes' layouts, their allocate, release and copy functions, dispatch, the program's `main`, the
+prelude it needs, and every line a later pass rewrites today. Until then the generator is a fallback being emptied,
+and the work is not finished.
+
+The two are one migration: the passes that rewrite the final C (below) can only stop reading text once the C they
+rewrite is written from a structure, and a decision can only move onto the high level once the high level is the
+program that is printed.
 
 ## Where it stands
 
-- The form is built and follows the review, in `compiler/source/backend/high_*.spite`: the whole program in one
-  `HighProgram`; blocks with explicit edges; loops and list walks as one operation with a body; abstract objects as
-  owners (a receiver, a made object, a field's value, a parameter, a list's items); a new value on every write;
-  joins that record keep or drop; an operation of unknown effect wherever the walk does not build something.
-- The option is `--high-level-report=<path>`.
-- It runs over the whole conformance corpus and the examples with no program stopping: 413 programs, **680 functions
-  the walk built, 680 agreed, 0 differ**. What it reaches is in
-  [backend_high_level_ir.md](backend_high_level_ir.md#the-coverage-the-corpus-reaches).
-- **Calls are not compared yet**: the C writes a call as a call, as an inlined body, a folded copy or not at all, and
-  writes one the program never wrote for a conversion to text. Comparing them would measure the generator, so the
-  comparison of calls comes back when those decisions move onto the high level.
-- **IR-2, the conditional must-write summary, is built** (`HighMustWrite`): what a function surely wrote before it
-  answered `true`, before it answered `false`, and before it returned. It is a forward pass over the high level's own
-  blocks and joins, so it is a fold of the operations, never a second walk. Nothing reads it yet, so its entry in
-  `docs/proofs.md` waits for its consumer.
-- **IR-3's first question is built** (`HighBand`): do a counted loop's passes write only their own item? It is
-  answered over the high level, following the same calls the C reader follows, and compared with it. Over the corpus
-  8 counted loops are answered, 3 of them item-only, with no difference. For this to be asked at all the walk had to
-  recognise a counted `while`, which it now does by the generator's own rule; before that it looked for a bare
-  `count` call that a program almost never writes.
-- `check.sh` runs `scripts/high_level_coverage.sh` as one job (`job_high_level`), and a difference is a red build.
-- `bash check.sh --update-seed` was green after IR-2; **run it again before pushing** (see the gate below).
+- **The form** is in `compiler/source/backend/high_*.spite`: the whole program in one `HighProgram`; blocks with
+  explicit edges; loops and list walks as one operation with a body; abstract objects as owners; a new value on every
+  write with merged values (phis) at every join and at every loop's condition; a failed `assert` as a way out; and an
+  operation of unknown effect wherever the walk does not build something.
+- **Operations are lossless** for what the walk builds: each has its result, its operands in order, its operator and
+  its literal, `and` and `or` are branches, and a list walk over a member function is a `call` marked `per_item`.
+- **C is written from the high level** (`HighEmit`) for every function it covers, in every build: see
+  [C written from the high level](backend_high_level_ir.md#c-written-from-the-high-level) for what it covers and why
+  the rest is still the generator's.
+- **What a function surely wrote** (`HighMustWrite`) is a forward must analysis over predecessors, checked word for
+  word by `conformance/stage6/must_write_scratch/expected_high_level.txt`. Nothing reads it yet.
+- **A band site's first question** (`HighBand`) is asked for every `list.each_member()` site, following which object
+  is the item through every call, and compared with the C reader by the safety rule on the design page.
+- The comparison runs over the whole corpus from `check.sh` (`job_high_level`, `scripts/high_level_coverage.sh`).
+
+## Fixed on 2026-10-14 (so it is not looked for again)
+
+- What a function surely wrote read a block's outgoing edges as its predecessors, and shared one list between blocks,
+  so its answers were the returning block's own writes: a field written before an `if` was never surely written.
+- An `else` branch started from the values the `then` branch left; a join kept the `then` branch's value; a loop's
+  writes were forgotten after it; a branch that returned still joined.
+- A bare `crash` (`crash false`, which always halts) was walked past, and `crash true` (which never halts) ended the
+  block.
+- A failed `assert` returns the function's default: it was not a way out of the function.
+- `and` and `or` were walked as if both sides always run.
+- A list walk over a member function recorded no call at all (an `assert` used as a filter skipped it), so the per
+  item function's writes were invisible to every question.
+- A function walked on demand was never folded, so it looked as if it wrote and called nothing: a list's `append`
+  made a band site look like it wrote only its own item, which would have banded a loop that must stay whole.
+- The band comparison compared two different questions (a function holding a counted loop, against the C reader
+  treating that function as a per item function). It asks the generator's own question now, per band site.
 
 ## To do, in order
 
-1. **Gate the branch.** `bash check.sh --update-seed`, then `bash check.sh`, last line starting with `OK`.
-2. **Close IR-3's gap, then move the decision.** 48 of the corpus's counted loops are not answered yet, and 44 of
-   those are one reason: the loop calls a list's `count()`, whose own writes the walk cannot see, because the walk
-   does not build library classes. The C reader does see into them, so the question cannot move off it until the IR
-   answers too. Two ways, in order of cost:
-   - **build the library's own read-only container functions** in the high level (`count`, `is_empty`, and the rest of
-     the set `changes_a_container` already names), so following a call into one ends in a function with no writes.
-     This walks library code per program, so it wants D569's cache, and it is the whole of the remaining gap.
-   - or teach `HighBand` that a call the walk recorded as reading a container writes nothing of the program's
-     objects, and prove it against the C reader over the corpus. **A first attempt at this refuted itself**: it made
-     8 more functions answer "item-only" where the C reader says no, so the rule is not a fact about the library the
-     IR can see, and it is not claimed.
-   Once the answers agree everywhere, `band_condition` (`compiler/source/generation/generator.spite:37552`) asks the
-   IR instead of the C reader, which is the decision this whole migration exists to move.
-3. **A band's other two questions**, on the IR: does anything it calls count references (a retain, a release, a
-   box's count, a counted attribute), and is it worth banding (a weight against a minimum). Both are C text today
-   (the markers `___retain(`, `SPITE_COUNT_UP(` and a line count with a multiplier per loop).
-4. **Then actually band**: cut a counted loop's body into a piece function, clone the scratch on the submitting
-   thread, and check once per loop that the passes wrote different slots (D559 steps 2 to 4).
-5. **The low level, and C emitted from the IR for the smallest useful subset, function by function** (milestone
-   M3's second half, `proposals/own_backend_plan.md#m3-the-two-level-ir-and-a-first-lowering-d560`). Nothing of this
-   is built. The first slice worth trying is the simplest one: a function with no call, no container and no object
-   made in it, which is straight-line field reads, field writes and computations, emitted and checked against what
-   the generator writes for that function.
-6. **Raise coverage further**, from the summary's reasons: a name it does not know, a codegen value, a construction
-   (a generator decision), an owner tag of D556, and a getter, a setter or a switch.
+1. **Gate and push the branch.** `bash check.sh --update-seed` on exactly what is pushed, commit the seeds and the
+   benchmarks' `generated.c` it rewrites, push `backend-ir` (never `master`).
+2. **Widen the printer, one generator decision at a time**, each moved onto the high level as a pass, with the whole
+   corpus proving it:
+   - arithmetic: the overflow check per site, and the proof that drops it for a counter (`never_negative`,
+     `counter_counts_up` in the generator) as a high level pass;
+   - fractions' literals;
+   - calls to the program's own functions, with the generator's names for copies decided on the high level
+     (specialisation per call site is a whole-program pass, which is what the high level is for);
+   - references: retain and release as operations the walk records, so ownership is on the IR;
+   - `assert` and `crash` with their sites and reports;
+   - texts, lists and dictionaries.
+3. **Move the band decision.** `band_condition` (`generation/generator.spite`) asks `HighBand` instead of the C
+   reader once every band site agrees or the high level is stricter only where D556's owner proof is missing; then
+   the band's other two questions (does it count references, is it worth banding).
+4. **Move the rest of `OverlapFacts`** (2,426 lines reading the C): the overlap groups (`settle_overlap_at`), the row
+   conditions (`row_condition`), and the carried values (`CarriedValues.lost_write`). Each is a question about reads
+   and writes per object and field, the call graph and loop shape, which the high level carries.
+5. **The passes that rewrite the final C**, once the functions they touch are printed from the high level. Each reads
+   the text today because the text is the only form the output has:
 
-## What was already fixed (so it is not looked for again)
+   | Pass | What it decides | What the IR must carry instead |
+   |---|---|---|
+   | `TreeShaker` | which functions, types, statics and macros are reachable | the call graph and every use of a type, global and function value |
+   | `CountSharing` | which classes' counts no thread shares, so they need no atomics | thread entries, the call graph, where each class is retained, released and made |
+   | `NestedLists` | an inner list held only by an outer list's slots is laid out inline | field types and every use of the inner list (a layout pass, D520) |
+   | `ConfiguredCopies` | lists filled once are read as constants, per configuration | per field writers and callers, function values |
+   | `ClassPools` | a class gets a free list | allocation and free sites per class, thread facts |
+   | `FunctionFolder` | identical functions become one | equality of IR functions |
+   | `ItemValues` (the splice only) | a marked test becomes a constant | the decision is already on the tree; the splice becomes an IR rewrite |
+   | `rewrite_mirrors` (the splice only) | a field mirrored in a local | the solver already works on structure; the splice becomes an IR rewrite |
+   | smaller ones in the generator | locks (`state_touching_functions`), `___unguarded` calls, unread waits | per function field writes and receiver escapes, call sites, def-use |
 
-- **A value passed to a call whose owner is the frame** (`object_number` `-1` in `note_passed_value`) crashed the walk.
-  A plain local or constant points at no abstract object, so it is not looked up as one.
-- **A field of an object the walk cannot name** crashed on an owner of `-1`; it is an operation of unknown effect
-  naming that. A value number of `-1` is the walk's "no value here" and is left out of reads and writes rather than
-  folded.
-- **The class a value is of** is the generator's answer (`SpiteString`, a boxed value, a container), asked through
-  `HighProgram` rather than a second rule written in the walk.
-- **A call through a bare name that names another of the program's classes** is a made object of that class.
-- **The C reader did not recognise `___make_into`** as a construction, so it left out every field of a class the C
-  constructs that way. It is a construction the design page already names.
-- **Writing a field whose type is a reference reads the field first**: what it held is released before the new value
-  goes in, so the high level records that read too.
-- **A `crash` with a condition that may be false** was ending the block, so every statement after it was skipped.
-  Only a `crash true` ends a block. (This one was skipping steps, which is a bug under D244.)
-- **A list literal, an object literal and a codegen value** were not built at all, which is why a third of the
-  uncovered functions were uncovered. A text with holes was never missing: the parser lowers it to a binary join.
-- **A parameter had no abstract object**, so every field read or written through one had no owner. It has one now,
-  which is also what a per-parameter must-write summary needs.
-- **A list's items had no abstract object**, so no field of an item could be named, which is what a band site is made
-  of. They have one now, and the comparison names a field of an item the way the C names it.
-- **A list walk named the element's function as a call**, while the C names the list's template; the walk records no
-  call for it.
-- **Every reason the comparison does not cover a function names the function**, and the comparison decides coverage
-  one kind of fact at a time (see the design page).
-- **A call the program declared is compared by the name the program gave it**, not by a name the generator gave a
-  copy of it (`___held_0`, `___for_0_Integer`), and not by a function the compiler generated.
-- **`compare_fields` used to assert** when the C reader named neither a readable nor a writable field (both its keys
-  `raw`, say). That crashed the compiler on the user's program, which the design forbids; it now records the reason
-  for each kind and compares neither.
+   `StateMachine`, `UnitSplitter` and hot reload rewrite text too, but they are lowering and packaging, not
+   decisions: they become the printer's job.
+6. **The low level**, and machine code from it (milestone M3's second half, `proposals/own_backend_plan.md`), once
+   the printer writes every function.
 
 ## How to run it
 
 ```
-# build the seed once (clang from Visual Studio, or set CC), then the branch's compiler
-<seed> compiler --check                                   # no output means the sources compile
-<seed> compiler --build --executable-path=.spite/ir_compiler.exe
+# the compiler a check keeps (or the seed), then the branch's compiler
+.spite/spite.exe compiler --check                                    # no output means the sources compile
+.spite/spite.exe compiler --build --executable-path=.spite/ir_compiler.exe
 COVERAGE_JOBS=8 bash scripts/high_level_coverage.sh .spite/ir_compiler.exe
 ```
 
-The last line of that script's summary must say `functions differed 0`. `bash check.sh --update-seed` runs the same
-thing as one of its jobs and is the gate.
+The script must end without `FAILED`, and its summary's `functions differed` must be 0. `bash check.sh
+--update-seed` runs the same thing as one of its jobs, and runs every program with its C partly written by the
+printer, which is what proves the printer.
 
 ## Rules (refused by the hook or `check.sh` otherwise)
 
-- No em dashes anywhere: not the character, not two hyphens between spaces (git's double-hyphen separator between
-  spaces counts too).
-- Names in full words, no abbreviations.
-- Every failure is loud (D244). A case the walk does not understand is an unknown-effect operation or a crash
-  naming its cause, never a wrong fact, and never a skipped statement.
-- Commits:
-  - start with one gitmoji;
-  - end with `Co-authored-by: <the model you are> <noreply@...>`;
-  - stage explicit paths only.
-- A reversible decision you make:
-  - append a row to `design/decisions.md` with the next free number, marked "decided by <model> under D509, to
-    confirm";
-  - list it under "To confirm" in `mortaros_missing_decisions.md`.
+- No em dashes anywhere: not the character, not two hyphens between spaces.
+- Names in full words, no abbreviations; a comment is only a link to a design or docs section.
+- Every failure is loud (D244). A case the walk does not understand is an unknown-effect operation, a case the
+  printer does not write leaves the function to the generator, and a question the high level cannot answer says it
+  cannot say: never a wrong fact, never a skipped statement. Do not use `assert` as a filter in a function that
+  returns nothing unless skipping really is the answer.
+- Commits start with one gitmoji, end with `Co-authored-by: <the model you are> <noreply@...>`, and stage explicit
+  paths only.
+- A reversible decision you make: a row in `design/decisions.md` marked "decided by <model> under D509, to confirm",
+  and a line under "To confirm" in `mortaros_missing_decisions.md`.
 - Push this branch, never `master`. It merges into `backend-experimental` once the gate is green.

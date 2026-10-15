@@ -16,6 +16,6 @@ int32_t Meter_reading_at___held_0(Meter* self, List_Integer* values_, int32_t at
 }
 
 int32_t Meter_offset_of___held_0(Meter* self, Limits* limits_) {
-    int32_t spite_temp_6 = (limits_)->offset_;
-    return spite_temp_6;
+    int32_t spite_high_1 = (limits_)->offset_;
+    return spite_high_1;
 }

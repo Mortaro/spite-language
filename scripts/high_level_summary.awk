@@ -15,6 +15,13 @@
       for (part = 6; part <= NF; part = part + 1) { why = why " " $part }
       reasons[why] += 1
   }
+  /^printed / { printed += 1 }
+  /^not printed / {
+      not_printed += 1
+      why = $0
+      sub(/^[^:]*: /, "", why)
+      left[why] += 1
+  }
   END {
       print "programs with a report " programs
       print "functions walked " walked
@@ -26,4 +33,7 @@
       print "differences " differences
       print "functions not covered " count
       for (reason in reasons) print "not covered " reasons[reason], reason
+      print "functions printed from the high level " printed
+      print "functions the generator still writes " not_printed
+      for (why in left) print "still the generator's " left[why], why
   }

@@ -4,6 +4,7 @@ var reads = List<Integer>()
 var writes = List<Integer>()
 var call_name = ""
 var reads_only = false
+var per_item = false
 var passed = List<Integer>()
 var loop_kind = ""
 var loop_condition = -1
@@ -13,6 +14,11 @@ var answers = ""
 var returned_value = -1
 var unknown_reason = ""
 var line = 0
+var result = -1
+var operands = List<Integer>()
+var operator = ""
+var literal = ""
+var condition_text = ""
 
 func HighOperation(starting_kind: String, starting_line: Integer) {
     kind = starting_kind
@@ -31,6 +37,10 @@ func note_once(given: List<Integer>, value_number: Integer) {
     if value_number >= 0 and not given.contains(value_number) {
         given.append(value_number)
     }
+}
+
+func takes(value_number: Integer) {
+    operands.append(value_number)
 }
 
 func passes_object(object_number: Integer) {

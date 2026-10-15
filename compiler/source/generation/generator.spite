@@ -536,6 +536,9 @@ var schema_hash = SchemaHash()
 var pending_calls = List<Syntax.Expressions.Expression>()
 var pending_call_lines = List<Integer>()
 var schema_pending = "0 /* the schema hash, written when the function is emitted */"
+var high_level: Backend.HighProgram? = null
+var printed_from_high_level = 0
+var high_level_printing = List<String>()
 
 func fallback_line(): Integer {
     var known_line = function_line_in(current_class, current_function)
@@ -1144,6 +1147,7 @@ func generate(
         var nothing_decided = Dictionary<String, MirrorDecision>()
         builder.rewrite_mirrors(nothing_decided, mirror_atomic)
     }
+    high_level = null
     var rendered = ""
     if renders_program {
         rendered = builder.render()
@@ -47240,6 +47244,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         builder.add_prototype("static bool spite_function_waits(void* typed_call);")
         builder.add_user("self->_waits_ = spite_function_waits(self->spite_typed_call);")
     }
+    var body_start = builder.user_count()
     var declared_from = nested_declared.names.count()
     var scope = parameter_scope(function)
     nested_lists.studied[defined_name] = true
@@ -47272,6 +47277,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         }
     }
     close_rebindings(scope)
+    print_from_high_level(information, function, body_start)
     builder.add_user("}")
     fact_owner = outer_fact_owner
     into_function_active = false
@@ -47283,6 +47289,85 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
     report_function_start = outer_report_start
     add_outlined_reports(reports_before)
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func print_from_high_level(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, body_start: Integer) {
+    var program = high_level_program()
+    assert not program.is_library(information)
+    var why = why_the_generator_writes(function, body_start)
+    if why.is_empty() {
+        var walk = Backend.HighWalk(program, information, function)
+        crash walk.recorded
+        walk.recorded.fold_facts()
+        var borrowed = function.lent_parameters.copy()
+        function.held_parameters.each(borrowed.append)
+        var emit = Backend.HighEmit(program, walk.recorded, function.return_type, borrowed)
+        if emit.printed() {
+            var end = builder.user_count()
+            builder.remove_user_range(body_start, end)
+            emit.lines.each(builder.add_user)
+            printed_from_high_level = printed_from_high_level + 1
+        } else {
+            why = emit.refused
+        }
+    }
+    if why.is_empty() {
+        high_level_printing.append("printed {function.c_name}")
+    } else {
+        high_level_printing.append("not printed {function.c_name}: {why}")
+    }
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func why_the_generator_writes(function: Analysis.FunctionInfo, body_start: Integer): String {
+    if hot_reload {
+        return "the build reloads code while it runs"
+    }
+    if function.body.is_empty() or not function.supplied_body.is_empty() {
+        return "its body is supplied by the compiler"
+    }
+    if function.result_slot {
+        return "it answers into a result slot"
+    }
+    if function.is_constructor {
+        return "it is a constructor, which the generator wraps in the object it makes"
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var owned = type_needs_drop(parameter.type)
+        if owned and not function.lent_parameters.contains(parameter.name) and not function.held_parameters.contains(parameter.name) {
+            return "it owns a parameter, which the generator releases"
+        }
+        index = index + 1
+    }
+    if marked_for_later(body_start) {
+        return "the generator marked its C for a later pass"
+    }
+    return ""
+}
+
+func high_level_program(): Backend.HighProgram {
+    if high_level {
+        return high_level
+    }
+    var made = Backend.HighProgram(this)
+    made.prepare()
+    high_level = made
+    return made
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func marked_for_later(body_start: Integer): Boolean {
+    var index = body_start
+    while index < builder.user_count() {
+        if builder.user_at(index).contains("/*") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func add_outlined_reports(first: Integer) {

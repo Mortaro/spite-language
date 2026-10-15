@@ -1,141 +1,188 @@
 # ../../../design/backend_high_level_ir.md#what-a-band-site-needs
 var program: HighProgram? = null
-var writes_an_item = 0
-var writes_anything_else = 0
-var reaches_unknown = false
-var reached_names = List<String>()
-var writes_nothing = Dictionary<String, Boolean>()
-var built_here = List<String>()
-var keys = List<String>()
+var visited = Dictionary<String, Boolean>()
+var item_writes = List<String>()
+var other_writes = List<String>()
+var other_touches = List<String>()
+var cannot_say = ""
+var reached = 0
 
 func HighBand(starting_program: HighProgram) {
     program = starting_program
 }
 
-func answer_for(c_name: String): Boolean {
+func answer_for(member_c_name: String): Boolean {
     crash program
-    reset()
-    note_read_only_calls()
-    var reached = Dictionary<String, Boolean>()
-    reached[c_name] = true
-    var waiting = List<String>()
-    waiting.append(c_name)
-    while not waiting.is_empty() {
-        var name = waiting.remove_last()
-        crash name
-        note_one(name, reached, waiting)
-    }
-    return writes_anything_else == 0
-}
-
-func note_one(name: String, reached: Dictionary<String, Boolean>, waiting: List<String>) {
-    crash program
-    var function = program.walked_function_with_c_name(name)
+    var function = function_named(member_c_name)
     if not function {
-        function = program.ensure_walked(name)
-        if function {
-            built_here.append(name)
-        }
+        cannot_say = "it calls '{member_c_name}', which the walk cannot build"
+        return false
     }
-    if function {
-        note_writes_of(function)
-        var index = 0
-        while index < function.fact.calls.count() {
-            var called = function.fact.calls[index]
-            if not reached.has(called) {
-                reached[called] = true
-                waiting.append(called)
-            }
-            index = index + 1
-        }
-    } else {
-        reaches_unknown = true
-        reached_names.append(name)
-    }
+    var items = List<Integer>()
+    items.append(function.receiver_object)
+    visit(function, items)
+    return knows() and other_writes.is_empty() and not touched_elsewhere()
 }
 
-func reset() {
-    writes_an_item = 0
-    writes_anything_else = 0
-    reaches_unknown = false
-    reached_names = List<String>()
-    writes_nothing = Dictionary<String, Boolean>()
-    built_here = List<String>()
-    keys = List<String>()
+func knows(): Boolean {
+    return cannot_say.is_empty()
 }
 
-func note_read_only_calls() {
+func function_named(c_name: String): HighFunction? {
     crash program
-    var index = 0
-    while index < program.walked_functions.count() {
-        var read_only = program.walked_functions[index].fact.read_only_calls
-        var position = 0
-        while position < read_only.count() {
-            var name = read_only[position]
-            writes_nothing[name] = true
-            position = position + 1
-        }
-        index = index + 1
-    }
-}
-
-func cannot_say_because(): String {
-    crash reached_names.count() > 0
-    var name = reached_names[0]
-    var why = "it reaches '{name}', which the walk did not build, so what that call writes is not known"
-    if writes_nothing.has(name) {
-        why = "it reaches '{name}', a container's own function that only reads, whose own writes the walk does not see"
-    }
-    return why
-}
-
-func note_writes_of(function: HighFunction) {
-    function.fact.writes.keys().each(note_write)
-}
-
-func note_write(key: String) {
-    var object = object_of_key(key)
-    var kind = ""
-    if object {
-        kind = object.kind
-    }
-    if not object {
-        reaches_unknown = true
-    } else if kind == "items" {
-        writes_an_item = writes_an_item + 1
-        keys.append("s:{key}")
-    } else {
-        writes_anything_else = writes_anything_else + 1
-        keys.append("f:{key}")
-    }
-}
-
-func object_of_key(key: String): HighObject? {
-    assert program
-    var found: HighObject? = null
-    var mark = key.index_of("#")
-    if mark >= 0 {
-        var asked = key.slice(0, mark).to_integer()
-        crash asked
-        found = program.object_at_or_none(asked)
+    var found = program.walked_function_with_c_name(c_name)
+    if not found {
+        found = program.ensure_walked(c_name)
     }
     return found
 }
 
-func only_items_text(): String {
-    return "writes {writes_an_item} item fields and {writes_anything_else} other fields, {reaches_unknown} it cannot reach"
+func visit(function: HighFunction, items: List<Integer>) {
+    var mask = items_mask(function, items)
+    var key = "{function.c_name}|{mask}"
+    assert not visited.has(key)
+    visited[key] = true
+    reached = reached + 1
+    if function.fact.unknown_operations > 0 {
+        note_cannot_say(
+            "it reaches '{function.c_name}', where the walk did not build {function.fact.first_unknown_reason}",
+        )
+        return
+    }
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            visit_operation(function, items, operation)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
 }
 
-func keys_text(): String {
-    var text = ""
+func items_mask(function: HighFunction, items: List<Integer>): String {
+    var mask = ""
+    if items.contains(function.receiver_object) {
+        mask = "r"
+    }
     var index = 0
-    while index < keys.count() {
-        var key = keys[index]
-        if index > 0 {
-            text = "{text}, "
+    while index < function.parameter_objects.count() {
+        var parameter = function.parameter_objects[index]
+        if items.contains(parameter) {
+            mask = "{mask}{index},"
         }
-        text = "{text}{key}"
         index = index + 1
     }
-    return text
+    return mask
+}
+
+func visit_operation(function: HighFunction, items: List<Integer>, operation: HighOperation) {
+    if operation.kind == "call" and not operation.call_name.is_empty() {
+        visit_call(function, items, operation)
+        return
+    }
+    if operation.kind == "make" {
+        note_cannot_say("it makes an object in '{function.c_name}', whose writes this question does not follow yet")
+        return
+    }
+    var index = 0
+    while index < operation.writes.count() {
+        note_value(function, items, operation.writes[index], true)
+        index = index + 1
+    }
+    index = 0
+    while index < operation.reads.count() {
+        note_value(function, items, operation.reads[index], false)
+        index = index + 1
+    }
+}
+
+func note_value(function: HighFunction, items: List<Integer>, value_number: Integer, written: Boolean) {
+    var value = function.value_at(value_number)
+    assert value.is_of_an_object()
+    var held_by = class_of_object(value.owner)
+    var where = "{held_by}#{value.name}"
+    if items.contains(value.owner) {
+        if written and not item_writes.contains(where) {
+            item_writes.append(where)
+        }
+        return
+    }
+    if written and not other_writes.contains(where) {
+        other_writes.append(where)
+    }
+    if not other_touches.contains(where) {
+        other_touches.append(where)
+    }
+}
+
+func class_of_object(object_number: Integer): String {
+    crash program
+    var object = program.object_at_or_none(object_number)
+    var named = "?"
+    if object {
+        named = object.class_name
+    }
+    return named
+}
+
+func visit_call(function: HighFunction, items: List<Integer>, operation: HighOperation) {
+    var callee = function_named(operation.call_name)
+    if not callee {
+        note_cannot_say("it calls '{operation.call_name}', which the walk cannot build")
+        return
+    }
+    var passed = List<Integer>()
+    var position = 0
+    while position < operation.operands.count() {
+        var object_number = object_of_operand(function, operation, position)
+        if object_number >= 0 and items.contains(object_number) {
+            if position == 0 {
+                passed.append(callee.receiver_object)
+            } else if position - 1 < callee.parameter_objects.count() {
+                var parameter = callee.parameter_objects[position - 1]
+                passed.append(parameter)
+            }
+        }
+        position = position + 1
+    }
+    visit(callee, passed)
+}
+
+# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+func object_of_operand(function: HighFunction, operation: HighOperation, position: Integer): Integer {
+    var operand = operation.operands[position]
+    crash operand
+    if position == 0 and operand < 0 and not operation.per_item {
+        return function.receiver_object
+    }
+    if operand < 0 {
+        return -1
+    }
+    return function.value_at(operand).points_at
+}
+
+func note_cannot_say(why: String) {
+    if cannot_say.is_empty() {
+        cannot_say = why
+    }
+}
+
+func touched_elsewhere(): Boolean {
+    var index = 0
+    while index < item_writes.count() {
+        if other_touches.contains(item_writes[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func answer_text(): String {
+    var others = other_writes.join(" ")
+    var mine = item_writes.join(" ")
+    return "writes its item's {mine}; writes elsewhere {others}; over {reached} functions"
 }

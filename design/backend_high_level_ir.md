@@ -51,6 +51,24 @@ as `unreachable`, and the statements after it are not walked, because nothing ru
 
 Nothing is a block of C text and nothing is a name that means something at one place in a file.
 
+**An operation says all of what it does**, so code can be written from it and not only facts read from it:
+
+- `result` is the value it makes (a read's value, a write's new version, a computation's or a call's answer);
+- `operands` are the values it takes, in order: a write takes the value written and the value holding the object
+  (`-1` for the receiver), a slot read or write also takes the index, a call takes the value it is called on first
+  (`-1` for the receiver) and then its arguments, a `return`, an `assert`, a `crash` and a `branch` take the value they
+  test or answer;
+- `operator` names a computation's operator (`add`, `less`, `logical_not`, ...), and `literal` a constant's value
+  as written;
+- `condition_text` is the source text of an `assert` or a `crash`, which its report prints.
+
+An `if` and a loop's condition end with a `branch` operation that takes the value they test, so the edges `taken` and
+`dropped` say which value chose them. `and` and `or` evaluate their right side only when it matters, so they are
+control flow: the left side ends with a `branch`, the right side is a block of its own, and a `choice` operation in
+the join answers the result. A walk over a list's items calling a member function is a `call` marked `per_item`
+inside the walk's body, whose operand points at the list's items. A function that ends without a `return` ends with
+one, so every way out of a function is a `return`.
+
 An operation of unknown effect is what a case the walk does not build is recorded as. It says why, and the function
 holding one is not covered (see [What the comparison checks](#what-the-comparison-checks)): an unknown effect is never
 an empty effect, so a fact that would be wrong is never written (D244).
@@ -155,39 +173,97 @@ summary is a checked answer and not only printed.
 
 ## What a band site needs
 
-D559's answer for the naive engine is that a loop whose passes may write different slots runs in chunks, after one
-check per loop that the slots are distinct. That is a band site, and it needs three questions answered, all of which
-`generation/overlap_facts.spite` answers today by reading the C:
+A band site is a walk over a list's items that calls one of the item's own functions on each item
+(`list.each_update()`): the generator's `band_condition` (`generation/generator.spite`) runs it in chunks on several
+threads when the function, run on an item, writes only that item. D559 extends the same idea to a counted `while`
+whose passes write different slots; that is the next user, and the question below is the one it will ask too.
 
-- **do the passes write only their own item?** Every write the function makes, and every write of everything it
-  reaches, goes to a list's items, and to nothing else. On the high level this is a question about abstract objects:
-  every write's owner is an object of kind `items`, and nothing else is written. A function that reaches something
-  the walk did not build answers no, so an unknown effect can never be read as a band site.
+The decision needs three answers, all of which `generation/overlap_facts.spite` gives today by reading the C:
+
+- **does the function write only its own item?** Run with `self` being the item, every write it makes, and every
+  write of every function it reaches, lands on that item, and no other object of the item's class has that field
+  read or written anywhere it reaches (another pass could be writing it).
 - **does anything it calls count references?** A retain, a release, a box's count, a counted attribute. While the
   count lives in the C this is a marker in the C's text; on the high level it is a write of a field or a slot whose
   type is a reference, or a call of a function that does one.
 - **is it worth banding?** A weight from the C's line count with a multiplier per loop, compared with a minimum.
 
-`HighBand` answers the first of them over the high level, following the same calls the C reader follows, so it is a
-question about the same program and not about the C that was written from it. The comparison asks both and fails on a
-difference, as it does for the reads and writes; when they agree everywhere, the question moves off the C reader and
-onto the high level, and the other two follow.
+`HighBand` answers the first one on the high level. A walk over a list's items calling a member function is a `call`
+operation marked `per_item`, whose first operand points at the list's items object. `HighBand` starts at that function
+with its receiver as the item, and follows every call: the call's operands say which of the caller's objects it
+passes, so the callee's receiver or parameter is the item exactly when the caller passed the item there. A library
+function it reaches (a list's `append`, say) is walked on demand and folded like any other, so a list the item does not
+own being appended to is a write elsewhere, as it is. Anything it cannot follow (an operation of unknown effect, a
+function the walk cannot build, an object made on the way) makes it answer that it **cannot say**, never yes.
 
-Two things had to be true before it could be asked at all. A counted loop is one the walk now recognises by the
-generator's own rule (the operator is `less`, one side is a counter and the other a `count`), where before it looked
-for a bare `count` call that a program almost never writes. And the walk records which of a container's own functions
-only read it, so that when a function's answer is unknown the report can say *why*: 48 of the corpus's counted loops
-are unanswered, 44 of them for one reason, a list's `count()` whose own writes the walk cannot see. Closing that is
-the next step, and until it is closed the question cannot move off the C reader, because the C reader does see into
-those calls.
+It is stricter than the C reader on purpose where the two differ in what they know: a list held in a field of the item
+is not the item's own unless that field holds an object made for its owner (D556), which the high level does not prove
+yet, so appending to it is a write elsewhere.
 
-What the corpus reaches today: 8 counted loops answered, 3 of them writing only their own item, and no difference
-against the C reader on any of them.
+The comparison asks both for every band site, and only one disagreement fails `check.sh`: **the high level answering
+yes where the C reader answers no**, since that would band a loop the C path keeps whole (a wrong answer, D244). The
+other cases are reported, each with what both sides wrote:
 
-The loop itself is already one operation with a body: `loop_kind` is `counted` when its condition compares against a
-count, the body is a block of its own, and `body`, `step` and `exit` are the edges that join it to the block holding
-the loop. Cutting that body into a piece function is what makes each pass a function the compiler can give to another
-thread, and the distinctness check is a run-time test over what the passes wrote.
+- `stricter`: the high level says no where the C reader says yes. Nothing is wrong, but moving the decision onto the
+  high level while one is left would lose a band, so each is a gap to close first.
+- `blind`: the C reader follows a call it has no body for (an `io:` key) and answers no for everything; the high level
+  reads the call.
+- a site the high level cannot answer yet, with the reason.
+
+The decision moves off the C reader when every band site of the corpus agrees or is `blind`; the other two questions
+follow it.
+
+The loop itself is already one operation with a body: `loop_kind` is `counted` when its condition compares a counter
+with a bound by the generator's own rule (the operator is `less` and each side is a name or a `count()`), the body is
+a block of its own, and `body`, `step` and `exit` are the edges that join it to the block holding the loop. Cutting
+that body into a piece function is what makes each pass a function the compiler can give to another thread, and the
+distinctness check is a run-time test over what the passes wrote.
+
+## C written from the high level
+
+The point of the high level is that the program the compiler transforms is the program it writes. The first step is
+that a function's C body is written from its high level instead of by the generator's own walk, wherever the printer
+(`HighEmit`) can write all of it, and the generator's C everywhere else. There is no setting for it: a function the
+printer covers is written from the high level in every build, and `check.sh` running the whole corpus, the examples
+and the compiler itself is what proves the two write the same program.
+
+The generator still runs its own walk over every function first, and only its lines for the body are replaced. That
+keeps every diagnostic it gives and every study it makes on the way (unused names, a function that falls off its end,
+the nested lists, the mirrors), so a program never compiles with fewer checks because its C came from the high level.
+
+What the printer writes today, and why the rest is not yet its:
+
+| Part of a function | Written from the high level |
+|---|---|
+| constants that are whole numbers or Booleans | yes |
+| reads and writes of locals and parameters of a number or Boolean type | yes |
+| reads and writes of such a field, through the receiver or a parameter | yes |
+| comparisons, `not`, and `and` and `or` (as the branches they are) | yes |
+| `if`, `while` and `return` | yes |
+| arithmetic | no: the generator decides per site whether an overflow check is needed, and writes the report it prints |
+| a fraction's literal | no: the generator writes it with the precision of the value beside it |
+| calls | no: the generator names copies (`___held_0`, `___for_0_Integer`), inlines and folds |
+| a value of a class, a list, a text or a nullable type | no: retains and releases are the generator's |
+| `assert` and `crash` | no: their site and their report are the generator's |
+| a field of a singleton or a value class | no: the generator lays those out its own way |
+| a parameter the function owns (one not lent or held) | no: the generator releases it at the end |
+| an answer of any type but a number or a Boolean | no: the generator converts to it (`Number`, a text from a number) |
+| a value written or answered as a number of another type (`Integer` into `Byte`) | no: the generator checks the narrowing |
+| a constructor | no: the generator wraps its body in the object it makes |
+| an object parameter that is lent or held | yes: reading one to reach its fields borrows it |
+
+The printer writes control flow from the blocks' edges: a block that ends in a `loop` is a `while (1)` whose condition
+is printed inside it and leaves by `break`, a `branch` with `taken` and `dropped` edges is an `if` and its `else`, up to
+the join, and a `branch` into a `right side` block is an `and` or an `or`, answering into one Boolean. A local is
+declared at its first write in the C scope that holds it. Every other value is a temporary of its own, one per
+operation, since a value read twice is two loads.
+
+A function is left to the generator, whole, when any of these holds: the walk did not build all of it, it holds an
+operation the printer does not write, it is a library function, its body is supplied by the compiler, it answers into
+a result slot, the build reloads code while running, or **the generator's own lines for it hold a marker for a later
+pass** (`/*` in its C: a mirror, an item value, an overlap group). That last rule is a guard for the move, not a
+design: a later pass rewrites those markers in the text, so a body without them would lose that pass's decision. It is
+deleted when those decisions are made on the high level.
 
 ## What the comparison checks
 

@@ -4,6 +4,7 @@ var class_name = ""
 var c_name = ""
 var parameter_names = List<String>()
 var parameter_objects = List<Integer>()
+var receiver_object = -1
 var blocks = List<HighBlock>()
 var values = List<HighValue>()
 var fact = HighFact()
@@ -121,7 +122,9 @@ func fold_operation(operation: HighOperation) {
         note_value_written(operation.writes[index])
         index = index + 1
     }
-    fact.call(operation.call_name)
+    if not operation.call_name.is_empty() {
+        fact.call(operation.call_name)
+    }
     if operation.reads_only {
         fact.read_only_call(operation.call_name)
     }

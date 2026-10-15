@@ -15,6 +15,10 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D586, C written from the high level in every build, with no setting.** A function the high level's printer
+  covers gets its C from the high level; everything else stays the generator's, and `check.sh` over the whole corpus
+  is the proof. The other choice was a setting to turn it on, which costs a field in every program's C. Easy to
+  change.
 - **D581, the settings' names: `spite compiler --verify`, and `--verify --release` for the full run.** You suggested
   a flag such as `--test-and-movealong`. Easy to rename.
 - **D582, how `--verify` works**: the compiler keeps its own C through `c_source` in its `build.spite`; one more

@@ -13,17 +13,18 @@ Not a docs page, so not here by page: what is built and what is not is on
 [backend_high_level_ir_todo.md](backend_high_level_ir_todo.md).
 
 - Built: the form (blocks with explicit edges, loops and list walks as one operation, abstract objects, a new value
-  on every write, joins), the walk of a program's own functions, and the comparison against the C reader, which runs
-  over the whole corpus from `check.sh` and fails on any difference.
-- Built, with nothing yet reading it: the conditional must-write summary, what a function surely wrote before it
-  answered `true` or `false`, and a band's first question, whether a counted loop's passes write only their own item.
-  Both are worked out over the high level's own blocks, joins and abstract objects and reported by
-  `--high-level-report`, and the band's answer is compared with the C reader's and agrees. Their consumers are D559
-  steps 3 and 4, and their entries in [proofs.md](../docs/proofs.md) come with them, since a proof nothing reads is
-  not yet one a program can rely on.
-- Not built: a counted `while` actually cut into band pieces and run at once (D559 steps 2 to 4), a low level, and C
-  emitted from the high level (milestone M3's second half). Every decision the generator still makes (inlining,
-  folding, a call left out, a conversion to text) is why calls are not compared yet.
+  on every write, merged values at joins and loops), lossless operations, the walk of a program's own functions, and
+  the comparison against the C reader, which runs over the whole corpus from `check.sh` and fails on any difference.
+- Built, partly: **C written from the high level.** A function the printer covers gets its C from the high level in
+  every build (D586): numbers and Booleans, fields through the receiver or a borrowed parameter, comparisons, `and`,
+  `or`, `not`, `if`, `while` and `return`. Every other function is still written by the generator, so most of a
+  program's C is not yet the high level's; the goal is all of it.
+- Built, with nothing yet reading it: what a function surely wrote before it answered `true` or `false`, and a band
+  site's first question (does the function, run on an item, write only that item). Their consumers are D559 and
+  `band_condition`, and their entries in [proofs.md](../docs/proofs.md) come with them.
+- Not built: arithmetic, calls, references, `assert` and `crash`, texts, lists and dictionaries printed from the
+  high level; the classes' layouts and support functions, dispatch and `main` printed from it; the passes that read
+  or rewrite the C text moved onto it; a counted `while` cut into band pieces (D559 steps 2 to 4); the low level.
 
 ## [write_it_plainly.md](../docs/write_it_plainly.md)
 

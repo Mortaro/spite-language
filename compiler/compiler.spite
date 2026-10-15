@@ -786,7 +786,8 @@ func wrote_high_level_report(generator: Generation.Generator, report_path: Strin
     )
     var check = Backend.HighCheck()
     check.compare(high_level, facts)
-    var text = check.report_text()
+    var printing = generator.high_level_printing.join("\n")
+    var text = "{check.report_text()}{printing}\n"
     if File(report_path).write(text) {
         return true
     }

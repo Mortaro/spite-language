@@ -8,7 +8,10 @@ var must_write_lines = List<String>()
 var band_lines = List<String>()
 var band_sites = 0
 var item_only_band_sites = 0
+var band_stricter = 0
 var band_blind_spots = 0
+var band_unknown = 0
+var sites_asked = Dictionary<String, Boolean>()
 var names = List<String>()
 var not_covered = Dictionary<String, Integer>()
 var kinds_compared = 0
@@ -17,7 +20,8 @@ var calls_not_compared = 0
 
 func compare(program: HighProgram, facts: Generation.OverlapFacts) {
     var index = 0
-    while index < program.walked_functions.count() {
+    var walked_count = program.walked_functions.count()
+    while index < walked_count {
         var function = program.walked_functions[index]
         if function.covered {
             walked = walked + 1
@@ -26,6 +30,7 @@ func compare(program: HighProgram, facts: Generation.OverlapFacts) {
         } else {
             note_not_covered(function, "walk", function.not_covered_reason)
         }
+        compare_band(program, facts, function)
         index = index + 1
     }
 }
@@ -35,7 +40,6 @@ func compare_function(program: HighProgram, facts: Generation.OverlapFacts, func
     var before = differences.count()
     compare_fields(program, function, oracle)
     compare_loops(program, function, oracle)
-    compare_band(program, facts, function)
     note_must_write(function)
     if differences.count() == before {
         agreed = agreed + 1
@@ -61,42 +65,54 @@ func joined(names: List<String>): String {
 }
 
 func compare_band(program: HighProgram, facts: Generation.OverlapFacts, function: HighFunction) {
-    var asked = function.has_counted_loop() and facts.bodies.has(function.c_name)
-    if asked {
-        var band = HighBand(program)
-        var answered = band.answer_for(function.c_name)
-        var known = not band.reaches_unknown
-        var merged = facts.band_fact(function.c_name)
-        var expected = facts.item_only(merged)
-        var unseen = unseen_calls(merged)
-        if not unseen.is_empty() {
-            band_blind_spots = band_blind_spots + 1
-            band_lines.append(
-                "blind {function.c_name} the C reader follows calls it has no body for, {unseen}, so it answers no for everything; the high level reads them and answers {answered}",
-            )
-        } else if merged.writes.has("unknown") {
-            skip(
-                function,
-                "a band site",
-                "the C reader follows a function it has no body for, a library one folded away, so it records a write it does not know",
-            )
-        } else if not known {
-            var why = band.cannot_say_because()
-            skip(function, "a band site", why)
-        } else if answered != expected {
-            var keys = merged.writes.keys()
-            var seen = joined(keys)
-            var mine = band.keys_text()
-            band_lines.append("writes {function.c_name} the C reader merges {seen}, the high level writes {mine}")
-            note_difference(function, "a band site's writes", "only its own item", answered, expected)
-            return
-        } else {
-            band_sites = band_sites + 1
-            if answered {
-                item_only_band_sites = item_only_band_sites + 1
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.per_item {
+                compare_band_site(program, facts, function, operation.call_name)
             }
-            band_lines.append("{function.c_name} {band.only_items_text()}")
+            index = index + 1
         }
+        block_index = block_index + 1
+    }
+}
+
+# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+func compare_band_site(program: HighProgram, facts: Generation.OverlapFacts, function: HighFunction, site: String) {
+    assert not sites_asked.has(site) and facts.bodies.has(site)
+    sites_asked[site] = true
+    var band = HighBand(program)
+    var answered = band.answer_for(site)
+    var merged = facts.band_fact(site)
+    var expected = facts.item_only(merged)
+    var unseen = unseen_calls(merged)
+    if not band.knows() {
+        band_unknown = band_unknown + 1
+        skip(function, "a band site", band.cannot_say)
+    } else if answered and not expected and not unseen.is_empty() {
+        band_blind_spots = band_blind_spots + 1
+        band_lines.append(
+            "blind {site} the C reader follows calls it has no body for, {unseen}; the high level reads them",
+        )
+    } else if answered and not expected {
+        var written = merged.writes.keys()
+        var seen = joined(written)
+        band_lines.append("unsafe {site} the C reader merges {seen}; the high level {band.answer_text()}")
+        note_difference(function, "a band site's writes", "only its own item", answered, expected)
+    } else if expected and not answered {
+        band_stricter = band_stricter + 1
+        var written = merged.writes.keys()
+        var seen = joined(written)
+        band_lines.append("stricter {site} the C reader merges {seen}; the high level {band.answer_text()}")
+    } else {
+        band_sites = band_sites + 1
+        if answered {
+            item_only_band_sites = item_only_band_sites + 1
+        }
+        band_lines.append("agreed {site} {answered}: {band.answer_text()}")
     }
 }
 
@@ -319,12 +335,10 @@ func report_text(): String {
     lines.append("conversion to text; the high level cannot see any of that, so calls come back when")
     lines.append("those decisions move onto the high level")
     lines.append("functions with a true or false answer {must_write_lines.count()}")
-    lines.append(
-        "counted loops asked whether their passes write only their own item: {band_sites}, of which {item_only_band_sites} do",
-    )
-    lines.append(
-        "counted loops where the C reader is blind to a folded library call the high level reads: {band_blind_spots}",
-    )
+    lines.append("band sites agreed {band_sites}, of which {item_only_band_sites} write only their own item")
+    lines.append("band sites where the high level is stricter than the C reader {band_stricter}")
+    lines.append("band sites where the C reader is blind to a call the high level reads {band_blind_spots}")
+    lines.append("band sites the high level cannot answer yet {band_unknown}")
     var band_index = 0
     while band_index < band_lines.count() {
         lines.append("band {band_lines[band_index]}")

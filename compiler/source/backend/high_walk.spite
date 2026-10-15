@@ -39,8 +39,14 @@ func HighWalk(
     }
     scopes.append(scope)
     receiver = note_object(starting_class.qualified_dotted, "receiver", place, false)
+    function.receiver_object = receiver
     block = function.new_block("entry")
     walk_statements(starting_function.body)
+    if not block_ended() {
+        var falling = add_operation("return", starting_function.end_line)
+        falling.can_end = true
+        end_the_block("return")
+    }
 }
 
 func note_object(class_name: String, kind: String, made_at: String, through_field: Boolean): Integer {
@@ -144,7 +150,7 @@ func walk_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     var value = walk_value(declaration.value)
     var declared = declared_type(declaration, value)
     var points_at = points_at_of(value)
-    write_value("local", -1, declaration.name, declared, current_line, points_at)
+    write_value("local", -1, declaration.name, declared, current_line, points_at, value, -1)
     var scope = scopes.last()
     crash scope
     scope.declare(declaration.name, declared, points_at)
@@ -166,27 +172,27 @@ func walk_assignment(statement: Syntax.Statements.AssignmentStatement) {
     var points_at = points_at_of(written)
     var identifier = shapes.as_identifier(target)
     if identifier {
-        walk_written_name(identifier.name, declared, points_at)
+        walk_written_name(identifier.name, declared, points_at, written)
         return
     }
     var member = shapes.as_member(target)
     if member {
-        walk_written_member(member)
+        walk_written_member(member, written)
         return
     }
     var indexed = shapes.as_index(target)
     if indexed {
-        walk_written_slot(indexed, declared)
+        walk_written_slot(indexed, declared, written)
         return
     }
     note_unknown("a target this walk does not build yet", statement.line)
 }
 
-func walk_written_name(name: String, declared: Analysis.SpiteType?, points_at: Integer) {
+func walk_written_name(name: String, declared: Analysis.SpiteType?, points_at: Integer, written: Integer) {
     var scope = scopes.last()
     crash scope
     if scope.holds(name) {
-        write_value("local", -1, name, declared, current_line, points_at)
+        write_value("local", -1, name, declared, current_line, points_at, written, -1)
         return
     }
     crash class_information
@@ -199,10 +205,10 @@ func walk_written_name(name: String, declared: Analysis.SpiteType?, points_at: I
         note_unknown("a name this walk does not know", current_line)
         return
     }
-    write_field(receiver, name, field.type, current_line)
+    write_field(receiver, name, field.type, current_line, written, -1)
 }
 
-func walk_written_member(member: Syntax.Expressions.MemberExpression) {
+func walk_written_member(member: Syntax.Expressions.MemberExpression, written: Integer) {
     crash member.object
     var holder = walk_value(member.object)
     var holder_class = class_of_value(holder)
@@ -220,21 +226,26 @@ func walk_written_member(member: Syntax.Expressions.MemberExpression) {
         return
     }
     var owner = points_at_of(holder)
-    write_field(owner, member.name, field.type, current_line)
+    write_field(owner, member.name, field.type, current_line, written, holder)
 }
 
-func walk_written_slot(indexed: Syntax.Expressions.IndexExpression, declared: Analysis.SpiteType?) {
+func walk_written_slot(indexed: Syntax.Expressions.IndexExpression, declared: Analysis.SpiteType?, written: Integer) {
     crash indexed.object
     crash indexed.index
     var holder = walk_value(indexed.object)
-    walk_value(indexed.index)
+    var at_index = walk_value(indexed.index)
     var owner = items_of(holder)
-    write_value("slot", owner, "items", declared, current_line, owner)
+    write_value("slot", owner, "items", declared, current_line, owner, written, holder)
+    crash block
+    var operation = block.operations.last()
+    crash operation
+    operation.takes(at_index)
 }
 
 func walk_if(statement: Syntax.Statements.IfStatement) {
     crash statement.condition
-    walk_value(statement.condition)
+    var tested = walk_value(statement.condition)
+    note_branch(tested)
     var condition = copied_values()
     var then_block = new_block("then")
     var dropped_block = new_block("else")
@@ -286,7 +297,8 @@ func walk_while(statement: Syntax.Statements.WhileStatement) {
     loop_frames.append(frame)
     values = HighValues()
     block = condition_block
-    walk_value(statement.condition)
+    var tested = walk_value(statement.condition)
+    note_branch(tested)
     var at_condition = copied_values()
     add_edge("body", body_block)
     add_edge("exit", after_block)
@@ -390,10 +402,12 @@ func counts_of(expression: Syntax.Expressions.Expression): Boolean {
 
 func walk_assert(statement: Syntax.Statements.AssertStatement) {
     crash statement.value
-    walk_value(statement.value)
+    var tested = walk_value(statement.value)
     if statement.is_crash {
         var halting = add_operation("crash", statement.line)
         halting.can_end = true
+        halting.takes(tested)
+        halting.condition_text = statement.condition_text
         if shapes.is_false_literal(statement.value) {
             end_the_block("crash")
         }
@@ -401,6 +415,8 @@ func walk_assert(statement: Syntax.Statements.AssertStatement) {
     }
     var operation = add_operation("assert", statement.line)
     operation.can_end = true
+    operation.takes(tested)
+    operation.condition_text = statement.condition_text
     var fails = new_block("assert fails")
     var holds = new_block("assert holds")
     add_edge("fails", fails)
@@ -423,6 +439,7 @@ func walk_return(statement: Syntax.Statements.ReturnStatement): Integer {
     var operation = add_operation("return", statement.line)
     operation.can_end = true
     operation.returned_value = answered
+    operation.takes(answered)
     if statement.value {
         operation.answers = answer_of(statement.value)
     }
@@ -446,24 +463,31 @@ func walk_expression_statement(statement: Syntax.Statements.ExpressionStatement)
 }
 
 func walk_value(expression: Syntax.Expressions.Expression): Integer {
-    if shapes.is_true_literal(expression) or shapes.is_false_literal(expression) {
+    if shapes.is_true_literal(expression) {
         var kind = type_of_boolean()
-        return constant_value(kind, -1)
+        return literal_value(kind, "true")
+    }
+    if shapes.is_false_literal(expression) {
+        var kind = type_of_boolean()
+        return literal_value(kind, "false")
     }
     if shapes.is_null_literal(expression) {
-        return constant_value(null, -1)
+        return literal_value(null, "null")
     }
-    if shapes.as_integer_literal(expression) {
+    var whole = shapes.as_integer_literal(expression)
+    if whole {
         var kind = type_of_integer()
-        return constant_value(kind, -1)
+        return literal_value(kind, whole.value)
     }
-    if shapes.as_float_literal(expression) {
+    var fraction = shapes.as_float_literal(expression)
+    if fraction {
         var kind = type_of_float()
-        return constant_value(kind, -1)
+        return literal_value(kind, fraction.value)
     }
-    if shapes.as_string_literal(expression) {
+    var text = shapes.as_string_literal(expression)
+    if text {
         var kind = type_of_text()
-        return constant_value(kind, -1)
+        return literal_value(kind, text.value)
     }
     if shapes.as_enum_literal(expression) {
         return constant_value(null, -1)
@@ -600,7 +624,7 @@ func walk_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integ
     var declared = scope.written_type(identifier.name)
     if declared {
         var points_at = scope.object_of(identifier.name)
-        return read_value("local", -1, identifier.name, declared, current_line, points_at)
+        return read_value("local", -1, identifier.name, declared, current_line, points_at, -1)
     }
     crash class_information
     var field = class_information.find_field(identifier.name)
@@ -608,7 +632,7 @@ func walk_identifier(identifier: Syntax.Expressions.IdentifierExpression): Integ
         note_unknown("a name this walk does not know", current_line)
         return constant_value(null, -1)
     }
-    return read_field(receiver, identifier.name, field.type, current_line)
+    return read_field(receiver, identifier.name, field.type, current_line, -1)
 }
 
 func walk_member_read(member: Syntax.Expressions.MemberExpression): Integer {
@@ -629,24 +653,27 @@ func walk_member_read(member: Syntax.Expressions.MemberExpression): Integer {
         return constant_value(null, -1)
     }
     var owner = points_at_of(holder)
-    return read_field(owner, member.name, field.type, current_line)
+    return read_field(owner, member.name, field.type, current_line, holder)
 }
 
 func walk_slot_read(indexed: Syntax.Expressions.IndexExpression): Integer {
     crash indexed.object
     crash indexed.index
     var holder = walk_value(indexed.object)
-    walk_value(indexed.index)
+    var at_index = walk_value(indexed.index)
     var owner = items_of(holder)
     var element = element_type_of(holder)
-    return slot_item(owner, element, current_line)
+    return slot_item(owner, element, current_line, holder, at_index)
 }
 
-func slot_item(owner: Integer, element: Analysis.SpiteType?, at: Integer): Integer {
+func slot_item(owner: Integer, element: Analysis.SpiteType?, at: Integer, holder: Integer, at_index: Integer): Integer {
     crash recorded
     var operation = add_operation("slot read", at)
     var made = recorded.new_value("slot", -1, owner, "", 0, element)
     operation.reads_value(made)
+    operation.result = made
+    operation.takes(holder)
+    operation.takes(at_index)
     return made
 }
 
@@ -667,6 +694,7 @@ func walk_call(call: Syntax.Expressions.CallExpression): Integer {
     if member {
         crash member.object
         var holder = walk_value(member.object)
+        arguments.insert(0, holder)
         return walk_method_call(member, holder, arguments)
     }
     note_unknown("a call through a name this walk does not build yet", current_line)
@@ -680,6 +708,7 @@ func walk_own_call(name: String, arguments: List<Integer>): Integer {
     }
     var own = class_information.find_function(name)
     if own {
+        arguments.insert(0, -1)
         return note_call(own, arguments, false)
     }
     if class_information.find_field(name) {
@@ -747,10 +776,14 @@ func note_call(own: Analysis.FunctionInfo, arguments: List<Integer>, only_reads:
     operation.reads_only = only_reads
     var index = 0
     while index < arguments.count() {
-        note_passed_value(operation, arguments[index])
+        var argument = arguments[index]
+        operation.takes(argument)
+        note_passed_value(operation, argument)
         index = index + 1
     }
-    return constant_value(own.return_type, -1)
+    var answered = constant_value(own.return_type, -1)
+    operation.result = answered
+    return answered
 }
 
 func note_passed_value(operation: HighOperation, value_number: Integer) {
@@ -797,33 +830,119 @@ func note_list_member(member: Syntax.Expressions.MemberExpression, holder: Integ
         return
     }
     var own = element_class.find_function(member_name)
-    assert not own
+    if own {
+        var items = items_of(holder)
+        var item = constant_value(element, items)
+        var operation = add_operation("call", current_line)
+        operation.call_name = own.c_name
+        operation.per_item = true
+        operation.takes(item)
+        if items >= 0 {
+            note_passed_object(operation, items)
+        }
+        operation.result = constant_value(own.return_type, -1)
+        return
+    }
     var field = element_class.find_field(member_name)
     if not field {
         note_unknown("a list walk over items this walk does not know", current_line)
         return
     }
     var owner = points_at_of(holder)
-    read_field(owner, member_name, field.type, current_line)
+    read_field(owner, member_name, field.type, current_line, holder)
 }
 
 func walk_computation(binary: Syntax.Expressions.BinaryExpression): Integer {
     crash binary.left
     crash binary.right
+    if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+        return walk_short_circuit(binary)
+    }
     var left = walk_value(binary.left)
     var right = walk_value(binary.right)
     var operation = add_operation("computation", current_line)
+    operation.operator = binary.operator
     operation.reads_value(left)
     operation.reads_value(right)
-    return constant_value(null, -1)
+    operation.takes(left)
+    operation.takes(right)
+    var answered = type_of_value(left)
+    if is_comparison(binary.operator) {
+        answered = type_of_boolean()
+    } else if binary.is_text_join {
+        answered = type_of_text()
+    }
+    var made = constant_value(answered, -1)
+    operation.result = made
+    return made
+}
+
+func is_comparison(operator: Syntax.Expressions.BinaryOperator): Boolean {
+    if operator == 'equal' or operator == 'not_equal' or operator == 'less' {
+        return true
+    }
+    return operator == 'less_equal' or operator == 'greater' or operator == 'greater_equal'
+}
+
+# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+func walk_short_circuit(binary: Syntax.Expressions.BinaryExpression): Integer {
+    crash binary.left
+    crash binary.right
+    var left = walk_value(binary.left)
+    note_branch(left)
+    var after_left = copied_values()
+    var right_block = new_block("right side")
+    var join_block = new_block("join")
+    if binary.operator == 'logical_and' {
+        add_edge("taken", right_block)
+        add_edge("dropped", join_block)
+    } else {
+        add_edge("taken", join_block)
+        add_edge("dropped", right_block)
+    }
+    block = right_block
+    var right = walk_value(binary.right)
+    add_edge("fallthrough", join_block)
+    var after_right = copied_values()
+    block = join_block
+    note_join(join_block, after_left, after_right, after_left)
+    var operation = add_operation("choice", current_line)
+    operation.operator = binary.operator
+    operation.takes(left)
+    operation.takes(right)
+    var answered = type_of_boolean()
+    var made = constant_value(answered, -1)
+    operation.result = made
+    return made
 }
 
 func walk_negation(unary: Syntax.Expressions.UnaryExpression): Integer {
     crash unary.operand
     var operand = walk_value(unary.operand)
     var operation = add_operation("computation", current_line)
+    operation.operator = unary.operator
     operation.reads_value(operand)
-    return constant_value(null, -1)
+    operation.takes(operand)
+    var answered = type_of_value(operand)
+    if unary.operator == 'logical_not' {
+        answered = type_of_boolean()
+    }
+    var made = constant_value(answered, -1)
+    operation.result = made
+    return made
+}
+
+func note_branch(tested: Integer) {
+    var operation = add_operation("branch", current_line)
+    operation.takes(tested)
+}
+
+func literal_value(declared: Analysis.SpiteType?, written: String): Integer {
+    var operation = add_operation("constant", current_line)
+    operation.literal = written
+    var made = constant_value(declared, -1)
+    operation.result = made
+    return made
 }
 
 func constant_value(declared: Analysis.SpiteType?, points_at: Integer): Integer {
@@ -838,6 +957,7 @@ func read_value(
     declared: Analysis.SpiteType?,
     at: Integer,
     points_at: Integer,
+    holder: Integer,
 ): Integer {
     crash recorded
     crash values
@@ -850,6 +970,8 @@ func read_value(
     }
     var operation = add_operation("{value_kind} read", at)
     operation.reads_value(held)
+    operation.result = held
+    operation.takes(holder)
     return held
 }
 
@@ -860,6 +982,8 @@ func write_value(
     declared: Analysis.SpiteType?,
     at: Integer,
     points_at: Integer,
+    source: Integer,
+    holder: Integer,
 ) {
     crash recorded
     crash values
@@ -875,10 +999,19 @@ func write_value(
     var written = recorded.new_value(value_kind, value_owner, points_at, value_name, version, declared)
     var operation = add_operation("{value_kind} write", at)
     operation.writes_value(written)
+    operation.result = written
+    operation.takes(source)
+    operation.takes(holder)
     values.put(key, written)
 }
 
-func read_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?, at: Integer): Integer {
+func read_field(
+    object_number: Integer,
+    field_name: String,
+    declared: Analysis.SpiteType?,
+    at: Integer,
+    holder: Integer,
+): Integer {
     crash program
     if object_number < 0 {
         note_unknown("a field of an object this walk cannot name", at)
@@ -892,10 +1025,17 @@ func read_field(object_number: Integer, field_name: String, declared: Analysis.S
     object.reads(field_name)
     note_field_owner(object)
     var held = points_at_of_field(object_number, field_name, declared)
-    return read_value("field", object_number, field_name, declared, at, held)
+    return read_value("field", object_number, field_name, declared, at, held, holder)
 }
 
-func write_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?, at: Integer) {
+func write_field(
+    object_number: Integer,
+    field_name: String,
+    declared: Analysis.SpiteType?,
+    at: Integer,
+    source: Integer,
+    holder: Integer,
+) {
     crash program
     if object_number < 0 {
         note_unknown("a field of an object this walk cannot name", at)
@@ -909,8 +1049,8 @@ func write_field(object_number: Integer, field_name: String, declared: Analysis.
     object.writes(field_name)
     note_field_owner(object)
     var held = points_at_of_field(object_number, field_name, declared)
-    release_what_the_field_held(object_number, field_name, declared, at, held)
-    write_value("field", object_number, field_name, declared, at, held)
+    release_what_the_field_held(object_number, field_name, declared, at, held, holder)
+    write_value("field", object_number, field_name, declared, at, held, source, holder)
 }
 
 # ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
@@ -920,10 +1060,11 @@ func release_what_the_field_held(
     declared: Analysis.SpiteType?,
     at: Integer,
     points_at: Integer,
+    holder: Integer,
 ) {
     crash program
     if program.is_reference_type(declared) {
-        read_value("field", object_number, field_name, declared, at, points_at)
+        read_value("field", object_number, field_name, declared, at, points_at, holder)
     }
 }
 

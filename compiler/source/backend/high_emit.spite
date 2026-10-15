@@ -1,0 +1,509 @@
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+var program: HighProgram? = null
+var function = HighFunction("", "", "")
+var answers_nothing = true
+var answered_type: Analysis.SpiteType? = null
+var borrowed = List<String>()
+var lines = List<String>()
+var refused = ""
+var names = Dictionary<Integer, String>()
+var declared = List<List<String>>()
+var made = 0
+var types = Analysis.TypeShape()
+
+func HighEmit(
+    starting_program: HighProgram,
+    starting_function: HighFunction,
+    starting_answered_type: Analysis.SpiteType?,
+    starting_borrowed: List<String>,
+) {
+    program = starting_program
+    function = starting_function
+    answered_type = starting_answered_type
+    borrowed = starting_borrowed
+    answers_nothing = not answered_type or types.is_void(answered_type)
+}
+
+func printed(): Boolean {
+    check_every_operation()
+    if not refused.is_empty() {
+        return false
+    }
+    var outer = List<String>()
+    declared.append(outer)
+    print_chain(0, -1)
+    return refused.is_empty()
+}
+
+func refuse(why: String) {
+    if refused.is_empty() {
+        refused = why
+    }
+}
+
+func check_every_operation() {
+    if function.fact.unknown_operations > 0 {
+        refuse("the walk did not build {function.fact.first_unknown_reason}")
+        return
+    }
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            check_operation(operation)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func check_operation(operation: HighOperation) {
+    var kind = operation.kind
+    if kind == "constant" {
+        check_literal(operation)
+    } else if kind == "local read" {
+        check_local_read(operation)
+    } else if kind == "local write" {
+        check_scalar(operation.result, "a local")
+        check_same_kind(operation.operands[0], operation.result)
+    } else if kind == "field read" or kind == "field write" {
+        check_scalar(operation.result, "a field")
+        check_holder(operation)
+        if kind == "field write" {
+            check_same_kind(operation.operands[0], operation.result)
+        }
+    } else if kind == "computation" {
+        check_computation(operation)
+    } else if kind == "return" {
+        check_return(operation)
+    } else if kind == "branch" or kind == "choice" or kind == "loop" {
+        return
+    } else {
+        refuse("it holds a '{kind}', which the high level does not write as C yet")
+    }
+}
+
+func check_literal(operation: HighOperation) {
+    check_scalar(operation.result, "a constant")
+    var made = value_type(operation.result)
+    assert made
+    var scalar = types.as_scalar(made)
+    if scalar {
+        var kind = scalar.kind
+        if kind == 'float_kind' or kind == 'double_kind' {
+            refuse("a fraction's literal is written by the generator's own rule for its precision")
+        }
+    }
+    var whole = operation.literal.to_integer()
+    if operation.literal != "true" and operation.literal != "false" and not whole {
+        refuse("a constant '{operation.literal}' this printer does not write")
+    }
+}
+
+func check_local_read(operation: HighOperation) {
+    var value = function.value_at(operation.result)
+    var lent = false
+    if value.spite_type and borrowed.contains(value.name) {
+        var class_ref = types.as_class_ref(value.spite_type)
+        if class_ref {
+            lent = true
+        }
+    }
+    if not lent {
+        check_scalar(operation.result, "a local")
+    }
+}
+
+func check_scalar(value_number: Integer, what: String) {
+    var made = value_type(value_number)
+    if not made {
+        refuse("{what} of a type the walk does not know")
+        return
+    }
+    if not types.as_scalar(made) {
+        refuse("{what} that is not a number or a Boolean, which needs the generator's ownership")
+    }
+}
+
+func check_holder(operation: HighOperation) {
+    crash program
+    var holder = operation.operands.last()
+    crash holder
+    var owner = function.receiver_object
+    if holder >= 0 {
+        var holding = function.value_at(holder)
+        if holding.kind != "local" or not function.parameter_names.contains(holding.name) {
+            refuse("a field reached through something other than the receiver or a parameter")
+            return
+        }
+        owner = holding.points_at
+    }
+    var object = program.object_at_or_none(owner)
+    if not object {
+        refuse("a field of an object the walk cannot name")
+        return
+    }
+    var information = program.class_named(object.class_name)
+    if not information {
+        refuse("a field of a class the walk cannot name")
+        return
+    }
+    if information.is_singleton or information.is_value_class {
+        refuse("a field of a singleton or a value class, which the generator lays out its own way")
+    }
+}
+
+func check_computation(operation: HighOperation) {
+    if c_operator(operation.operator).is_empty() {
+        refuse("the operator '{operation.operator}', whose overflow check is still the generator's")
+    }
+    var index = 0
+    while index < operation.operands.count() {
+        var operand = operation.operands[index]
+        check_scalar(operand, "an operand")
+        index = index + 1
+    }
+}
+
+func check_return(operation: HighOperation) {
+    var answered = answered_by(operation)
+    if answered < 0 and not answers_nothing {
+        refuse("a function that answers a value and can end without a return")
+    }
+    if answered >= 0 {
+        check_scalar(answered, "an answer")
+        check_answered_type(answered)
+    }
+}
+
+func check_answered_type(answered: Integer) {
+    var wanted = "none"
+    if answered_type {
+        wanted = kind_text(answered_type)
+    }
+    var given = "none"
+    var answering = value_type(answered)
+    if answering {
+        given = kind_text(answering)
+    }
+    if wanted == "none" {
+        refuse("it answers a type that is not a number or a Boolean, which the generator converts to")
+    } else if given != wanted {
+        refuse("it answers a number of another type, whose conversion the generator checks")
+    }
+}
+
+func kind_text(spite_type: Analysis.SpiteType): String {
+    var scalar = types.as_scalar(spite_type)
+    if not scalar {
+        return "none"
+    }
+    return scalar.kind
+}
+
+func check_same_kind(source: Integer?, target: Integer) {
+    var given = "none"
+    if source {
+        var giving = value_type(source)
+        if giving {
+            given = kind_text(giving)
+        }
+    }
+    var wanted = "none"
+    var wanting = value_type(target)
+    if wanting {
+        wanted = kind_text(wanting)
+    }
+    if given == "none" or given != wanted {
+        refuse("a value written into a number of another type, whose conversion the generator checks")
+    }
+}
+
+func answered_by(operation: HighOperation): Integer {
+    var answered = -1
+    if operation.operands.count() > 0 {
+        answered = operation.operands[0]
+    }
+    return answered
+}
+
+func c_operator(operator: String): String {
+    var written = ""
+    if operator == "equal" {
+        written = "=="
+    } else if operator == "not_equal" {
+        written = "!="
+    } else if operator == "less" {
+        written = "<"
+    } else if operator == "less_equal" {
+        written = "<="
+    } else if operator == "greater" {
+        written = ">"
+    } else if operator == "greater_equal" {
+        written = ">="
+    } else if operator == "logical_not" {
+        written = "!"
+    }
+    return written
+}
+
+func value_type(value_number: Integer): Analysis.SpiteType? {
+    var found: Analysis.SpiteType? = null
+    var value = function.value_or_none_at(value_number)
+    if value {
+        found = value.spite_type
+    }
+    return found
+}
+
+func c_type(value_number: Integer): String {
+    crash program
+    crash program.generator
+    var made = value_type(value_number)
+    crash made
+    return program.generator.c_type_name(made)
+}
+
+func temporary(value_number: Integer): String {
+    var name = "spite_high_{made}"
+    made = made + 1
+    names[value_number] = name
+    return name
+}
+
+func name_of(value_number: Integer): String {
+    var known = names[value_number]
+    crash known
+    return known
+}
+
+func print_chain(first: Integer, stop: Integer) {
+    var number = first
+    while number >= 0 and number != stop and refused.is_empty() {
+        var block = function.block_at(number)
+        print_operations(block)
+        number = next_block(block, stop)
+    }
+}
+
+func print_operations(block: HighBlock) {
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        print_operation(operation)
+        index = index + 1
+    }
+}
+
+func print_operation(operation: HighOperation) {
+    var kind = operation.kind
+    if kind == "constant" {
+        var name = temporary(operation.result)
+        var written = c_type(operation.result)
+        lines.append("{written} {name} = {operation.literal};")
+    } else if kind == "local read" {
+        var value = function.value_at(operation.result)
+        names[operation.result] = "{value.name}_"
+    } else if kind == "local write" {
+        print_local_write(operation)
+    } else if kind == "field read" {
+        var name = temporary(operation.result)
+        var written = c_type(operation.result)
+        lines.append("{written} {name} = {field_of(operation)};")
+    } else if kind == "field write" {
+        var source = operation.operands[0]
+        crash source
+        lines.append("{field_of(operation)} = {name_of(source)};")
+    } else if kind == "computation" {
+        print_computation(operation)
+    } else if kind == "return" {
+        print_return(operation)
+    }
+}
+
+func print_local_write(operation: HighOperation) {
+    var value = function.value_at(operation.result)
+    var local = "{value.name}_"
+    var source = operation.operands[0]
+    crash source
+    names[operation.result] = local
+    if is_declared(local) {
+        lines.append("{local} = {name_of(source)};")
+        return
+    }
+    var scope = declared.last()
+    crash scope
+    scope.append(local)
+    var written = c_type(operation.result)
+    lines.append("{written} {local} = {name_of(source)};")
+}
+
+func is_declared(local: String): Boolean {
+    var index = 0
+    while index < declared.count() {
+        var scope = declared[index]
+        if scope.contains(local) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func field_of(operation: HighOperation): String {
+    var holder = operation.operands.last()
+    crash holder
+    var value = function.value_at(operation.result)
+    var held_by = "self"
+    if holder >= 0 {
+        held_by = name_of(holder)
+    }
+    return "({held_by})->{value.name}_"
+}
+
+func print_computation(operation: HighOperation) {
+    var name = temporary(operation.result)
+    var written = c_type(operation.result)
+    var symbol = c_operator(operation.operator)
+    var first = operation.operands[0]
+    crash first
+    if operation.operands.count() == 1 {
+        lines.append("{written} {name} = {symbol}({name_of(first)});")
+        return
+    }
+    var second = operation.operands[1]
+    crash second
+    lines.append("{written} {name} = ({name_of(first)} {symbol} {name_of(second)});")
+}
+
+func print_return(operation: HighOperation) {
+    var answered = answered_by(operation)
+    if answered < 0 {
+        lines.append("return;")
+    } else {
+        lines.append("return {name_of(answered)};")
+    }
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func next_block(block: HighBlock, stop: Integer): Integer {
+    if block.edges.is_empty() {
+        return -1
+    }
+    var last = block.operations.last()
+    if last and last.kind == "loop" {
+        return print_loop(last)
+    }
+    if block.edges.count() == 1 {
+        return block.edges[0].target
+    }
+    crash last
+    var tested = last.operands[0]
+    crash tested
+    var first = block.edges[0]
+    var second = block.edges[1]
+    crash second
+    if first.kind != "taken" or second.kind != "dropped" {
+        refuse("a block that leaves by '{first.kind}' and '{second.kind}', which this printer does not write")
+        return -1
+    }
+    var taken = function.block_at(first.target)
+    var dropped = function.block_at(second.target)
+    if taken.kind == "right side" or dropped.kind == "right side" {
+        return print_short_circuit(tested, taken, dropped)
+    }
+    return print_if(tested, taken, dropped)
+}
+
+func print_if(tested: Integer, taken: HighBlock, dropped: HighBlock): Integer {
+    var join = function.block_at(dropped.number + 1)
+    if join.kind != "join" {
+        refuse("an if whose join this printer cannot find")
+        return -1
+    }
+    lines.append("if ({name_of(tested)}) \{")
+    print_scoped(taken.number, join.number)
+    lines.append("} else \{")
+    print_scoped(dropped.number, join.number)
+    lines.append("}")
+    if join.ended_by == "unreachable" {
+        return -1
+    }
+    return join.number
+}
+
+func print_short_circuit(tested: Integer, taken: HighBlock, dropped: HighBlock): Integer {
+    var right = taken
+    var join = dropped
+    var negated = ""
+    if dropped.kind == "right side" {
+        right = dropped
+        join = taken
+        negated = "!"
+    }
+    var choosing = join.operations[0]
+    crash choosing
+    if choosing.kind != "choice" {
+        refuse("an and or an or whose answer this printer cannot find")
+        return -1
+    }
+    var answered = choosing.operands[1]
+    crash answered
+    var name = temporary(choosing.result)
+    lines.append("bool {name} = {name_of(tested)};")
+    lines.append("if ({negated}{name}) \{")
+    var scope = List<String>()
+    declared.append(scope)
+    print_chain(right.number, join.number)
+    lines.append("{name} = {name_of(answered)};")
+    declared.remove_last()
+    lines.append("}")
+    return join.number
+}
+
+func print_loop(loop: HighOperation): Integer {
+    lines.append("while (1) \{")
+    var scope = List<String>()
+    declared.append(scope)
+    var deciding = function.block_at(loop.loop_condition)
+    print_operations(deciding)
+    while exit_of(deciding) < 0 and refused.is_empty() {
+        var next = next_block(deciding, -1)
+        if next < 0 {
+            refuse("a loop whose condition this printer cannot follow")
+            return -1
+        }
+        deciding = function.block_at(next)
+        print_operations(deciding)
+    }
+    var tested = deciding.operations.last()
+    crash tested
+    var test = tested.operands[0]
+    crash test
+    lines.append("if (!{name_of(test)}) break;")
+    print_chain(loop.loop_body, loop.loop_condition)
+    declared.remove_last()
+    lines.append("}")
+    return exit_of(deciding)
+}
+
+func exit_of(block: HighBlock): Integer {
+    var exit = -1
+    var index = 0
+    while index < block.edges.count() {
+        if block.edges[index].kind == "exit" {
+            exit = block.edges[index].target
+        }
+        index = index + 1
+    }
+    return exit
+}
+
+func print_scoped(first: Integer, stop: Integer) {
+    var scope = List<String>()
+    declared.append(scope)
+    print_chain(first, stop)
+    declared.remove_last()
+}

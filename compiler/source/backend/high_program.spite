@@ -2,11 +2,13 @@
 var generator: Generation.Generator? = null
 var objects = List<HighObject>()
 var walked_functions = List<HighFunction>()
+var walked_by_c_name = Dictionary<String, HighFunction>()
 var classes_made = Dictionary<String, Boolean>()
 var classes_by_qualified = Dictionary<String, Analysis.ClassInfo>()
 var classes_by_c_name = Dictionary<String, Analysis.ClassInfo>()
 var declared_function_names = Dictionary<String, Boolean>()
 var item_objects = Dictionary<String, Integer>()
+var prepared = false
 var types = Analysis.TypeShape()
 
 func HighProgram(starting_generator: Generation.Generator) {
@@ -29,6 +31,7 @@ func build() {
         var function = walked_functions[index]
         function.fold_facts()
         decide_coverage(function)
+        walked_by_c_name[function.c_name] = function
         index = index + 1
     }
 }
@@ -89,6 +92,22 @@ func walked_from_source(declared: Analysis.FunctionInfo): Boolean {
         return false
     }
     return true
+}
+
+func class_named(qualified: String): Analysis.ClassInfo? {
+    var found: Analysis.ClassInfo? = null
+    if classes_by_qualified.has(qualified) {
+        found = classes_by_qualified[qualified]
+    }
+    return found
+}
+
+# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+func prepare() {
+    if not prepared {
+        note_classes()
+        prepared = true
+    }
 }
 
 func class_with_c_name(c_name: String): Analysis.ClassInfo? {
@@ -192,12 +211,8 @@ func declares_function(c_name: String): Boolean {
 
 func walked_function_with_c_name(c_name: String): HighFunction? {
     var found: HighFunction? = null
-    var index = 0
-    while index < walked_functions.count() {
-        if walked_functions[index].c_name == c_name {
-            found = walked_functions[index]
-        }
-        index = index + 1
+    if walked_by_c_name.has(c_name) {
+        found = walked_by_c_name[c_name]
     }
     return found
 }
@@ -219,7 +234,9 @@ func ensure_walked(c_name: String): HighFunction? {
             crash information
             var walk = HighWalk(this, information, with_body)
             crash walk.recorded
-            walked_functions.append(walk.recorded)
+            walk.recorded.fold_facts()
+            decide_coverage(walk.recorded)
+            walked_by_c_name[c_name] = walk.recorded
             built = walk.recorded
         }
     }
