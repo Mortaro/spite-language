@@ -24,6 +24,9 @@ var symbol_literals = List<String>()
 var enum_readers = List<String>()
 var value_boxes = List<String>()
 var forwarders = List<String>()
+var foreign_libraries = List<String>()
+var foreign_symbols = List<String>()
+var foreign_headers = List<String>()
 var table_names = List<String>()
 
 func refuse(why: String) {

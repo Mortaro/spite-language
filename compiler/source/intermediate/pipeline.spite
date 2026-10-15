@@ -45,7 +45,24 @@ func settle_settings() {
     lowered.makes_threads = generator.builder.threads or generator.parallel_used
     lowered.makes_concurrents = generator.scheduler_used
     lowered.class_names = generator.class_names_by_id
+    lowered.foreign_files = generator.foreign_library_files
+    lowered.foreign_namings = generator.foreign_library_namings
+    lowered.foreign_includes = List<String>()
+    generator.foreign_library_headers.each(note_foreign_header)
     lowered.enums = generator.enums
+}
+
+func note_foreign_header(header: String) {
+    if header.is_empty() {
+        lowered.foreign_includes.append("")
+        return
+    }
+    if File(header).exists() {
+        var escaped = header.replace("\\", "\\\\")
+        lowered.foreign_includes.append("#include \"{escaped}\"")
+        return
+    }
+    lowered.foreign_includes.append("#include <{header}>")
 }
 
 func settle_layouts() {

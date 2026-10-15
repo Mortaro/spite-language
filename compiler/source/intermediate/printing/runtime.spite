@@ -224,6 +224,72 @@ func helpers(): List<String> {
     return pieces
 }
 
+func foreign_libraries(): String {
+    var pieces = List<String>()
+    var index = 0
+    while index < output.foreign_libraries.count() {
+        var number = output.foreign_libraries[index].to_integer()
+        crash number
+        var library = foreign_library(number)
+        pieces.append(library)
+        index = index + 1
+    }
+    return pieces.join("\n")
+}
+
+func foreign_library(number: Integer): String {
+    var maker = lowered.function_named("DynamicLibrary_DynamicLibrary")
+    var finder = lowered.function_named("DynamicLibrary_find_symbol")
+    if not maker or not finder {
+        output.refuse(
+            "the program opens a foreign library, and holds no DynamicLibrary constructor or find_symbol to open it with",
+        )
+        return ""
+    }
+    var accessor = "spite_foreign_library_{number}"
+    crash lowered.foreign_files[number]
+    crash lowered.foreign_namings[number]
+    var file = naming.escape_c(lowered.foreign_files[number])
+    var naming_text = naming.escape_c(lowered.foreign_namings[number])
+    var lines = [
+        "static DynamicLibrary* {accessor}_cache = 0;"
+        "static int32_t {accessor}_lock = 0;"
+        "static void {accessor}_teardown(void) \{"
+        "DynamicLibrary* object = {accessor}_cache;"
+        "{accessor}_cache = 0;"
+        "DynamicLibrary___destroy(object);"
+        "}"
+        "DynamicLibrary* {accessor}(void) \{"
+        "DynamicLibrary* found = SPITE_SINGLETON_FOUND({accessor}_cache);"
+        "if (found != 0) return found;"
+        "SPITE_LOCK({accessor}_lock);"
+        "if ({accessor}_cache == 0) \{"
+        "DynamicLibrary* made = DynamicLibrary___allocate();"
+        "DynamicLibrary_DynamicLibrary(made, spite_string_from_cstring_owned(\"{file}\"), spite_string_from_cstring_owned(\"{naming_text}\"), SPITE_STRING_EMPTY);"
+    ]
+    var index = 0
+    while index < output.foreign_symbols.count() {
+        var entry = output.foreign_symbols[index]
+        var parts = entry.split("|")
+        var library_key = number.to_string()
+        if parts[0] == library_key and parts.count() == 3 {
+            var symbol = naming.escape_c(parts[1])
+            var wanted = naming.escape_c(parts[2])
+            lines.append(
+                "spite_foreign_{number}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol(made, spite_string_from_cstring_owned(\"{symbol}\"), spite_string_from_cstring_owned(\"{wanted}\"));",
+            )
+        }
+        index = index + 1
+    }
+    lines.append("spite_singleton_created({accessor}_teardown);")
+    lines.append("SPITE_SINGLETON_PUBLISH({accessor}_cache, made);")
+    lines.append("}")
+    lines.append("SPITE_UNLOCK({accessor}_lock);")
+    lines.append("return {accessor}_cache;")
+    lines.append("}")
+    return lines.join("\n")
+}
+
 func symbol_find(): String {
     var entries = List<String>()
     var index = 0

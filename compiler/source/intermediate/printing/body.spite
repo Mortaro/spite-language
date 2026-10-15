@@ -128,6 +128,18 @@ func print_static_getter(layout: Layout) {
     output.runtime_place(getter)
 }
 
+func source_place(operation: Operation): String {
+    var path = ""
+    if function.source {
+        path = function.source.source_path
+    }
+    var owner = lowered.layout_named(function.owner)
+    if path.is_empty() and owner and owner.information {
+        path = owner.information.source_path
+    }
+    return "{path}:{operation.line}"
+}
+
 func tag_expression(number: Integer): String {
     var source = tag_sources[number]
     if source {
@@ -696,15 +708,72 @@ func print_frame_buffer(operation: Operation, callee: Function) {
 func print_frame_free(operation: Operation, callee: Function) {
     var last = operation.operands.count() - 1
     var address_number = operand_number(operation, last)
-    var buffer = frame_buffers[address_number]
-    if not buffer {
-        refuse("it frees a frame buffer it cannot trace to where it was placed")
+    var placed = List<Integer>()
+    var visited = List<Integer>()
+    trace_buffer(address_number, placed, visited)
+    var placed_number = placed.first()
+    if placed.count() != 1 or not placed_number {
+        refuse("it frees a frame buffer it cannot trace to the one place that made it")
         return
     }
-    assert not fixed_buffers.has(address_number)
+    var buffer = "spite_buffer_{placed_number}"
+    assert not fixed_buffers.has(placed_number)
     var address = name_of(address_number)
     var arguments = call_arguments(operation)
     lines.append("if ({address} != (int64_t)(intptr_t){buffer}) {callee.c_name}({arguments});")
+}
+
+func trace_buffer(number: Integer, placed: List<Integer>, visited: List<Integer>) {
+    assert not visited.contains(number)
+    visited.append(number)
+    if is_frame_allocation(number) {
+        if not placed.contains(number) {
+            placed.append(number)
+        }
+        return
+    }
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = block.parameters.index_of(number)
+        if position {
+            trace_arrivals(block.number, position, placed, visited)
+        }
+        block_index = block_index + 1
+    }
+}
+
+func trace_arrivals(arrived: Integer, position: Integer, placed: List<Integer>, visited: List<Integer>) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var target_index = 0
+        while target_index < block.terminator.targets.count() {
+            var target = block.terminator.targets[target_index]
+            if target.block == arrived and position < target.arguments.count() {
+                trace_buffer(target.arguments[position], placed, visited)
+            }
+            target_index = target_index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func is_frame_allocation(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number and operation.kind == "call" and operation.form == "frame" {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
 }
 
 func print_kept_store_call(operation: Operation, c_name: String) {

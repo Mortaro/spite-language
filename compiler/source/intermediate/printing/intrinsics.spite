@@ -26,11 +26,171 @@ func print(body: Body, operation: Operation) {
         "Boolean": print_boolean(body, operation, word)
         "Function": print_function_value(body, operation, word)
         "List": print_list(body, operation, word)
+        "Foreign": print_foreign(body, operation, word)
         "Bands": body.refuse("it runs a loop in bands on threads, which the printer does not write yet")
         "Rows": body.refuse("it runs rows of work on threads, which the printer does not write yet")
         "Singleton": body.refuse("it takes a singleton's lock around a loop, which the printer does not write yet")
         _: print_number(body, operation, word)
     }
+}
+
+func print_foreign(body: Body, operation: Operation, word: String) {
+    switch word {
+        "library": foreign_library(body, operation)
+        "constant": foreign_constant(body, operation)
+        "call": foreign_call(body, operation)
+        _: body.refuse("it calls 'Foreign.{word}', which the printer does not write yet")
+    }
+}
+
+func library_number(body: Body, written: String): Integer {
+    var number = written.to_integer()
+    if not number or number < 0 or number >= lowered.foreign_files.count() {
+        body.refuse("it reaches the foreign library '{written}', which the program does not name")
+        return 0
+    }
+    return number
+}
+
+func note_library(number: Integer) {
+    var key = number.to_string()
+    if not output.foreign_libraries.contains(key) {
+        output.foreign_libraries.append(key)
+    }
+    output.need("singletons")
+}
+
+func note_header(body: Body, number: Integer) {
+    var included = lowered.foreign_includes[number]
+    if not included {
+        body.refuse("the foreign library {number} has no header entry")
+        return
+    }
+    if not included.is_empty() and not output.foreign_headers.contains(included) {
+        output.foreign_headers.append(included)
+    }
+}
+
+func foreign_library(body: Body, operation: Operation) {
+    var number = library_number(body, operation.target)
+    note_library(number)
+    body.assign(operation.result, "spite_foreign_library_{number}()")
+}
+
+func foreign_constant(body: Body, operation: Operation) {
+    var number = library_number(body, operation.literal)
+    note_header(body, number)
+    body.assign(operation.result, "((int32_t)({operation.target}))")
+}
+
+func foreign_symbol(number: Integer, symbol: String, wanted: String): String {
+    var prefix = "{number}|{symbol}|"
+    var index = 0
+    while index < output.foreign_symbols.count() {
+        if output.foreign_symbols[index].starts_with(prefix) {
+            return "spite_foreign_{number}_{index}"
+        }
+        index = index + 1
+    }
+    var position = output.foreign_symbols.count()
+    output.foreign_symbols.append("{prefix}{wanted}")
+    output.literal_lines.append("static void* spite_foreign_{number}_{position} = 0;")
+    return "spite_foreign_{number}_{position}"
+}
+
+func foreign_call(body: Body, operation: Operation) {
+    var number = library_number(body, operation.literal)
+    note_library(number)
+    note_header(body, number)
+    var wanted = "{body.function.owner}.{body.function.name}"
+    var pointer = foreign_symbol(number, operation.target, wanted)
+    var parameter_types = List<String>()
+    var passed = List<String>()
+    var index = 1
+    while index < operation.operands.count() {
+        var argument = body.operand(operation, index)
+        var argument_type = body.operand_type(operation, index)
+        assert argument_type
+        var crossing = crossing_type(argument_type)
+        if crossing.is_empty() {
+            body.refuse("it hands C a value of a kind that cannot cross into C")
+            return
+        }
+        parameter_types.append(crossing)
+        var crossing_text = crossed(argument, argument_type, crossing)
+        passed.append(crossing_text)
+        index = index + 1
+    }
+    if parameter_types.is_empty() {
+        parameter_types.append("void")
+    }
+    var answered = body.type_of(operation.result)
+    var returned = "void"
+    var text_answer = false
+    if answered and not shape.is_void(answered) {
+        returned = naming.c_type(answered)
+        text_answer = shape.as_string(answered)
+    }
+    if text_answer {
+        returned = "const char*"
+    }
+    crash lowered.foreign_files[number]
+    var file = naming.escape_c(lowered.foreign_files[number])
+    var symbol = naming.escape_c(operation.target)
+    var place = body.source_place(operation)
+    var from = naming.escape_c(place)
+    body.emit("spite_last_foreign_call = \"{symbol}\\tlibrary={file}\\tfrom={from}\";")
+    var call = "(({returned} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")})"
+    if returned == "void" {
+        body.emit("{call};")
+        return
+    }
+    if text_answer {
+        body.assign(
+            operation.result,
+            "(\{ const char* spite_foreign_text = {call}; spite_string_from_cstring_owned(spite_foreign_text != 0 ? spite_foreign_text : \"\"); })",
+        )
+        return
+    }
+    body.assign(operation.result, call)
+}
+
+func crossing_type(argument_type: Analysis.SpiteType): String {
+    var scalar = shape.as_scalar(argument_type)
+    if scalar {
+        return scalar_crossing(scalar.kind)
+    }
+    if shape.as_enum(argument_type) {
+        return "int64_t"
+    }
+    if shape.as_string(argument_type) {
+        return "const char*"
+    }
+    var listed = shape.as_list(argument_type)
+    if listed and shape.as_scalar(listed.element) {
+        return "void*"
+    }
+    return ""
+}
+
+func scalar_crossing(kind: Analysis.Types.NumericKind): String {
+    if naming.is_decimal(kind) {
+        return naming.scalar_c_type(kind)
+    }
+    if naming.is_unsigned(kind) {
+        return "uint64_t"
+    }
+    return "int64_t"
+}
+
+func crossed(argument: String, argument_type: Analysis.SpiteType, crossing: String): String {
+    if shape.as_string(argument_type) {
+        return "spite_string_bytes(&{argument})"
+    }
+    if crossing == "void*" {
+        return "(void*)(intptr_t)({argument})->items_"
+    }
+    return "({crossing})({argument})"
 }
 
 func print_list(body: Body, operation: Operation, word: String) {
@@ -394,6 +554,10 @@ func number_kind(body: Body, operation: Operation): Analysis.Types.NumericKind? 
     return kind
 }
 
+func is_checked(operation: Operation): Boolean {
+    return operation.site >= 0 and operation.form != "unchecked"
+}
+
 func located(body: Body, operation: Operation): String {
     if operation.site < 0 {
         body.refuse("the checked '{operation.callee}' has no site to report from")
@@ -431,13 +595,13 @@ func arithmetic(body: Body, operation: Operation, symbol: String, builtin: Strin
     var kind = number_kind(body, operation)
     assert kind
     var written = operand_c_type(body, operation)
-    if not naming.is_whole(kind) or operation.form == "unchecked" {
-        body.assign(operation.result, "({written})({first} {symbol} {second})")
-        return
-    }
-    if operation.form == "wrapping" {
+    if operation.form == "wrapping" and naming.is_whole(kind) {
         var bits = naming.bits(kind)
         body.assign(operation.result, "({written})((uint{bits}_t){first} {symbol} (uint{bits}_t){second})")
+        return
+    }
+    if not naming.is_whole(kind) or not is_checked(operation) {
+        body.assign(operation.result, "({written})({first} {symbol} {second})")
         return
     }
     var target = body.result_name(operation)
@@ -465,7 +629,7 @@ func division(body: Body, operation: Operation) {
     var kind = number_kind(body, operation)
     assert kind
     var written = operand_c_type(body, operation)
-    if naming.is_decimal(kind) or operation.form == "unchecked" {
+    if naming.is_decimal(kind) or not is_checked(operation) {
         body.assign(operation.result, "({written})({dividend} / {divisor})")
         return
     }
@@ -494,7 +658,7 @@ func remainder(body: Body, operation: Operation) {
         decimal_remainder(body, operation, kind)
         return
     }
-    if operation.form == "unchecked" {
+    if not is_checked(operation) {
         body.assign(operation.result, "({written})({dividend} % {divisor})")
         return
     }
@@ -533,13 +697,13 @@ func negation(body: Body, operation: Operation) {
     var kind = number_kind(body, operation)
     assert kind
     var written = operand_c_type(body, operation)
-    if not naming.is_whole(kind) or operation.form == "unchecked" {
-        body.assign(operation.result, "({written})(-{negated})")
-        return
-    }
-    if operation.form == "wrapping" {
+    if operation.form == "wrapping" and naming.is_whole(kind) {
         var bits = naming.bits(kind)
         body.assign(operation.result, "({written})(0 - (uint{bits}_t){negated})")
+        return
+    }
+    if not naming.is_whole(kind) or not is_checked(operation) {
+        body.assign(operation.result, "({written})(-{negated})")
         return
     }
     var target = body.result_name(operation)
@@ -568,7 +732,7 @@ func conversion(body: Body, operation: Operation, word: String) {
         return
     }
     var written = naming.c_type(to)
-    if not needs_check(from_kind, to_kind) or operation.form == "unchecked" {
+    if not needs_check(from_kind, to_kind) or not is_checked(operation) {
         body.assign(operation.result, "(({written})({converted}))")
         return
     }

@@ -92,7 +92,8 @@ func types_text(): String {
     var site_lines = output.site_lines.join("\n")
     var literal_lines = output.literal_lines.join("\n")
     var macros = output.macros.join("\n")
-    return "{runtime.defines()}\n{runtime.header()}\n{runtime.early_types()}\n{runtime.assert_ring()}\n{runtime.string_layout()}\n{types}\n{runtime.prelude.structs()}\n{nullable_types}\n{structs}\n{site_lines}\n{literal_lines}\n{macros}"
+    var headers = output.foreign_headers.join("\n")
+    return "{runtime.defines()}\n{runtime.header()}\n{headers}\n{runtime.early_types()}\n{runtime.assert_ring()}\n{runtime.string_layout()}\n{types}\n{runtime.prelude.structs()}\n{nullable_types}\n{structs}\n{site_lines}\n{literal_lines}\n{macros}"
 }
 
 func prototypes_text(): String {
@@ -118,7 +119,19 @@ func supports_text(lowered: Lowered): String {
         table = runtime.allocation_table()
     }
     var supports = output.supports.join("\n")
-    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{singletons}\n{table}\n{supports}"
+    var libraries = runtime.foreign_libraries()
+    var library_prototypes = foreign_prototypes()
+    return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{singletons}\n{table}\n{library_prototypes}\n{supports}\n{libraries}"
+}
+
+func foreign_prototypes(): String {
+    var lines = List<String>()
+    var index = 0
+    while index < output.foreign_libraries.count() {
+        lines.append("DynamicLibrary* spite_foreign_library_{output.foreign_libraries[index]}(void);")
+        index = index + 1
+    }
+    return lines.join("\n")
 }
 
 func note_maths() {
