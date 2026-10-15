@@ -357,6 +357,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2605,9 +2606,10 @@ spite_report_assert_trace();
 exit(1);
 }
 void Result_Result(Result* self, int32_t new_golds_, int32_t new_silvers_, int32_t new_bronzes_) {
-self->golds_ = new_golds_;
-self->silvers_ = new_silvers_;
-self->bronzes_ = new_bronzes_;
+(self)->golds_ = new_golds_;
+(self)->silvers_ = new_silvers_;
+(self)->bronzes_ = new_bronzes_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

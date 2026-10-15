@@ -380,6 +380,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3374,7 +3375,8 @@ Fetcher___release(first_);
 return spite_temp_191;
 }
 void Fetcher_Fetcher(Fetcher* self, int32_t new_rounds_) {
-self->rounds_ = new_rounds_;
+(self)->rounds_ = new_rounds_;
+return;
 }
 int64_t Fetcher_fetch_many(Fetcher* self) {
 int64_t found_ = SpiteInteger_to_long(0);
@@ -3392,7 +3394,8 @@ void Rules_Rules(Rules* self) {
 self->base_ = 3;
 }
 void Visit_Visit(Visit* self, int32_t new_number_) {
-self->number_ = new_number_;
+(self)->number_ = new_number_;
+return;
 }
 int32_t Visit_weight(Visit* self) {
 int32_t spite_temp_199 = ({ int32_t spite_temp_200 = (self->number_ % 7); int32_t spite_temp_201 = (self->rules_)->base_; int32_t spite_temp_202; if (__builtin_expect(__builtin_add_overflow(spite_temp_200, spite_temp_201, &spite_temp_202), 0)) spite_overflowed("number % 7 + rules.base", "an Integer", "+", (int64_t)spite_temp_200, (int64_t)spite_temp_201, spite_site_28()); spite_temp_202; });

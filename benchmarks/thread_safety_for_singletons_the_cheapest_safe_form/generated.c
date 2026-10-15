@@ -387,6 +387,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3359,7 +3360,8 @@ SpiteString spite_temp_169 = SpiteString___retain(self->label_);
 return spite_temp_169;
 }
 void Worker_Worker(Worker* self, int32_t new_rounds_) {
-self->rounds_ = new_rounds_;
+(self)->rounds_ = new_rounds_;
+return;
 }
 int32_t Worker_run(Worker* self) {
 int32_t index_ = 0;

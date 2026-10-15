@@ -308,6 +308,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -1312,8 +1313,9 @@ for (int32_t spite_index = 0; spite_index < spite_framed_1_count; spite_index = 
 Vector__Velocity___release(velocities_);
 }
 void Velocity_Velocity(Velocity* self, int32_t new_across_, int32_t new_down_) {
-self->across_ = new_across_;
-self->down_ = new_down_;
+(self)->across_ = new_across_;
+(self)->down_ = new_down_;
+return;
 }
 int32_t List_Console_Printable_count(List_Console_Printable* self) {
 int32_t spite_temp_40 = self->item_count_;

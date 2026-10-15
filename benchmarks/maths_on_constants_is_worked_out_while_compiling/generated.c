@@ -339,6 +339,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -2552,8 +2553,9 @@ float turned_down_ = (((point_)->across_ * (0x1.eaee880000000p-2f)) + ((point_)-
 Point___release(point_);
 }
 void Point_Point(Point* self, float new_across_, float new_down_) {
-self->across_ = new_across_;
-self->down_ = new_down_;
+(self)->across_ = new_across_;
+(self)->down_ = new_down_;
+return;
 }
 void List_String_clear(List_String* self) {
 int32_t index_ = 0;

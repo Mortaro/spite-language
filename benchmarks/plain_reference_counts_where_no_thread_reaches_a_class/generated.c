@@ -374,6 +374,7 @@ SpiteString c_path_;
 SpiteString final_classes_;
 SpiteString optimization_report_;
 SpiteString high_level_report_;
+SpiteString high_ir_;
 bool optimized_;
 bool development_;
 bool repl_;
@@ -3231,11 +3232,13 @@ int64_t spite_temp_161 = near_;
 return spite_temp_161;
 }
 void Point_Point(Point* self, int32_t starting_across_, int32_t starting_down_) {
-self->across_ = starting_across_;
-self->down_ = starting_down_;
+(self)->across_ = starting_across_;
+(self)->down_ = starting_down_;
+return;
 }
 void Summer_Summer(Summer* self, int32_t starting_limit_) {
-self->limit_ = starting_limit_;
+(self)->limit_ = starting_limit_;
+return;
 }
 int64_t Summer_total(Summer* self) {
 int64_t sum_ = SpiteInteger_to_long(0);
