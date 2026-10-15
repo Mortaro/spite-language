@@ -14,6 +14,7 @@ func lower(): Lowered {
     var made = generator
     var instances = Instances(made)
     write_main(instances)
+    write_debug_memory(instances)
     var settled = false
     while not settled {
         settled = true
@@ -144,7 +145,7 @@ func lower_reached(instances: Instances, information: Analysis.ClassInfo, declar
     lowered.add_function(function)
     var supplied = not declared.has_body or not declared.supplied_body.is_empty()
     if supplied {
-        function.intrinsic = "supplied"
+        lower_supplied(instances, information, declared, function)
         return
     }
     lower_body(instances, information, declared, function)
@@ -203,4 +204,42 @@ func receiver_less(information: Analysis.ClassInfo, declared: Analysis.FunctionI
         return false
     }
     return generator.is_inline_supplied(declared)
+}
+
+func lower_supplied(
+    instances: Instances,
+    information: Analysis.ClassInfo,
+    declared: Analysis.FunctionInfo,
+    function: Function,
+) {
+    crash generator
+    if declared.supplied_body.is_empty() and not declared.has_body {
+        generator.supply_body(information, declared)
+    }
+    var answer = declared.return_type
+    if not declared.supplied_body.is_empty() or not types.is_void(answer) {
+        function.intrinsic = "supplied"
+        return
+    }
+    var emitter = start_body(function, information, declared, instances)
+    emitter.returns(-1)
+    finish_body(function, emitter)
+}
+
+func write_debug_memory(instances: Instances) {
+    var made = instances.front()
+    assert made.debug_memory
+    var table = made.find_class_by_qualified("AllocationTable")
+    assert table
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    instances.singleton_maker(table, no_arguments, "")
+    var wanted = ["resize", "free", "register_object", "name_classes", "report", "live_allocations", "live_bytes"]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(table, wanted[index])
+        if found {
+            instances.reach(table, found)
+        }
+        index = index + 1
+    }
 }
