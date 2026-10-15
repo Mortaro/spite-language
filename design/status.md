@@ -193,6 +193,11 @@ for a design):
   'Worker_slow___begin' of a changed class is not made without compiling the whole program`): a reload library made
   for one class does not yet write the class's machine entries. Loud and correct, only slower.
 
+- (found 2026-10-15 building the compiler through the desugared IR) The front end accepted a `SpiteType?` passed to a
+  parameter typed `SpiteType` (`HighScope.declare` called from `HighWalk.walk_declaration`), and the generator's C
+  passed the null on without a check; the IR's presence check made it halt. A value that may be null passed where
+  one is required must be a compile error naming the narrowing to write.
+
 Also open, each a bug under D244, found cataloguing the compiler's proofs (proofs.md):
 
 - **A `while true` that can never leave but calls something** ends its function's paths for the missing-`return`
