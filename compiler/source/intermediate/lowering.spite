@@ -245,7 +245,8 @@ func lower_supplied(
     }
     var answer = declared.return_type
     if declared.name == "to_debug" and declared.supplied_body.contains("* spite_debug = ") {
-        reach_debug_text(instances, declared.supplied_body)
+        write_debug_text(instances, information, declared, function)
+        return
     }
     if declared.name == "entry_address" {
         reach_served(instances, information)
@@ -346,6 +347,12 @@ func write_reflection(instances: Instances, position: Integer) {
         write_class_maker(instances, name, described)
         return
     }
+    if kind == "forwarder" {
+        crash instances.reflection_texts[position]
+        var forwarded = instances.reflection_texts[position]
+        write_forwarder(instances, name, described, forwarded)
+        return
+    }
     if kind == "shape_caller" {
         crash instances.reflection_texts[position]
         var called = instances.reflection_texts[position]
@@ -428,18 +435,29 @@ func synthetic_body(information: Analysis.ClassInfo, declared: Analysis.Function
     declared.supplied_body = "return spite_string_from_cstring_owned({information.c_name}___name(self));"
 }
 
-func reach_debug_text(instances: Instances, body: String) {
+func write_debug_text(
+    instances: Instances,
+    information: Analysis.ClassInfo,
+    declared: Analysis.FunctionInfo,
+    function: Function,
+) {
     var made = instances.front()
+    var body = declared.supplied_body
     var end = body.index_of("* spite_debug")
     crash end >= 0
     var debug_name = body.slice(0, end)
     var debug_class = made.find_class_by_c_name(debug_name)
     crash debug_class
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    instances.singleton_maker(debug_class, no_arguments, "")
     var text = made.find_or_instantiate_function(debug_class, "text")
-    assert text
-    instances.reach(debug_class, text)
+    crash text
+    var emitter = start_body(function, information, declared, instances)
+    var expressions = ExpressionLowering(emitter, instances, information, declared, function.receiver)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var debugger = expressions.singleton(debug_class, no_arguments)
+    var operands = [debugger, function.receiver]
+    var shown = expressions.call_reached(debug_class, text, operands)
+    emitter.returns(shown)
+    finish_body(function, emitter)
 }
 
 func reach_served(instances: Instances, information: Analysis.ClassInfo) {
@@ -496,6 +514,41 @@ func write_reflect(instances: Instances, name: String, described: Analysis.Class
     var reflection = ReflectionLowering(expressions)
     var attribute = reflection.reflect_body(name_value, held_value)
     emitter.returns(attribute)
+    finish_body(function, emitter)
+}
+
+func write_forwarder(instances: Instances, name: String, described: Analysis.ClassInfo, forwarded: String) {
+    var made = instances.front()
+    var target = made.find_or_instantiate_function(described, forwarded)
+    crash target
+    var function = synthetic_function(name, forwarded, described)
+    function.answer = target.return_type
+    var receiver_type = instances.receiver_type(described)
+    function.receiver = function.new_value(receiver_type, "receiver")
+    var operands = List<Integer>()
+    if not receiver_less(described, target) {
+        operands.append(function.receiver)
+    }
+    var index = 0
+    while index < target.parameters.count() {
+        var declared_parameter = target.parameters[index]
+        var spite_type = declared_parameter.type
+        var value = function.new_value(spite_type, "parameter")
+        function.value_at(value).name = declared_parameter.name
+        var parameter = Parameter(declared_parameter.name, spite_type, value)
+        function.parameters.append(parameter)
+        operands.append(value)
+        index = index + 1
+    }
+    var described_function = synthetic_description(forwarded, name, target.return_type)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var answered = expressions.call_reached(described, target, operands)
+    if types.is_void(target.return_type) {
+        emitter.returns(-1)
+    } else {
+        emitter.returns(answered)
+    }
     finish_body(function, emitter)
 }
 

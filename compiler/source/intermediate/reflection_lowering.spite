@@ -258,14 +258,24 @@ func function_of(
     if made.run_time_kinds_used and made.literal_body(function) {
         store_literal(made_function, function)
     }
-    if made.is_inline_supplied(function) or owner < 0 {
+    if owner < 0 {
         return made_function
     }
-    lowering().known().reach(described, function)
+    var bound_name = function.c_name
+    if made.is_inline_supplied(function) {
+        bound_name = lowering().known().reflection_maker(
+            "{function.c_name}___forward",
+            "forwarder",
+            described,
+            function.name,
+        )
+    } else {
+        lowering().known().reach(described, function)
+    }
     var operands = [made_function, owner]
     var binding = lowering().emitter.call_operation("Function.bind", operands, null)
-    binding.literal = function.c_name
-    binding.target = function.c_name
+    binding.literal = bound_name
+    binding.target = bound_name
     return made_function
 }
 
@@ -381,9 +391,61 @@ func namespace_object(dotted: String): Integer {
         store_namespace(object, "_parent", parent)
     }
     if made.namespace_tree_used {
-        lowering().emitter.fail_lowering("a namespace that lists its classes, namespaces and enums")
+        store_namespace_tree(object, dotted, namespace_class)
     }
     return object
+}
+
+func store_namespace_tree(object: Integer, dotted: String, namespace_class: Analysis.ClassInfo) {
+    var made = lowering().front()
+    var class_class = made.find_class_by_c_name("Spite_Class")
+    if not class_class {
+        lowering().emitter.fail_lowering("a namespace tree with no Spite.Class class")
+        return
+    }
+    var class_type = lowering().known().class_type(class_class)
+    var class_list_type = made.list_type_of(class_type)
+    var class_appender = lowering().list_function(class_type, "append")
+    var namespace_type = lowering().known().class_type(namespace_class)
+    var namespace_list_type = made.list_type_of(namespace_type)
+    var namespace_appender = lowering().list_function(namespace_type, "append")
+    var classes = lowering().emitter.load_field(object, "_classes", class_list_type)
+    var namespaces = lowering().emitter.load_field(object, "_namespaces", namespace_list_type)
+    var enums = lowering().emitter.load_field(object, "_enums", class_list_type)
+    var depth = dotted.split(".").count()
+    var children = List<String>()
+    var index = 0
+    while index < made.classes.count() {
+        var listed = made.classes[index]
+        if made.is_listed_class(listed) and listed.namespace_dotted == dotted {
+            var listed_type = made.class_type_of(listed)
+            var listed_object = lowering().class_object_of(listed_type)
+            lowering().call_two_function(class_appender, classes, listed_object)
+        }
+        var child = listed.namespace_dotted
+        var nested = child.starts_with("{dotted}.") and child.split(".").count() == depth + 1
+        if made.is_listed_class(listed) and nested and not children.contains(child) {
+            children.append(child)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < children.count() {
+        var code = made.ensure_namespace_object(children[index])
+        lowering().known().reflection_maker(code, "namespace_object", namespace_class, children[index])
+        var no_operands = List<Integer>()
+        var child_object = lowering().emitter.emit_call(code, no_operands, namespace_type)
+        lowering().call_two_function(namespace_appender, namespaces, child_object)
+        index = index + 1
+    }
+    var declared_enums = made.enums_in_namespace(dotted)
+    index = 0
+    while index < declared_enums.count() {
+        var enum_type = made.enum_type_of(declared_enums[index])
+        var enum_object = lowering().class_object_of(enum_type)
+        lowering().call_two_function(class_appender, enums, enum_object)
+        index = index + 1
+    }
 }
 
 func store_literal(made_function: Integer, function: Analysis.FunctionInfo) {

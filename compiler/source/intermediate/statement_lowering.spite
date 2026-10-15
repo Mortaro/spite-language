@@ -46,6 +46,10 @@ func lower_statement(statement: Syntax.Statements.Statement) {
     if statement.line > 0 {
         emitter.line = statement.line
     }
+    var made = front()
+    if not made.breakpoint_sites.is_empty() {
+        breakpoint(statement)
+    }
     switch statement {
         Syntax.Statements.VariableDeclaration: declaration(statement)
         Syntax.Statements.AssignmentStatement: assignment(statement)
@@ -72,6 +76,7 @@ func declaration(declared: Syntax.Statements.VariableDeclaration) {
     }
     assert not made.folds_dictionary_local(declared, emitter.scope, lowered_class)
     made.folded_dictionaries.remove(declared.name)
+    crash declared.value
     var value = lowering().lower(declared.value)
     var value_type = lowering().type_of(value)
     emitter.declare_local(declared.name, value, value_type)
@@ -114,23 +119,30 @@ func assignment(statement: Syntax.Statements.AssignmentStatement) {
     var made = front()
     var reflected = made.reflected_assignment_target(statement.target, emitter.scope, lowered_class)
     if reflected {
+        crash statement.value
         var rewritten = Syntax.Statements.AssignmentStatement(reflected, statement.value)
         rewritten.line = statement.line
         assignment(rewritten)
         return
     }
+    crash statement.target
     var identifier = shapes.as_identifier(statement.target)
     if identifier {
+        crash statement.value
         assign_name(identifier.name, statement.value)
         return
     }
+    crash statement.target
     var indexed = shapes.as_index(statement.target)
     if indexed {
+        crash statement.value
         assign_index(indexed, statement.value)
         return
     }
+    crash statement.target
     var member = shapes.as_member(statement.target)
     if member {
+        crash statement.value
         assign_member(member, statement.value)
         return
     }
@@ -144,6 +156,7 @@ func assign_name(name: String, assigned: Syntax.Expressions.Expression) {
         var value = lowering().lower_toward(assigned, held.declared)
         held.value = value
         emitter.name_value(value, name)
+        crash held.declared
         forget_unless_wrapped(name, value, held.declared)
         return
     }
@@ -187,6 +200,7 @@ func assign_index(indexed: Syntax.Expressions.IndexExpression, assigned: Syntax.
         assign_name(made.bound_field_name, assigned)
         return
     }
+    crash indexed.object
     var object = lowering().lower(indexed.object)
     var object_type = lowering().type_of(object)
     var owner = made.class_of_type(object_type)
@@ -200,6 +214,7 @@ func assign_index(indexed: Syntax.Expressions.IndexExpression, assigned: Syntax.
         return
     }
     var arguments = List<Syntax.Expressions.Expression>()
+    crash indexed.index
     arguments.append(indexed.index)
     arguments.append(assigned)
     lowering().call_with_arguments(owner, writer, object, arguments)
@@ -217,6 +232,7 @@ func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax
         place_with_allocator(member, assigned)
         return
     }
+    crash member.object
     var object = lowering().lower(member.object)
     var object_type = lowering().type_of(object)
     var listed_field = made.library_list_field(object_type, member.name, lowered_class)
@@ -303,6 +319,7 @@ func if_statement(statement: Syntax.Statements.IfStatement) {
     }
     var count = emitter.locals.count()
     var before = emitter.snapshot(count)
+    crash statement.condition
     var condition = lowering().lower_condition(statement.condition)
     assert not emitter.lowering_failed()
     var then_block = emitter.new_block()
@@ -312,6 +329,7 @@ func if_statement(statement: Syntax.Statements.IfStatement) {
     emitter.enter_block(then_block)
     emitter.push_frame()
     lowering().apply(condition.when_true, condition.true_types)
+    crash statement.condition
     made.narrow_proven_indices(statement.condition, emitter.scope, lowered_class)
     lower_statements(statement.then_branch)
     var then_arrives = emitter.incoming(count)
@@ -333,6 +351,7 @@ func if_statement(statement: Syntax.Statements.IfStatement) {
     var leaves = not statement.has_else_branch and not then_arrives
     if leaves and emitter.reachable() {
         lowering().apply(condition.when_false, condition.false_types)
+        crash statement.condition
         var kept = made.negated_condition(statement.condition)
         made.narrow_proven_indices(kept, emitter.scope, lowered_class)
     }
@@ -357,10 +376,12 @@ func while_statement(statement: Syntax.Statements.WhileStatement) {
         position = position + 1
     }
     var header = emitter.loop_header(carried)
+    crash statement.condition
     if shapes.is_true_literal(statement.condition) {
         endless_loop(statement, header, carried)
         return
     }
+    crash statement.condition
     var condition = lowering().lower_condition(statement.condition)
     assert not emitter.lowering_failed()
     var body_block = emitter.new_block()
@@ -370,6 +391,7 @@ func while_statement(statement: Syntax.Statements.WhileStatement) {
     emitter.push_frame()
     emitter.scope.is_loop = true
     lowering().apply(condition.when_true, condition.true_types)
+    crash statement.condition
     made.narrow_proven_indices(statement.condition, emitter.scope, lowered_class)
     lower_statements(statement.body)
     if emitter.reachable() {
@@ -674,6 +696,7 @@ func equality_switch(statement: Syntax.Statements.SwitchStatement, subject: Inte
             emitter.push_frame()
             lower_switch_case(switch_case.body, count, before, incomings)
         } else {
+            crash switch_case.value
             var written = lowering().lower_toward(switch_case.value, subject_type)
             var same = emitter.emit_call_two(equality, subject, written, boolean)
             text_case(same, switch_case.body, count, before, incomings)
@@ -818,6 +841,7 @@ func case_tag(switch_case: Syntax.Statements.SwitchCase): String {
     }
     var printer = Syntax.SourcePrinter()
     var written = printer.source_expression(switch_case.value)
+    crash switch_case.value
     var literal = shapes.as_enum_literal(switch_case.value)
     if literal {
         return literal.value
@@ -837,6 +861,7 @@ func text_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer)
             emitter.push_frame()
             lower_switch_case(switch_case.body, count, before, incomings)
         } else {
+            crash switch_case.value
             var written = lowering().lower(switch_case.value)
             var same = emitter.emit_call_two("String.equals", subject, written, boolean)
             text_case(same, switch_case.body, count, before, incomings)
@@ -954,6 +979,47 @@ func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned:
     var allocator = lowering().lower(assigned)
     var operands = [object, allocator]
     emitter.emit_call("Object.place", operands, null)
+}
+
+func breakpoint(statement: Syntax.Statements.Statement) {
+    var made = front()
+    var described = lowering().lowered_function()
+    var source_path = described.source_path
+    if source_path.is_empty() {
+        source_path = lowered_class.source_path
+    }
+    var site = "{statement.line} {source_path}"
+    assert made.hot_reload and made.remote_loop_port > 0 and made.breakpoint_sites.contains(site)
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        emitter.fail_lowering("a breakpoint with no Spite.Attribute class")
+        return
+    }
+    var element = lowering().known().class_type(attribute_class)
+    var listed = lowering().new_list(element)
+    var appender = lowering().list_function(element, "append")
+    var expressions = lowering()
+    var reflection = ReflectionLowering(expressions)
+    if not lowered_class.is_value_class {
+        var own_object = lowering().own_receiver()
+        var own_name = reflection.symbol("self")
+        var own_attribute = reflection.reflect_body(own_name, own_object)
+        lowering().call_two_function(appender, listed, own_attribute)
+    }
+    var names = List<String>()
+    emitter.scope.visible_names(names)
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var named: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
+        var value = lowering().lower(named)
+        var local_name = reflection.symbol(name)
+        var local_attribute = reflection.reflect_body(local_name, value)
+        lowering().call_two_function(appender, listed, local_attribute)
+        index = index + 1
+    }
+    var shown = lowering().text_constant("{source_path}:{statement.line}")
+    emitter.emit_call_two("Loop.breakpoint", shown, listed, null)
 }
 
 func check_point() {
