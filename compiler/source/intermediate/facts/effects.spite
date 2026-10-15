@@ -238,6 +238,11 @@ func note_dotted(made: Summary, callee: String) {
     if owner == "Parallel" or owner == "Concurrent" {
         made.starts_threads = true
     }
+    crash lowered
+    if owner == "Foreign" and not calls_back_from_c() {
+        made.writes_memory = true
+        return
+    }
     made.unknown = true
 }
 
@@ -351,4 +356,16 @@ func late_summary(function: Function): Summary {
     }
     made.adds(reached)
     return made
+}
+
+func calls_back_from_c(): Boolean {
+    crash lowered
+    var index = 0
+    while index < lowered.layouts.count() {
+        if lowered.layouts[index].qualified == "ForeignCallback" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
