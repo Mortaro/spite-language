@@ -468,6 +468,20 @@ func settle_hot_layout(layout: Layout) {
     crash generator
     assert layout.information and layout.kind == "class" and not layout.is_value
     layout.hot = generator.is_hot_class(layout.information)
+    assert layout.hot
+    layout.fits = generator.class_fits_vector(layout.information)
+    layout.migrating = generator.migrating_classes.contains(layout.c_name)
+    layout.changing = generator.changing_layouts.contains(layout.c_name)
+    assert layout.changing
+    layout.storage_change = generator.storage_change(layout.information)
+    layout.renamed_from = List<String>()
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var old_name = generator.renamed_from(layout.information, field.name)
+        layout.renamed_from.append(old_name)
+        index = index + 1
+    }
 }
 
 func settle_slot(function: Function) {

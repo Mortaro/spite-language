@@ -430,7 +430,8 @@ func field_releases(layout: Layout, holder: String): List<String> {
         var field = layout.stored_fields[index]
         var counted = counted_field(field)
         if not counted.is_empty() {
-            lines.append("{counted}___release({holder}->{field.name}_);")
+            var held = naming.fields_of(layout, holder)
+            lines.append("{counted}___release({held}->{field.name}_);")
         }
         index = index + 1
     }
@@ -461,7 +462,9 @@ func print_counted(layout: Layout) {
     var name = layout.c_name
     output.prototypes.append("static inline {name}* {name}___retain({name}* self);")
     output.prototypes.append("static inline void {name}___release({name}* self);")
-    output.prototypes.append("void {name}___free({name}* self);")
+    if not layout.hot {
+        output.prototypes.append("void {name}___free({name}* self);")
+    }
     var counting = "SPITE_COUNT"
     if lowered.makes_threads and not layout.atomic_counts {
         counting = "SPITE_PLAIN_COUNT"
@@ -500,6 +503,14 @@ func print_counted(layout: Layout) {
         lines.append("SPITE_FREE(self);")
     }
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var free_body = lines.join("\n")
+        var receiving = ["{name}* self"]
+        hot.slot_support("{name}___free", "void", receiving, free_body, "{layout.qualified}'s release", name)
+        return
+    }
     var lines_text = lines.join("\n")
     output.support(lines_text)
     output.runtime_place("{name}___retain")
@@ -594,12 +605,20 @@ func print_copy(layout: Layout) {
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
-        var copied = copied_field(field)
+        var copied = copied_field(layout, field)
         lines.append(copied)
         index = index + 1
     }
     lines.append("return spite_copy;")
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var copy_body = lines.join("\n")
+        var receiving = ["{name}* self"]
+        hot.slot_support("{name}_copy", "{name}*", receiving, copy_body, "{layout.qualified}'s copy", name)
+        return
+    }
     output.prototypes.append("{name}* {name}_copy({name}* self);")
     var lines_text = lines.join("\n")
     output.support(lines_text)
@@ -616,7 +635,7 @@ func print_copy_in(layout: Layout) {
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
-        var copied = copied_field(field)
+        var copied = copied_field(layout, field)
         lines.append(copied)
         index = index + 1
     }
@@ -628,12 +647,14 @@ func print_copy_in(layout: Layout) {
     output.runtime_place("{name}_copy_in")
 }
 
-func copied_field(field: Field): String {
+func copied_field(layout: Layout, field: Field): String {
     var counted = counted_field(field)
+    var made = naming.fields_of(layout, "spite_copy")
+    var source = naming.fields_of(layout, "self")
     if counted.is_empty() {
-        return "spite_copy->{field.name}_ = self->{field.name}_;"
+        return "{made}->{field.name}_ = {source}->{field.name}_;"
     }
-    return "spite_copy->{field.name}_ = {counted}___retain(self->{field.name}_);"
+    return "{made}->{field.name}_ = {counted}___retain({source}->{field.name}_);"
 }
 
 func print_union(layout: Layout) {

@@ -180,7 +180,13 @@ func live_remove(lines: List<String>, layout: Layout) {
 func print_layout(layout: Layout, struct_text: String) {
     var name = layout.c_name
     layout_texts[name] = struct_text
-    output.macros.append("#define {name}___fields(object) (object)")
+    if layout.migrating {
+        output.macros.append(
+            "static inline {name}* {name}___fields({name}* object) \{ return object->spite_moved != 0 ? ({name}*)object->spite_moved : object; }",
+        )
+    } else {
+        output.macros.append("#define {name}___fields(object) (object)")
+    }
     var codec = Generation.TypeCodec()
     codec.enums_by_name = true
     var entries = List<String>()
@@ -199,29 +205,27 @@ func print_layout(layout: Layout, struct_text: String) {
     entries.append("\{ 0, 0, 0, 0, 0 }")
     var count = layout.stored_fields.count()
     var shown = naming.escape_c(layout.qualified)
-    var descriptor = [
-        "const SpiteLayout* {name}___layout(void) \{"
-        "static const SpiteLayoutField fields[] = \{ {entries.join(", ")} };"
-        "static const SpiteLayout layout = \{ \"{shown}\", (int64_t)sizeof({name}), {count}, fields, 0 };"
-        "return &layout;"
-        "}"
-        "const SpiteLayout** {name}___layout_now(void) \{"
-        "static const SpiteLayout* now = 0;"
-        "if (now == 0) now = {name}___layout();"
-        "return &now;"
-        "}"
-        "SpiteLiveSet* {name}___live(void) \{"
-        "static SpiteLiveSet live = \{ 0, 0, 0, 0, 0 };"
-        "return &live;"
-        "}"
-    ]
+    var fits = 0
+    if layout.fits {
+        fits = 1
+    }
     output.prototypes.append("const SpiteLayout* {name}___layout(void);")
     output.prototypes.append("const SpiteLayout** {name}___layout_now(void);")
     output.prototypes.append("SpiteLiveSet* {name}___live(void);")
-    var descriptor_text = descriptor.join("\n")
-    output.support(descriptor_text)
+    output.support(
+        "const SpiteLayout* {name}___layout(void) \{\nstatic const SpiteLayoutField fields[] = \{ {entries.join(", ")} };\nstatic const SpiteLayout layout = \{ \"{shown}\", (int64_t)sizeof({name}), {count}, fields, {fits} };\nreturn &layout;\n}",
+    )
+    output.name_piece("{name}___layout")
     output.runtime_place("{name}___layout")
+    output.support(
+        "const SpiteLayout** {name}___layout_now(void) \{\nstatic const SpiteLayout* now = 0;\nif (now == 0) now = {name}___layout();\nreturn &now;\n}",
+    )
+    output.impure()
     output.runtime_place("{name}___layout_now")
+    output.support(
+        "SpiteLiveSet* {name}___live(void) \{\nstatic SpiteLiveSet live = \{ 0, 0, 0, 0, 0 };\nreturn &live;\n}",
+    )
+    output.impure()
     output.runtime_place("{name}___live")
 }
 

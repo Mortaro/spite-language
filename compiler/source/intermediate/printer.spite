@@ -142,6 +142,8 @@ func wire(lowered: Lowered) {
     hot.naming = naming
     body.hot = hot
     layouts.hot = hot
+    copies.hot = hot
+    intrinsics.hot = hot
     copies.made = List<String>()
     copies.table_written = false
     intrinsics.copies = copies
@@ -242,6 +244,9 @@ func supports_text(lowered: Lowered, printed_supports: String, with_singletons: 
     var guards = ""
     if output.needs("guards") {
         guards = runtime.guard_runtime()
+    }
+    if not output.needs("guards") {
+        guards = "static void spite_enter_skipped(void* guard) \{ (void)guard; }"
     }
     var library_prototypes = foreign_prototypes()
     return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{table}\n{singletons}\n{guards}\n{library_prototypes}\n{supports}\n{libraries}"

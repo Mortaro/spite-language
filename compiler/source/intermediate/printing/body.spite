@@ -1325,18 +1325,55 @@ func call_arguments(operation: Operation): String {
     var arguments = List<String>()
     var index = 0
     while index < operation.operands.count() {
-        var argument = operand(operation, index)
+        var argument = argument_text(operation, index)
         arguments.append(argument)
         index = index + 1
     }
     return arguments.join(", ")
 }
 
+func argument_text(operation: Operation, index: Integer): String {
+    var argument = operand(operation, index)
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return argument
+    }
+    var expected = expected_type(callee, index)
+    var given_type = operand_type(operation, index)
+    if expected.is_empty() or not given_type {
+        return argument
+    }
+    var given = naming.c_type(given_type)
+    if given == expected or not expected.ends_with("*") or not given.ends_with("*") {
+        return argument
+    }
+    return "(({expected})({argument}))"
+}
+
+func expected_type(callee: Function, index: Integer): String {
+    var position = index
+    if callee.receiver >= 0 {
+        if index == 0 {
+            if callee.receiver >= callee.values.count() {
+                return ""
+            }
+            var receiver = callee.value_at(callee.receiver)
+            return naming.c_type(receiver.spite_type)
+        }
+        position = index - 1
+    }
+    if position >= callee.parameters.count() {
+        return ""
+    }
+    var parameter = callee.parameters[position]
+    return naming.c_type(parameter.spite_type)
+}
+
 func print_plain_call(operation: Operation, c_name: String) {
     var arguments = List<String>()
     var index = 0
     while index < operation.operands.count() {
-        var argument = operand(operation, index)
+        var argument = argument_text(operation, index)
         arguments.append(argument)
         index = index + 1
     }
@@ -1848,6 +1885,8 @@ func print_branch(terminator: Terminator) {
         var nullable = shape.as_nullable(tested_type)
         if nullable {
             tested = intrinsics.presence(tested, nullable.inner)
+        } else if shape.as_string(tested_type) or shape.is_symbol(tested_type) or naming.is_tagged(tested_type) {
+            tested = intrinsics.presence(tested, tested_type)
         }
     }
     var first = transfer(taken)

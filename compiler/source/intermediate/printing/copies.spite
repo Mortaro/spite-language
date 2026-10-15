@@ -6,6 +6,7 @@ var shape = Analysis.TypeShape()
 var made = List<String>()
 var table_written = false
 var weak_pending_written = false
+var hot = Hot()
 
 func copied(spite_type: Analysis.SpiteType?, code: String): String {
     if not spite_type {
@@ -70,25 +71,29 @@ func ensure(layout: Layout): String {
     made.append(function_name)
     var written = naming.c_type_of_layout(layout)
     output.prototypes.append("{written} {function_name}({written} self);")
+    print_copy(layout, function_name, written)
     output.runtime_place(function_name)
+    return function_name
+}
+
+func print_copy(layout: Layout, function_name: String, written: String) {
     if layout.kind == "union" or layout.kind == "tagged union" {
         union_copy(layout, function_name, written)
-        return function_name
+        return
     }
     if layout.qualified == "List" {
         list_copy(layout, function_name)
-        return function_name
+        return
     }
     if layout.qualified == "Dictionary" {
         dictionary_copy(layout, function_name)
-        return function_name
+        return
     }
     if layout.qualified == "Weak" {
         weak_copy(layout, function_name)
-        return function_name
+        return
     }
     class_copy(layout, function_name)
-    return function_name
 }
 
 func class_copy(layout: Layout, function_name: String) {
@@ -107,8 +112,10 @@ func class_copy(layout: Layout, function_name: String) {
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
-        var copied_field = copied(field.spite_type, "self->{field.name}_")
-        lines.append("copied->{field.name}_ = {copied_field};")
+        var source = naming.fields_of(layout, "self")
+        var made_fields = naming.fields_of(layout, "copied")
+        var copied_field = copied(field.spite_type, "{source}->{field.name}_")
+        lines.append("{made_fields}->{field.name}_ = {copied_field};")
         index = index + 1
     }
     if layout.copy_with_table {
@@ -116,6 +123,14 @@ func class_copy(layout: Layout, function_name: String) {
     }
     lines.append("return copied;")
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var copy_body = lines.join("\n")
+        var receiving = ["{name}* self"]
+        hot.slot_support(function_name, "{name}*", receiving, copy_body, "{layout.qualified}'s deep copy", name)
+        return
+    }
     var copy_text = lines.join("\n")
     output.support(copy_text)
     output.name_piece(function_name)

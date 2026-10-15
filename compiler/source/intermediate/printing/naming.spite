@@ -468,6 +468,14 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
     return null
 }
 
+# ../../../../docs/repl.md#changing-a-classs-attributes
+func fields_of(layout: Layout, object: String): String {
+    if layout.hot {
+        return "{layout.c_name}___fields({object})"
+    }
+    return object
+}
+
 func c_type_of_layout(layout: Layout): String {
     if layout.kind == "union" or layout.kind == "tagged union" {
         return layout.c_name
