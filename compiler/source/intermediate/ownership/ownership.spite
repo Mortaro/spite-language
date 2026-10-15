@@ -17,6 +17,7 @@ func run(starting_lowered: Lowered) {
     kinds = made_kinds
     var made_consumption = Consumption(starting_lowered)
     consumption = made_consumption
+    made_consumption.settle_lent_returns()
     var conventions = ParameterConventions(starting_lowered, made_effects)
     conventions.decide()
     learn_drops(starting_lowered, made_effects)

@@ -196,6 +196,17 @@ func operation_users(operation: Operation, block_number: Integer, position: Inte
         tracked_users(operation.operands[index], 0, found)
         index = index + 1
     }
+    if operation.kind == "retain" {
+        var retained = operation.operands.first()
+        crash retained
+        crash borrows
+        var from = borrows.sources_of(retained)
+        index = 0
+        while index < from.count() {
+            tracked_users(from[index], 0, found)
+            index = index + 1
+        }
+    }
     var pseudo = pseudo_at(block_number, position)
     pseudo.each(found.append)
     return found

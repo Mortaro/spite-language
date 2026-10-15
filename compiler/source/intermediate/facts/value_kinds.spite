@@ -3,8 +3,11 @@ var types = Analysis.TypeShape()
 var lowered: Lowered? = null
 var dropping = Dictionary<String, Boolean>()
 
+var naming = Printing.Naming()
+
 func ValueKinds(starting_lowered: Lowered) {
     lowered = starting_lowered
+    naming.lowered = starting_lowered
 }
 
 func layout_of(spite_type: Analysis.SpiteType?): Layout? {
@@ -38,17 +41,18 @@ func is_counted(spite_type: Analysis.SpiteType?): Boolean {
         return is_counted(nullable.inner)
     }
     var class_ref = types.as_class_ref(spite_type)
-    if class_ref {
-        return class_is_counted(class_ref.c_name)
+    if class_ref and not class_is_counted(class_ref.c_name) {
+        return false
     }
-    return true
+    var named = naming.counted_name(spite_type)
+    return not named.is_empty()
 }
 
 func class_is_counted(c_name: String): Boolean {
     crash lowered
     var layout = lowered.layout_named(c_name)
     if not layout {
-        return true
+        return false
     }
     return not layout.is_singleton and not layout.is_value
 }

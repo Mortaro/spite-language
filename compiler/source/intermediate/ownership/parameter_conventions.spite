@@ -33,7 +33,44 @@ func decide() {
         }
         rounds = rounds + 1
     }
+    functions.each(lend_received)
     functions.each(count_held)
+}
+
+# ../../../../docs/proofs.md#an-item-lent-to-a-call
+func lend_received(function: Function) {
+    crash consumption
+    crash lowered
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" {
+                lend_arguments(uses, operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func lend_arguments(uses: Facts.Uses, operation: Operation) {
+    crash consumption
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    assert callee and not callee.is_intrinsic()
+    var index = 1
+    while index < operation.operands.count() {
+        var argument = operation.operands[index]
+        var position = index - 1
+        if position < callee.parameters.count() and consumption.traces_lent(uses, argument) {
+            callee.parameters[position].ownership = "lent"
+        }
+        index = index + 1
+    }
 }
 
 func count_held(function: Function) {
