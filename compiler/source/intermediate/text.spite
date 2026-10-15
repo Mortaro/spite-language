@@ -90,7 +90,8 @@ func operation_text(function: Function, operation: Operation): String {
     var operands = values_text(operation.operands)
     var what = "{operation.kind} {operands}"
     if operation.kind == "constant" {
-        what = "constant {operation.literal}"
+        var shown_literal = operation.literal.replace("\n", "\\n")
+        what = "constant {shown_literal}"
     } else if operation.kind == "call" and not operation.target.is_empty() {
         what = "call {operation.callee}({operands}) of {operation.target}"
     } else if operation.kind == "call" {

@@ -213,6 +213,27 @@ func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax
         emitter.store_field(object, member.name, listed_value)
         return
     }
+    var object_nullable = types.as_nullable(object_type)
+    if object_nullable {
+        var present_object = lowering().checked_present(object, object_nullable.inner)
+        store_through(member, present_object, assigned)
+        return
+    }
+    store_through(member, object, assigned)
+}
+
+func store_through(
+    member: Syntax.Expressions.MemberExpression,
+    object: Integer,
+    assigned: Syntax.Expressions.Expression,
+) {
+    var made = front()
+    var object_type = lowering().type_of(object)
+    var united = types.as_union(object_type)
+    if united {
+        union_store(united.c_name, member.name, object, assigned)
+        return
+    }
     var class_ref = types.as_class_ref(object_type)
     if not class_ref or class_ref.has_signature {
         emitter.fail_lowering("an assignment to '{member.name}' through a value that is not an object")
@@ -739,4 +760,79 @@ func text_case(
     lower_switch_case(body, count, before, incomings)
     emitter.restore(before)
     emitter.enter_block(next_block)
+}
+
+func union_store(union_name: String, name: String, object: Integer, assigned: Syntax.Expressions.Expression) {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union or described_union.members.is_empty() {
+        emitter.fail_lowering("an assignment to '{name}' through a union with no members")
+        return
+    }
+    var field_type = union_field_type(described_union, name)
+    if not field_type {
+        emitter.fail_lowering(
+            "an assignment to '{name}', which the union '{described_union.simple_name}' does not hold",
+        )
+        return
+    }
+    var value = lowering().lower_toward(assigned, field_type)
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", object, tag_type)
+    var joined = emitter.new_block()
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        tags.append(member.c_name)
+        var target = emitter.new_block()
+        targets.append(target)
+        index = index + 1
+    }
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        store_member_value(member, name, object, value)
+        emitter.jump_plain(joined)
+        index = index + 1
+    }
+    emitter.enter_block(joined)
+}
+
+func union_field_type(described_union: Analysis.UnionInfo, name: String): Analysis.SpiteType? {
+    var made = front()
+    if described_union.is_shape {
+        return made.shape_field_type(described_union, name)
+    }
+    var first_member = described_union.members.first()
+    assert first_member
+    var field = first_member.find_field(name)
+    assert field
+    return field.type
+}
+
+func store_member_value(member: Analysis.ClassInfo, name: String, object: Integer, value: Integer) {
+    var made = front()
+    var narrowed_type = lowering().member_type(member)
+    var narrowed = emitter.emit_call_one("Union.value", object, narrowed_type)
+    var setter = made.find_setter(member, name, lowered_class)
+    if setter {
+        crash setter.parameters[0]
+        var parameter_type = setter.parameters[0].type
+        var converted = lowering().convert(value, parameter_type)
+        var operands = [narrowed, converted]
+        lowering().call_reached(member, setter, operands)
+        return
+    }
+    var field = member.find_field(name)
+    if not field {
+        emitter.fail_lowering("an assignment to '{name}', which a member of a union does not hold")
+        return
+    }
+    var stored = lowering().convert(value, field.type)
+    emitter.store_field(narrowed, name, stored)
 }

@@ -54,6 +54,21 @@ func type_of(value: Integer): Analysis.SpiteType {
 }
 
 func lower(expression: Syntax.Expressions.Expression): Integer {
+    var made = front()
+    var named_path = false
+    if shapes.as_identifier(expression) or shapes.as_member(expression) or shapes.as_index(expression) {
+        named_path = true
+    }
+    if named_path and made.rooted_in_binding(expression) {
+        var reflected = reflected_value(expression)
+        if reflected != -2 {
+            return reflected
+        }
+    }
+    return lower_plain(expression)
+}
+
+func lower_plain(expression: Syntax.Expressions.Expression): Integer {
     switch expression {
         Syntax.Expressions.TrueLiteral: return boolean_constant("true")
         Syntax.Expressions.FalseLiteral: return boolean_constant("false")
@@ -121,6 +136,10 @@ func codegen_value(identifier: Syntax.Expressions.GenericIdentifierExpression): 
     if bound < 0 {
         return not_lowered(null, "the codegen value '${bare}' with no binding")
     }
+    crash lowered_class.codegen_codes[bound]
+    if lowered_class.codegen_codes[bound].is_empty() {
+        return not_lowered(null, "the codegen type '${bare}' read as a value")
+    }
     var result = made.generate_codegen_value(bare, lowered_class)
     return folded_constant(result)
 }
@@ -131,6 +150,11 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
     }
     if not result.constant_text.is_empty() {
         return constant_from_text(result.constant_text, result.spite_type)
+    }
+    var made = front()
+    if made.constant_texts.has(result.code) {
+        crash made.constant_texts[result.code]
+        return emitter.constant(result.spite_type, made.constant_texts[result.code])
     }
     if result.code == "true" or result.code == "false" or is_number_text(result.code) {
         return emitter.constant(result.spite_type, result.code)
@@ -240,6 +264,11 @@ func convert(value: Integer, wanted: Analysis.SpiteType): Integer {
     if types.is_symbol(given) and types.as_string(wanted) {
         return emitter.emit_call_one("Symbol.text", value, wanted)
     }
+    var given_nullable = types.as_nullable(given)
+    if given_nullable and not types.as_nullable(wanted) {
+        var present = checked_present(value, given_nullable.inner)
+        return convert(present, wanted)
+    }
     var wanted_nullable = types.as_nullable(wanted)
     if wanted_nullable {
         return into_nullable(value, given, wanted_nullable.inner, wanted)
@@ -292,8 +321,11 @@ func into_nullable(
 
 func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
     var scalar_type = types.as_scalar(inner)
+    if types.as_enum(inner) {
+        return emitter.emit_call_one("Enum.from_text", value, wanted)
+    }
     if not scalar_type {
-        return not_lowered(wanted, "text read as an enum value")
+        return not_lowered(wanted, "text read as a value of this kind")
     }
     var word = known().scalar_word(scalar_type.kind)
     var made = front()
@@ -382,6 +414,9 @@ func literal_fits(literal: String, from: Analysis.Types.NumericKind, to: Analysi
     if known().is_decimal_kind(to) {
         return true
     }
+    if to == 'address_kind' and not known().is_decimal_kind(from) {
+        return true
+    }
     if known().is_decimal_kind(from) or not known().is_checked(to) {
         return false
     }
@@ -412,7 +447,12 @@ func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Inte
     if named_function and not named_function.is_constructor {
         return function_value(lowered_class, named_function, receiver)
     }
-    return not_lowered(null, "'{identifier.name}' read as a value (a class object)")
+    var named_class = made.find_class(identifier.name, lowered_class.qualified_dotted)
+    if named_class {
+        var named_type = known().class_type(named_class)
+        return class_object_of(named_type)
+    }
+    return not_lowered(null, "'{identifier.name}' read as a value")
 }
 
 func read_own_field(name: String, field_type: Analysis.SpiteType): Integer {
@@ -494,6 +534,9 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if static_class {
         return static_member(static_class, member)
     }
+    if shapes.as_generic_identifier(member.object) {
+        return codegen_member(member)
+    }
     var symbol = shapes.as_identifier(member.object)
     if symbol and symbol.name == made.bound_symbol_name and not made.bound_symbol_name.is_empty() {
         return bound_symbol_member(member)
@@ -520,7 +563,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
 }
 
 func reflected_member(member: Syntax.Expressions.MemberExpression): Integer {
-    var reflection_names = ["class", "attributes", "functions", "memory", "instances", "allocator", "namespace", "size"]
+    var reflection_names = ["memory", "instances", "size"]
     if not reflection_names.contains(member.name) {
         return -1
     }
@@ -576,6 +619,9 @@ func bound_symbol_member(member: Syntax.Expressions.MemberExpression): Integer {
     if member.name == "value" and not made.bound_enum_c_name.is_empty() {
         return bound_enum_value()
     }
+    if member.name == "class" and made.bound_field_type {
+        return class_object_of(made.bound_field_type)
+    }
     return not_lowered(null, "'{made.bound_symbol_name}.{member.name}' of a walked member")
 }
 
@@ -592,6 +638,15 @@ func bound_enum_value(): Integer {
 func member_of_value(member: Syntax.Expressions.MemberExpression, object: Integer): Integer {
     var object_type = type_of(object)
     var made = front()
+    var object_nullable = types.as_nullable(object_type)
+    if object_nullable {
+        var present_object = checked_present(object, object_nullable.inner)
+        return member_of_value(member, present_object)
+    }
+    var reflecting = member.name == "class" or member.name == "attributes" or member.name == "functions"
+    if reflecting and not types.as_class_ref(object_type) {
+        return reflection_read(member, object)
+    }
     if types.is_arguments(object_type) {
         var flag = text_constant(member.name)
         var plain_text = known().typed_string()
@@ -613,7 +668,7 @@ func member_of_value(member: Syntax.Expressions.MemberExpression, object: Intege
         return not_lowered(null, "'{member.name}' read from {shown}")
     }
     if class_ref.has_signature {
-        return not_lowered(null, "'{member.name}' read from a function value")
+        return class_member_named("Spite_Function", member, object)
     }
     var foreign_constant = class_ref.c_name == "DynamicLibrary" and not made.is_reflection_member(member.name)
     if foreign_constant and not made.is_own_library_member(member.name) {
@@ -641,7 +696,7 @@ func class_member(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberE
     }
     var field = target.find_field(member.name)
     if not field {
-        return member_function_value(target, member.name, object)
+        return member_function_value(target, member, object)
     }
     if target.c_name == "Build" {
         var setting = made.hardcoded_setting(target, member.name)
@@ -827,7 +882,7 @@ func untyped_list(literal: Syntax.Expressions.ListLiteralExpression): Integer {
 
 func untyped_object(literal: Syntax.Expressions.ObjectLiteralExpression): Integer {
     if not literal.is_dictionary {
-        return not_lowered(null, "an object literal made for a type shape")
+        return shape_literal(literal)
     }
     var first = literal.fields.first()
     if not first {
@@ -1076,6 +1131,10 @@ func default_reference(spite_type: Analysis.SpiteType): Integer {
             return default_object(target, spite_type)
         }
     }
+    var united = types.as_union(spite_type)
+    if united {
+        return default_union(united.c_name, spite_type)
+    }
     var shown = known().type_text(spite_type)
     return not_lowered(spite_type, "the default of {shown}")
 }
@@ -1169,11 +1228,21 @@ func value_call(held: Integer, arguments: List<Syntax.Expressions.Expression>): 
     var values = List<Integer>()
     var index = 0
     while index < arguments.count() {
-        crash signature.arguments[index]
         var parameter_type = signature.arguments[index]
-        var passed = lower_toward(arguments[index], parameter_type)
-        values.append(passed)
-        index = index + 1
+        if not parameter_type {
+            return not_lowered(null, "a call through a function value with more arguments than it takes")
+        }
+        var variadic = types.as_list(parameter_type)
+        var last = index == signature.arguments.count() - 1
+        if variadic and last and variadic.is_variadic {
+            var gathered = variadic_list(arguments, index, variadic.element)
+            values.append(gathered)
+            index = arguments.count()
+        } else {
+            var passed = lower_toward(arguments[index], parameter_type)
+            values.append(passed)
+            index = index + 1
+        }
     }
     var made = front()
     var answer = made.returned_type(signature)
@@ -1184,8 +1253,16 @@ func value_call(held: Integer, arguments: List<Syntax.Expressions.Expression>): 
     return emitter.call_value(held, values, answer)
 }
 
-func member_function_value(target: Analysis.ClassInfo, name: String, object: Integer): Integer {
+func member_function_value(
+    target: Analysis.ClassInfo,
+    member: Syntax.Expressions.MemberExpression,
+    object: Integer,
+): Integer {
     var made = front()
+    var name = member.name
+    if name == "class" or name == "attributes" or name == "functions" {
+        return reflection_read(member, object)
+    }
     var found = made.find_or_instantiate_function(target, name)
     if not found or found.is_constructor {
         return not_lowered(null, "'{name}', which '{target.qualified_dotted}' does not hold")
@@ -1257,9 +1334,9 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
         return not_lowered(null, "'{member.name}()', asked while compiling")
     }
     if member.name == "each" or member.name == "map" {
-        var walked = walks_reflection(member, call.arguments)
-        if walked {
-            return not_lowered(null, "a walk over reflected members, unrolled while compiling")
+        var unrolled = unrolled_walk(member, call.arguments)
+        if unrolled != -2 {
+            return unrolled
         }
     }
     var expression: Syntax.Expressions.Expression = call
@@ -1302,6 +1379,11 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
 
 func call_on_value(name: String, object: Integer, arguments: List<Syntax.Expressions.Expression>): Integer {
     var object_type = type_of(object)
+    var object_nullable = types.as_nullable(object_type)
+    if object_nullable {
+        var present_object = checked_present(object, object_nullable.inner)
+        return call_on_value(name, present_object, arguments)
+    }
     if types.as_string(object_type) {
         return string_call(name, object, arguments)
     }
@@ -1318,6 +1400,9 @@ func call_on_value(name: String, object: Integer, arguments: List<Syntax.Express
         return scalar_call(scalar_type.kind, name, object, arguments)
     }
     var united = types.as_union(object_type)
+    if united and name == "deep_copy" {
+        return deep_copied(object)
+    }
     if united {
         return union_dispatch(united.c_name, name, true, object, arguments)
     }
@@ -1338,8 +1423,11 @@ func call_on_value(name: String, object: Integer, arguments: List<Syntax.Express
         var shown = known().type_text(object_type)
         return not_lowered(null, "'{name}()' called on {shown}")
     }
+    if class_ref.has_signature and name == "call_function" {
+        return value_call(object, arguments)
+    }
     if class_ref.has_signature {
-        return not_lowered(null, "'{name}()' called on a function value")
+        return class_call("Spite_Function", name, object, arguments)
     }
     return class_call(class_ref.c_name, name, object, arguments)
 }
@@ -1367,12 +1455,20 @@ func class_call(
     if name.starts_with("parallel_each_") {
         return not_lowered(null, "'{name}()', run on the thread pool")
     }
-    if made.spread_template(arguments, lowered_class) {
-        return not_lowered(null, "a call whose arguments a template spreads")
-    }
     var found = made.find_or_instantiate_function(target, name)
     if not found {
         return missing_function(target, name, object)
+    }
+    var spread = made.spread_template(arguments, lowered_class)
+    if spread {
+        var passed = made.spread_into(arguments, spread, target, found, lowered_class)
+        if passed.count() != found.parameters.count() {
+            return not_lowered(null, "a call whose arguments a template spreads into the wrong count")
+        }
+        var values = lower_arguments(passed, found.parameters)
+        var operands = [object]
+        values.each(operands.append)
+        return call_reached(target, found, operands)
     }
     return call_with_arguments(target, found, object, arguments)
 }
@@ -1382,12 +1478,23 @@ func missing_function(target: Analysis.ClassInfo, name: String, object: Integer)
         var copied_type = type_of(object)
         return emitter.emit_call_one("Object.copy", object, copied_type)
     }
+    if name == "deep_copy" {
+        return deep_copied(object)
+    }
     return not_lowered(null, "'{name}()' of '{target.qualified_dotted}'")
+}
+
+func deep_copied(object: Integer): Integer {
+    var copied_type = type_of(object)
+    return emitter.emit_call_one("Object.deep_copy", object, copied_type)
 }
 
 func string_call(name: String, object: Integer, arguments: List<Syntax.Expressions.Expression>): Integer {
     var made = front()
     var written = made.written_string_function(name)
+    if not written and name.starts_with("to_") and arguments.is_empty() {
+        return enum_from_text(name, object)
+    }
     if not written {
         return not_lowered(null, "'{name}()' on text")
     }
@@ -1457,7 +1564,7 @@ func enum_call(
 
 func list_call(name: String, object: Integer, arguments: List<Syntax.Expressions.Expression>): Integer {
     if name == "deep_copy" {
-        return not_lowered(null, "'deep_copy()' of a list")
+        return deep_copied(object)
     }
     return container_call(name, object, arguments)
 }
@@ -1472,7 +1579,10 @@ func container_call(name: String, object: Integer, arguments: List<Syntax.Expres
     if made.is_function_form(name, arguments) {
         return function_form(container, name, object, arguments)
     }
-    if name.starts_with("parallel_each_") or name == "deep_copy" {
+    if name == "deep_copy" {
+        return deep_copied(object)
+    }
+    if name.starts_with("parallel_each_") {
         return not_lowered(null, "'{name}()' on a container")
     }
     var found = container.find_function(name)
@@ -1735,6 +1845,11 @@ func lower_condition(expression: Syntax.Expressions.Expression): Condition {
         if tested {
             return tested
         }
+    }
+    var made = front()
+    var links = made.path_links(expression, lowered_class.qualified_dotted)
+    if links.count() > 1 {
+        return linked_condition(expression, links)
     }
     var value = lower(expression)
     var truth_value = joined_handle(value)
@@ -2025,14 +2140,20 @@ func operate(
     right_expression: Syntax.Expressions.Expression,
     whole: Syntax.Expressions.Expression,
 ): Integer {
+    var joined_left = joined_handle(left)
+    if joined_left != left {
+        return operate(operator, joined_left, right_expression, whole)
+    }
     var left_type = type_of(left)
     var equality = operator == 'equal' or operator == 'not_equal'
     if types.as_nullable(left_type) and equality {
         var right_value = lower(right_expression)
         return nullable_equality(operator, left, right_value)
     }
-    if types.as_nullable(left_type) {
-        return not_lowered(null, "an operator on a value that may be null")
+    var left_nullable = types.as_nullable(left_type)
+    if left_nullable {
+        var present_left = checked_present(left, left_nullable.inner)
+        return operate(operator, present_left, right_expression, whole)
     }
     if types.is_symbol(left_type) {
         var answer_type = known().typed_string()
@@ -2051,8 +2172,9 @@ func operate(
         var right_value = lower(right_expression)
         return identity(operator, left, right_value)
     }
-    if types.as_union(left_type) {
-        return not_lowered(null, "an operator on a union")
+    var left_union = types.as_union(left_type)
+    if left_union {
+        return shape_operator(operator, left, left_union.c_name, right_expression, whole)
     }
     var right = right_operand(left_type, right_expression)
     return number_operation(operator, left, right, left_type, whole)
@@ -2319,7 +2441,7 @@ func shape_dispatch(
     if is_call {
         var required = made.find_required_function(described_union, name)
         if not required {
-            return not_lowered(null, "'{name}()', which the type '{described_union.simple_name}' does not require")
+            return unrequired_dispatch(described_union, name, object, arguments)
         }
         answer = made.shape_call_return_type(described_union, name)
         var parameter_types = made.shape_call_parameter_types(described_union, name)
@@ -2505,4 +2627,349 @@ func foreign_argument(argument: Integer): Integer {
         return not_lowered(null, "a type handed to C as a struct")
     }
     return not_lowered(null, "a value of a kind that cannot cross into C")
+}
+
+func class_member_named(c_name: String, member: Syntax.Expressions.MemberExpression, object: Integer): Integer {
+    var made = front()
+    var target = made.find_class_by_c_name(c_name)
+    if not target {
+        return not_lowered(null, "'{member.name}' of a class with no description")
+    }
+    return class_member(target, member, object)
+}
+
+func reflection_read(member: Syntax.Expressions.MemberExpression, object: Integer): Integer {
+    crash member.object
+    var made = front()
+    var object_type = type_of(object)
+    var probe = Generation.ExpressionResult("spite_reflected", object_type)
+    var result = made.generate_reflection_read(member.name, probe, member.object)
+    if not result or not result.spite_type {
+        return not_lowered(null, "the reflection read '{member.name}'")
+    }
+    return emitter.emit_call_one("Reflection.{member.name}", object, result.spite_type)
+}
+
+func class_object_of(spite_type: Analysis.SpiteType): Integer {
+    var made = front()
+    var class_type = made.spite_class_type()
+    var no_operands = List<Integer>()
+    var described = emitter.call_operation("Reflection.class_object", no_operands, class_type)
+    var described_class = made.class_of_type(spite_type)
+    if described_class {
+        described.target = described_class.c_name
+    } else {
+        described.target = known().type_text(spite_type)
+    }
+    return described.result
+}
+
+func default_union(union_name: String, spite_type: Analysis.SpiteType): Integer {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union {
+        return not_lowered(spite_type, "the default of a union with no description")
+    }
+    if described_union.is_shape {
+        return shape_default(described_union, spite_type)
+    }
+    var first_member = described_union.members.first()
+    if not first_member {
+        return not_lowered(spite_type, "the default of an empty union")
+    }
+    var member_kind = member_type(first_member)
+    var made_member = default_object(first_member, member_kind)
+    return emitter.emit_call_one("Union.wrap", made_member, spite_type)
+}
+
+func checked_present(value: Integer, inner: Analysis.SpiteType): Integer {
+    var checked = emitter.site("presence", "a value proven present while compiling")
+    var operands = [value]
+    return emitter.checked_call("Nullable.value", operands, inner, checked)
+}
+
+func codegen_member(member: Syntax.Expressions.MemberExpression): Integer {
+    var made = front()
+    var expression: Syntax.Expressions.Expression = member
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if folded {
+        return folded_constant(folded)
+    }
+    return not_lowered(null, "'{source_text(expression)}', a member of a codegen class object")
+}
+
+func unrequired_dispatch(
+    described_union: Analysis.UnionInfo,
+    name: String,
+    object: Integer,
+    arguments: List<Syntax.Expressions.Expression>,
+): Integer {
+    var made = front()
+    var first_member = described_union.members.first()
+    if not first_member {
+        return not_lowered(null, "'{name}()' on the type '{described_union.simple_name}', which no class fits")
+    }
+    var first_function = made.find_or_instantiate_function(first_member, name)
+    if not first_function {
+        return not_lowered(null, "'{name}()', which the type '{described_union.simple_name}' does not require")
+    }
+    var answer = first_function.return_type
+    var values = lower_arguments(arguments, first_function.parameters)
+    return dispatched(described_union, name, true, object, values, answer)
+}
+
+func linked_condition(
+    expression: Syntax.Expressions.Expression,
+    links: List<Syntax.Expressions.Expression>,
+): Condition {
+    var made = front()
+    var boolean = known().typed_boolean()
+    var absent = boolean_constant("false")
+    var joined_block = emitter.new_block()
+    var answered = emitter.new_value(boolean, "parameter")
+    emitter.built_function().block_at(joined_block).parameters.append(answered)
+    emitter.push_scope()
+    var index = 0
+    while index < links.count() - 1 {
+        var link = links[index]
+        var link_value = lower(link)
+        var link_type = type_of(link_value)
+        if types.as_nullable(link_type) {
+            var present = emitter.emit_call_one("Nullable.has", link_value, boolean)
+            var next_block = emitter.new_block()
+            var short = [absent]
+            var nothing_passed = List<Integer>()
+            branch_with(present, next_block, nothing_passed, joined_block, short)
+            emitter.enter_block(next_block)
+            var path = made.operand_text(link)
+            if not path.is_empty() {
+                emitter.scope.narrow_path(path)
+            }
+        }
+        index = index + 1
+    }
+    var last_value = lower(expression)
+    var truth_value = joined_handle(last_value)
+    var last = truth_of(truth_value, expression)
+    emitter.pop_scope()
+    var passed = [last.value]
+    emitter.jump(joined_block, passed)
+    emitter.enter_block(joined_block)
+    var made_condition = Condition(answered)
+    add_narrowings(made_condition, last.when_true, last.true_types, true)
+    return made_condition
+}
+
+func shape_literal(literal: Syntax.Expressions.ObjectLiteralExpression): Integer {
+    var made = front()
+    var label = "Object"
+    var names = List<String>()
+    var values = List<Integer>()
+    var index = 0
+    while index < literal.fields.count() {
+        var field = literal.fields[index]
+        if field.value {
+            var value = lower(field.value)
+            var value_type = type_of(value)
+            var value_label = made.type_label(value_type)
+            label = "{label}_{field.name}_{value_label}"
+            names.append(field.name)
+            values.append(value)
+        }
+        index = index + 1
+    }
+    var literal_class = made.find_class_by_c_name(label)
+    if not literal_class {
+        return not_lowered(null, "an object literal whose class '{label}' the program never made")
+    }
+    known().reach_layout(literal_class)
+    var literal_type = known().class_type(literal_class)
+    var object = emitter.make_object(literal_class.c_name, literal_type)
+    index = 0
+    while index < names.count() {
+        crash values[index]
+        emitter.store_field(object, names[index], values[index])
+        index = index + 1
+    }
+    return object
+}
+
+func shape_default(described_union: Analysis.UnionInfo, spite_type: Analysis.SpiteType): Integer {
+    var made = front()
+    if described_union.is_tagged {
+        return not_lowered(spite_type, "the default of a tagged type")
+    }
+    var label = "Object"
+    var index = 0
+    while index < described_union.shape_fields.count() {
+        var field = described_union.shape_fields[index]
+        var field_type = made.shape_field_type(described_union, field.name)
+        if field.is_function or not field_type {
+            return not_lowered(spite_type, "the default of a type that requires a function")
+        }
+        var field_label = made.type_label(field_type)
+        label = "{label}_{field.name}_{field_label}"
+        index = index + 1
+    }
+    var literal_class = made.find_class_by_c_name(label)
+    if not literal_class {
+        return not_lowered(spite_type, "the default of a type whose class '{label}' the program never made")
+    }
+    var literal_type = known().class_type(literal_class)
+    var made_object = default_object(literal_class, literal_type)
+    return emitter.emit_call_one("Union.wrap", made_object, spite_type)
+}
+
+func shape_operator(
+    operator: Syntax.Expressions.BinaryOperator,
+    left: Integer,
+    union_name: String,
+    right_expression: Syntax.Expressions.Expression,
+    whole: Syntax.Expressions.Expression,
+): Integer {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union or not described_union.is_shape or described_union.members.is_empty() {
+        return not_lowered(null, "an operator on a union")
+    }
+    var left_type = type_of(left)
+    var right = lower(right_expression)
+    var right_type = type_of(right)
+    var answer = left_type
+    if made.is_boolean_result_operator(operator) {
+        answer = known().typed_boolean()
+    }
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", left, tag_type)
+    var joined_block = emitter.new_block()
+    var answered = emitter.new_value(answer, "parameter")
+    emitter.built_function().block_at(joined_block).parameters.append(answered)
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        tags.append(member.c_name)
+        var member_block = emitter.new_block()
+        targets.append(member_block)
+        index = index + 1
+    }
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        var narrowed_type = member_type(member)
+        var narrowed_left = emitter.emit_call_one("Union.value", left, narrowed_type)
+        var narrowed_right = narrowed_operand(right, right_type, narrowed_type)
+        var result = number_operation(operator, narrowed_left, narrowed_right, narrowed_type, whole)
+        var converted = convert(result, answer)
+        var passed = [converted]
+        emitter.jump(joined_block, passed)
+        index = index + 1
+    }
+    emitter.enter_block(joined_block)
+    return answered
+}
+
+func narrowed_operand(right: Integer, right_type: Analysis.SpiteType, narrowed_type: Analysis.SpiteType): Integer {
+    if not types.as_union(right_type) {
+        return convert(right, narrowed_type)
+    }
+    var unlike = emitter.site("unlike", "two values of a type that are not of one class")
+    var operands = [right]
+    return emitter.checked_call("Union.value", operands, narrowed_type, unlike)
+}
+
+func unrolled_walk(
+    member: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+): Integer {
+    crash member.object
+    var made = front()
+    if arguments.count() != 1 or not made.worth_reflecting(member.object, emitter.scope) {
+        return -2
+    }
+    var function = made.reflected_walk_function(arguments, lowered_class)
+    if not function {
+        return -2
+    }
+    var listed = made.reflected(member.object, emitter.scope, lowered_class)
+    if not listed or listed.kind != "list" or not made.walk_fits(listed, function) {
+        return -2
+    }
+    var results = List<Integer>()
+    var index = 0
+    while index < listed.elements.count() {
+        var element = listed.elements[index]
+        var call = made.reflected_walk_call(function, element)
+        var result = lower(call)
+        results.append(result)
+        index = index + 1
+    }
+    if member.name != "map" {
+        return -1
+    }
+    return mapped_list(results)
+}
+
+func mapped_list(results: List<Integer>): Integer {
+    var first = results.first()
+    if not first or first < 0 {
+        return not_lowered(null, "a map over reflected members with no values")
+    }
+    var element = type_of(first)
+    var made_list = new_list(element)
+    var appender = list_function(element, "append")
+    var index = 0
+    while index < results.count() {
+        var item = convert(results[index], element)
+        call_two_function(appender, made_list, item)
+        index = index + 1
+    }
+    return made_list
+}
+
+func reflected_value(expression: Syntax.Expressions.Expression): Integer {
+    var made = front()
+    var indexed = shapes.as_index(expression)
+    if indexed {
+        var field_read = made.reflected_field_read(indexed, emitter.scope, lowered_class)
+        if field_read {
+            return lower_plain(field_read)
+        }
+        var named_read = made.named_reflection_read(indexed, emitter.scope, lowered_class)
+        if named_read {
+            return lower_plain(named_read)
+        }
+    }
+    var member = shapes.as_member(expression)
+    if member and member.name == "value" {
+        var bound_read = made.bound_attribute_read(member, emitter.scope, lowered_class)
+        if bound_read {
+            return lower_plain(bound_read)
+        }
+    }
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if folded {
+        return folded_constant(folded)
+    }
+    var identifier = shapes.as_identifier(expression)
+    if identifier {
+        var held = made.reflected_identifier(identifier, emitter.scope, lowered_class)
+        return folded_constant(held)
+    }
+    return -2
+}
+
+func enum_from_text(name: String, object: Integer): Integer {
+    var made = front()
+    var read_enum = made.read_enum_named(name, lowered_class)
+    if not read_enum {
+        return not_lowered(null, "'{name}()' on text")
+    }
+    var enum_type: Analysis.SpiteType = read_enum
+    var maybe_enum = known().nullable_of(enum_type)
+    return emitter.emit_call_one("Enum.from_text", object, maybe_enum)
 }
