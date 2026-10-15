@@ -156,6 +156,14 @@ func note_roots(qualified: String, names: List<String>, roots: List<String>) {
         }
         index = index + 1
     }
+    index = 0
+    while index < lowered.concrete_functions.count() {
+        var made = lowered.concrete_functions[index]
+        if made.singleton_of == owner.c_name {
+            roots.append(made.c_name)
+        }
+        index = index + 1
+    }
 }
 
 func note_function_types(function: Function) {
