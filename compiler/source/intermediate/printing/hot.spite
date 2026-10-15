@@ -16,6 +16,9 @@ var local_names = Dictionary<String, Boolean>()
 var installed = List<String>()
 var redirected = List<String>()
 var migrates = false
+var remote_serve = ""
+var remote_pause = ""
+var remote_locals = ""
 
 func hash_of(text: String): String {
     var hash = facts.text_hash(text)
@@ -1200,5 +1203,37 @@ func moving_helpers(): String {
         "for (int64_t index = 0; index < plan->old->count; index = index + 1) if (!plan->taken[index] && plan->old->fields[index].release != 0) spite_moving_release(moving, plan->old->fields[index].release, was + plan->old->fields[index].offset);"
         "}"
     ]
+    return lines.join("\n")
+}
+
+# ../../../../docs/repl.md#remote---repl-port
+func remote_prototypes(): String {
+    var lines = List<String>()
+    if not lowered.hot_reload {
+        lines.append("static int32_t spite_check_point_wanted = 0;")
+    }
+    if output.needs("remote loop") {
+        lines.append("static ReadEvaluatePrintLoop* spite_remote_loop = 0;")
+        lines.append("static Spite_Attribute* spite_remote_program = 0;")
+        lines.append("static void* spite_remote_loop_thread(void* unused);")
+    }
+    if not remote_pause.is_empty() {
+        lines.append("void spite_breakpoint(SpiteString site, {remote_locals}* locals);")
+    }
+    return lines.join("\n")
+}
+
+func remote_supports(): String {
+    var lines = List<String>()
+    if not remote_serve.is_empty() {
+        lines.append(
+            "static void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nspite_fault_thread();\n{remote_serve}(spite_remote_loop, Spite_Attribute___retain(spite_remote_program));\nreturn 0;\n}",
+        )
+    }
+    if not remote_pause.is_empty() {
+        lines.append(
+            "void spite_breakpoint(SpiteString site, {remote_locals}* locals) \{\nif (spite_remote_loop == 0) \{ SpiteString___release(site); {remote_locals}___release(locals); return; }\n{remote_pause}(spite_remote_loop, site, locals);\n}",
+        )
+    }
     return lines.join("\n")
 }

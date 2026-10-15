@@ -311,6 +311,12 @@ func roots_of_runtime(): List<String> {
     lowered.concrete_functions.each(note_serving_roots)
     placed_allocators.each(roots.append)
     lowered.concrete_functions.each(note_pool_roots)
+    if generator.hot_reload or generator.remote_loop_port > 0 {
+        note_roots("Scheduler", ["check_point"], roots)
+    }
+    if generator.remote_loop_port > 0 {
+        note_roots("ReadEvaluatePrintLoop", ["listen_in_background", "serve", "pause_at"], roots)
+    }
     if generator.hot_reload {
         note_roots("HotReload", ["start", "watch"], roots)
         note_roots("Environment", ["Environment"], roots)
