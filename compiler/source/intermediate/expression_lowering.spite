@@ -355,9 +355,11 @@ func into_union(value: Integer, given: Analysis.SpiteType, wanted: Analysis.Spit
         return not_lowered(wanted, "a union with no description")
     }
     if described_union.is_shape {
+        known().reach_type(given)
         return emitter.emit_call_one("Union.wrap", value, wanted)
     }
     if types.as_class_ref(given) or types.as_string(given) {
+        known().reach_type(given)
         return emitter.emit_call_one("Union.wrap", value, wanted)
     }
     return not_lowered(wanted, "a value of a kind a union does not hold")
@@ -1547,6 +1549,15 @@ func missing_function(target: Analysis.ClassInfo, name: String, object: Integer)
 
 func deep_copied(object: Integer): Integer {
     var copied_type = type_of(object)
+    var made = front()
+    var owner = made.class_of_type(copied_type)
+    if owner {
+        var own_copy = owner.find_function("deep_copy")
+        if own_copy {
+            var operands = [object]
+            return call_reached(owner, own_copy, operands)
+        }
+    }
     return emitter.emit_call_one("Object.deep_copy", object, copied_type)
 }
 
@@ -2613,6 +2624,7 @@ func foreign_library(arguments: List<Syntax.Expressions.Expression>): Integer {
     var no_operands = List<Integer>()
     var opened = emitter.call_operation("Foreign.library", no_operands, result.spite_type)
     opened.target = library_type.foreign_library.to_string()
+    opened.literal = opened.target
     return opened.result
 }
 
@@ -2719,26 +2731,24 @@ func reflection_read(member: Syntax.Expressions.MemberExpression, object: Intege
     crash member.object
     var made = front()
     var object_type = type_of(object)
+    var listed = reflected_list(member.name, object, object_type)
+    if listed != -2 {
+        return listed
+    }
     var probe = Generation.ExpressionResult("spite_reflected", object_type)
     var result = made.generate_reflection_read(member.name, probe, member.object)
     if not result or not result.spite_type {
         return not_lowered(null, "the reflection read '{member.name}'")
     }
+    reach_class_layout()
     return emitter.emit_call_one("Reflection.{member.name}", object, result.spite_type)
 }
 
 func class_object_of(spite_type: Analysis.SpiteType): Integer {
     var made = front()
     var class_type = made.spite_class_type()
-    var no_operands = List<Integer>()
-    var described = emitter.call_operation("Reflection.class_object", no_operands, class_type)
-    var described_class = made.class_of_type(spite_type)
-    if described_class {
-        described.target = described_class.c_name
-    } else {
-        described.target = known().type_text(spite_type)
-    }
-    return described.result
+    var code = made.class_object_call(spite_type)
+    return class_object_named(code, class_type)
 }
 
 func default_union(union_name: String, spite_type: Analysis.SpiteType): Integer {
@@ -3053,11 +3063,11 @@ func enum_from_text(name: String, object: Integer): Integer {
 
 func class_object_named(code: String, class_type: Analysis.SpiteType): Integer {
     var length = code.length()
-    var c_name = code.slice(19, length - 2)
+    var c_name = code.slice(0, length - 2)
+    reach_class_layout()
+    known().reflection_maker(c_name, "class_object", lowered_class, "")
     var no_operands = List<Integer>()
-    var described = emitter.call_operation("Reflection.class_object", no_operands, class_type)
-    described.target = c_name
-    return described.result
+    return emitter.emit_call(c_name, no_operands, class_type)
 }
 
 func class_reflection(name: String, class_object: Integer, member: Syntax.Expressions.MemberExpression): Integer {
@@ -3265,4 +3275,83 @@ func nothing_value(wanted: Analysis.SpiteType): Integer {
     }
     var shown = known().type_text(wanted)
     return not_lowered(wanted, "a call that answers nothing, used where {shown} is wanted")
+}
+
+func reach_class_layout() {
+    var made = front()
+    var class_class = made.find_class_by_c_name("Spite_Class")
+    assert class_class
+    known().reach_layout(class_class)
+}
+
+func reflected_list(name: String, object: Integer, object_type: Analysis.SpiteType): Integer {
+    var made = front()
+    var class_ref = types.as_class_ref(object_type)
+    if name == "class" and class_ref and not class_ref.has_signature {
+        return class_object_of(object_type)
+    }
+    if name == "class" and (types.as_scalar(object_type) or types.as_string(object_type) or types.as_enum(object_type)) {
+        return class_object_of(object_type)
+    }
+    if not class_ref or class_ref.has_signature {
+        return -2
+    }
+    var described = made.find_class_by_c_name(class_ref.c_name)
+    if not described or described.is_value_class or described.is_container or described.is_stateless_singleton {
+        return -2
+    }
+    if name == "attributes" {
+        return reflection_call("{described.c_name}___attributes", "attributes", described, object, "Spite_Attribute")
+    }
+    if name == "functions" {
+        return reflection_call("{described.c_name}___functions", "functions", described, object, "Spite_Function")
+    }
+    return -2
+}
+
+func reflection_call(
+    name: String,
+    kind: String,
+    described: Analysis.ClassInfo,
+    object: Integer,
+    element_class: String,
+): Integer {
+    var made = front()
+    var listed_class = made.find_class_by_c_name(element_class)
+    if not listed_class {
+        return not_lowered(null, "a reflection list with no {element_class} class")
+    }
+    known().reach_layout(listed_class)
+    reach_class_layout()
+    known().reach_layout(described)
+    var element = known().class_type(listed_class)
+    var list_type = made.list_type_of(element)
+    known().reflection_maker(name, kind, described, "")
+    var operands = [object]
+    return emitter.emit_call(name, operands, list_type)
+}
+
+func construct_values(target: Analysis.ClassInfo, values: List<Integer>): Integer {
+    var made_type = known().class_type(target)
+    known().reach_layout(target)
+    var object = emitter.make_object(target.c_name, made_type)
+    store_defaults(target, object)
+    if not target.constructor {
+        return object
+    }
+    var constructor = target.constructor
+    var operands = [object]
+    var index = 0
+    while index < values.count() {
+        var parameter = constructor.parameters[index]
+        if not parameter {
+            not_lowered(null, "a constructor given more values than it takes")
+            return object
+        }
+        var converted = convert(values[index], parameter.type)
+        operands.append(converted)
+        index = index + 1
+    }
+    call_reached(target, constructor, operands)
+    return object
 }
