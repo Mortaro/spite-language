@@ -10,8 +10,11 @@ var capacity = 0
 var byte_order: ByteOrder = 'little_endian'
 var position = 0
 
-func Buffer(order: ByteOrder) {
-    byte_order = order
+func Buffer(...orders: List<ByteOrder>) {
+    crash orders.count() <= 1
+    if not orders.is_empty() {
+        byte_order = orders[0]
+    }
 }
 
 func count(): Integer {

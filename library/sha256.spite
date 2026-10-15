@@ -78,12 +78,12 @@ var _initial_state: List<UnsignedInteger> = [
     1541459225
 ]
 
-func hash(bytes: List<Byte>): List<Byte> {
+func hash(bytes: Buffer): Buffer {
     var counted: Long = bytes.count()
     return _digest(bytes.items, counted)
 }
 
-func hmac(key: List<Byte>, message: List<Byte>): List<Byte> {
+func hmac(key: Buffer, message: Buffer): Buffer {
     var block = heap.allocate(64)
     var key_count: Long = key.count()
     var index: Long = 0
@@ -121,7 +121,7 @@ func hmac(key: List<Byte>, message: List<Byte>): List<Byte> {
     return outer
 }
 
-func _digest(source: Memory.Address, source_length: Long): List<Byte> {
+func _digest(source: Memory.Address, source_length: Long): Buffer {
     var state = heap.allocate(32)
     var schedule = heap.allocate(256)
     var tail = heap.allocate(128)
@@ -163,7 +163,7 @@ func _digest(source: Memory.Address, source_length: Long): List<Byte> {
         var second = tail + 64
         _compress(state, second, schedule)
     }
-    var digest = List<Byte>()
+    var digest = Buffer()
     digest.reserve(32)
     digest.item_count = 32
     var word_index = 0

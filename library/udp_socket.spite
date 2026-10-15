@@ -36,7 +36,7 @@ func open_at(host: String, port: Integer): Boolean {
     return opened
 }
 
-func send_to(host: String, port: Integer, bytes: List<Byte>): Boolean {
+func send_to(host: String, port: Integer, bytes: Buffer): Boolean {
     crash handle != -1
     var address = _destination(host, port)
     if address == 0 {
@@ -48,12 +48,12 @@ func send_to(host: String, port: Integer, bytes: List<Byte>): Boolean {
     return sent == counted
 }
 
-func receive(): List<Byte>? {
+func receive(): Buffer? {
     assert handle != -1
     return _received()
 }
 
-func receive_now(): List<Byte>? {
+func receive_now(): Buffer? {
     assert handle != -1
     assert _ready_now()
     return _received()
@@ -131,7 +131,7 @@ func _destination(host: String, port: Integer): Memory.Address {
     return destination
 }
 
-func _received(): List<Byte>? {
+func _received(): Buffer? {
     var buffer = heap.allocate(65536)
     var sender = heap.allocate(32)
     sender.write_integer(28, 28)
@@ -141,7 +141,7 @@ func _received(): List<Byte>? {
         heap.free(sender)
         return null
     }
-    var bytes = List<Byte>()
+    var bytes = Buffer()
     bytes.reserve(received)
     buffer.copy_to(bytes.items, received)
     bytes.item_count = received

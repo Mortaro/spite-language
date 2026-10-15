@@ -2,11 +2,11 @@ singleton
 
 var heap = Memory.Heap()
 
-func compress(bytes: List<Byte>): List<Byte> {
+func compress(bytes: Buffer): Buffer {
     var deflate = Deflate()
     var body = deflate.compress(bytes)
     var body_count = body.item_count
-    var output = List<Byte>()
+    var output = Buffer()
     output.reserve(body_count + 18)
     var header = [31, 139, 8, 0, 0, 0, 0, 0, 0, 255]
     var index = 0
@@ -24,7 +24,7 @@ func compress(bytes: List<Byte>): List<Byte> {
     return output
 }
 
-func decompress(bytes: List<Byte>): List<Byte>? {
+func decompress(bytes: Buffer): Buffer? {
     var total = bytes.item_count
     var items = bytes.items
     assert total >= 18
@@ -56,7 +56,7 @@ func decompress(bytes: List<Byte>): List<Byte>? {
     }
     assert position + 8 <= total
     var body_count = total - 8 - position
-    var body = List<Byte>()
+    var body = Buffer()
     body.reserve(body_count)
     var body_start: Memory.Address = items + position
     body_start.copy_to(body.items, body_count)
@@ -123,7 +123,7 @@ func _read_little_endian(items: Memory.Address, at: Integer): UnsignedInteger {
     return value
 }
 
-func _append_little_endian(output: List<Byte>, value: UnsignedInteger) {
+func _append_little_endian(output: Buffer, value: UnsignedInteger) {
     var shift = 0
     while shift < 32 {
         var part: Byte = value.shifted_right(shift).bits_and(255)

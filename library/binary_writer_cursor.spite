@@ -1,0 +1,60 @@
+var _bytes: Buffer = null
+var walked = 0
+var found = 0
+
+func BinaryWriterCursor(target: Buffer) {
+    _bytes = target
+}
+
+func write_byte(value: Integer) {
+    var low_bits = value.bits_and(255)
+    _bytes.append(low_bits)
+}
+
+func write_short(value: Integer) {
+    _bytes.append_unsigned_short(value)
+}
+
+func write_integer(value: Integer) {
+    _bytes.append_integer(value)
+}
+
+func write_long(value: Long) {
+    _bytes.append_long(value)
+}
+
+func write_float(value: Float) {
+    _bytes.append_float(value)
+}
+
+func write_double(value: Double) {
+    _bytes.append_double(value)
+}
+
+func write_count(count: Integer) {
+    var rest = count
+    while rest >= 128 {
+        write_byte(rest % 128 + 128)
+        rest = rest / 128
+    }
+    write_byte(rest)
+}
+
+func write_text(text: String) {
+    var run = text.to_bytes()
+    var counted = run.count()
+    write_count(counted)
+    var used = _bytes.count()
+    _bytes.reserve(used + counted)
+    _bytes.append_bytes(run, 0, counted)
+}
+
+func write_index() {
+    if walked <= 256 {
+        write_byte(found)
+    } else if walked <= 65536 {
+        write_short(found)
+    } else {
+        write_integer(found)
+    }
+}

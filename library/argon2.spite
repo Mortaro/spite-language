@@ -201,21 +201,21 @@ func verify(password: String, encoded: String): Boolean? {
     assert salt and expected
     assert expected.count() >= 4 and salt.count() >= 8
     var secret = password.to_bytes()
-    var nothing = List<Byte>()
+    var nothing = Buffer()
     var tag_length = expected.count()
     var tag = _derived(variant, secret, salt, nothing, nothing, time_cost, memory_cost, lanes, tag_length)
     return _same_bytes(tag, expected)
 }
 
 func derive(
-    password: List<Byte>,
-    salt: List<Byte>,
+    password: Buffer,
+    salt: Buffer,
     time_cost: Integer,
     memory_cost: Integer,
     lanes: Integer,
     tag_length: Integer,
-): List<Byte> {
-    var nothing = List<Byte>()
+): Buffer {
+    var nothing = Buffer()
     return _derived(2, password, salt, nothing, nothing, time_cost, memory_cost, lanes, tag_length)
 }
 
@@ -235,7 +235,7 @@ func _cost(field: String, prefix: String): Integer? {
     return digits.to_integer()
 }
 
-func _unpadded(text: String): List<Byte>? {
+func _unpadded(text: String): Buffer? {
     var padded = text
     while padded.length() % 4 != 0 {
         padded = "{padded}="
@@ -243,7 +243,7 @@ func _unpadded(text: String): List<Byte>? {
     return base64.decode(padded)
 }
 
-func _encoded(salt: List<Byte>, tag: List<Byte>, time_cost: Integer, memory_cost: Integer, lanes: Integer): String {
+func _encoded(salt: Buffer, tag: Buffer, time_cost: Integer, memory_cost: Integer, lanes: Integer): String {
     var salt_text = base64.encode(salt)
     var tag_text = base64.encode(tag)
     var salt_bare = salt_text.replace("=", "")
@@ -251,7 +251,7 @@ func _encoded(salt: List<Byte>, tag: List<Byte>, time_cost: Integer, memory_cost
     return "$argon2id$v=19$m={memory_cost},t={time_cost},p={lanes}${salt_bare}${tag_bare}"
 }
 
-func _same_bytes(left: List<Byte>, right: List<Byte>): Boolean {
+func _same_bytes(left: Buffer, right: Buffer): Boolean {
     var left_count = left.count()
     crash left_count == right.count()
     var difference = 0
@@ -268,18 +268,18 @@ func _same_bytes(left: List<Byte>, right: List<Byte>): Boolean {
 
 func _derived(
     variant: Integer,
-    password: List<Byte>,
-    salt: List<Byte>,
-    secret: List<Byte>,
-    associated: List<Byte>,
+    password: Buffer,
+    salt: Buffer,
+    secret: Buffer,
+    associated: Buffer,
     time_cost: Integer,
     memory_cost: Integer,
     lanes: Integer,
     tag_length: Integer,
-): List<Byte> {
+): Buffer {
     crash lanes >= 1 and time_cost >= 1 and tag_length >= 4
     crash memory_cost >= 8 * lanes
-    var parameters = List<Byte>()
+    var parameters = Buffer()
     _append_word(parameters, lanes)
     _append_word(parameters, tag_length)
     _append_word(parameters, memory_cost)
@@ -343,7 +343,7 @@ func _derived(
         _xor_into(final_block, lane_last)
         lane = lane + 1
     }
-    var tag = List<Byte>()
+    var tag = Buffer()
     tag.reserve(tag_length)
     _long_hash(final_block, 1024, tag.items, tag_length)
     tag.item_count = tag_length
@@ -353,7 +353,7 @@ func _derived(
     return tag
 }
 
-func _append_word(bytes: List<Byte>, value: Integer) {
+func _append_word(bytes: Buffer, value: Integer) {
     var shift = 0
     while shift < 32 {
         var piece: Byte = value.shifted_right(shift).bits_and(255)
@@ -362,7 +362,7 @@ func _append_word(bytes: List<Byte>, value: Integer) {
     }
 }
 
-func _append_counted(bytes: List<Byte>, added: List<Byte>) {
+func _append_counted(bytes: Buffer, added: Buffer) {
     var added_count = added.count()
     _append_word(bytes, added_count)
     var index = 0

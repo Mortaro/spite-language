@@ -112,14 +112,14 @@ func read_line_now(): String? {
     return take_line(newline)
 }
 
-func read_bytes(): List<Byte>? {
+func read_bytes(): Buffer? {
     var buffer = _receive_buffer()
     var received = read_bytes_into(buffer, 65536)
     assert received > 0
     return _received_bytes(buffer, received)
 }
 
-func read_bytes_now(): List<Byte> {
+func read_bytes_now(): Buffer {
     var buffer = _receive_buffer()
     var received = read_bytes_now_into(buffer, 65536)
     return _received_bytes(buffer, received)
@@ -169,12 +169,12 @@ func write_line(text: String): Boolean {
     return written == line_length
 }
 
-func write_bytes(bytes: List<Byte>): Boolean {
+func write_bytes(bytes: Buffer): Boolean {
     var counted = bytes.count()
     return write_bytes_from(bytes.items, counted)
 }
 
-func write_bytes_now(bytes: List<Byte>): Integer {
+func write_bytes_now(bytes: Buffer): Integer {
     var counted = bytes.count()
     return write_bytes_now_from(bytes.items, counted)
 }
@@ -263,8 +263,8 @@ func _receive_buffer(): Memory.Address {
     return _received
 }
 
-func _received_bytes(buffer: Memory.Address, received: Integer): List<Byte> {
-    var bytes = List<Byte>()
+func _received_bytes(buffer: Memory.Address, received: Integer): Buffer {
+    var bytes = Buffer()
     if received > 0 {
         bytes.reserve(received)
         buffer.copy_to(bytes.items, received)

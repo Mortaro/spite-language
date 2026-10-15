@@ -1,5 +1,6 @@
 var _address: Memory.Address = 0
 var _size: Long = 0
+var byte_order: Buffer.ByteOrder = 'little_endian'
 
 func MappedFile(address: Memory.Address, bytes: Long) {
     _address = address
@@ -20,33 +21,63 @@ func get_at(position: Long): Byte? {
     return _address.read_byte(position)
 }
 
-func read_short(position: Long): Short? {
-    assert position >= 0 and position <= _size - 2
+func read_short_at(position: Long): Short? {
+    assert _inside(position, 2)
+    if byte_order == 'big_endian' {
+        return _address.read_short_big_endian(position)
+    }
     return _address.read_short(position)
 }
 
-func read_integer(position: Long): Integer? {
-    assert position >= 0 and position <= _size - 4
+func read_integer_at(position: Long): Integer? {
+    assert _inside(position, 4)
+    if byte_order == 'big_endian' {
+        return _address.read_integer_big_endian(position)
+    }
     return _address.read_integer(position)
 }
 
-func read_long(position: Long): Long? {
-    assert position >= 0 and position <= _size - 8
+func read_long_at(position: Long): Long? {
+    assert _inside(position, 8)
+    if byte_order == 'big_endian' {
+        return _address.read_long_big_endian(position)
+    }
     return _address.read_long(position)
 }
 
-func read_float(position: Long): Float? {
-    assert position >= 0 and position <= _size - 4
+func read_float_at(position: Long): Float? {
+    assert _inside(position, 4)
+    if byte_order == 'big_endian' {
+        return _address.read_unsigned_integer_big_endian(position).bits_as_float()
+    }
     return _address.read_float(position)
 }
-
-func read_double(position: Long): Double? {
-    assert position >= 0 and position <= _size - 8
+func read_double_at(position: Long): Double? {
+    assert _inside(position, 8)
+    if byte_order == 'big_endian' {
+        return _address.read_unsigned_long_big_endian(position).bits_as_double()
+    }
     return _address.read_double(position)
+}
+
+func read_bytes_at(position: Long, count: Long): Buffer? {
+    assert position >= 0 and count >= 0 and position <= _size - count
+    var run = Buffer(byte_order)
+    if count > 0 {
+        run.reserve(count)
+        var start: Memory.Address = _address + position
+        start.copy_to(run.items, count)
+        run.item_count = count
+    }
+    return run
 }
 
 func text(position: Long, count: Long): String? {
     assert position >= 0 and count >= 0 and position <= _size - count
     var start: Memory.Address = _address + position
     return start.text(count)
+}
+
+func _inside(at: Long, width: Long): Boolean {
+    return at >= 0 and at <= _size - width
 }

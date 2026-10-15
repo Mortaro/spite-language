@@ -282,7 +282,7 @@ func internal_name_error(path: String, line: Integer, name: String): String {
     if line > 0 {
         place = "{path}:{line}"
     }
-    return "{place}: error: {name} is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+    return "{place}: error: {name} is internal to Spite and cannot be used outside the standard library: read bytes with Buffer or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
 }
 
 func next_significant(tokens: List<Syntax.Token>, from: Integer): Integer {

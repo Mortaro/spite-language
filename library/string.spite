@@ -185,8 +185,8 @@ func to_string(): String {
     return this
 }
 
-func to_bytes(): List<Byte> {
-    var bytes = List<Byte>()
+func to_bytes(): Buffer {
+    var bytes = Buffer()
     var counted: Integer = _length
     bytes.reserve(counted)
     _bytes.copy_to(bytes.items, _length)

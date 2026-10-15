@@ -169,6 +169,9 @@ var wait_mark_results = List<String>()
 var call_edge_callers = List<String>()
 var call_edge_callees = List<String>()
 var current_function_c_name = ""
+var buffer_check_written = false
+var buffer_orders_written = List<String>()
+var buffer_orders_made = Dictionary<String, String>()
 var never_negative_names = Dictionary<String, Boolean>()
 var report_outline = ReportOutline()
 var report_function_start = -1
@@ -18438,6 +18441,21 @@ func method_call_on(
         )
     }
     var found = find_or_instantiate_function(target_class, member.name)
+    if found {
+        if target_class.qualified_dotted == "Buffer" and is_buffer_byte_access(member.name) {
+            var proven_access = proven_buffer_access(
+                member.name,
+                object_result,
+                object_ast,
+                arguments_ast,
+                scope,
+                class_information,
+            )
+            if proven_access {
+                return proven_access
+            }
+        }
+    }
     if not found {
         if member.name == "deep_copy" {
             var empty_types = no_types()
@@ -18572,15 +18590,15 @@ func address_form_refusal(
     var owner = target.qualified_dotted
     if owner == "File" {
         if name == "read_bytes" and argument_count == 3 {
-            return "a File reads bytes into a List<Byte>, not into memory at an address: 'read_bytes_at(position, count)' answers a 'List<Byte>?' of up to 'count' bytes from 'position', and 'read_bytes()' the whole file"
+            return "a File reads bytes into a Buffer, not into memory at an address: 'read_bytes_at(position, count)' answers a 'Buffer?' of up to 'count' bytes from 'position', and 'read_bytes()' the whole file"
         }
         if (name == "write_bytes" or name == "append_bytes") and argument_count == 2 {
-            return "a File writes bytes from a List<Byte>, not from memory at an address: write '{name}(bytes)'"
+            return "a File writes bytes from a Buffer, not from memory at an address: write '{name}(bytes)'"
         }
         return ""
     }
     if owner == "BinaryReader" and name == "read_memory" {
-        return "a BinaryReader reads from a List<Byte>, not from memory at an address: write 'read(bytes)', or 'read_from(bytes, start)' to read one value and leave what follows"
+        return "a BinaryReader reads from a Buffer, not from memory at an address: write 'read(bytes)', or 'read_from(bytes, start)' to read one value and leave what follows"
     }
     if owner != "Socket" {
         return ""
@@ -18595,12 +18613,12 @@ func address_form_refusal(
         return ""
     }
     if plain == "read_bytes" {
-        return "a Socket reads bytes into a List<Byte>, not into memory at an address: write 'read_bytes()', which answers a 'List<Byte>?'"
+        return "a Socket reads bytes into a Buffer, not into memory at an address: write 'read_bytes()', which answers a 'Buffer?'"
     }
     if plain == "read_bytes_now" {
-        return "a Socket reads bytes into a List<Byte>, not into memory at an address: write 'read_bytes_now()', which answers a 'List<Byte>'"
+        return "a Socket reads bytes into a Buffer, not into memory at an address: write 'read_bytes_now()', which answers a 'Buffer'"
     }
-    return "a Socket writes bytes from a List<Byte>, not from memory at an address: write '{plain}(bytes)'"
+    return "a Socket writes bytes from a Buffer, not from memory at an address: write '{plain}(bytes)'"
 }
 
 func may_call_an_operator(name: String, argument_count: Integer): Boolean {
@@ -19194,19 +19212,9 @@ func generate_list_method(
         copied_list.owning_override = true
         return copied_list
     }
-    var byte_access = is_byte_access(name)
-    if byte_access {
-        if not is_byte_element(element) {
-            var listed_type = list_type_of(element)
-            report(
-                "'{name}' reads and writes the bytes of a List<Byte>, and this is {type_with_article(listed_type)}: only a List<Byte> answers it",
-            )
-            return void_result()
-        }
-        var proven_access = proven_byte_access(name, object_result, object_ast, arguments_ast, scope, class_information)
-        if proven_access {
-            return proven_access
-        }
+    if is_buffer_only_function(name) {
+        report("List has no method '{name}': bytes are a Buffer, which has it: make them with 'Buffer()'")
+        return void_result()
     }
     if is_function_form(name, arguments_ast) {
         var form_list = list_class_of(element)
@@ -19245,9 +19253,8 @@ func generate_list_method(
         "join"
         "copy"
         "reserve"
-        "to_utf8_text"
     ]
-    if byte_access or public_names.contains(name) {
+    if public_names.contains(name) {
         var function = list_class_of(element).find_function(name)
         if function {
             var parameter_types = parameter_types_of(function.parameters)
@@ -25173,6 +25180,17 @@ func ensure_index_check() {
     )
 }
 
+func ensure_buffer_check() {
+    assert not buffer_check_written
+    buffer_check_written = true
+    builder.add_prototype(
+        "static void spite_outside_buffer(const char* read, const char* where) __attribute__((noreturn, cold));",
+    )
+    builder.add_support(
+        "static void spite_outside_buffer(const char* read, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' is outside its buffer: a bound proves only the top of an index, and this one is below 0 or the buffer changed, at %s\\n\", read, where);\nexit(1);\n}",
+    )
+}
+
 func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
     var got_type = got.type
     var nullable = type_shape.as_nullable(got_type)
@@ -25197,8 +25215,229 @@ func bounded_item(got: ExpressionResult, read_path: String): ExpressionResult {
 }
 
 # ../../../docs/proofs.md#a-proven-count-or-bound-proves-a-read-of-a-width
-func is_byte_access(name: String): Boolean {
-    return name == "append_bytes" or byte_access_width(name) > 0
+func is_buffer_byte_access(name: String): Boolean {
+    if not name.ends_with("_at") {
+        return false
+    }
+    var word = buffer_number_word(name)
+    return buffer_number_width(word) > 0
+}
+
+func buffer_number_word(name: String): String {
+    var name_length = name.length()
+    var without_at = name.slice(0, name_length - 3)
+    var without_at_length = without_at.length()
+    if name.starts_with("read_") {
+        return without_at.slice(5, without_at_length)
+    }
+    if name.starts_with("write_") {
+        return without_at.slice(6, without_at_length)
+    }
+    return ""
+}
+
+func buffer_number_width(word: String): Integer {
+    if word == "byte" or word == "tiny" {
+        return 1
+    }
+    if word == "short" or word == "unsigned_short" {
+        return 2
+    }
+    if word == "integer" or word == "unsigned_integer" or word == "float" {
+        return 4
+    }
+    if word == "long" or word == "unsigned_long" or word == "double" {
+        return 8
+    }
+    return 0
+}
+
+func buffer_big_endian_code(): String {
+    var index = 0
+    while index < enums.count() {
+        var enumeration = enums[index]
+        if enumeration.owner_qualified == "Buffer" and enumeration.simple_name == "ByteOrder" {
+            return "{enumeration.c_name}_big_endian"
+        }
+        index = index + 1
+    }
+    return "1"
+}
+
+func buffer_number_return_type(word: String): Analysis.SpiteType {
+    switch word {
+        "byte": return Analysis.Types.ScalarType('byte_kind')
+        "tiny": return Analysis.Types.ScalarType('tiny_kind')
+        "short": return Analysis.Types.ScalarType('short_kind')
+        "unsigned_short": return Analysis.Types.ScalarType('unsigned_short_kind')
+        "integer": return Analysis.Types.ScalarType('integer_kind')
+        "unsigned_integer": return Analysis.Types.ScalarType('unsigned_integer_kind')
+        "long": return Analysis.Types.ScalarType('long_kind')
+        "unsigned_long": return Analysis.Types.ScalarType('unsigned_long_kind')
+        "float": return Analysis.Types.ScalarType('float_kind')
+        _: {
+            crash word == "double"
+            return Analysis.Types.ScalarType('double_kind')
+        }
+    }
+}
+
+func proven_buffer_access(
+    name: String,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var writing = name.starts_with("write_")
+    assert not writing or arguments_ast.count() == 2
+    assert writing or arguments_ast.count() == 1
+    var word = buffer_number_word(name)
+    var width = buffer_number_width(word)
+    assert width > 0
+    var position_ast = arguments_ast.first()
+    assert position_ast
+    var listed = shape.as_identifier(object_ast)
+    assert listed
+    var list_text = listed.name
+    var counted_base = counted_byte_items(list_text, position_ast, width, scope)
+    var counted = not counted_base.is_empty()
+    var bottom = counted or byte_range_proven(list_text, position_ast, width, scope)
+    var top_key = byte_key(list_text, position_ast, width - 1)
+    assert bottom or scope.is_path_narrowed(top_key)
+    var order = _buffer_order_of(list_text, scope)
+    assert counted or not order.is_empty()
+    if counted {
+        var position = counted_position(position_ast, scope, class_information)
+        var base = "(intptr_t)({counted_base})"
+        var nothing = void_type()
+        if writing {
+            var value = _buffer_value(word, arguments_ast[1], scope, class_information)
+            var stored = _buffer_operation(word, true, base, position, order, value)
+            return ExpressionResult(stored, nothing)
+        }
+        var read = _buffer_operation(word, false, base, position, order, "")
+        var counted_type = buffer_number_return_type(word)
+        return ExpressionResult(read, counted_type)
+    }
+    var integer_spite_type = integer_type()
+    var position = coerce_for_store(position_ast, integer_spite_type, scope, class_information)
+    var held = next_temporary()
+    var written = Syntax.SourcePrinter().source_expression(position_ast)
+    var read_text = "{list_text}.{name}({written})"
+    var outside = "{held} > ({object_result.code})->item_count_ - {width}"
+    if not bottom {
+        outside = "{held} < 0 || {outside}"
+    }
+    var block = "({object_result.code})->items_"
+    var read_type = buffer_number_return_type(word)
+    if writing {
+        var value = _buffer_value(word, arguments_ast[1], scope, class_information)
+        var stored = _buffer_operation(word, true, block, held, order, value)
+        var check = _buffer_bounds_check(held, position, outside, read_text)
+        var nothing = void_type()
+        return ExpressionResult("(\{ {check} {stored}; })", nothing)
+    }
+    var read = _buffer_operation(word, false, block, held, order, "")
+    var checked = _buffer_checked_read(held, position, outside, read_text, read)
+    return ExpressionResult(checked, read_type)
+}
+
+func _buffer_value(
+    word: String,
+    value_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var wanted = buffer_number_return_type(word)
+    return coerce_for_store(value_ast, wanted, scope, class_information)
+}
+
+func _buffer_operation(word: String, writing: Boolean, base: String, at: String, order: String, value: String): String {
+    var plain = "read_{word}"
+    if writing {
+        plain = "write_{word}"
+    }
+    var address_class = find_class_by_qualified("Memory.Address")
+    crash address_class
+    var plain_function = find_or_instantiate_function(address_class, plain)
+    crash plain_function
+    var arguments = "{base}, {at}"
+    if not value.is_empty() {
+        arguments = "{arguments}, {value}"
+    }
+    if width_of_word(word) == 1 {
+        return "{plain_function.c_name}({arguments})"
+    }
+    var big_name = "{plain}_big_endian"
+    var big_function = find_or_instantiate_function(address_class, big_name)
+    crash big_function
+    var big = "{big_function.c_name}({arguments})"
+    if order == "'little_endian'" {
+        return "{plain_function.c_name}({arguments})"
+    }
+    if order == "'big_endian'" {
+        return big
+    }
+    return "(({order}) == {buffer_big_endian_code()} ? {big} : {plain_function.c_name}({arguments}))"
+}
+
+func width_of_word(word: String): Integer {
+    return buffer_number_width(word)
+}
+
+func _buffer_order_of(list_text: String, scope: Scope): String {
+    var hoisted = scope.counted_order_of(list_text)
+    if not hoisted.is_empty() {
+        return hoisted
+    }
+    return static_buffer_order(list_text)
+}
+
+func static_buffer_order(list_text: String): String {
+    if buffer_orders_written.contains(list_text) {
+        return ""
+    }
+    var made = buffer_orders_made[list_text]
+    if not made {
+        return "'little_endian'"
+    }
+    return made
+}
+
+func note_buffer_order_written(list_text: String, order: String) {
+    if not buffer_orders_written.contains(list_text) {
+        buffer_orders_written.append(list_text)
+    }
+    buffer_orders_made[list_text] = order
+}
+
+func _buffer_checked_read(held: String, position: String, outside: String, read_text: String, item: String): String {
+    ensure_buffer_check()
+    var where = located(current_path, current_line, current_owner, current_function)
+    var read = escape_c_string(read_text)
+    var halt = "spite_outside_buffer(\"{read}\", {where});"
+    return "(\{ int32_t {held} = {position}; if (__builtin_expect({outside}, 0)) {halt} {item}; })"
+}
+
+func _buffer_bounds_check(held: String, position: String, outside: String, read_text: String): String {
+    ensure_buffer_check()
+    var where = located(current_path, current_line, current_owner, current_function)
+    var read = escape_c_string(read_text)
+    var halt = "spite_outside_buffer(\"{read}\", {where});"
+    return "(\{ int32_t {held} = {position}; if (__builtin_expect({outside}, 0)) {halt}"
+}
+
+# ../../../specs/collections.md#listt-additions
+func is_buffer_only_function(name: String): Boolean {
+    if name == "to_utf8_text" or name == "read_bytes" or name == "append_bytes" {
+        return true
+    }
+    if byte_access_width(name) > 0 {
+        return true
+    }
+    return name == "write_integer" or name == "write_short" or name == "write_long" or name == "write_double"
 }
 
 func byte_access_width(name: String): Integer {
@@ -25239,61 +25478,6 @@ func is_byte_element(element: Analysis.SpiteType): Boolean {
         return false
     }
     return scalar.kind == 'byte_kind'
-}
-
-func proven_byte_access(
-    name: String,
-    object_result: ExpressionResult,
-    object_ast: Syntax.Expressions.Expression,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult? {
-    assert not name.starts_with("append_")
-    var width = byte_access_width(name)
-    var position_ast = arguments_ast.first()
-    assert position_ast
-    var listed = shape.as_identifier(object_ast)
-    assert listed
-    var list_text = listed.name
-    var counted_base = counted_byte_items(list_text, position_ast, width, scope)
-    var counted = not counted_base.is_empty()
-    var writing = name.starts_with("write_")
-    assert counted or not writing
-    var bottom = counted or byte_range_proven(list_text, position_ast, width, scope)
-    var top_key = byte_key(list_text, position_ast, width - 1)
-    assert bottom or scope.is_path_narrowed(top_key)
-    var address_class = find_class_by_qualified("Memory.Address")
-    assert address_class
-    var primitive = find_or_instantiate_function(address_class, name)
-    assert primitive
-    if counted {
-        var position = counted_position(position_ast, scope, class_information)
-        var base = "(intptr_t)({counted_base})"
-        if writing {
-            crash arguments_ast[1]
-            crash primitive.parameters[1]
-            var value_type = primitive.parameters[1].type
-            var value = coerce_for_store(arguments_ast[1], value_type, scope, class_information)
-            var nothing = void_type()
-            return ExpressionResult("{primitive.c_name}({base}, {position}, {value})", nothing)
-        }
-        var counted_type = primitive.return_type
-        return ExpressionResult("{primitive.c_name}({base}, {position})", counted_type)
-    }
-    var read_type = primitive.return_type
-    var integer_spite_type = integer_type()
-    var position = coerce_for_store(position_ast, integer_spite_type, scope, class_information)
-    var held = next_temporary()
-    var written = Syntax.SourcePrinter().source_expression(position_ast)
-    var read_text = "{list_text}.{name}({written})"
-    var outside = "{held} > ({object_result.code})->item_count_ - {width}"
-    if not bottom {
-        outside = "{held} < 0 || {outside}"
-    }
-    var item = "{primitive.c_name}(({object_result.code})->items_, {held})"
-    var checked = halting_read(held, position, outside, read_text, item)
-    return ExpressionResult(checked, read_type)
 }
 
 func counted_position(
@@ -43762,10 +43946,30 @@ func counted_receiver(expression: Syntax.Expressions.Expression): String {
 
 func counted_element_type(list_type: Analysis.SpiteType): Analysis.SpiteType? {
     var listed = type_shape.as_list(list_type)
-    assert listed
-    var element = listed.element
-    assert type_shape.as_scalar(element)
-    return element
+    if listed {
+        var element = listed.element
+        assert type_shape.as_scalar(element)
+        return element
+    }
+    if is_buffer_type(list_type) {
+        return Analysis.Types.ScalarType('byte_kind')
+    }
+    return null
+}
+
+func is_buffer_type(spite_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_nullable(spite_type) {
+        return false
+    }
+    var reference = type_shape.as_class_ref(spite_type)
+    if not reference {
+        return false
+    }
+    var found = find_class_by_c_name(reference.c_name)
+    if not found {
+        return false
+    }
+    return found.qualified_dotted == "Buffer"
 }
 
 func holds_counted_values(name: String, scope: Scope): Boolean {
@@ -44215,7 +44419,7 @@ func is_counted_call(
     var receiver = shape.as_identifier(member.object)
     if receiver and holds_counted_values(receiver.name, scope) {
         var reads = ["count", "is_empty", "get_at", "set_at", "first", "last", "contains", "index_of"]
-        if is_byte_access(member.name) and not member.name.starts_with("append_") {
+        if is_buffer_byte_access(member.name) {
             return true
         }
         return reads.contains(member.name)
@@ -44251,6 +44455,7 @@ func generate_counted_loop(
     builder.add_user("int32_t {bound} = {count_result.code};")
     var key = "{listed}[{counter.name}]"
     var items = hoist_items(member.object, scope, class_information)
+    var order = hoist_order(listed, scope)
     var truth = "{counter_result.code} < {bound}"
     if reach > 0 {
         truth = "{counter_result.code} < {bound} - {reach}"
@@ -44262,6 +44467,9 @@ func generate_counted_loop(
         var body_scope = Scope(scope)
         body_scope.is_loop = true
         start_loop_body(body_scope)
+        if not order.is_empty() {
+            body_scope.count_order(listed, order)
+        }
         count_reached_items(body_scope, key, listed, counter.name, reach, items)
         generate_counted_body(truth, while_statement, body_scope, class_information, function_information)
         return
@@ -44269,6 +44477,9 @@ func generate_counted_loop(
     var fast_scope = Scope(scope)
     fast_scope.is_loop = true
     start_loop_body(fast_scope)
+    if not order.is_empty() {
+        fast_scope.count_order(listed, order)
+    }
     count_reached_items(fast_scope, key, listed, counter.name, reach, items)
     var fits = List<String>()
     var index = 0
@@ -44289,9 +44500,29 @@ func generate_counted_loop(
     var slow_scope = Scope(scope)
     slow_scope.is_loop = true
     start_loop_body(slow_scope)
+    if not order.is_empty() {
+        slow_scope.count_order(listed, order)
+    }
     count_reached_items(slow_scope, key, listed, counter.name, reach, items)
     generate_counted_body(truth, while_statement, slow_scope, class_information, function_information)
     builder.add_user("}")
+}
+
+func hoist_order(listed: String, scope: Scope): String {
+    var listed_type = scope.written_type(listed)
+    if not listed_type {
+        return ""
+    }
+    if not is_buffer_type(listed_type) {
+        return ""
+    }
+    var static_order = static_buffer_order(listed)
+    if not static_order.is_empty() {
+        return ""
+    }
+    var order = next_temporary()
+    builder.add_user("int32_t {order} = {listed}->byte_order_;")
+    return order
 }
 
 func count_reached_items(scope: Scope, key: String, listed: String, counter: String, reach: Integer, items: String) {
@@ -47224,6 +47455,8 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         guarded_positions.append(guarded_at)
     }
     current_function_c_name = function.c_name
+    buffer_orders_written = List<String>()
+    buffer_orders_made = Dictionary<String, String>()
     in_specialised_copy = not function.specialised_from.is_empty()
     borrowed_names = List<String>()
     into_function_active = function.result_slot

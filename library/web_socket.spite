@@ -8,7 +8,7 @@ var largest_message = 16777216
 var _closed = true
 var _close_code: Integer? = null
 var _close_reason = ""
-var _last_pong: List<Byte>? = null
+var _last_pong: Buffer? = null
 var _connection = Socket()
 var _opened = false
 var _masking = false
@@ -16,8 +16,8 @@ var _close_sent = false
 var _final = false
 var _opcode = 0
 var _message_opcode = 0
-var _parts = List<Byte>()
-var _head = List<Byte>()
+var _parts = Buffer()
+var _head = Buffer()
 var _random = SecureRandom()
 var _base64 = Base64()
 
@@ -108,7 +108,7 @@ func get_close_reason(): String {
     return _close_reason
 }
 
-func get_last_pong(): List<Byte>? {
+func get_last_pong(): Buffer? {
     return _last_pong
 }
 
@@ -117,11 +117,11 @@ func send_text(text: String): Boolean {
     return _send_frame(1, bytes)
 }
 
-func send_bytes(bytes: List<Byte>): Boolean {
+func send_bytes(bytes: Buffer): Boolean {
     return _send_frame(2, bytes)
 }
 
-func send_ping(bytes: List<Byte>): Boolean {
+func send_ping(bytes: Buffer): Boolean {
     var counted = bytes.count()
     crash counted <= 125
     return _send_frame(9, bytes)
@@ -159,7 +159,7 @@ func drop() {
     _closed = true
 }
 
-func _take_data(frame: List<Byte>): Message? {
+func _take_data(frame: Buffer): Message? {
     var continuing = _opcode == 0
     var started = _message_opcode != 0
     if continuing != started {
@@ -176,7 +176,7 @@ func _take_data(frame: List<Byte>): Message? {
     var kind = _message_opcode
     var whole = _parts
     _message_opcode = 0
-    _parts = List<Byte>()
+    _parts = Buffer()
     if kind == 2 {
         return WebSocketBinary(whole)
     }
@@ -295,7 +295,7 @@ func _write_text(text: String): Boolean {
     return _connection.write_bytes(bytes)
 }
 
-func _send_frame(opcode: Integer, payload: List<Byte>): Boolean {
+func _send_frame(opcode: Integer, payload: Buffer): Boolean {
     if _closed or _close_sent {
         return false
     }
@@ -351,7 +351,7 @@ func _send_frame(opcode: Integer, payload: List<Byte>): Boolean {
 }
 
 func _send_close(code: Integer) {
-    var payload = List<Byte>()
+    var payload = Buffer()
     if code != 1005 {
         var high: Byte = code.shifted_right(8)
         var low: Byte = code.bits_and(255)
@@ -373,7 +373,7 @@ func _mask(body: Memory.Address, count: Integer, key_at: Memory.Address) {
     }
 }
 
-func _read_frame(already: Integer): List<Byte>? {
+func _read_frame(already: Integer): Buffer? {
     var head = _head.items
     var got = _read_into(head, 2)
     assert got
@@ -422,7 +422,7 @@ func _read_frame(already: Integer): List<Byte>? {
         assert mask_read
     }
     var count: Integer = length
-    var payload = List<Byte>()
+    var payload = Buffer()
     payload.reserve(count)
     var filled = _read_into(payload.items, count)
     assert filled
@@ -458,7 +458,7 @@ func _read_into(address: Memory.Address, count: Integer): Boolean {
     return true
 }
 
-func _answer_control(frame: List<Byte>) {
+func _answer_control(frame: Buffer) {
     if _opcode == 9 {
         if not _close_sent {
             _send_frame(10, frame)
@@ -470,7 +470,7 @@ func _answer_control(frame: List<Byte>) {
     }
 }
 
-func _answer_close(frame: List<Byte>) {
+func _answer_close(frame: Buffer) {
     var count = frame.count()
     var code = 1005
     var reason = ""
@@ -487,7 +487,7 @@ func _answer_close(frame: List<Byte>) {
             _fail(1002)
         }
         assert not _closed
-        var rest = List<Byte>()
+        var rest = Buffer()
         rest.reserve(count - 2)
         var reason_at = frame.items + 2
         reason_at.copy_to(rest.items, count - 2)
@@ -536,7 +536,7 @@ func _lost() {
     _close_code = 1006
 }
 
-func _append_bytes(parts: List<Byte>, frame: List<Byte>) {
+func _append_bytes(parts: Buffer, frame: Buffer) {
     var held = parts.count()
     var added = frame.count()
     parts.reserve(held + added)
@@ -545,7 +545,7 @@ func _append_bytes(parts: List<Byte>, frame: List<Byte>) {
     parts.item_count = held + added
 }
 
-func _sha1(source: List<Byte>): List<Byte> {
+func _sha1(source: Buffer): Buffer {
     var length: Long = source.count()
     var padded: Long = (length + 8) / 64 * 64 + 64
     var block = heap.allocate(padded)
@@ -581,7 +581,7 @@ func _sha1(source: List<Byte>): List<Byte> {
         _sha1_compress(state, chunk, schedule)
         offset = offset + 64
     }
-    var digest = List<Byte>()
+    var digest = Buffer()
     digest.reserve(20)
     digest.item_count = 20
     var word_index = 0

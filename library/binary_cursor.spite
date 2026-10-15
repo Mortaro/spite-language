@@ -1,0 +1,177 @@
+var _bytes: Buffer = null
+var failed = false
+var walked = 0
+var found = 0
+var found_name = ""
+
+func BinaryCursor(source: Buffer) {
+    _bytes = source
+}
+
+func count(): Integer {
+    return _bytes.count()
+}
+
+func position(): Integer {
+    return _bytes.position
+}
+
+func take(wanted: Integer): Boolean {
+    if failed or wanted > _bytes.count() - _bytes.position {
+        fail()
+        return false
+    }
+    _bytes.position = _bytes.position + wanted
+    return true
+}
+
+func fail() {
+    failed = true
+    _bytes.position = _bytes.count()
+}
+
+func read_byte(): Integer {
+    if _holds(1) {
+        return _read_byte()
+    }
+    return 0
+}
+
+func read_short(): Integer {
+    if _holds(2) {
+        return _read_short()
+    }
+    return 0
+}
+
+func read_unsigned_short(): Integer {
+    if _holds(2) {
+        return _read_unsigned_short()
+    }
+    return 0
+}
+
+func read_integer(): Integer {
+    if _holds(4) {
+        return _read_integer()
+    }
+    return 0
+}
+
+func read_long(): Long {
+    if _holds(8) {
+        return _read_long()
+    }
+    return 0
+}
+
+func read_float(): Float {
+    if _holds(4) {
+        return _read_float()
+    }
+    return 0.0
+}
+
+func read_double(): Double {
+    if _holds(8) {
+        return _read_double()
+    }
+    return 0.0
+}
+
+func read_count(): Integer {
+    var result: Long = 0
+    var scale: Long = 1
+    var more = true
+    while more and not failed {
+        var byte = read_byte()
+        result = result + scale * (byte % 128)
+        scale = scale * 128
+        more = byte >= 128
+        if result > _bytes.count() - _bytes.position or scale > 34359738368 {
+            fail()
+        }
+    }
+    return result
+}
+
+func read_text(): String {
+    var length = read_count()
+    if not take(length) {
+        return ""
+    }
+    var run = _bytes.read_bytes(length)
+    if run {
+        var text = run.to_utf8_text()
+        if text {
+            return text
+        }
+    }
+    fail()
+    return ""
+}
+
+func read_index() {
+    var index = 0
+    if walked <= 256 {
+        index = read_byte()
+    } else if walked <= 65536 {
+        index = read_unsigned_short()
+    } else {
+        index = read_integer()
+    }
+    if index < 0 or index >= walked {
+        fail()
+    }
+    found = index
+}
+
+func _holds(wanted: Integer): Boolean {
+    if take(wanted) {
+        _bytes.position = _bytes.position - wanted
+        return true
+    }
+    return false
+}
+
+func _read_byte(): Integer {
+    var read = _bytes.read_byte()
+    crash read
+    return read
+}
+
+func _read_short(): Integer {
+    var read = _bytes.read_short()
+    crash read
+    return read
+}
+
+func _read_unsigned_short(): Integer {
+    var read = _bytes.read_unsigned_short()
+    crash read
+    return read
+}
+
+func _read_integer(): Integer {
+    var read = _bytes.read_integer()
+    crash read
+    return read
+}
+
+func _read_long(): Long {
+    var read = _bytes.read_long()
+    crash read
+    return read
+}
+
+func _read_float(): Float {
+    var read = _bytes.read_float()
+    crash read
+    return read
+}
+
+func _read_double(): Double {
+    var read = _bytes.read_double()
+    crash read
+    return read
+}

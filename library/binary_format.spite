@@ -2,7 +2,7 @@ singleton
 
 generic $value_type
 
-func write(value: $value_type, output: BinaryOutput) {
+func write(value: $value_type, output: BinaryWriterCursor) {
     if $value_type == Null {
         write_present(value, output)
     } else if $value_type == Boolean {
@@ -42,7 +42,7 @@ func write(value: $value_type, output: BinaryOutput) {
     }
 }
 
-func write_present(value: $value_type, output: BinaryOutput) {
+func write_present(value: $value_type, output: BinaryWriterCursor) {
     if value {
         output.write_byte(1)
         var inner = BinaryFormat<$value_type.value_type>()
@@ -52,7 +52,7 @@ func write_present(value: $value_type, output: BinaryOutput) {
     output.write_byte(0)
 }
 
-func write_symbol(shown: $value_type, output: BinaryOutput) {
+func write_symbol(shown: $value_type, output: BinaryWriterCursor) {
     if $value_type == Enum {
         output.walked = 0
         find_values(shown, output)
@@ -63,14 +63,14 @@ func write_symbol(shown: $value_type, output: BinaryOutput) {
     output.write_text(name)
 }
 
-func find_value(value: Symbol<$value_type>, shown: $value_type, output: BinaryOutput) {
+func find_value(value: Symbol<$value_type>, shown: $value_type, output: BinaryWriterCursor) {
     if value.value == shown {
         output.found = output.walked
     }
     output.walked = output.walked + 1
 }
 
-func write_list(value: $value_type, output: BinaryOutput) {
+func write_list(value: $value_type, output: BinaryWriterCursor) {
     var count = value.count()
     output.write_count(count)
     var element = BinaryFormat<$value_type.element_type>()
@@ -82,7 +82,7 @@ func write_list(value: $value_type, output: BinaryOutput) {
     }
 }
 
-func write_dictionary(value: $value_type, output: BinaryOutput) {
+func write_dictionary(value: $value_type, output: BinaryWriterCursor) {
     var keys = value.keys()
     var entries = value.values()
     var count = keys.count()
@@ -100,14 +100,14 @@ func write_dictionary(value: $value_type, output: BinaryOutput) {
     }
 }
 
-func write_attribute(attribute: Symbol<$value_type>, value: $value_type, output: BinaryOutput) {
+func write_attribute(attribute: Symbol<$value_type>, value: $value_type, output: BinaryWriterCursor) {
     if not attribute.name.starts_with("_") and not attribute.is_singleton {
         var format = BinaryFormat<attribute.class>()
         format.write(value.attributes[attribute], output)
     }
 }
 
-func read(input: BinaryInput): $value_type {
+func read(input: BinaryCursor): $value_type {
     if $value_type == Null {
         return read_present(input)
     } else if $value_type == Boolean {
@@ -157,7 +157,7 @@ func read(input: BinaryInput): $value_type {
     }
 }
 
-func read_present(input: BinaryInput): $value_type {
+func read_present(input: BinaryCursor): $value_type {
     var flag = input.read_byte()
     if flag != 1 {
         if flag != 0 {
@@ -169,7 +169,7 @@ func read_present(input: BinaryInput): $value_type {
     return inner.read(input)
 }
 
-func read_symbol(input: BinaryInput): $value_type {
+func read_symbol(input: BinaryCursor): $value_type {
     if $value_type == Enum {
         input.walked = 0
         count_values(input)
@@ -192,18 +192,18 @@ func read_symbol(input: BinaryInput): $value_type {
     return found
 }
 
-func count_value(value: Symbol<$value_type>, input: BinaryInput) {
+func count_value(value: Symbol<$value_type>, input: BinaryCursor) {
     input.walked = input.walked + 1
 }
 
-func name_value(value: Symbol<$value_type>, input: BinaryInput) {
+func name_value(value: Symbol<$value_type>, input: BinaryCursor) {
     if input.walked == input.found {
         input.found_name = value.name
     }
     input.walked = input.walked + 1
 }
 
-func read_list(input: BinaryInput): $value_type {
+func read_list(input: BinaryCursor): $value_type {
     var list = $value_type()
     var count = input.read_count()
     var element = BinaryFormat<$value_type.element_type>()
@@ -216,7 +216,7 @@ func read_list(input: BinaryInput): $value_type {
     return list
 }
 
-func read_dictionary(input: BinaryInput): $value_type {
+func read_dictionary(input: BinaryCursor): $value_type {
     var dictionary = $value_type()
     var count = input.read_count()
     var entry = BinaryFormat<$value_type.value_type>()
@@ -231,7 +231,7 @@ func read_dictionary(input: BinaryInput): $value_type {
     return dictionary
 }
 
-func read_attribute(attribute: Symbol<$value_type>, created: $value_type, input: BinaryInput) {
+func read_attribute(attribute: Symbol<$value_type>, created: $value_type, input: BinaryCursor) {
     if not attribute.name.starts_with("_") and not attribute.is_singleton {
         var format = BinaryFormat<attribute.class>()
         created.attributes[attribute] = format.read(input)
