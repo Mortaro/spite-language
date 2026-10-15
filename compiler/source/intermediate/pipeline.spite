@@ -180,6 +180,7 @@ func roots_of_runtime(): List<String> {
     lowered.concrete_functions.each(note_placed_roots)
     lowered.concrete_functions.each(note_serving_roots)
     placed_allocators.each(roots.append)
+    lowered.concrete_functions.each(note_pool_roots)
     if generator.scheduler_used {
         note_roots(
             "Scheduler",
@@ -198,6 +199,34 @@ func note_serving_roots(function: Function) {
     var serving = owner.find_function("_serve")
     if serving and not placed_allocators.contains(serving.c_name) {
         placed_allocators.append(serving.c_name)
+    }
+}
+
+func note_pool_roots(function: Function) {
+    crash generator
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.callee == "Bands.run" or operation.callee == "Rows.run" {
+                var pool = generator.find_class_by_qualified("ThreadPool")
+                assert pool
+                note_pool(pool, "run_bands")
+                note_pool(pool, "submit")
+                note_pool(pool, "join")
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func note_pool(pool: Analysis.ClassInfo, name: String) {
+    var found = pool.find_function(name)
+    if found and not placed_allocators.contains(found.c_name) {
+        placed_allocators.append(found.c_name)
     }
 }
 
