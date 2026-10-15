@@ -155,6 +155,9 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
     if result.code.starts_with("spite_class_object_") and result.code.ends_with("()") {
         return class_object_named(result.code, result.spite_type)
     }
+    if result.code.starts_with("spite_namespace_object_") and result.code.ends_with("()") {
+        return namespace_object_named(result.code, result.spite_type)
+    }
     if made.constant_texts.has(result.code) {
         crash made.constant_texts[result.code]
         return emitter.constant(result.spite_type, made.constant_texts[result.code])
@@ -316,7 +319,11 @@ func into_nullable(
     if types.as_nullable(given) {
         return not_lowered(wanted, "a conversion between two nullable types")
     }
-    if types.as_string(given) and not types.as_string(inner) {
+    var parsed = false
+    if types.as_scalar(inner) or types.as_enum(inner) {
+        parsed = true
+    }
+    if types.as_string(given) and parsed {
         return text_read_as(value, inner, wanted)
     }
     var inner_value = convert(value, inner)
@@ -347,6 +354,11 @@ func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.Sp
 }
 
 func into_union(value: Integer, given: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
+    if types.is_symbol(given) {
+        var text_type = known().typed_string()
+        var text = emitter.emit_call_one("Symbol.text", value, text_type)
+        return into_union(text, text_type, wanted)
+    }
     var united = types.as_union(wanted)
     crash united
     var made = front()
@@ -461,6 +473,11 @@ func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Inte
         var named_type = known().class_type(named_class)
         return class_object_of(named_type)
     }
+    var expression: Syntax.Expressions.Expression = identifier
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if folded {
+        return folded_constant(folded)
+    }
     return not_lowered(null, "'{identifier.name}' read as a value")
 }
 
@@ -549,6 +566,10 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if shapes.as_generic_identifier(member.object) {
         return codegen_member(member)
     }
+    var namespaced = namespace_member(member)
+    if namespaced != -2 {
+        return namespaced
+    }
     var symbol = shapes.as_identifier(member.object)
     if symbol and symbol.name == made.bound_symbol_name and not made.bound_symbol_name.is_empty() {
         return bound_symbol_member(member)
@@ -600,6 +621,10 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
     var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
     if folded {
         return folded_constant(folded)
+    }
+    var reflection_class = static_class.c_name == "Spite_Class" or static_class.c_name == "Spite_Namespace"
+    if member.name == "instances" and not reflection_class and not static_class.is_generic_template {
+        return live_instances(static_class)
     }
     var class_reflected = member.name == "attributes" or member.name == "functions" or member.name == "instances"
     if class_reflected {
@@ -713,6 +738,11 @@ func class_member(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberE
         var joined_member = joined_handle(object)
         return member_of_value(member, joined_member)
     }
+    var reflecting = member.name == "class" or member.name == "attributes" or member.name == "functions"
+    var own_getter = target.find_function("get_{member.name}")
+    if reflecting and not own_getter and not target.find_field(member.name) {
+        return reflection_read(member, object)
+    }
     var getter = made.find_getter(target, member.name, lowered_class)
     if getter {
         var operands = [object]
@@ -735,6 +765,10 @@ func lower_index(indexed: Syntax.Expressions.IndexExpression): Integer {
     crash indexed.object
     crash indexed.index
     var made = front()
+    var reflected = reflected_index(indexed)
+    if reflected != -2 {
+        return reflected
+    }
     if made.is_bound_member_index(indexed) {
         var rewritten = made.bound_member_expression(indexed)
         return lower(rewritten)
@@ -913,7 +947,12 @@ func untyped_list(literal: Syntax.Expressions.ListLiteralExpression): Integer {
 
 func untyped_object(literal: Syntax.Expressions.ObjectLiteralExpression): Integer {
     if not literal.is_dictionary {
-        return shape_literal(literal)
+        var made_literal = shape_literal(literal)
+        var made = front()
+        if made_literal >= 0 and made.borrows_an_item(literal, emitter.scope, lowered_class) {
+            mark_row(made_literal)
+        }
+        return made_literal
     }
     var first = literal.fields.first()
     if not first {
@@ -1059,7 +1098,7 @@ func construct_as(
 }
 
 func default_object(target: Analysis.ClassInfo, made_type: Analysis.SpiteType): Integer {
-    if target.is_singleton {
+    if target.is_stateless_singleton {
         var no_arguments = List<Syntax.Expressions.Expression>()
         return singleton(target, no_arguments)
     }
@@ -1227,8 +1266,48 @@ func program_loaded(call: Syntax.Expressions.CallExpression): Integer {
         return not_lowered(null, "a program with no entry class")
     }
     var no_arguments = List<Syntax.Expressions.Expression>()
-    construct(entry, no_arguments)
+    var program = construct(entry, no_arguments)
+    if made.remote_loop_port > 0 or made.hot_reload {
+        return not_lowered(null, "a program served to a remote REPL or reloaded while it runs")
+    }
+    if made.console_loop {
+        console_loop(entry, program)
+    }
     return -1
+}
+
+func console_loop(entry: Analysis.ClassInfo, program: Integer) {
+    var made = front()
+    var loop_class = made.find_class_by_qualified("ReadEvaluatePrintLoop")
+    if not loop_class {
+        not_lowered(null, "a REPL with no ReadEvaluatePrintLoop class")
+        return
+    }
+    var step = made.find_or_instantiate_function(loop_class, "step")
+    if not step {
+        not_lowered(null, "a REPL with no step")
+        return
+    }
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var loop = construct(loop_class, no_arguments)
+    var header = emitter.new_block()
+    var exit = emitter.new_block()
+    emitter.jump_plain(header)
+    emitter.enter_block(header)
+    var symbol_type = known().typed_symbol()
+    var program_name = emitter.constant(symbol_type, "program")
+    var entry_type = known().class_type(entry)
+    var reflect_name = "spite_reflect_{made.reflected_label(entry_type)}"
+    known().reflection_maker(reflect_name, "reflect", entry, "")
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = known().class_type(attribute_class)
+    var reflect_operands = [program_name, program]
+    var attribute = emitter.emit_call(reflect_name, reflect_operands, attribute_type)
+    var step_operands = [loop, attribute]
+    var going = call_reached(loop_class, step, step_operands)
+    emitter.branch(going, header, exit)
+    emitter.enter_block(exit)
 }
 
 func codegen_construction(
@@ -1317,12 +1396,15 @@ func function_value(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, 
     if not function_class {
         return not_lowered(signature, "a function value with no Spite.Function class")
     }
+    var argument_class = made.find_class_by_c_name("Spite_Argument")
+    if not argument_class {
+        return not_lowered(signature, "a function value with no Spite.Argument class")
+    }
     known().reach_layout(function_class)
-    var bound = emitter.make_object(function_class.c_name, signature)
-    var operands = [bound, object]
-    var binding = emitter.call_operation("Function.bind", operands, null)
-    binding.literal = function.c_name
-    binding.target = function.c_name
+    var reflection = ReflectionLowering(this)
+    var bound = reflection.function_of(owner, function, object, function_class, argument_class)
+    var bound_value = emitter.built_function().value_at(bound)
+    bound_value.spite_type = signature
     return bound
 }
 
@@ -1384,8 +1466,7 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
             return emitter.constant(whole, counted)
         }
     }
-    var compile_time = ["returned_text", "source_folder", "argument_count"]
-    if compile_time.contains(member.name) {
+    if member.name == "returned_text" {
         return not_lowered(null, "'{member.name}()', asked while compiling")
     }
     if member.name == "class" {
@@ -1920,7 +2001,7 @@ func lower_condition(expression: Syntax.Expressions.Expression): Condition {
     }
     var made = front()
     var links = made.path_links(expression, lowered_class.qualified_dotted)
-    if links.count() > 1 {
+    if links.count() > 1 and linked_reads(expression, links) {
         return linked_condition(expression, links)
     }
     var value = lower(expression)
@@ -2903,7 +2984,10 @@ func shape_default(described_union: Analysis.UnionInfo, spite_type: Analysis.Spi
         return not_lowered(spite_type, "the default of a type whose class '{label}' the program never made")
     }
     var literal_type = known().class_type(literal_class)
-    var made_object = default_object(literal_class, literal_type)
+    known().reach_layout(literal_class)
+    var made_object = emitter.make_object(literal_class.c_name, literal_type)
+    mark_row(made_object)
+    known().reach_type(literal_type)
     return emitter.emit_call_one("Union.wrap", made_object, spite_type)
 }
 
@@ -3354,4 +3438,107 @@ func construct_values(target: Analysis.ClassInfo, values: List<Integer>): Intege
     }
     call_reached(target, constructor, operands)
     return object
+}
+
+func reflected_index(indexed: Syntax.Expressions.IndexExpression): Integer {
+    var made = front()
+    var folded_entry = made.folded_dictionary_read(indexed, emitter.scope, lowered_class)
+    if folded_entry {
+        return folded_constant(folded_entry)
+    }
+    var field_read = made.reflected_field_read(indexed, emitter.scope, lowered_class)
+    if field_read {
+        return lower(field_read)
+    }
+    var expression: Syntax.Expressions.Expression = indexed
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if folded {
+        return folded_constant(folded)
+    }
+    var named_read = made.named_reflection_read(indexed, emitter.scope, lowered_class)
+    if named_read {
+        return lower(named_read)
+    }
+    return -2
+}
+
+func mark_row(object: Integer) {
+    var object_type = type_of(object)
+    var class_ref = types.as_class_ref(object_type)
+    assert class_ref
+    known().row_classes[class_ref.c_name] = true
+}
+
+func namespace_object_named(code: String, namespace_type: Analysis.SpiteType): Integer {
+    var made = front()
+    var length = code.length()
+    var name = code.slice(0, length - 2)
+    var index = 0
+    while index < made.namespace_object_keys.count() {
+        var dotted = made.namespace_object_keys[index]
+        var candidate = "spite_namespace_object_{dotted.replace(".", "_")}"
+        if candidate == name {
+            var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+            crash namespace_class
+            known().reach_layout(namespace_class)
+            known().reflection_maker(name, "namespace_object", namespace_class, dotted)
+            var no_operands = List<Integer>()
+            return emitter.emit_call(name, no_operands, namespace_type)
+        }
+        index = index + 1
+    }
+    return not_lowered(null, "a namespace object the generator never described")
+}
+
+func namespace_member(member: Syntax.Expressions.MemberExpression): Integer {
+    var made = front()
+    var expression: Syntax.Expressions.Expression = member
+    var root = made.root_of(expression)
+    var root_name = shapes.as_identifier(root)
+    if not root_name or root_name.name == "self" or root_name.name == "this" {
+        return -2
+    }
+    var held = emitter.local_named(root_name.name)
+    var field = lowered_class.find_field(root_name.name)
+    var function = lowered_class.find_function(root_name.name)
+    if held or field or function {
+        return -2
+    }
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if not folded {
+        return -2
+    }
+    return folded_constant(folded)
+}
+
+func linked_reads(expression: Syntax.Expressions.Expression, links: List<Syntax.Expressions.Expression>): Boolean {
+    var made = front()
+    var indexed = shapes.as_index(expression)
+    if indexed and made.is_bound_member_index(indexed) {
+        return false
+    }
+    var index = 0
+    while index < links.count() {
+        var link = shapes.as_member(links[index])
+        if link and (link.name == "attributes" or link.name == "functions" or link.name == "class") {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func live_instances(tracked: Analysis.ClassInfo): Integer {
+    var element = known().class_type(tracked)
+    known().reach_layout(tracked)
+    var listed = new_list(element)
+    var appender = list_function(element, "append")
+    crash appender.owner
+    crash appender.function
+    known().reach(appender.owner, appender.function)
+    var operands = [listed]
+    var filled = emitter.call_operation("Instances.fill", operands, null)
+    filled.literal = tracked.c_name
+    filled.target = appender.function.c_name
+    return listed
 }
