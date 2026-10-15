@@ -34,6 +34,8 @@ func print(body: Body, operation: Operation) {
         "Bands": print_bands(body, operation)
         "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
+        "Type": print_type(body, operation, word)
+        "Loop": print_loop(body, operation, word)
         _: print_number(body, operation, word)
     }
 }
@@ -54,6 +56,81 @@ func print_singleton_peek(body: Body, operation: Operation) {
         return
     }
     body.assign(operation.result, "{operation.target}_peek()")
+}
+
+# ../../../../docs/repl.md#remote---repl-port
+func print_loop(body: Body, operation: Operation, word: String) {
+    switch word {
+        "check_point": loop_check_point(body)
+        "serve": loop_serve(body, operation)
+        "breakpoint": loop_breakpoint(body, operation)
+        _: body.refuse("it calls 'Loop.{word}', which is no intrinsic")
+    }
+}
+
+func loop_check_point(body: Body) {
+    var scheduler = hot.getter_of("Scheduler")
+    var check_point = hot.function_named("Scheduler", "check_point")
+    if scheduler.is_empty() or check_point.is_empty() {
+        body.refuse("it stops at a loop's check point, and the program holds no Scheduler or its check_point")
+        return
+    }
+    output.need("check point")
+    var parking = ""
+    if lowered.hot_reload {
+        parking = "spite_world_park(); "
+    }
+    body.emit(
+        "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0) \{ {parking}{check_point}({scheduler}()); }",
+    )
+}
+
+func loop_serve(body: Body, operation: Operation) {
+    var loop = body.operand(operation, 0)
+    var program = body.operand(operation, 1)
+    var listen = hot.function_named("ReadEvaluatePrintLoop", "listen_in_background")
+    var serve = hot.function_named("ReadEvaluatePrintLoop", "serve")
+    if listen.is_empty() or serve.is_empty() or operation.literal.is_empty() {
+        body.refuse(
+            "it serves a REPL port, and the program holds no ReadEvaluatePrintLoop with listen_in_background and serve, or no port",
+        )
+        return
+    }
+    output.need("remote loop")
+    output.need("threads")
+    hot.remote_serve = serve
+    body.emit("spite_remote_loop = ReadEvaluatePrintLoop___retain({loop});")
+    body.emit("spite_remote_program = Spite_Attribute___retain({program});")
+    body.emit("{listen}(spite_remote_loop, {operation.literal}, (int64_t)(intptr_t)&spite_remote_loop_thread);")
+}
+
+func loop_breakpoint(body: Body, operation: Operation) {
+    var site = body.operand(operation, 0)
+    var locals = body.operand(operation, 1)
+    var locals_type = body.operand_type(operation, 1)
+    var pause = hot.function_named("ReadEvaluatePrintLoop", "pause_at")
+    var counted = ""
+    if locals_type {
+        counted = naming.counted_name(locals_type)
+    }
+    if pause.is_empty() or counted.is_empty() {
+        body.refuse(
+            "it stops at a breakpoint, and the program holds no ReadEvaluatePrintLoop.pause_at or no list of locals",
+        )
+        return
+    }
+    output.need("remote loop")
+    hot.remote_pause = pause
+    hot.remote_locals = counted
+    body.emit("spite_breakpoint(SpiteString___retain({site}), {counted}___retain({locals}));")
+}
+
+func print_type(body: Body, operation: Operation, word: String) {
+    if word != "size" or operation.literal.is_empty() {
+        body.refuse("it calls 'Type.{word}' on '{operation.target}', which has no C struct to measure")
+        return
+    }
+    body.assign(operation.result, "((int64_t)sizeof({operation.literal}))")
 }
 
 func print_singleton_lock(body: Body, operation: Operation, word: String) {

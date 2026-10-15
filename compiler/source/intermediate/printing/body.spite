@@ -1502,7 +1502,12 @@ func print_plain_store(operation: Operation) {
     if holder_layout {
         row = holder_layout.kind == "row"
     }
-    if counted.is_empty() or row {
+    var stored_layout = naming.layout_of(stored_type)
+    var singleton = false
+    if stored_layout {
+        singleton = stored_layout.is_singleton
+    }
+    if counted.is_empty() or row or singleton {
         lines.append("{place} = {stored};")
         return
     }
@@ -1532,6 +1537,7 @@ func field_place(operation: Operation): String {
         return "({holder}).{operation.field}_"
     }
     if layout.hot {
+        output.touch(layout.c_name, function.c_name)
         return "{layout.c_name}___fields({holder})->{operation.field}_"
     }
     return "({holder})->{operation.field}_"
@@ -1677,6 +1683,9 @@ func allocator_function(allocator_layout: Layout, name: String): String {
 }
 
 func print_framed_make(operation: Operation, layout: Layout) {
+    if layout.hot {
+        output.touch(layout.c_name, function.c_name)
+    }
     var slot = "spite_slot_{operation.result}"
     declarations.append("{layout.c_name} {slot};")
     if not output.framed_layouts.contains(layout.c_name) {
