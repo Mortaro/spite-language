@@ -10,6 +10,7 @@ var singleton_classes = List<Analysis.ClassInfo>()
 var singleton_names = List<String>()
 var singleton_arguments = List<List<Syntax.Expressions.Expression>>()
 var singleton_keys = Dictionary<String, Integer>()
+var opens_foreign = false
 
 func Instances(starting_generator: Generation.Generator) {
     generator = starting_generator
