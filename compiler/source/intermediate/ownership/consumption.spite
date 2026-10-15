@@ -1,11 +1,101 @@
 # ../../../../docs/optimizations.md#an-argument-its-caller-holds-is-passed-without-counting
 var lowered: Lowered? = null
 var intrinsics: Facts.Intrinsics? = null
+var returns_lent = Dictionary<String, Boolean>()
 
 func Consumption(starting_lowered: Lowered) {
     lowered = starting_lowered
     var made_intrinsics = Facts.Intrinsics(starting_lowered)
     intrinsics = made_intrinsics
+}
+
+# ../../../../docs/proofs.md#an-item-lent-to-the-caller
+func settle_lent_returns() {
+    crash lowered
+    var changed = true
+    var rounds = 0
+    while changed and rounds < 16 {
+        changed = false
+        var functions = lowered.concrete_functions
+        var index = 0
+        while index < functions.count() {
+            var function = functions[index]
+            if not returns_lent.has(function.c_name) and lends_every_return(function) {
+                returns_lent[function.c_name] = true
+                changed = true
+            }
+            index = index + 1
+        }
+        rounds = rounds + 1
+    }
+}
+
+func lends_every_return(function: Function): Boolean {
+    if function.blocks.is_empty() or function.is_intrinsic() {
+        return false
+    }
+    var uses = Facts.Uses(function)
+    var lent = 0
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        if block.terminator.kind == "return" {
+            var returned = block.terminator.operands.first()
+            if not returned {
+                return false
+            }
+            var answer = traced(uses, returned, 0)
+            if answer == "other" {
+                return false
+            }
+            if answer == "lent" {
+                lent = lent + 1
+            }
+        }
+        index = index + 1
+    }
+    return lent > 0
+}
+
+func traced(uses: Facts.Uses, value: Integer, depth: Integer): String {
+    var defining = uses.definition_of(value)
+    if not defining or depth > 8 {
+        return "other"
+    }
+    if defining.kind == "constant" {
+        return "none"
+    }
+    if is_projection(defining) or is_wrap(defining) {
+        var inner = defining.operands.first()
+        if not inner {
+            return "other"
+        }
+        return traced(uses, inner, depth + 1)
+    }
+    if is_lent_call(defining) {
+        return "lent"
+    }
+    return "other"
+}
+
+func is_lent_call(operation: Operation): Boolean {
+    crash intrinsics
+    if operation.kind != "call" {
+        return false
+    }
+    if returns_lent.has(operation.callee) {
+        return true
+    }
+    var callee = intrinsics.callee_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return callee.is_intrinsic() and callee.name == "item_at"
+}
+
+func traces_lent(uses: Facts.Uses, value: Integer): Boolean {
+    var answer = traced(uses, value, 0)
+    return answer == "lent"
 }
 
 func is_projection(operation: Operation): Boolean {
