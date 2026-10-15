@@ -1,0 +1,14 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var number = -1
+var kind = ""
+var path = ""
+var line = 0
+var owner = ""
+var function = ""
+var text = ""
+
+func Site(starting_kind: String, starting_path: String, starting_line: Integer) {
+    kind = starting_kind
+    path = starting_path
+    line = starting_line
+}

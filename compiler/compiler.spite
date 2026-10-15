@@ -375,6 +375,11 @@ func write_outputs(discovery: Discovery.DiscoveryResult, generator: Generation.G
         program.exit(1)
         return
     }
+    var high_ir_folder = option("high_ir")
+    if not high_ir_folder.is_empty() and not wrote_high_ir(generator, high_ir_folder) {
+        program.exit(1)
+        return
+    }
     var high_level_path = option("high_level_report")
     if not high_level_path.is_empty() and not wrote_high_level_report(generator, high_level_path) {
         program.exit(1)
@@ -473,6 +478,7 @@ func hot_state(
         "final_classes"
         "optimization_report"
         "high_level_report"
+        "high_ir"
     ]
     var index_of_output = 0
     while index_of_output < outputs.count() {
@@ -546,6 +552,7 @@ func is_output_flag(argument: String): Boolean {
         "final_classes"
         "optimization_report"
         "high_level_report"
+        "high_ir"
     ]
     var name = setting_name(argument)
     return outputs.contains(name)
@@ -793,6 +800,26 @@ func wrote_high_level_report(generator: Generation.Generator, report_path: Strin
     }
     console.error("error: could not write '{report_path}'")
     return false
+}
+
+# ../design/proposals/desugared_high_ir.md#reading-the-high-ir
+func wrote_high_ir(generator: Generation.Generator, output_directory: String): Boolean {
+    create_folder(output_directory)
+    var lowering = Intermediate.Lowering(generator)
+    var lowered = lowering.lower()
+    var text = Intermediate.Text()
+    var index = 0
+    while index < lowered.layouts.count() {
+        var layout = lowered.layouts[index]
+        var path = "{output_directory}/{final_class_file_name(layout.qualified)}.ir"
+        var written = text.layout_text(lowered, layout)
+        if not File(path).write(written) {
+            console.error("error: could not write '{path}'")
+            return false
+        }
+        index = index + 1
+    }
+    return true
 }
 
 func wrote_optimization_report(generator: Generation.Generator, report_path: String): Boolean {

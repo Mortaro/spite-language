@@ -1,0 +1,8 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var block = -1
+var arguments = List<Integer>()
+var tag = ""
+
+func Target(starting_block: Integer) {
+    block = starting_block
+}

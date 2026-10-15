@@ -1,0 +1,17 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var number = 0
+var parameters = List<Integer>()
+var operations = List<Operation>()
+var terminator = Terminator("none")
+
+func Block(starting_number: Integer) {
+    number = starting_number
+}
+
+func add(operation: Operation) {
+    operations.append(operation)
+}
+
+func is_ended(): Boolean {
+    return terminator.kind != "none"
+}

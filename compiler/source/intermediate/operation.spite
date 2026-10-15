@@ -1,0 +1,21 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var kind = ""
+var result = -1
+var operands = List<Integer>()
+var callee = ""
+var layout = ""
+var field = ""
+var literal = ""
+var spite_type: Analysis.SpiteType? = null
+var site = -1
+var form = ""
+var line = 0
+
+func Operation(starting_kind: String, starting_line: Integer) {
+    kind = starting_kind
+    line = starting_line
+}
+
+func takes(value_number: Integer) {
+    operands.append(value_number)
+}

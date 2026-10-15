@@ -1,0 +1,41 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var layouts = List<Layout>()
+var layouts_by_name = Dictionary<String, Layout>()
+var concrete_functions = List<Function>()
+var functions_by_name = Dictionary<String, Function>()
+var sites = List<Site>()
+var entry = ""
+
+func add_layout(layout: Layout) {
+    crash not layouts_by_name.has(layout.c_name)
+    layouts.append(layout)
+    layouts_by_name[layout.c_name] = layout
+}
+
+func layout_named(c_name: String): Layout? {
+    var found: Layout? = null
+    if layouts_by_name.has(c_name) {
+        found = layouts_by_name[c_name]
+    }
+    return found
+}
+
+func add_function(function: Function) {
+    crash not functions_by_name.has(function.c_name)
+    concrete_functions.append(function)
+    functions_by_name[function.c_name] = function
+}
+
+func function_named(c_name: String): Function? {
+    var found: Function? = null
+    if functions_by_name.has(c_name) {
+        found = functions_by_name[c_name]
+    }
+    return found
+}
+
+func add_site(site: Site): Integer {
+    site.number = sites.count()
+    sites.append(site)
+    return site.number
+}

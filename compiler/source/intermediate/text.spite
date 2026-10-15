@@ -1,0 +1,191 @@
+# ../../../design/proposals/desugared_high_ir.md#reading-the-high-ir
+var types = Analysis.TypeShape()
+
+func layout_text(lowered: Lowered, layout: Layout): String {
+    var lines = List<String>()
+    var kind = "class"
+    if layout.is_value {
+        kind = "value class"
+    }
+    if layout.is_singleton {
+        kind = "singleton"
+    }
+    lines.append("{kind} {layout.c_name} ({layout.qualified}), arranged as {layout.arrangement}")
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        lines.append("    field {field.name}: {type_text(field.spite_type)}")
+        index = index + 1
+    }
+    index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        if function.owner == layout.c_name {
+            lines.append("")
+            var written = function_text(function)
+            lines.append(written)
+        }
+        index = index + 1
+    }
+    return "{lines.join("\n")}\n"
+}
+
+func function_text(function: Function): String {
+    var lines = List<String>()
+    var parameters = List<String>()
+    parameters.append("v{function.receiver}: receiver")
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var owned = ""
+        if not parameter.ownership.is_empty() {
+            owned = " {parameter.ownership}"
+        }
+        parameters.append("v{parameter.value} {parameter.name}:{owned} {type_text(parameter.spite_type)}")
+        index = index + 1
+    }
+    var heading = "function"
+    if function.is_constructor {
+        heading = "constructor"
+    }
+    if function.is_intrinsic() {
+        heading = "intrinsic {function.intrinsic}"
+    }
+    lines.append("{heading} {function.c_name}({parameters.join(", ")}): {type_text(function.answer)}")
+    if not function.specialised_from.is_empty() {
+        lines.append("    specialised from {function.specialised_from}")
+    }
+    if not function.not_lowered.is_empty() {
+        lines.append("    ({function.not_lowered})")
+    }
+    index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        block_lines(function, block, lines)
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func block_lines(function: Function, block: Block, lines: List<String>) {
+    var parameters = values_text(block.parameters)
+    lines.append("    block {block.number}({parameters}):")
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        lines.append("        {operation_text(function, operation)}")
+        index = index + 1
+    }
+    lines.append("        {terminator_text(block.terminator)}")
+}
+
+func operation_text(function: Function, operation: Operation): String {
+    var made = ""
+    if operation.result >= 0 {
+        var value = function.value_at(operation.result)
+        made = "v{operation.result}: {type_text(value.spite_type)} = "
+    }
+    var operands = values_text(operation.operands)
+    var what = "{operation.kind} {operands}"
+    if operation.kind == "constant" {
+        what = "constant {operation.literal}"
+    } else if operation.kind == "call" {
+        what = "call {operation.callee}({operands})"
+    } else if operation.kind == "load" {
+        what = "load {operands}.{operation.field}"
+    } else if operation.kind == "store" {
+        what = "store {operation.field} {operands}"
+    } else if operation.kind == "make" {
+        what = "make {operation.layout}"
+    }
+    var form = ""
+    if not operation.form.is_empty() {
+        form = " [{operation.form}]"
+    }
+    var site = ""
+    if operation.site >= 0 {
+        site = " site {operation.site}"
+    }
+    return "{made}{what}{form}{site}"
+}
+
+func terminator_text(terminator: Terminator): String {
+    var targets = List<String>()
+    var index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var tag = ""
+        if not target.tag.is_empty() {
+            tag = "{target.tag} -> "
+        }
+        var arguments = values_text(target.arguments)
+        targets.append("{tag}block {target.block}({arguments})")
+        index = index + 1
+    }
+    var operands = values_text(terminator.operands)
+    return "{terminator.kind} {operands} {targets.join(", ")}"
+}
+
+func values_text(numbers: List<Integer>): String {
+    var named = List<String>()
+    var index = 0
+    while index < numbers.count() {
+        named.append("v{numbers[index]}")
+        index = index + 1
+    }
+    return named.join(", ")
+}
+
+func type_text(spite_type: Analysis.SpiteType?): String {
+    if not spite_type {
+        return "?"
+    }
+    var scalar = types.as_scalar(spite_type)
+    if scalar {
+        return scalar_text(scalar.kind)
+    }
+    if types.as_string(spite_type) {
+        return "String"
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref {
+        return class_ref.c_name
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return "{type_text(nullable.inner)}?"
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        return "List<{type_text(listed.element)}>"
+    }
+    var enumerated = types.as_enum(spite_type)
+    if enumerated {
+        return enumerated.c_name
+    }
+    var united = types.as_union(spite_type)
+    if united {
+        return united.c_name
+    }
+    if types.is_void(spite_type) {
+        return "nothing"
+    }
+    return "a type"
+}
+
+func scalar_text(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "Integer"
+        'long_kind': return "Long"
+        'tiny_kind': return "Tiny"
+        'short_kind': return "Short"
+        'byte_kind': return "Byte"
+        'unsigned_short_kind': return "UnsignedShort"
+        'unsigned_integer_kind': return "UnsignedInteger"
+        'unsigned_long_kind': return "UnsignedLong"
+        'address_kind': return "Address"
+        'float_kind': return "Float"
+        'double_kind': return "Double"
+        _: return "Boolean"
+    }
+}

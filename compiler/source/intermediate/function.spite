@@ -1,0 +1,51 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var c_name = ""
+var name = ""
+var owner = ""
+var source: Analysis.FunctionInfo? = null
+var parameters = List<Parameter>()
+var answer: Analysis.SpiteType? = null
+var receiver = -1
+var blocks = List<Block>()
+var values = List<Value>()
+var intrinsic = ""
+var is_constructor = false
+var specialised_from = ""
+var not_lowered = ""
+
+func Function(starting_c_name: String, starting_name: String, starting_owner: String) {
+    c_name = starting_c_name
+    name = starting_name
+    owner = starting_owner
+}
+
+func new_block(): Block {
+    var number = blocks.count()
+    var made = Block(number)
+    blocks.append(made)
+    return made
+}
+
+func block_at(number: Integer): Block {
+    var found = blocks[number]
+    crash found
+    return found
+}
+
+func new_value(spite_type: Analysis.SpiteType?, origin: String): Integer {
+    var number = values.count()
+    var made = Value(number, origin)
+    made.spite_type = spite_type
+    values.append(made)
+    return made.number
+}
+
+func value_at(number: Integer): Value {
+    var found = values[number]
+    crash found
+    return found
+}
+
+func is_intrinsic(): Boolean {
+    return not intrinsic.is_empty()
+}

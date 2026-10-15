@@ -1,0 +1,11 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var number = 0
+var origin = ""
+var spite_type: Analysis.SpiteType? = null
+var block = -1
+var name = ""
+
+func Value(starting_number: Integer, starting_origin: String) {
+    number = starting_number
+    origin = starting_origin
+}

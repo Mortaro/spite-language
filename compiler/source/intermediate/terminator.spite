@@ -1,0 +1,13 @@
+# ../../../design/proposals/desugared_high_ir.md#the-form
+var kind = "none"
+var operands = List<Integer>()
+var targets = List<Target>()
+var site = -1
+
+func Terminator(starting_kind: String) {
+    kind = starting_kind
+}
+
+func to(target: Target) {
+    targets.append(target)
+}

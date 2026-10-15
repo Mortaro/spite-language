@@ -1,0 +1,66 @@
+# ../../../design/proposals/desugared_high_ir.md#the-pipeline
+var generator: Generation.Generator? = null
+var lowered = Lowered()
+
+func Lowering(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+func lower(): Lowered {
+    crash generator
+    var classes = generator.classes
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if not information.is_generic_template {
+            lower_class(information)
+        }
+        index = index + 1
+    }
+    return lowered
+}
+
+func lower_class(information: Analysis.ClassInfo) {
+    var layout = Layout(information.c_name, information.qualified_dotted)
+    layout.information = information
+    layout.is_value = information.is_value_class
+    layout.is_singleton = information.is_singleton
+    var index = 0
+    while index < information.fields.count() {
+        var declared = information.fields[index]
+        var declared_type = declared.type
+        var field = Field(declared.name, declared_type)
+        layout.stored_fields.append(field)
+        index = index + 1
+    }
+    lowered.add_layout(layout)
+    index = 0
+    while index < information.declared_functions.count() {
+        var declared_function = information.declared_functions[index]
+        lower_function(information, declared_function)
+        index = index + 1
+    }
+}
+
+func lower_function(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {
+    assert not declared.c_name.is_empty() and not lowered.function_named(declared.c_name)
+    var function = Function(declared.c_name, declared.name, information.c_name)
+    function.source = declared
+    function.answer = declared.return_type
+    function.is_constructor = declared.is_constructor
+    function.specialised_from = declared.specialised_from
+    var receiver_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
+    function.receiver = function.new_value(receiver_type, "receiver")
+    var index = 0
+    while index < declared.parameters.count() {
+        var declared_parameter = declared.parameters[index]
+        var spite_type = declared_parameter.type
+        var value = function.new_value(spite_type, "parameter")
+        function.value_at(value).name = declared_parameter.name
+        var parameter = Parameter(declared_parameter.name, spite_type, value)
+        function.parameters.append(parameter)
+        index = index + 1
+    }
+    function.not_lowered = "its body is not lowered yet"
+    lowered.add_function(function)
+}

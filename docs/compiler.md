@@ -162,6 +162,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `executable_path` | `""` | where the executable goes; `""` is `.spite/build/<program>/` in the working folder ([above](#where-the-outputs-go)) |
 | `final_classes` | `""` | writes the merged classes to this folder |
 | `optimization_report` | `""` | writes what could not be optimised, and why, to this file ([below](#read-what-was-not-optimised)) |
+| `high_ir` | `""` | writes the program's high IR, one `.ir` file per class, to this folder |
 | `optimized` | `false` | a release build: `-O3` instead of `-O0`, and link-time optimisation across the [translation units](#translation-units-the-c-compiled-in-parallel-and-cached) ([below](#release-builds)) |
 | `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |
 | `repl` | `false` | runs the program, then opens a REPL on it at the terminal ([repl.md](repl.md)) |
