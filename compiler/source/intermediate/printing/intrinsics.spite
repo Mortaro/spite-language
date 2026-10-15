@@ -197,6 +197,8 @@ func print_number(body: Body, operation: Operation, word: String) {
         "equals": comparison(body, operation, "==")
         "less_than": comparison(body, operation, "<")
         "greater_than": comparison(body, operation, ">")
+        "less_than_or_equal": comparison(body, operation, "<=")
+        "greater_than_or_equal": comparison(body, operation, ">=")
         "negate": negation(body, operation)
         "not": logical_not(body, operation)
         _: conversion(body, operation, word)

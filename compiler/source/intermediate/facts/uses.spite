@@ -29,7 +29,9 @@ func record_parameters(studied: Function) {
         define(parameter.value, 0, -2)
         index = index + 1
     }
-    define(studied.receiver, 0, -2)
+    if studied.receiver >= 0 {
+        define(studied.receiver, 0, -2)
+    }
 }
 
 func record_block(block: Block) {

@@ -27,14 +27,19 @@ func inline_at(block_number: Integer, position: Integer) {
 
 func map_arguments(call: Operation) {
     crash callee
-    var receiver = call.operands.first()
-    crash receiver
-    mapped_values[callee.receiver] = receiver
+    var offset = 0
+    if callee.receiver >= 0 {
+        var receiver = call.operands.first()
+        crash receiver
+        mapped_values[callee.receiver] = receiver
+        offset = 1
+    }
     var index = 0
     while index < callee.parameters.count() {
         var parameter = callee.parameters[index]
-        crash call.operands[index + 1]
-        mapped_values[parameter.value] = call.operands[index + 1]
+        var at = index + offset
+        crash call.operands[at]
+        mapped_values[parameter.value] = call.operands[at]
         index = index + 1
     }
 }

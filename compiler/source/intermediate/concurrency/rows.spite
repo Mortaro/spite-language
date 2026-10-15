@@ -101,7 +101,7 @@ func row_call(function: Function, uses: Facts.Uses, operation: Operation): Boole
         return false
     }
     var callee = lowered.function_named(operation.callee)
-    if not callee or callee.is_intrinsic() or kinds.is_library_layout(callee.owner) {
+    if not callee or callee.is_intrinsic() or kinds.is_library_layout(callee.owner) or callee.receiver < 0 {
         return false
     }
     var receiver = operation.operands.first()
