@@ -34,6 +34,7 @@ func print(body: Body, operation: Operation) {
         "Bands": print_bands(body, operation)
         "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
+        "Type": print_type(body, operation, word)
         _: print_number(body, operation, word)
     }
 }
@@ -54,6 +55,14 @@ func print_singleton_peek(body: Body, operation: Operation) {
         return
     }
     body.assign(operation.result, "{operation.target}_peek()")
+}
+
+func print_type(body: Body, operation: Operation, word: String) {
+    if word != "size" or operation.literal.is_empty() {
+        body.refuse("it calls 'Type.{word}' on '{operation.target}', which has no C struct to measure")
+        return
+    }
+    body.assign(operation.result, "((int64_t)sizeof({operation.literal}))")
 }
 
 func print_singleton_lock(body: Body, operation: Operation, word: String) {
