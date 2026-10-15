@@ -1,0 +1,340 @@
+# ../../../design/proposals/desugared_high_ir.md#reflection-as-code
+var expressions: ExpressionLowering? = null
+var types = Analysis.TypeShape()
+
+func ReflectionLowering(starting_expressions: ExpressionLowering) {
+    expressions = starting_expressions
+}
+
+func lowering(): ExpressionLowering {
+    crash expressions
+    return expressions
+}
+
+func symbol(text: String): Integer {
+    var symbol_type = lowering().known().typed_symbol()
+    return lowering().emitter.constant(symbol_type, text)
+}
+
+func flag(object: Integer, field: String) {
+    var truth = lowering().boolean_constant("true")
+    lowering().emitter.store_field(object, field, truth)
+}
+
+func class_object(name: String): Integer {
+    var made = lowering().front()
+    var position = position_of(made.class_object_names, name)
+    if position < 0 {
+        return lowering().not_lowered(null, "a class object the generator never described")
+    }
+    crash made.class_object_displays[position]
+    crash made.class_object_labels[position]
+    var display = made.class_object_displays[position]
+    var label = made.class_object_labels[position]
+    var class_class = made.find_class_by_c_name("Spite_Class")
+    if not class_class {
+        return lowering().not_lowered(null, "a class object with no Spite.Class")
+    }
+    var name_value = symbol(display)
+    var values = [name_value]
+    var object = lowering().construct_values(class_class, values)
+    var kind = made.class_object_kinds[name]
+    if made.run_time_kinds_used and kind {
+        flag(object, "_{kind}")
+    }
+    var described = made.find_class_by_c_name(label)
+    if described {
+        describe_class(object, described)
+    }
+    return object
+}
+
+func position_of(names: List<String>, name: String): Integer {
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func describe_class(object: Integer, described: Analysis.ClassInfo) {
+    var made = lowering().front()
+    var visited = List<String>()
+    if made.run_time_kinds_used and made.class_has_state(described, visited) {
+        flag(object, "_stateful")
+    }
+    if described.is_singleton {
+        flag(object, "_singleton")
+    }
+    if made.class_fits_vector(described) {
+        flag(object, "_fits_vector")
+    }
+    if made.source_folder_used {
+        var folder = made.absolute_source_folder(described)
+        var folder_value = lowering().text_constant(folder)
+        lowering().emitter.store_field(object, "_source_folder", folder_value)
+    }
+    if made.source_paths_used {
+        var absolute = List<String>()
+        var path_index = 0
+        while path_index < described.source_paths.count() {
+            var written = made.absolute_source_path(described.source_paths[path_index])
+            absolute.append(written)
+            path_index = path_index + 1
+        }
+        store_paths(object, absolute)
+    }
+    if made.namespace_read_used and not described.namespace_dotted.is_empty() {
+        store_namespace(object, "_namespace", described.namespace_dotted)
+    }
+    if made.class_level_attributes_used and made.describes_members(described) {
+        var declarations = attribute_declarations(described)
+        lowering().emitter.store_field(object, "_attributes", declarations)
+    }
+    assert made.class_level_functions_used and made.describes_members(described)
+    if described.c_name == made.entry_class_c_name {
+        lowering().emitter.fail_lowering("the entry class's own list of functions")
+        return
+    }
+    var fresh_type = lowering().known().class_type(described)
+    var fresh = lowering().default_object(described, fresh_type)
+    var listed = functions_of(described, fresh)
+    lowering().emitter.store_field(object, "_functions", listed)
+}
+
+func attribute_declarations(described: Analysis.ClassInfo): Integer {
+    var made = lowering().front()
+    var declaration_class = made.find_class_by_c_name("Spite_AttributeDeclaration")
+    if not declaration_class {
+        return lowering().not_lowered(null, "attribute declarations with no Spite.AttributeDeclaration class")
+    }
+    var element = lowering().known().class_type(declaration_class)
+    var listed = lowering().new_list(element)
+    var appender = lowering().list_function(element, "append")
+    var collection = described.qualified_dotted == "List" or described.qualified_dotted == "Dictionary"
+    var index = 0
+    while index < described.fields.count() and not described.is_value_class and not collection {
+        var field = described.fields[index]
+        var name_value = symbol(field.name)
+        var field_class = lowering().class_object_of(field.type)
+        var values = [name_value, field_class]
+        var declared = lowering().construct_values(declaration_class, values)
+        store_index(declared, index)
+        lowering().call_two_function(appender, listed, declared)
+        index = index + 1
+    }
+    return listed
+}
+
+func store_index(object: Integer, index: Integer) {
+    var whole = lowering().known().typed_integer()
+    var written = index.to_string()
+    var position = lowering().emitter.constant(whole, written)
+    lowering().emitter.store_field(object, "_index", position)
+}
+
+func attributes_of(described: Analysis.ClassInfo, owner: Integer): Integer {
+    var made = lowering().front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        return lowering().not_lowered(null, "attributes with no Spite.Attribute class")
+    }
+    var element = lowering().known().class_type(attribute_class)
+    var listed = lowering().new_list(element)
+    var appender = lowering().list_function(element, "append")
+    var index = 0
+    while index < described.fields.count() {
+        var field = described.fields[index]
+        var name_value = symbol(field.name)
+        var field_class = lowering().class_object_of(field.type)
+        var values = [name_value, field_class]
+        var attribute = lowering().construct_values(attribute_class, values)
+        var held = attribute_value(owner, field.name, field.type)
+        lowering().emitter.store_field(attribute, "_value", held)
+        store_index(attribute, index)
+        lowering().call_two_function(appender, listed, attribute)
+        index = index + 1
+    }
+    return listed
+}
+
+func attribute_value(owner: Integer, name: String, field_type: Analysis.SpiteType): Integer {
+    var made = lowering().front()
+    var shape = made.attribute_object_shape()
+    var shape_type = made.union_type_of(shape)
+    var held_type = lowering().known().nullable_of(shape_type)
+    var plain = lowering().without_nullable(field_type)
+    var carried = false
+    if made.has_attribute_object(plain) or made.boxed_class_of(plain) or types.is_symbol(plain) {
+        carried = true
+    }
+    if not made.attribute_object_used or not carried {
+        return lowering().emitter.constant(held_type, "null")
+    }
+    if types.as_nullable(field_type) {
+        lowering().emitter.fail_lowering("an attribute whose value may be null, read as a Spite.Attribute")
+        return -1
+    }
+    var stored = lowering().emitter.load_field(owner, name, field_type)
+    return lowering().convert(stored, held_type)
+}
+
+func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
+    var made = lowering().front()
+    var function_class = made.find_class_by_c_name("Spite_Function")
+    var argument_class = made.find_class_by_c_name("Spite_Argument")
+    if not function_class or not argument_class {
+        return lowering().not_lowered(null, "functions with no Spite.Function or Spite.Argument class")
+    }
+    var element = lowering().known().class_type(function_class)
+    var listed = lowering().new_list(element)
+    var appender = lowering().list_function(element, "append")
+    var index = 0
+    while index < described.declared_functions.count() {
+        var function = described.declared_functions[index]
+        var shown = not described.is_container or not function.symbol_owner_c_name.is_empty()
+        var plain = not function.is_constructor and not function.symbol_through_caller
+        if shown and plain and function.specialisation_position < 0 {
+            var made_function = function_of(described, function, owner, function_class, argument_class)
+            lowering().call_two_function(appender, listed, made_function)
+        }
+        index = index + 1
+    }
+    return listed
+}
+
+func function_of(
+    described: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    owner: Integer,
+    function_class: Analysis.ClassInfo,
+    argument_class: Analysis.ClassInfo,
+): Integer {
+    var made = lowering().front()
+    var name_value = symbol(function.name)
+    var returned = returned_class(function)
+    var values = [name_value, returned]
+    var made_function = lowering().construct_values(function_class, values)
+    var argument_element = lowering().known().class_type(argument_class)
+    var argument_list_type = made.list_type_of(argument_element)
+    var arguments = lowering().emitter.load_field(made_function, "_arguments", argument_list_type)
+    var appender = lowering().list_function(argument_element, "append")
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_name = symbol(parameter.name)
+        var parameter_class = lowering().class_object_of(parameter.type)
+        var argument_values = [parameter_name, parameter_class]
+        var argument = lowering().construct_values(argument_class, argument_values)
+        store_index(argument, index)
+        var slot = index.to_string()
+        if made.run_time_kinds_used and function.has_body and made.parameter_writes.answer(made, described, function, slot) {
+            flag(argument, "_mutated")
+        }
+        lowering().call_two_function(appender, arguments, argument)
+        index = index + 1
+    }
+    if made.run_time_kinds_used and made.literal_body(function) {
+        store_literal(made_function, function)
+    }
+    if made.is_inline_supplied(function) {
+        return made_function
+    }
+    lowering().known().reach(described, function)
+    var operands = [made_function, owner]
+    var binding = lowering().emitter.call_operation("Function.bind", operands, null)
+    binding.literal = function.c_name
+    binding.target = function.c_name
+    return made_function
+}
+
+func returned_class(function: Analysis.FunctionInfo): Integer {
+    var made = lowering().front()
+    var answer = function.return_type
+    if not types.is_void(answer) {
+        return lowering().class_object_of(answer)
+    }
+    var nothing = made.find_class_by_c_name("Nothing")
+    if not nothing {
+        return lowering().not_lowered(null, "a function answering nothing with no Nothing class")
+    }
+    var nothing_type = lowering().known().class_type(nothing)
+    return lowering().class_object_of(nothing_type)
+}
+
+func store_paths(object: Integer, paths: List<String>) {
+    assert not paths.is_empty()
+    var text_type = lowering().known().typed_string()
+    var listed = lowering().new_list(text_type)
+    var appender = lowering().list_function(text_type, "append")
+    var index = 0
+    while index < paths.count() {
+        var path = lowering().text_constant(paths[index])
+        lowering().call_two_function(appender, listed, path)
+        index = index + 1
+    }
+    var listed_type = lowering().type_of(listed)
+    var maybe_list = lowering().known().nullable_of(listed_type)
+    var wrapped = lowering().convert(listed, maybe_list)
+    lowering().emitter.store_field(object, "_source_paths", wrapped)
+}
+
+func store_namespace(object: Integer, field: String, dotted: String) {
+    var made = lowering().front()
+    var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+    if not namespace_class {
+        lowering().emitter.fail_lowering("a namespace with no Spite.Namespace class")
+        return
+    }
+    var code = made.ensure_namespace_object(dotted)
+    lowering().known().reach_layout(namespace_class)
+    lowering().known().reflection_maker(code, "namespace_object", namespace_class, dotted)
+    var namespace_type = lowering().known().class_type(namespace_class)
+    var no_operands = List<Integer>()
+    var found = lowering().emitter.emit_call(code, no_operands, namespace_type)
+    var maybe_namespace = lowering().known().nullable_of(namespace_type)
+    var wrapped = lowering().convert(found, maybe_namespace)
+    lowering().emitter.store_field(object, field, wrapped)
+}
+
+func namespace_object(dotted: String): Integer {
+    var made = lowering().front()
+    var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+    if not namespace_class {
+        return lowering().not_lowered(null, "a namespace with no Spite.Namespace class")
+    }
+    var segments = dotted.split(".")
+    var last = segments.last()
+    crash last
+    var short_name = symbol(last)
+    var long_name = symbol(dotted)
+    var values = [short_name, long_name]
+    var object = lowering().construct_values(namespace_class, values)
+    if made.source_paths_used {
+        var paths = made.namespace_source_paths(dotted)
+        if not paths.is_empty() {
+            store_paths(object, paths)
+        }
+    }
+    if segments.count() > 1 {
+        segments.remove_last()
+        var parent = segments.join(".")
+        store_namespace(object, "_parent", parent)
+    }
+    if made.namespace_tree_used {
+        lowering().emitter.fail_lowering("a namespace that lists its classes, namespaces and enums")
+    }
+    return object
+}
+
+func store_literal(made_function: Integer, function: Analysis.FunctionInfo) {
+    var made = lowering().front()
+    var literal = made.returned_literal(function)
+    assert literal
+    var text = lowering().text_constant(literal)
+    lowering().emitter.store_field(made_function, "_returned_literal", text)
+    flag(made_function, "_has_returned_literal")
+}
