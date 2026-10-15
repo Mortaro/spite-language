@@ -350,6 +350,11 @@ func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.Sp
 }
 
 func into_union(value: Integer, given: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
+    if types.is_symbol(given) {
+        var text_type = known().typed_string()
+        var text = emitter.emit_call_one("Symbol.text", value, text_type)
+        return into_union(text, text_type, wanted)
+    }
     var united = types.as_union(wanted)
     crash united
     var made = front()
@@ -557,6 +562,10 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if shapes.as_generic_identifier(member.object) {
         return codegen_member(member)
     }
+    var namespaced = namespace_member(member)
+    if namespaced != -2 {
+        return namespaced
+    }
     var symbol = shapes.as_identifier(member.object)
     if symbol and symbol.name == made.bound_symbol_name and not made.bound_symbol_name.is_empty() {
         return bound_symbol_member(member)
@@ -608,6 +617,10 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
     var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
     if folded {
         return folded_constant(folded)
+    }
+    var reflection_class = static_class.c_name == "Spite_Class" or static_class.c_name == "Spite_Namespace"
+    if member.name == "instances" and not reflection_class and not static_class.is_generic_template {
+        return live_instances(static_class)
     }
     var class_reflected = member.name == "attributes" or member.name == "functions" or member.name == "instances"
     if class_reflected {
@@ -1339,12 +1352,15 @@ func function_value(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, 
     if not function_class {
         return not_lowered(signature, "a function value with no Spite.Function class")
     }
+    var argument_class = made.find_class_by_c_name("Spite_Argument")
+    if not argument_class {
+        return not_lowered(signature, "a function value with no Spite.Argument class")
+    }
     known().reach_layout(function_class)
-    var bound = emitter.make_object(function_class.c_name, signature)
-    var operands = [bound, object]
-    var binding = emitter.call_operation("Function.bind", operands, null)
-    binding.literal = function.c_name
-    binding.target = function.c_name
+    var reflection = ReflectionLowering(this)
+    var bound = reflection.function_of(owner, function, object, function_class, argument_class)
+    var bound_value = emitter.built_function().value_at(bound)
+    bound_value.spite_type = signature
     return bound
 }
 
@@ -1941,7 +1957,7 @@ func lower_condition(expression: Syntax.Expressions.Expression): Condition {
     }
     var made = front()
     var links = made.path_links(expression, lowered_class.qualified_dotted)
-    if links.count() > 1 {
+    if links.count() > 1 and linked_reads(expression, links) {
         return linked_condition(expression, links)
     }
     var value = lower(expression)
@@ -3428,4 +3444,57 @@ func namespace_object_named(code: String, namespace_type: Analysis.SpiteType): I
         index = index + 1
     }
     return not_lowered(null, "a namespace object the generator never described")
+}
+
+func namespace_member(member: Syntax.Expressions.MemberExpression): Integer {
+    var made = front()
+    var expression: Syntax.Expressions.Expression = member
+    var root = made.root_of(expression)
+    var root_name = shapes.as_identifier(root)
+    if not root_name or root_name.name == "self" or root_name.name == "this" {
+        return -2
+    }
+    var held = emitter.local_named(root_name.name)
+    var field = lowered_class.find_field(root_name.name)
+    var function = lowered_class.find_function(root_name.name)
+    if held or field or function {
+        return -2
+    }
+    var folded = made.folded_reflection(expression, emitter.scope, lowered_class)
+    if not folded {
+        return -2
+    }
+    return folded_constant(folded)
+}
+
+func linked_reads(expression: Syntax.Expressions.Expression, links: List<Syntax.Expressions.Expression>): Boolean {
+    var made = front()
+    var indexed = shapes.as_index(expression)
+    if indexed and made.is_bound_member_index(indexed) {
+        return false
+    }
+    var index = 0
+    while index < links.count() {
+        var link = shapes.as_member(links[index])
+        if link and (link.name == "attributes" or link.name == "functions" or link.name == "class") {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func live_instances(tracked: Analysis.ClassInfo): Integer {
+    var element = known().class_type(tracked)
+    known().reach_layout(tracked)
+    var listed = new_list(element)
+    var appender = list_function(element, "append")
+    crash appender.owner
+    crash appender.function
+    known().reach(appender.owner, appender.function)
+    var operands = [listed]
+    var filled = emitter.call_operation("Instances.fill", operands, null)
+    filled.literal = tracked.c_name
+    filled.target = appender.function.c_name
+    return listed
 }

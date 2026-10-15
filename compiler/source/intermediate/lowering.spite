@@ -20,6 +20,7 @@ func lower(): Lowered {
     write_main(instances)
     write_debug_memory(instances)
     write_scheduler(instances)
+    write_thread_pool(instances)
     var settled = false
     while not settled {
         settled = true
@@ -420,4 +421,25 @@ func reach_served(instances: Instances, information: Analysis.ClassInfo) {
     var served = made.find_or_instantiate_function(information, "_serve")
     assert served
     instances.reach(information, served)
+}
+
+func write_thread_pool(instances: Instances) {
+    var made = instances.front()
+    var pool = made.find_class_by_qualified("ThreadPool")
+    assert pool
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    instances.singleton_maker(pool, no_arguments, "")
+    var function_class = made.find_class_by_c_name("Spite_Function")
+    if function_class {
+        instances.reach_layout(function_class)
+    }
+    var wanted = ["run_bands", "submit", "join"]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(pool, wanted[index])
+        if found {
+            instances.reach(pool, found)
+        }
+        index = index + 1
+    }
 }
