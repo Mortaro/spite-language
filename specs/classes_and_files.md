@@ -81,6 +81,15 @@ written by its bare name counts (`Vector3`, `Color`, `List`): one inside a names
 file with its name reopens it, so a program's `Function` or `Arena` is legal (`conformance/stage6/namespaced_library_names`). A file with the library class's whole dotted
 name is not a new class but a reopening of it ([Reopening a class](../docs/classes_and_files.md#reopening-a-class)).
 
+**A name prefix may not stand in for a namespace.** Three or more classes in one folder whose names start with the
+same word are an error naming them, since the shared word is a namespace written into every name: inside it each
+class would be called by its own name instead. The error names the classes and the folder to move them into:
+"backend/high_block.spite: error: 'HighBlock', 'HighFunction' and 'HighValue' (and 9 more) in 'backend/' all start
+with 'High': a word every name repeats is a namespace, so move them into the folder 'backend/high/' and name them
+'Block', 'Function', 'Value'" (`diagnostics/prefix_for_a_namespace`). The word counts when it is a whole word of each
+name (`HighBlock`, `HighValue`; not `Higher` beside `Highway`), and a class whose name is the word alone (`High`)
+counts as one of them.
+
 **A reopening of a standard library class may not add a hand copy of what the library already answers.** A
 function that a program's file adds to a library class is an error when it takes a parameter of the reopened class,
 assigns the class's own attributes, and the library class already declares an operator function (`sum`,

@@ -49,6 +49,10 @@ plan and its order are [naive_programs.md](naive_programs.md), the work items [n
 
 ## [classes_and_files.md](../docs/classes_and_files.md)
 
+- D588, a name prefix standing in for a namespace is an error: not built (no `diagnostics/prefix_for_a_namespace`
+  yet). The compiler's own `compiler/source/backend/high_*.spite` break it and are being replaced by the
+  `Intermediate` namespace on the `backend-ir` branch.
+
 ### One instance per argument values
 - Unconfirmed (proposed by Claude), built that way: the arguments are literals the compiler reads while compiling (strings, numbers, `true`, `false`, enum values), so each distinct list is its own static slot; any other argument is an error (`diagnostics/singleton_arguments`).
 
