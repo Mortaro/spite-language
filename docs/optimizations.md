@@ -385,6 +385,8 @@ it copies once, with room to grow, so the other holder still sees the text it ha
 the variable itself. Not for attributes (a call among the pieces could replace the attribute mid-append), and not
 when a piece mentions the variable again (`"{text}{text}"`); those compile as an ordinary join.
 
+A text literal is never counted, so a variable that starts as a literal (`var text = ""`) and is handed on to the loop's next pass takes no count either.
+
 **Example.** Text stays immutable as observed: `kept` still holds the text it was given.
 
 ```gdscript title=text_append/text_append.spite entry

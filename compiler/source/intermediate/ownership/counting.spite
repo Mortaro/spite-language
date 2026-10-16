@@ -418,6 +418,9 @@ func hand_on(value: Integer, live: LiveSet, moved: List<Integer>, placed: List<O
     crash borrows
     var origin = borrows.origin_of(value)
     assert origin != "plain" and origin != "lent"
+    if origin == "static" {
+        return
+    }
     if tracked.has(value) and not live.has(value) and not moved.contains(value) {
         moved.append(value)
         return
