@@ -52,6 +52,7 @@ func read_float_at(position: Long): Float? {
     }
     return _address.read_float(position)
 }
+
 func read_double_at(position: Long): Double? {
     assert _inside(position, 8)
     if byte_order == 'big_endian' {
