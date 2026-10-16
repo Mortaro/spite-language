@@ -31,7 +31,7 @@ func run(starting_lowered: Lowered) {
     var copies = Copies(starting_lowered, made_effects)
     copies.mark_tables()
     var slots = SlotStores(starting_lowered, made_effects, drop_effects)
-    var appends = TextAppends()
+    var appends = TextAppends(starting_lowered)
     var functions = starting_lowered.concrete_functions
     var index = 0
     while index < functions.count() {
