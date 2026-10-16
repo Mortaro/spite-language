@@ -67,8 +67,7 @@ makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'` (`diagn
   `write(value: T): Buffer` and `append_to(value: T, bytes: Buffer)`, and `BinaryReader<T>()` has
   `read(bytes: Buffer): T?`, which reads one value that must fill the bytes, and `read_from(bytes: Buffer,
   start: Integer): T?`, which reads one value from `start` and leaves what follows. The format's numbers are
-  little-endian whatever `byte_order` the buffer has, since the format does not change with the buffer, and neither
-  call moves the buffer's `position`. The cursors the walk writes and reads with are the library's own and no
+  little-endian, and neither call moves the buffer's `position`. The cursors the walk writes and reads with are the library's own and no
   program names them. There is no reading from a
   `Memory.Address`: bytes from a `Socket` or a `File` are a `Buffer` already, and `read_memory` in a program is
   the error `a BinaryReader reads from a Buffer, not from memory at an address: write 'read(bytes)', or

@@ -186,7 +186,7 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 | Class | Members |
 |---|---|
 | `File(path)` | `path`, `name` (the last piece of the path), `to_string(): String` (the path), `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`, `move_to(path): Boolean`; bytes: `size(): Long?`, `modified(): Instant?`, `read_bytes(): Buffer?`, `read_bytes_at(position, count): Buffer?`, `write_bytes(bytes: Buffer): Boolean`, `append_bytes(bytes: Buffer): Long?`, `map(): MappedFile?` ([Bytes are a Buffer](#bytes-are-a-buffer)); see [Read and write a file](../docs/standard_library.md#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS. `move_to(path)`, on a `File` and on a `Directory`, answers `false` and changes nothing when a file or folder is already at `path`, and otherwise moves with `rename` on Linux and macOS and `MoveFileExA` on Windows (a file may be copied across drives there; a folder never is); on `true` the value names `path` |
-| `MappedFile` | made by `File.map()`: a read-only mapping of the whole file (`CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped), undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `byte_order`, as a `Buffer` has it (`'little_endian'` unless set); `get_at(position): Byte?` (`mapped[position]`), `read_short_at`, `read_integer_at`, `read_long_at`, `read_float_at`, `read_double_at` (each `(position): T?`, named as a `Buffer`'s are), `read_bytes_at(position, count): Buffer?` and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; see [A file larger than memory](../docs/standard_library.md#a-file-larger-than-memory-map-it) |
+| `MappedFile` | made by `File.map()`: a read-only mapping of the whole file (`CreateFileMappingA`/`MapViewOfFile` on Windows, `mmap` with `PROT_READ` and `MAP_PRIVATE` on Linux and macOS, the file itself closed once mapped), undone by `drop()` (`UnmapViewOfFile`, `munmap`). `size(): Long`; `get_at(position): Byte?` (`mapped[position]`), `read_short_at`, `read_integer_at`, `read_long_at`, `read_float_at`, `read_double_at` (each `(position): T?`, named as a `Buffer`'s are), `read_bytes_at(position, count): Buffer?` and `text(position, count): String?` answer `null` unless every byte they would read is inside the file, so a bad offset read from the file cannot read outside it; a read inside is one load from the mapping. An empty file maps to a `MappedFile` of size 0, since the operating systems refuse to map nothing. `conformance/stage6/mapped_files`; see [A file larger than memory](../docs/standard_library.md#a-file-larger-than-memory-map-it) |
 | `Directory(path)` | `path`, `name` (the last piece of the path), `entries(): List<Directory.Entry>` (below), `exists(): Boolean`, `create(): Boolean`, `move_to(path): Boolean`; see [List a directory](../docs/standard_library.md#list-a-directory) |
 | `Process(command, arguments)` | `working_directory`, `environment_variables`, `run(): Integer`, `output(): String`, `run_attached(): Integer`; see [Run a process](../docs/standard_library.md#run-a-process). Each argument reaches the child whole: single-quoted for the shell on Linux and macOS, and quoted by the `CommandLineToArgvW` rules on Windows, a `key=value` argument quoting only its value (`-script="a b"`). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
 | `Program()` | a singleton: `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String`, `live_allocations(): Integer`; see [Program](../docs/standard_library.md#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
@@ -199,7 +199,7 @@ library through `DynamicLibrary`. What each member answers is in the section of 
 | `ThreadPool()` | the singleton every `Parallel` runs on: `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool); see [The thread pool](../docs/concurrency.md#the-thread-pool) |
 | `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` | one value per thread, `get(): T?`, `set(value)`; a lock, `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on, `read()`, `write(value)`; see [A value per thread, and a lock](../docs/concurrency.md#a-value-per-thread-and-a-lock) |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library; see [Foreign libraries](foreign_libraries.md#foreign-libraries). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening |
-| `ForeignBytes(address, count)` | memory a foreign library hands out (an address and a size it answers): `count(): Long`, `get_at(position): Byte?` (`foreign[position]`), `set_at(position, value)`, `byte_order`, `read_<number>_at(position): <number>?` and `write_<number>_at(position, value)`, as a `Buffer` has them, `read_bytes_at(position, count): Buffer?` and `write_bytes_at(position, bytes)`; see [Bytes are a Buffer](#bytes-are-a-buffer) |
+| `ForeignBytes(address, count)` | memory a foreign library hands out (an address and a size it answers): `count(): Long`, `get_at(position): Byte?` (`foreign[position]`), `set_at(position, value)`, `read_<number>_at(position): <number>?` and `write_<number>_at(position, value)`, big-endian forms included, as a `Buffer` has them, `read_bytes_at(position, count): Buffer?` and `write_bytes_at(position, bytes)`; see [Bytes are a Buffer](#bytes-are-a-buffer) |
 | `Memory.Heap()`, `Memory.Arena(block_bytes)`, `Memory.Address` | the floor every other type is built on: allocators and the place they hand out; see [Memory](../docs/memory.md#memory-is-the-floor-and-you-can-build-on-it), whose rules they are ([Memory](../docs/memory.md#memory)) |
 | `TypedMemory<$value_type>()` | `read_value(address, index)`, `write_value(address, index, value)`, `release_value(address, index)`, `value_bytes()`: values of any type in raw memory, reference counts kept right; what `List<T>` keeps its elements with, and what a container of your own uses |
 
@@ -357,9 +357,7 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
 `Sha256`, `SecureRandom`, `Argon2.derive`, `BinaryWriter`, `BinaryReader`, `ForeignBytes.read_bytes_at` and
 `MappedFile`'s reads of numbers.
 
-- **The class.** `Buffer(size)` is an empty buffer with room for `size` bytes, whose `byte_order` is
-  `'little_endian'`; `Buffer(size, byte_order)` names the order, `Buffer(16, 'big_endian')`. The size is always
-  written: `Buffer(0)` when nothing about it is known. A `Buffer` keeps its bytes in one block it owns, at the
+- **The class.** `Buffer(size)` is an empty buffer with room for `size` bytes. The size is always written: `Buffer(0)` when nothing about it is known. A `Buffer` keeps its bytes in one block it owns, at the
   library's memory floor as `String` and `List` do: the buffer is one object, a read is one load from its block, and
   there is no `List` inside it. A full block is resized to twice its size; `reserve(count)` makes room for `count`
   bytes in all without adding any, for a buffer that learns its size later.
@@ -376,11 +374,12 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   `truncate(count)`, `clear()` (which keeps the block) and `copy(): Buffer` mean what they mean on a `List`
   ([collections.md](collections.md#listt-additions)), and a buffer is walked with the same templates and passed
   functions a list of `Byte` is, so code that treats bytes as a list of them keeps working.
-- **Byte order.** `byte_order: Buffer.ByteOrder` is the enum `'little_endian'` or `'big_endian'`, and every read and
-  write of a number on the buffer uses it: `'big_endian'` puts the most significant byte first (PNG, network order).
-  It may be set at any time, so a format that changes order part way changes it there; it does not touch the bytes
-  already written. There are no `_big_endian` functions: `buffer.read_integer_big_endian()` is the error `Buffer has
-  no method 'read_integer_big_endian': set 'byte_order' to 'big_endian' and call 'read_integer'`.
+- **Byte order is part of each read and write, not of the buffer.** A number is read and written little-endian,
+  the order of every machine Spite compiles for and of Spite's own binary format, and every number of two bytes or
+  more also has a big-endian form, which puts the most significant byte first (PNG, network order): the same name
+  with `_big_endian` after the number, `read_integer_big_endian()`, `read_integer_big_endian_at(position)`,
+  `append_integer_big_endian(value)`, `write_integer_big_endian_at(position, value)`. One buffer may hold both
+  orders, each read where its format says, and the order of every read is known while compiling.
 - **Position.** `position: Integer` starts at `0` and is where the next read at the position starts. Setting it
   below `0` or above `count()` halts, since the position is the program's own; `remaining(): Integer` is `count() -
   position`. `truncate` or `clear` below the position moves it to the new `count()`.
@@ -404,7 +403,7 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   past them, and `read_bytes_at(position, count): Buffer?` the same anywhere without moving; each answers `null`
   unless every byte is in the buffer, and a negative `count` halts. `append_bytes(other, start, count)` copies a run
   of another buffer (or the same one) to the end and halts unless `start >= 0`, `count >= 0` and `start + count <=
-  other.count()`. A new buffer takes the `byte_order` of the one it came from.
+  other.count()`.
 - **Text.** `to_utf8_text(): String?` is the text the bytes spell, `null` when they are not valid UTF-8 (a stray
   continuation byte, a cut sequence, an overlong form, a surrogate or a value past U+10FFFF); `text.to_bytes()`
   answers a `Buffer` of the text's UTF-8.
@@ -441,12 +440,11 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   'bytes.read_integer_at(body + 4)' is outside its buffer: a bound proves only the top of an index, and this one is
   below 0 or the buffer changed, at file:line`. A proven `write_<number>_at` in a counted loop is one store; elsewhere
   it is the library's checked write. A read at the position, `read_<number>()`, always answers a `T?`; a read the
-  program wants proven is written with `_at`. The byte order is decided while compiling when the
-  compiler sees which order the buffer was given and nothing between sets it, so such a read pays no test of the
-  order; otherwise it is read with the count, once before a counted loop, where nothing may set it.
+  program wants proven is written with `_at`. The byte order is in the function's name, so a read never tests it:
+  a big-endian read is the same load with its bytes swapped.
 - **ForeignBytes.** `ForeignBytes(address, count)` halts when `count` is negative or `address` is `0` with a
-  `count` above `0`. It has a `byte_order` as a `Buffer` has, and the same `read_<number>_at(position)` and
-  `write_<number>_at(position, value)`: its reads answer `null` and its writes halt outside `0` to `count`, exactly
+  `count` above `0`. It has the same `read_<number>_at(position)` and
+  `write_<number>_at(position, value)`, big-endian forms included: its reads answer `null` and its writes halt outside `0` to `count`, exactly
   as a `Buffer`'s do; `read_bytes_at(position, count)` answers a fresh `Buffer`, and `write_bytes_at(position, bytes)`
   halts unless every byte fits. It has no position of its own, since the memory is the library's. It never frees the
   memory, and reading after the library has taken the memory back is the library's fault, reported as a native fault.
@@ -473,7 +471,7 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   `conformance/stage6/list_byte_numbers`, `conformance/stage6/binary_files`, `socket_bytes` and `socket_waits`.
 - **What it costs.** Each function is an ordinary member of `Buffer`, `File`, `Socket` or `ForeignBytes`, so a
   program that reads no bytes carries none of them, and `Buffer` and `ForeignBytes` are not in a program that makes
-  none. A `Buffer` costs a `List<Byte>`'s fields and two more, its `position` and its `byte_order`.
+  none. A `Buffer` costs a `List<Byte>`'s fields and one more, its `position`.
 
 **`WebSocket` is RFC 6455 written in Spite over `Socket`.** `library/web_socket.spite` holds all of it, with
 `WebSocketText` and `WebSocketBinary` beside it:
