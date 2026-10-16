@@ -48,7 +48,12 @@ func singleton_instance(body: Body, tracked: Layout, filled: String, appending: 
         )
         return
     }
-    assert tracked.arrangement != "static"
+    if tracked.arrangement == "static" {
+        if lowered.is_inspectable() {
+            body.emit("{appending}({filled}, {getter}());")
+        }
+        return
+    }
     body.emit(
         "\{ {tracked.c_name}* spite_made = {getter}_peek(); if (spite_made != 0) {appending}({filled}, spite_made); }",
     )
@@ -349,7 +354,12 @@ func written_field(field: Field, operation: Operation, value: String): String {
         return "{setter.c_name}(self, {value});"
     }
     crash field.spite_type
-    var counted = naming.counted_name(field.spite_type)
+    var counted_type: Analysis.SpiteType = field.spite_type
+    var wrapped = shape.as_nullable(counted_type)
+    if wrapped {
+        counted_type = wrapped.inner
+    }
+    var counted = naming.counted_name(counted_type)
     if counted.is_empty() {
         return "self->{field.name}_ = {value};"
     }
@@ -436,6 +446,17 @@ func parsed_lines(spite_type: Analysis.SpiteType, text: String, target: String, 
     var nullable = shape.as_nullable(spite_type)
     if nullable and shape.as_string(nullable.inner) {
         return "if (SPITE_STRING_IS_NULL({text})) {target} = SPITE_STRING_NULL; else {target} = SpiteString___retain({text});"
+    }
+    if nullable and shape.as_class_ref(nullable.inner) {
+        return "if (SPITE_STRING_IS_NULL({text})) {target} = 0; else return false;"
+    }
+    if nullable and shape.as_scalar(nullable.inner) {
+        var inner_lines = parsed_lines(nullable.inner, text, "spite_inner", parser)
+        var inner_written = naming.c_type(nullable.inner)
+        var whole_written = naming.c_type(spite_type)
+        if not inner_lines.is_empty() {
+            return "if (SPITE_STRING_IS_NULL({text})) {target} = ({whole_written})\{ .has_value = false }; else \{ {inner_written} spite_inner; {inner_lines} {target} = ({whole_written})\{ .has_value = true, .value = spite_inner }; }"
+        }
     }
     return ""
 }
