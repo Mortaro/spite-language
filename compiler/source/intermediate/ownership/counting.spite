@@ -45,6 +45,7 @@ func count() {
     while index < function.values.count() {
         if tracked.has(index) {
             bind_name(index)
+            bind_instance(index)
         }
         index = index + 1
     }
@@ -97,21 +98,37 @@ func children_of(block: Integer): List<Integer> {
 # ../../../../docs/optimizations.md#the-compiler-places-memory
 func bind_name(value: Integer) {
     crash function
-    crash uses
     var described = function.value_at(value)
     assert not described.name.is_empty()
+    bind_scope(value, described.name)
+}
+
+func bind_instance(value: Integer) {
+    crash function
+    crash kinds
+    crash consumption
+    var described = function.value_at(value)
+    assert described.name.is_empty()
+    var layout = kinds.layout_of(described.spite_type)
+    assert layout and consumption.is_instance_class(layout.c_name)
+    bind_scope(value, "spite_instance_{value}")
+}
+
+func bind_scope(value: Integer, name: String) {
+    crash function
+    crash uses
     var place = uses.place_of(value)
     assert place.block >= 0
     var waiting = List<Integer>()
     var first_position = place.order() + 1
-    if bind_in_block(value, described.name, place.block, first_position) {
+    if bind_in_block(value, name, place.block, first_position) {
         var first_children = children_of(place.block)
         first_children.each(waiting.append)
     }
     while not waiting.is_empty() {
         var taken = waiting.remove_last()
         crash taken
-        if bind_from_entry(value, described.name, taken) {
+        if bind_from_entry(value, name, taken) {
             var more = children_of(taken)
             more.each(waiting.append)
         }
