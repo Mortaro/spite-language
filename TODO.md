@@ -193,3 +193,4 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - A lent-element function is not checked by the guard lint
 - A write to a copy that dies unread compiles
 - The union `switch` message "every member is covered, so a member added later cannot be forgotten" says the opposite of what it means
+- A program in `docs/` or `specs/` whose `title=` is removed stops being compiled and run, and nothing reports it
