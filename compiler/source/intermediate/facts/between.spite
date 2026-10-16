@@ -8,6 +8,10 @@ func operations_between(function: Function, flow: Flow, from: Place, to: Place):
     var from_again = forward.contains(from.block) and backward.contains(from.block)
     var to_again = forward.contains(to.block) and backward.contains(to.block)
     if from.block == to.block {
+        if from.before(to) {
+            add_same_block(function, from, to, false, found)
+            return found
+        }
         add_same_block(function, from, to, from_again, found)
         return found_with_middle(function, from, to, forward, backward, found)
     }
