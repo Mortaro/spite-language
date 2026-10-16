@@ -335,6 +335,9 @@ func write_scheduler(instances: Instances) {
         "offload_start"
         "offload_over"
     ]
+    if made.hot_reload or made.remote_loop_port > 0 {
+        wanted.append("check_point")
+    }
     var index = 0
     while index < wanted.count() {
         var found = made.find_or_instantiate_function(scheduler, wanted[index])
