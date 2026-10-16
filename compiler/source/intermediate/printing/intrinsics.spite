@@ -298,15 +298,20 @@ func attribute_hold(body: Body, operation: Operation) {
     if not described_class.is_empty() {
         body.emit("({attribute})->spite_held_class = (void* (*)(void)){described_class};")
     }
+    var buffer = held_buffer(attribute, held, held_type)
+    if not buffer.is_empty() {
+        body.emit(buffer)
+    }
+}
+
+func held_buffer(attribute: String, held: String, held_type: Analysis.SpiteType): String {
     var listed = shape.as_list(held_type)
+    var text = ""
     if listed {
         var element = naming.c_type(listed.element)
-        body.emit(
-            "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }",
-        )
-    } else if not shape.as_dictionary(held_type) {
-        body.refuse("it holds a value that is neither a list nor a dictionary in an attribute")
+        text = "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }"
     }
+    return text
 }
 
 func attribute_place(body: Body, operation: Operation) {
