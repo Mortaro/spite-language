@@ -221,7 +221,11 @@ func derives_address(value: Integer): Boolean {
         return true
     }
     var types = Analysis.TypeShape()
-    var scalar = types.as_scalar(function.value_at(value).spite_type)
+    var described = function.value_at(value)
+    if not described.spite_type {
+        return false
+    }
+    var scalar = types.as_scalar(described.spite_type)
     if not scalar or scalar.kind != 'address_kind' {
         return false
     }
