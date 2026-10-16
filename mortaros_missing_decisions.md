@@ -308,6 +308,13 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 
 ## Open
 
+- **`assert` misleads models (found by the cheap-agent test, 2026-10-16).** Three separate Sonnet agents, working on
+  different parts of the compiler, read Spite's `assert` as a check that should halt and reported it as "inert" or
+  "does not fire"; in Spite it answers nothing and returns early, and `crash` is the check that halts. Every other
+  language uses `assert` for what Spite calls `crash`, so a model's prior points the wrong way. Options: rename the
+  guard (for example `require`, `expect` or `guard`), or keep the word and teach it harder (the error texts and the
+  skill's first lines). Renaming is a large migration but removes the trap for every future writer.
+
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a
   Spite program, or is the rule only about the repository's own tools?
