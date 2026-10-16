@@ -1,4 +1,4 @@
-var _bytes: Buffer = null
+var _bytes: Buffer? = null
 var walked = 0
 var found = 0
 
@@ -8,28 +8,28 @@ func BinaryWriterCursor(target: Buffer) {
 
 func write_byte(value: Integer) {
     var low_bits = value.bits_and(255)
-    _bytes.append(low_bits)
+    _target().append(low_bits)
 }
 
 func write_short(value: Integer) {
     var low_bits = value.bits_and(65535)
-    _bytes.append_unsigned_short(low_bits)
+    _target().append_unsigned_short(low_bits)
 }
 
 func write_integer(value: Integer) {
-    _bytes.append_integer(value)
+    _target().append_integer(value)
 }
 
 func write_long(value: Long) {
-    _bytes.append_long(value)
+    _target().append_long(value)
 }
 
 func write_float(value: Float) {
-    _bytes.append_float(value)
+    _target().append_float(value)
 }
 
 func write_double(value: Double) {
-    _bytes.append_double(value)
+    _target().append_double(value)
 }
 
 func write_count(count: Integer) {
@@ -44,12 +44,12 @@ func write_count(count: Integer) {
 func write_text(text: String) {
     var length = text.length()
     write_count(length)
-    var used = _bytes.count()
-    _bytes.reserve(used + length)
+    var used = _target().count()
+    _target().reserve(used + length)
     var index = 0
     while index < length {
         var code = text.code_at(index)
-        _bytes.append(code)
+        _target().append(code)
         index = index + 1
     }
 }
@@ -62,4 +62,9 @@ func write_index() {
     } else {
         write_integer(found)
     }
+}
+
+func _target(): Buffer {
+    crash _bytes
+    return _bytes
 }

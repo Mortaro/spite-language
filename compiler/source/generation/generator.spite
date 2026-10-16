@@ -25466,7 +25466,7 @@ func static_buffer_order(list_text: String): String {
     }
     var made = buffer_orders_made[list_text]
     if not made {
-        return "'little_endian'"
+        return ""
     }
     return made
 }
