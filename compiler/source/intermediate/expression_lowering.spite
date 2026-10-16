@@ -4732,3 +4732,14 @@ func shallow_copy(object: Integer): Integer {
     var operands = [object]
     return emitter.emit_call(name, operands, copied_type)
 }
+
+# ../../../specs/failure.md#nothing-fails-silently-the-rule
+func present_item(item: Integer, element: Analysis.SpiteType): Integer {
+    var item_type = type_of(item)
+    var wrapped = types.as_nullable(item_type)
+    var wanted = types.as_nullable(element)
+    if wrapped and not wanted {
+        return emitter.emit_call_one("Nullable.value", item, element)
+    }
+    return item
+}
