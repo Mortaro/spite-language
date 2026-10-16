@@ -48,7 +48,12 @@ func singleton_instance(body: Body, tracked: Layout, filled: String, appending: 
         )
         return
     }
-    assert tracked.arrangement != "static"
+    if tracked.arrangement == "static" {
+        if lowered.is_inspectable() {
+            body.emit("{appending}({filled}, {getter}());")
+        }
+        return
+    }
     body.emit(
         "\{ {tracked.c_name}* spite_made = {getter}_peek(); if (spite_made != 0) {appending}({filled}, spite_made); }",
     )
