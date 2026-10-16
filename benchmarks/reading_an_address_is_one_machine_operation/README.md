@@ -10,8 +10,8 @@ load or store it is, with no call and no check, so a library class such as `Base
 
 ## The four forms
 
-- [`naive/`](naive/): a `List<Byte>` of 100 000 bytes, and 100 rounds that each change one byte and encode the
-  whole list with `base64.encode`, adding up the text's length and one of its characters. The reads are the
+- [`naive/`](naive/): a `Buffer` of 100 000 bytes, and 100 rounds that each change one byte and encode the
+  whole buffer with `base64.encode`, adding up the text's length and one of its characters. The reads are the
   library's: the program itself never touches an address.
 - [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: a growable array of bytes, and
   the encoder written as the library writes it, with a function for each byte read, each byte written and each

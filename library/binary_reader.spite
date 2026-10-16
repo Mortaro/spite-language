@@ -19,5 +19,3 @@ func read_from(bytes: Buffer, start: Integer): $value_type? {
     position = cursor.position
     return read_value
 }
-
-func read_memory(address: Memory.Address, count: Integer): $value_type?

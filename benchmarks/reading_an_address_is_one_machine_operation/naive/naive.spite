@@ -9,7 +9,7 @@ func Naive() {
 }
 
 func encode_all(): Long {
-    var bytes = List<Byte>()
+    var bytes = Buffer()
     var index = 0
     while index < 100000 {
         var value: Byte = index * 7 % 256
@@ -19,7 +19,7 @@ func encode_all(): Long {
     return encode_rounds(bytes)
 }
 
-func encode_rounds(bytes: List<Byte>): Long {
+func encode_rounds(bytes: Buffer): Long {
     var total: Long = 0
     var round = 0
     while round < 100 {

@@ -1,4 +1,5 @@
 var _bytes: Buffer = null
+var position = 0
 var failed = false
 var walked = 0
 var found = 0
@@ -12,22 +13,18 @@ func count(): Integer {
     return _bytes.count()
 }
 
-func position(): Integer {
-    return _bytes.position
-}
-
 func take(wanted: Integer): Boolean {
-    if failed or wanted > _bytes.count() - _bytes.position {
+    if failed or wanted > _bytes.count() - position {
         fail()
         return false
     }
-    _bytes.position = _bytes.position + wanted
+    position = position + wanted
     return true
 }
 
 func fail() {
     failed = true
-    _bytes.position = _bytes.count()
+    position = _bytes.count()
 }
 
 func read_byte(): Integer {
@@ -88,7 +85,7 @@ func read_count(): Integer {
         result = result + scale * (byte % 128)
         scale = scale * 128
         more = byte >= 128
-        if result > _bytes.count() - _bytes.position or scale > 34359738368 {
+        if result > _bytes.count() - position or scale > 34359738368 {
             fail()
         }
     }
@@ -100,7 +97,7 @@ func read_text(): String {
     if not take(length) {
         return ""
     }
-    var run = _bytes.read_bytes(length)
+    var run = _bytes.read_bytes_at(position - length, length)
     if run {
         var text = run.to_utf8_text()
         if text {
@@ -128,50 +125,64 @@ func read_index() {
 
 func _holds(wanted: Integer): Boolean {
     if take(wanted) {
-        _bytes.position = _bytes.position - wanted
+        position = position - wanted
         return true
     }
     return false
 }
 
 func _read_byte(): Integer {
-    var read = _bytes.read_byte()
+    var at = position
+    var read = _bytes.read_byte_at(at)
     crash read
+    position = at + 1
     return read
 }
 
 func _read_short(): Integer {
-    var read = _bytes.read_short()
+    var at = position
+    var read = _bytes.read_short_at(at)
     crash read
+    position = at + 2
     return read
 }
 
 func _read_unsigned_short(): Integer {
-    var read = _bytes.read_unsigned_short()
+    var at = position
+    var read = _bytes.read_unsigned_short_at(at)
     crash read
+    position = at + 2
     return read
 }
 
 func _read_integer(): Integer {
-    var read = _bytes.read_integer()
+    var at = position
+    var read = _bytes.read_integer_at(at)
     crash read
+    position = at + 4
     return read
 }
 
 func _read_long(): Long {
-    var read = _bytes.read_long()
+    var at = position
+    var read = _bytes.read_long_at(at)
     crash read
+    position = at + 8
     return read
 }
 
 func _read_float(): Float {
-    var read = _bytes.read_float()
+    var at = position
+    var read = _bytes.read_float_at(at)
     crash read
+    position = at + 4
     return read
 }
 
 func _read_double(): Double {
-    var read = _bytes.read_double()
+    var at = position
+    var read = _bytes.read_double_at(at)
     crash read
+    position = at + 8
     return read
 }

@@ -163,7 +163,7 @@ Infinity and not-a-number are ordinary bytes: only JSON cannot hold them, so `Bi
 
 ### Several values in one buffer
 
-```gdscript
+```gdscript title=binary_stream/binary_stream.spite entry
 var console = Console()
 
 func BinaryStream() {

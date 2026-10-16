@@ -1,9 +1,9 @@
 # A number read from bytes is one load
 
-A file format or a network message is numbers laid out in bytes, and in Spite those bytes are a `List<Byte>` that
-reads the numbers by position: `records.read_integer_big_endian(position)`. Each read is a library function that
+A file format or a network message is numbers laid out in bytes, and in Spite those bytes are a `Buffer` that
+reads the numbers by position in its byte order: `records.read_integer_at(position)`. Each read is a library function that
 answers a `T?`; where a proof covers it, the compiler writes the read itself instead: one unaligned load from the
-list's block, and one byte swap for a big-endian number.
+buffer's block, and one byte swap for a big-endian number.
 
 - The optimisation: [docs/optimizations.md](../../docs/optimizations.md#a-number-read-from-bytes-is-one-load).
 - The proof: [A proven count or bound proves a read of a width](../../docs/proofs.md#a-proven-count-or-bound-proves-a-read-of-a-width),
@@ -11,8 +11,8 @@ list's block, and one byte swap for a big-endian number.
 
 ## The four forms
 
-- [`naive/`](naive/): 100 000 records of 16 bytes, each three big-endian `Integer`s and two big-endian `Short`s,
-  built with `append_integer_big_endian` and `append_short_big_endian`, then decoded 300 times by a loop that walks
+- [`naive/`](naive/): 100 000 records of 16 bytes, each three `Integer`s and two `Short`s in a
+  `Buffer('big_endian')`, built with `append_integer` and `append_short`, then decoded 300 times by a loop that walks
   them, `while position + 15 < records.count()`, reads the five numbers at `position` to `position + 14` and steps
   `position = position + 16`. Nothing in it is narrowed by hand.
 - [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: a growable array of bytes, each

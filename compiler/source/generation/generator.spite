@@ -18426,6 +18426,11 @@ func method_call_on(
         report(refused_form)
         return void_result()
     }
+    var refused_bytes = buffer_form_refusal(target_class, member.name, argument_count)
+    if not refused_bytes.is_empty() {
+        report(refused_bytes)
+        return void_result()
+    }
     if not is_implicit_join(member) and not member.walked {
         report_private_member(target_class, member.name, class_information)
     }
@@ -18619,6 +18624,60 @@ func address_form_refusal(
         return "a Socket reads bytes into a Buffer, not into memory at an address: write 'read_bytes_now()', which answers a 'Buffer'"
     }
     return "a Socket writes bytes from a Buffer, not from memory at an address: write '{plain}(bytes)'"
+}
+
+# ../../../specs/standard_library.md#bytes-are-a-buffer
+func buffer_form_refusal(target_class: Analysis.ClassInfo, name: String, argument_count: Integer): String {
+    if target_class.qualified_dotted != "Buffer" {
+        return ""
+    }
+    if name.ends_with("_big_endian") {
+        var name_length = name.length()
+        var plain = name.slice(0, name_length - 11)
+        var plain_word = buffer_word_of(plain)
+        if plain_word.is_empty() {
+            return ""
+        }
+        return "Buffer has no method '{name}': set 'byte_order' to 'big_endian' and call '{plain}'"
+    }
+    var word = buffer_word_of(name)
+    if word.is_empty() {
+        return ""
+    }
+    if name.starts_with("read_") and not name.ends_with("_at") {
+        if argument_count == 0 {
+            return ""
+        }
+        return "'{name}' reads at the buffer's position and takes nothing: write '{name}_at(position)' to read anywhere else"
+    }
+    if name.starts_with("write_") and not name.ends_with("_at") {
+        return "Buffer has no method '{name}': write '{name}_at(position, value)', or 'append_{word}(value)' to add at the end"
+    }
+    return ""
+}
+
+func buffer_word_of(name: String): String {
+    var rest = name
+    var rest_length = name.length()
+    if rest.starts_with("read_") {
+        rest = rest.slice(5, rest_length)
+        rest_length = rest.length()
+    } else if rest.starts_with("write_") {
+        rest = rest.slice(6, rest_length)
+        rest_length = rest.length()
+    } else if rest.starts_with("append_") {
+        rest = rest.slice(7, rest_length)
+        rest_length = rest.length()
+    } else {
+        return ""
+    }
+    if rest.ends_with("_at") {
+        rest = rest.slice(0, rest_length - 3)
+    }
+    if buffer_number_width(rest) == 0 {
+        return ""
+    }
+    return rest
 }
 
 func may_call_an_operator(name: String, argument_count: Integer): Boolean {
@@ -25434,42 +25493,8 @@ func is_buffer_only_function(name: String): Boolean {
     if name == "to_utf8_text" or name == "read_bytes" or name == "append_bytes" {
         return true
     }
-    if byte_access_width(name) > 0 {
-        return true
-    }
-    return name == "write_integer" or name == "write_short" or name == "write_long" or name == "write_double"
-}
-
-func byte_access_width(name: String): Integer {
-    var name_length = name.length()
-    var word = ""
-    if name.starts_with("read_") {
-        word = name.slice(5, name_length)
-    } else if name.starts_with("write_") {
-        word = name.slice(6, name_length)
-    } else if name.starts_with("append_") {
-        word = name.slice(7, name_length)
-    } else {
-        return 0
-    }
-    var big_endian = word.ends_with("_big_endian")
-    if big_endian {
-        var word_length = word.length()
-        word = word.slice(0, word_length - 11)
-    }
-    if word == "tiny" and not big_endian {
-        return 1
-    }
-    if word == "short" or word == "unsigned_short" {
-        return 2
-    }
-    if word == "integer" or word == "unsigned_integer" or word == "float" {
-        return 4
-    }
-    if word == "long" or word == "unsigned_long" or word == "double" {
-        return 8
-    }
-    return 0
+    var word = buffer_word_of(name)
+    return buffer_number_width(word) > 0
 }
 
 func is_byte_element(element: Analysis.SpiteType): Boolean {

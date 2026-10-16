@@ -175,7 +175,7 @@ whole file, `read_bytes_at(position, count)` reads from any position, which is w
 numbers in it ([below](#bytes-are-a-buffer)). Every call opens and closes the file, so read a large file in
 one call and walk the buffer rather than record by record.
 
-```gdscript
+```gdscript title=byte_records/byte_records.spite entry
 var console = Console()
 
 func ByteRecords() {
@@ -244,7 +244,7 @@ and reads by position with the names a `Buffer` uses ([below](#bytes-are-a-buffe
 are not all inside the file, since a position read from a file is data from outside ([failure.md](failure.md)). The mapping
 is undone when the `MappedFile` is dropped, and a file that is mapped cannot be removed on Windows until then.
 
-```gdscript
+```gdscript title=mapped_records/mapped_records.spite entry
 var console = Console()
 
 func MappedRecords() {
@@ -880,7 +880,7 @@ read inside the window is one load, with no test at all
 ([proofs.md](proofs.md#an-index-built-from-loop-counters-is-proven-by-one-guard)). A read at the position is always
 checked, so use `_at` in a loop that must not test.
 
-```gdscript
+```gdscript title=byte_numbers/byte_numbers.spite entry
 var console = Console()
 
 func ByteNumbers() {

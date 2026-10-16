@@ -12,7 +12,8 @@ func write_byte(value: Integer) {
 }
 
 func write_short(value: Integer) {
-    _bytes.append_unsigned_short(value)
+    var low_bits = value.bits_and(65535)
+    _bytes.append_unsigned_short(low_bits)
 }
 
 func write_integer(value: Integer) {
