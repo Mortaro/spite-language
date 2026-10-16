@@ -348,6 +348,9 @@ func convert(value: Integer, wanted: Analysis.SpiteType): Integer {
     if types.is_symbol(given) and types.as_string(wanted) {
         return emitter.emit_call_one("Symbol.text", value, wanted)
     }
+    if types.as_string(given) and types.is_symbol(wanted) {
+        return emitter.emit_call_one("Symbol.of_text", value, wanted)
+    }
     var given_nullable = types.as_nullable(given)
     if given_nullable and not types.as_nullable(wanted) {
         var present = checked_present(value, given_nullable.inner)
@@ -391,8 +394,9 @@ func into_nullable(
     inner: Analysis.SpiteType,
     wanted: Analysis.SpiteType,
 ): Integer {
-    if types.as_nullable(given) {
-        return not_lowered(wanted, "a conversion between two nullable types")
+    var given_nullable = types.as_nullable(given)
+    if given_nullable {
+        return between_nullables(value, given_nullable.inner, inner, wanted)
     }
     var parsed = false
     if types.as_scalar(inner) or types.as_enum(inner) {
@@ -405,6 +409,35 @@ func into_nullable(
     var wrapped = emitter.emit_call_one("Nullable.wrap", inner_value, wanted)
     emitter.wrapped_values[wrapped] = true
     return wrapped
+}
+
+func between_nullables(
+    value: Integer,
+    given_inner: Analysis.SpiteType,
+    inner: Analysis.SpiteType,
+    wanted: Analysis.SpiteType,
+): Integer {
+    var boolean = known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", value, boolean)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(wanted, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var present_block = emitter.new_block()
+    var absent_block = emitter.new_block()
+    emitter.branch(present, present_block, absent_block)
+    emitter.enter_block(present_block)
+    var held = emitter.emit_call_one("Nullable.value", value, given_inner)
+    var converted = convert(held, inner)
+    var wrapped = emitter.emit_call_one("Nullable.wrap", converted, wanted)
+    emitter.wrapped_values[wrapped] = true
+    var wrapped_passed = [wrapped]
+    emitter.jump(joined, wrapped_passed)
+    emitter.enter_block(absent_block)
+    var absent = emitter.constant(wanted, "null")
+    var absent_passed = [absent]
+    emitter.jump(joined, absent_passed)
+    emitter.enter_block(joined)
+    return answered
 }
 
 func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
@@ -777,6 +810,10 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
     }
     if member.name == "instances" and not reflection_class and not static_class.is_generic_template {
         return live_instances(static_class)
+    }
+    if member.name == "class" and not static_class.find_field("class") and not static_class.find_function("class") {
+        var described_type = known().class_type(static_class)
+        return class_object_of(described_type)
     }
     var class_reflected = member.name == "attributes" or member.name == "functions" or member.name == "instances"
     if class_reflected {
@@ -2607,6 +2644,9 @@ func reads_through_nullable(expression: Syntax.Expressions.Expression): Boolean 
     var path = made.operand_text(link.object)
     if not path.is_empty() and not emitter.scope.is_path_narrowed(path) {
         var static_type = made.lookup_static_type(link.object, emitter.scope, lowered_class)
+        if not static_type and not shapes.as_identifier(link.object) {
+            static_type = made.probed_type(link.object, emitter.scope, lowered_class)
+        }
         if static_type and types.as_nullable(static_type) {
             return true
         }

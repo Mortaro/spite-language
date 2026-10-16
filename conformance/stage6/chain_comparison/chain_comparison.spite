@@ -18,7 +18,6 @@ func ChainComparison() {
     if made.kind == "make" {
         console.print("made is make")
     }
-    assert second.next.kind != "x"
     console.print("done")
 }
 

@@ -1,5 +1,4 @@
 var kind = ""
-var next: Piece? = null
 
 func Piece(starting: String) {
     kind = starting

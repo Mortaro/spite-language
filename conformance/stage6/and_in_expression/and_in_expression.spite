@@ -15,6 +15,5 @@ func both(): Boolean {
 }
 
 func other_kind(): Boolean {
-    var found = made and made.kind == "wait"
-    return found
+    return made and made.kind == "wait"
 }
