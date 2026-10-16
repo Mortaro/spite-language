@@ -880,6 +880,11 @@ func foreign_struct(body: Body, operation: Operation) {
         index = index + 1
     }
     body.emit("{held} = (__typeof__({held}))\{ {values.join(", ")} };")
+    if not operation.field.is_empty() {
+        body.emit(
+            "_Static_assert(sizeof({operation.field}) == sizeof({held}), \"{operation.target} does not match {operation.field}\");",
+        )
+    }
     body.assign(operation.result, "(int64_t)(intptr_t)&{held}")
 }
 

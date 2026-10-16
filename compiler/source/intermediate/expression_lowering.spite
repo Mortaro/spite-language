@@ -3179,7 +3179,7 @@ func foreign_call(name: String, object: Integer, arguments: List<Syntax.Expressi
     var index = 0
     while index < arguments.count() {
         var argument = lower(arguments[index])
-        var crossing = foreign_argument(argument, arguments[index], written_back)
+        var crossing = foreign_argument(argument, arguments[index], written_back, library)
         operands.append(crossing)
         index = index + 1
     }
@@ -3240,6 +3240,7 @@ func foreign_argument(
     argument: Integer,
     written: Syntax.Expressions.Expression,
     written_back: List<ForeignStruct>,
+    library: Integer,
 ): Integer {
     var made = front()
     var argument_type = type_of(argument)
@@ -3254,7 +3255,7 @@ func foreign_argument(
         return argument
     }
     if made.passes_as_struct(argument_type) {
-        return foreign_struct(argument, argument_type, written_back)
+        return foreign_struct(argument, argument_type, written_back, library)
     }
     if made.is_function_value_type(argument_type) {
         return foreign_trampoline(argument, argument_type, written)
@@ -3263,7 +3264,12 @@ func foreign_argument(
 }
 
 # ../../../docs/foreign_libraries.md#what-crosses
-func foreign_struct(argument: Integer, argument_type: Analysis.SpiteType, written_back: List<ForeignStruct>): Integer {
+func foreign_struct(
+    argument: Integer,
+    argument_type: Analysis.SpiteType,
+    written_back: List<ForeignStruct>,
+    library: Integer,
+): Integer {
     var made = front()
     var passed_union = types.as_union(argument_type)
     crash passed_union
@@ -3284,6 +3290,11 @@ func foreign_struct(argument: Integer, argument_type: Analysis.SpiteType, writte
     var laid_out = emitter.call_operation("Foreign.struct", values, address_type)
     laid_out.target = shaped.simple_name
     laid_out.literal = made.shape_struct_code(shaped)
+    var header = made.foreign_library_headers[library]
+    crash header
+    if not header.is_empty() and made.foreign_library_namings[library] == "windows" {
+        laid_out.field = made.words_of(shaped.simple_name).join("_").upper_case()
+    }
     var handed = ForeignStruct(laid_out.result, argument, shaped)
     written_back.append(handed)
     return laid_out.result
