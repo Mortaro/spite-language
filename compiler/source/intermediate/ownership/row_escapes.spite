@@ -107,11 +107,15 @@ func callee_keeps(operation: Operation, value: Integer): Boolean {
     crash lowered
     var callee = lowered.function_named(operation.callee)
     if not callee {
-        return true
+        return not operation.callee.contains(".")
     }
-    var position = 1
+    var first_argument = 0
+    if callee.receiver >= 0 {
+        first_argument = 1
+    }
+    var position = first_argument
     while position < operation.operands.count() {
-        var parameter_index = position - 1
+        var parameter_index = position - first_argument
         if operation.operands[position] == value and keeps_parameter(callee, parameter_index) {
             return true
         }
