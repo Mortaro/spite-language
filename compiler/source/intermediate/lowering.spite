@@ -8,6 +8,7 @@ var foreign_written = false
 var made_reflections = 0
 var loop_written = false
 var made_accessed = 0
+var started_noted = false
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -54,6 +55,11 @@ func lower(): Lowered {
             write_layout(instances, information)
             made_layouts = made_layouts + 1
             settled = false
+        }
+        if settled and not started_noted {
+            started_noted = true
+            note_started_twins(instances)
+            settled = made_accessed == instances.accessed_names.count()
         }
         if settled and made_accessed < instances.accessed_names.count() {
             write_accessed(instances, made_accessed)
@@ -256,6 +262,7 @@ func write_layout(instances: Instances, information: Analysis.ClassInfo) {
         instances.reach_type(declared_type)
         index = index + 1
     }
+    information.codegen_types.each(instances.reach_held)
     if instances.row_classes.has(information.c_name) {
         layout.kind = "row"
     }
@@ -645,6 +652,104 @@ func write_forwarder(instances: Instances, name: String, described: Analysis.Cla
     finish_body(function, emitter)
 }
 
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func note_started_twins(instances: Instances) {
+    var made = instances.front()
+    assert made.scheduler_used and not made.keeps_internals and not made.hot_reload and not made.read_evaluate_print_loop
+    assert program_sleeps()
+    var count = lowered.concrete_functions.count()
+    var index = 0
+    while index < count {
+        var function = lowered.concrete_functions[index]
+        index = index + 1
+        note_started_twin(instances, function)
+    }
+}
+
+func program_sleeps(): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        var layout = lowered.layout_named(function.owner)
+        if layout and layout.qualified == "Program" and function.name == "sleep" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_started_twin(instances: Instances, function: Function) {
+    assert function.made_for.is_empty() and function.not_lowered.is_empty() and not function.is_constructor
+    assert not function.is_intrinsic() and not function.blocks.is_empty() and function.receiver >= 0
+    assert function.parameters.is_empty() and function.source and types.is_void(function.source.return_type)
+    var made = instances.front()
+    var information = made.find_class_by_c_name(function.owner)
+    assert information and not information.is_singleton and not information.is_value_class
+    assert not information.is_generic_template and not made.is_library_class(information)
+    instances.accessed_maker("{function.c_name}___started", information, function.c_name, "started")
+}
+
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func write_started(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var called = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash called
+    var callee = lowered.function_named(called)
+    crash callee
+    crash callee.source
+    var made = instances.front()
+    var keeper = made.waits_in_flight()
+    var keep = made.find_or_instantiate_function(keeper, "_keep")
+    crash keep
+    var function = synthetic_function(name, "started", described)
+    function.made_for = "started"
+    var nothing = instances.typed_nothing()
+    function.answer = nothing
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var integer_type = instances.typed_integer()
+    var site = function.new_value(integer_type, "parameter")
+    function.value_at(site).name = "site"
+    var site_parameter = Parameter("site", integer_type, site)
+    function.parameters.append(site_parameter)
+    var described_function = synthetic_description("started", name, nothing)
+    var emitter = start_body(function, described, described_function, instances)
+    var holder = "spite_started_receiver"
+    emitter.declare_local(holder, function.receiver, owner_type)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var statements = StatementLowering(expressions)
+    crash callee.source
+    var callee_name = callee.source.name
+    var callee_line = callee.source.line
+    var callee_path = instances.source_path_of(described, callee.source)
+    var owner: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(holder)
+    var bound_function: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(owner, callee_name)
+    var concurrent: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("Concurrent")
+    var started_arguments = List<Syntax.Expressions.Expression>()
+    started_arguments.append(bound_function)
+    var started: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(concurrent, started_arguments)
+    var handle_name = "spite_started_handle"
+    var declaration = Syntax.Statements.VariableDeclaration(handle_name, null, started)
+    declaration.line = callee_line
+    declaration.source_path = callee_path
+    statements.lower_statement(declaration)
+    var handle = emitter.local_named(handle_name)
+    if handle {
+        var no_arguments = List<Syntax.Expressions.Expression>()
+        var kept = expressions.singleton(keeper, no_arguments)
+        var operands = [kept, handle.value, site]
+        expressions.call_reached(keeper, keep, operands)
+        emitter.returns(-1)
+    } else if not emitter.lowering_failed() {
+        emitter.fail_lowering("the started call of '{called}', whose Concurrent was not made")
+    }
+    finish_body(function, emitter)
+}
+
 # ../../../docs/reflection.md#spiteaccess
 func write_accessed(instances: Instances, position: Integer) {
     var kind = instances.accessed_kinds[position]
@@ -655,6 +760,10 @@ func write_accessed(instances: Instances, position: Integer) {
     }
     if kind == "text_call" {
         write_text_call(instances, position)
+        return
+    }
+    if kind == "started" {
+        write_started(instances, position)
         return
     }
     if kind == "enum_from_text" {

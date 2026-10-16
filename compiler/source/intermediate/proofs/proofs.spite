@@ -336,7 +336,14 @@ func prove_read(function: Function, operation: Operation, place: Facts.Place, sp
     var container = operation.operands[0]
     var index = operation.operands[1]
     var index_span = spans.span_at(index, place.block)
-    assert index_span and index_span.lowest >= 0
+    var not_negative = false
+    if index_span {
+        not_negative = index_span.lowest >= 0
+    }
+    if not not_negative {
+        not_negative = relations.sum_is_not_negative(index, place, spans)
+    }
+    assert not_negative
     var count_field = relations.count_field_of(container)
     assert not count_field.is_empty()
     if relations.proves_inside(index, width - 1, container, count_field, place, spans) {

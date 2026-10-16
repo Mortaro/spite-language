@@ -184,7 +184,8 @@ func list_body(described: Analysis.ClassInfo, receiver: Integer): Integer {
     crash reader.owner
     crash reader.function
     var item_operands = [receiver, loop.index]
-    var item = lowering().call_reached(reader.owner, reader.function, item_operands)
+    var read_item = lowering().call_reached(reader.owner, reader.function, item_operands)
+    var item = lowering().present_item(read_item, element)
     var copied = copy_value(item, element)
     lowering().call_two_function(appender, result, copied)
     close_loop(loop)
@@ -218,11 +219,13 @@ func dictionary_body(described: Analysis.ClassInfo, receiver: Integer): Integer 
     crash key_reader.owner
     crash key_reader.function
     var key_operands = [keys, loop.index]
-    var key = lowering().call_reached(key_reader.owner, key_reader.function, key_operands)
+    var read_key = lowering().call_reached(key_reader.owner, key_reader.function, key_operands)
+    var key = lowering().present_item(read_key, key_type)
     crash value_reader.owner
     crash value_reader.function
     var value_operands = [values, loop.index]
-    var value = lowering().call_reached(value_reader.owner, value_reader.function, value_operands)
+    var read_value = lowering().call_reached(value_reader.owner, value_reader.function, value_operands)
+    var value = lowering().present_item(read_value, value_type)
     var copied = copy_value(value, value_type)
     var set_operands = [result, key, copied]
     lowering().call_reached(dictionary_class, setter, set_operands)

@@ -1,0 +1,28 @@
+var console = Console()
+
+func ListBaseCounter() {
+    var numbers = List<Integer>()
+    var index = 0
+    while index < 10 {
+        numbers.append(index * 3)
+        index = index + 1
+    }
+    var first = window_total(numbers, 2, 4)
+    var second = window_total(numbers, 6, 4)
+    var third = window_total(numbers, 7, 4)
+    console.print("windows", first, second, third)
+}
+
+func window_total(values: List<Integer>, base: Integer, width: Integer): Integer {
+    crash base >= 0
+    if base + width > values.count() {
+        return -1
+    }
+    var total = 0
+    var counter = 0
+    while counter < width {
+        total = total + values[base + counter]
+        counter = counter + 1
+    }
+    return total
+}
