@@ -1190,7 +1190,31 @@ func resumable_value_targets(called_shape: Analysis.Types.ClassRefType, returned
     return found
 }
 
+func print_digits_in_place(operation: Operation) {
+    if operation.operands.count() != 1 or not is_declared(operation.result) {
+        refuse("it writes digits in place for something that is not one number with a result")
+        return
+    }
+    var number_type = operand_type(operation, 0)
+    var scalar = shape.as_scalar(number_type)
+    if not scalar or scalar.kind == 'float_kind' or scalar.kind == 'double_kind' or scalar.kind == 'boolean_kind' {
+        refuse("it writes digits in place for a value that is not a whole number")
+        return
+    }
+    var number = operand(operation, 0)
+    var buffer = "spite_digits_{operation.result}"
+    declare("char {buffer}[24];")
+    assign(
+        operation.result,
+        "(SpiteString)SPITE_STATIC_STRING({buffer}, spite_long_digits({buffer}, (int64_t)({number})))",
+    )
+}
+
 func print_known_call(operation: Operation, callee: Function) {
+    if operation.form == "digits_in_place" {
+        print_digits_in_place(operation)
+        return
+    }
     if not callee.intrinsic.is_empty() and callee.intrinsic != "supplied" {
         intrinsics.print(this, operation)
         return
@@ -1206,7 +1230,18 @@ func print_known_call(operation: Operation, callee: Function) {
         print_wait_call(operation, callee)
         return
     }
-    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping", "overlap", "started"]
+    var forms = [
+        ""
+        "moved"
+        "borrowed"
+        "in_place"
+        "frame"
+        "unguarded"
+        "skipping"
+        "overlap"
+        "started"
+        "digits_in_place"
+    ]
     if not forms.contains(operation.form) {
         refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
         return

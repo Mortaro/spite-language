@@ -267,9 +267,15 @@ func runs_pieces(): Boolean {
 func settle_held(held: Analysis.SpiteType) {
     crash generator
     var held_name = generator.type_label(held)
-    assert not lowered.layout_named(held_name)
     var information = generator.find_class_by_c_name(held_name)
-    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    if information and not lowered.layout_named(held_name) {
+        if not information.is_value_class and not information.is_generic_template and not information.is_singleton {
+            add_held_layout(information)
+        }
+    }
+}
+
+func add_held_layout(information: Analysis.ClassInfo) {
     var made = Layout(information.c_name, information.qualified_dotted)
     made.information = information
     var index = 0
