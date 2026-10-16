@@ -322,6 +322,9 @@ func zero(spite_type: Analysis.SpiteType?): String {
     if enumerated {
         return first_enum_value(enumerated)
     }
+    if shape.is_arguments(spite_type) {
+        return "((SpiteArguments)\{ .count = 0, .items = 0 })"
+    }
     var nullable = shape.as_nullable(spite_type)
     if nullable {
         return null_value(nullable)
