@@ -35,7 +35,7 @@ func note_kept(function: Function): Boolean {
     var index = 0
     while index < function.parameters.count() {
         var key = "{function.c_name}|{index}"
-        if not keeping.has(key) and escapes(function, uses, function.parameters[index].value, 0) {
+        if not keeping.has(key) and not escapes(function, uses, function.parameters[index].value, 0).is_empty() {
             keeping[key] = true
             changed = true
         }
@@ -64,15 +64,17 @@ func note_made(function: Function, uses: Facts.Uses, operation: Operation) {
     assert operation.kind == "make" and operation.result >= 0
     var layout = lowered.layout_named(operation.layout)
     assert layout and layout.kind == "row"
-    assert escapes(function, uses, operation.result, 0)
+    var reason = escapes(function, uses, operation.result, 0)
+    assert not reason.is_empty()
     layout.kind = "class"
+    layout.escape_reason = reason
     escaped_count = escaped_count + 1
 }
 
-func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): String {
     crash lowered
     if depth > 8 {
-        return true
+        return "it passes through more than eight projections"
     }
     var reached = uses.uses_of(value)
     var index = 0
@@ -81,29 +83,32 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
         if place.at_terminator() {
             var ending = function.block_at(place.block).terminator
             if ending.kind == "return" {
-                return true
+                return "returned by {function.c_name}"
             }
         } else if place.position >= 0 {
             var block = function.block_at(place.block)
             var operation = block.operations[place.position]
             crash operation
             if operation.kind == "store" and operation.operands.last() == value {
-                return true
+                return "stored into field '{operation.field}' by {function.c_name}"
             }
             if operation.kind == "store" and operation.operands.first() == value and stores_made_object(uses, operation) {
-                return true
+                return "given a made object in field '{operation.field}' by {function.c_name}"
             }
             var passes_on = operation.kind == "call" and operation.result >= 0 and (operation.callee == "Union.wrap" or operation.callee == "Union.value" or operation.callee == "Nullable.wrap" or operation.callee == "Nullable.value")
-            if passes_on and escapes(function, uses, operation.result, depth + 1) {
-                return true
+            if passes_on {
+                var inner = escapes(function, uses, operation.result, depth + 1)
+                if not inner.is_empty() {
+                    return inner
+                }
             }
             if operation.kind == "call" and callee_keeps(operation, value) {
-                return true
+                return "kept by a parameter of {operation.callee}, called by {function.c_name}"
             }
         }
         index = index + 1
     }
-    return false
+    return ""
 }
 
 func stores_made_object(uses: Facts.Uses, store: Operation): Boolean {

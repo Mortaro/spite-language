@@ -11,6 +11,7 @@ var pooled = false
 var atomic_counts = false
 var thread_form = ""
 var kind = "class"
+var escape_reason = ""
 var members = List<String>()
 var value_type: Analysis.SpiteType? = null
 var hot = false
