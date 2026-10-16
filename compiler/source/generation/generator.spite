@@ -27888,21 +27888,40 @@ func tolerated_member_read(
     var object_path = operand_text(member.object)
     assert not object_path.is_empty()
     assert not scope.is_path_narrowed(object_path)
-    var saved_counter = temporary_counter
-    var object_probe = generate_expression(member.object, scope, class_information)
-    rewind_temporaries(saved_counter)
-    var probe_type = object_probe.type
-    var probe_nullable = type_shape.as_nullable(probe_type)
-    assert probe_nullable
+    var guard = try_nullable_guard(member.object, scope, class_information)
+    assert guard
     var narrowed_scope = Scope(scope)
-    narrowed_scope.narrow_path(object_path)
+    narrow_by_guard(narrowed_scope, guard, "the comparison")
     var read = generate_member_read_raw(member, narrowed_scope, class_information)
     var read_type = read.type
-    if type_shape.as_nullable(read_type) {
-        return read
+    var maybe_type = read_type
+    if not type_shape.as_nullable(read_type) {
+        maybe_type = nullable_type_of(read_type)
     }
-    var maybe_type = nullable_type_of(read_type)
-    return ExpressionResult(read.code, maybe_type)
+    var present_value = chain_present(read, maybe_type)
+    var absent_value = chain_absent(maybe_type)
+    return ExpressionResult("({guard.guard_code} ? {present_value} : {absent_value})", maybe_type)
+}
+
+func chain_absent(maybe_type: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(maybe_type)
+    crash nullable
+    var held = nullable.inner
+    if type_is_reference(held) {
+        return null_code(held)
+    }
+    return "(({c_type_name(maybe_type)})\{ .has_value = false })"
+}
+
+func chain_present(read: ExpressionResult, maybe_type: Analysis.SpiteType): String {
+    var read_type = read.type
+    if type_shape.as_nullable(read_type) {
+        return read.code
+    }
+    if type_is_reference(read_type) {
+        return read.code
+    }
+    return "(({c_type_name(maybe_type)})\{ .has_value = true, .value = {read.code} })"
 }
 
 func type_size_read(
