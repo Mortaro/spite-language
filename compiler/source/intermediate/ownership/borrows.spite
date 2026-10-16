@@ -213,6 +213,36 @@ func note_sources(value: Integer, defining: Operation) {
     sources[value] = found
 }
 
+# ../../../../docs/proofs.md#an-address-keeps-its-owner-alive
+func derives_address(value: Integer): Boolean {
+    crash function
+    crash uses
+    if sources.has(value) {
+        return true
+    }
+    var types = Analysis.TypeShape()
+    var described = function.value_at(value)
+    if not described.spite_type {
+        return false
+    }
+    var scalar = types.as_scalar(described.spite_type)
+    if not scalar or scalar.kind != 'address_kind' {
+        return false
+    }
+    var defining = uses.definition_of(value)
+    if not defining {
+        return false
+    }
+    if defining.kind == "load" {
+        return is_address_read(value)
+    }
+    if defining.kind != "call" {
+        return false
+    }
+    note_sources(value, defining)
+    return true
+}
+
 func is_address_read(value: Integer): Boolean {
     crash uses
     var defining = uses.definition_of(value)

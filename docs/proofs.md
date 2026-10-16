@@ -245,6 +245,18 @@ A short guide by task. Find what you are writing; the entries below say the rest
   `diagnostics/call_undoes_proof`, `diagnostics/receiver_call_undoes_proof`, `diagnostics/branch_undoes_proof`,
   `conformance/stage6/receiver_call_effects`, `conformance/stage6/same_name_call_effects`.
 
+### An address keeps its owner alive
+
+- **Proves.** A `Memory.Address` read out of an object (a text's bytes, a list's items) is only used while the object
+  lives, so no read ever lands in freed memory.
+- **Rule.** The compiler counts an address as a use of the object it was read from, and of the objects an address
+  computed from other addresses was read from: the object is released after the last use of the address, not after the
+  last use of the object's own name. This matters once a function is inlined, where a text compared with `bytes.compare_bytes`
+  is a temporary whose last named use comes before the comparison.
+- **Buys.** No read of freed memory; a text or list of any size is safe to compare or copy.
+- **Falls back.** Nothing: an address is never allowed to outlive its owner.
+- **See.** [An item used at once is not counted](#an-item-used-at-once-is-not-counted).
+
 ### Proving what is proven is an error
 
 - **Proves.** A check adds nothing, because the value is already narrowed, the read or divisor already proven, the

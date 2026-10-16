@@ -208,7 +208,7 @@ func tracked_users(value: Integer, depth: Integer, found: List<Integer>) {
         return
     }
     var origin = borrows.origin_of(value)
-    assert origin == "borrowed" or origin == "lending" or borrows.sources.has(value)
+    assert origin == "borrowed" or origin == "lending" or borrows.derives_address(value)
     var from = borrows.sources_of(value)
     var index = 0
     while index < from.count() {

@@ -33,6 +33,11 @@ func is_instance_class(c_name: String): Boolean {
 }
 
 # ../../../../docs/proofs.md#an-item-lent-to-the-caller
+func lends_return(function: Function): Boolean {
+    return function.lends_answer or returns_lent.has(function.c_name)
+}
+
+# ../../../../docs/proofs.md#an-item-lent-to-the-caller
 func settle_lent_returns() {
     crash lowered
     var changed = true
