@@ -15,6 +15,21 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D602's details:** `Buffer(size)` gives room for `size` bytes and starts empty (not `size` zero bytes); the
+  size is always written (`Buffer(0)` when unknown); `reserve(count)` stays for a buffer that learns its size later.
+- **D566, the programs that test an internal class (decided by Claude Opus 5.5 under D509: (c)).** About 80 conformance programs, diagnostics and benchmarks name
+  `Concurrent`, `Parallel`, `Lock`, `Atomic`, `ThreadLocal` or `Memory.Heap` because testing that class (or the lock a
+  `Parallel` makes the compiler add) is their point. Once those classes are internal, naming them outside `library/` is
+  an error. Which way? (a) Rewrite them to the plain forms, so they test what the compiler does with plain code (calls
+  in a row, bands, the cost of a singleton two threads reach) and the internal classes are tested only through it; (b)
+  let programs inside the repository's `conformance/`, `diagnostics/` and `benchmarks/` name `Spite.Internal`, which a
+  user's program still cannot; (c) a mix: (a) wherever a plain form exists, (b) for the rest until it does. Chosen:
+  (c), so the move can start; easy to change, since it only decides which folders may name the namespace.
+- **D598's limits:** a chain through a `T?` counts as missing only inside `==` and `!=` (`made.kind == "make"` is
+  `false`, `made.kind != "make"` is `true` when `made` is null); `<`, `<=`, `>` and `>=` still refuse a `T?`, and a
+  bare `made.kind` outside a comparison still needs narrowing. Easy to widen.
+- **`Buffer.text(position, count): String?`**, added while building Buffer: reads that range as UTF-8, `null` when
+  it is not valid UTF-8 or runs past the end.
 - **D590's details** (your four points are decided; these were chosen while writing the spec): `MappedFile` and
   `ForeignBytes` use the same `_at` names and take a `byte_order` (`ForeignBytes` has no position); `byte` reads only as
   `read_byte()`, the list forms cover the rest; `remaining()`, `read_bytes(count)` and `read_bytes_at(position,
@@ -294,6 +309,13 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   D578.
 
 ## Open
+
+- **`assert` misleads models (found by the cheap-agent test, 2026-10-16).** Three separate Sonnet agents, working on
+  different parts of the compiler, read Spite's `assert` as a check that should halt and reported it as "inert" or
+  "does not fire"; in Spite it answers nothing and returns early, and `crash` is the check that halts. Every other
+  language uses `assert` for what Spite calls `crash`, so a model's prior points the wrong way. Options: rename the
+  guard (for example `require`, `expect` or `guard`), or keep the word and teach it harder (the error texts and the
+  skill's first lines). Renaming is a large migration but removes the trap for every future writer.
 
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a

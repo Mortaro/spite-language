@@ -100,6 +100,26 @@ itself is built (D568): any file outside `library/` and `compiler/` that names `
 a class into `library/spite/internal/` is all the namespace needs. A moved class still named bare (`Memory`) would
 resolve without the prefix: refuse those names when the first class moves.
 
+### Inventory of the move (2026-10-16, read-only, by a Sonnet agent)
+
+- **Library side:** `Memory.Heap` has 45 library users, `Memory.Address` 54, `Memory.Arena` 0, `TypedMemory` 3,
+  `InlineMemory` 2, `Atomic` 0, `Lock` 6, `ThreadLocal` 2, `Concurrent` 3, `Parallel` 1. `Memory.Bytes` and the bare
+  `Memory` are compiler-provided. `library/spite/memory.spite` is the reflection class `Spite.Memory`, which would clash
+  with `Spite.Internal.Memory`.
+- **Programs that name them (all in `conformance/stage6/`, `diagnostics/`, 16 benchmark naive programs, docs, specs,
+  skills/spite):** `Concurrent` 27 programs, `Parallel` 42 files (the singleton lock family, parallel_*), `Memory.*`
+  about 25 (placement checks through `heap.live_allocations()`, allocator choice, foreign buffers), `Lock`/`Atomic`/
+  `ThreadLocal` about 10.
+- **No plain form yet, so these block the move:** handles, `finished` and wait order of `Concurrent`; cancelling one
+  (D480); IO concurrent by default (D378); user-level `Lock`, `Atomic`, `ThreadLocal`; allocator choice by the compiler
+  (D485, D501, D352, D152); a test hook in place of `heap.live_allocations()`; plain foreign structs (D536).
+- **Compiler side:** about 100 references, 64 in `generation/generator.spite` (`qualified_dotted == "Concurrent"`
+  and the like), C symbol names in `generation/prelude.spite`, and the seeds' mangled names: a move renames them.
+- **Order:** (1) name rules: a moved class named bare outside `library/` is refused, and `Spite.Internal.Memory` stays
+  apart from `Spite.Memory`; (2) `Atomic`; (3) `ThreadLocal`, `Lock`; (4) `ThreadPool`, `ThreadSlot`, `Parallel`; (5)
+  `Concurrent`, `Scheduler`; (6) the memory floor last. Programs whose point is testing an internal class need a way to
+  keep testing it once it is internal.
+
 ## The order of work after that (by what closes the engine gap)
 
 1. **Stress, one thread** (design/naive_programs.md, "Ninth pass"): of the hand edits on today's C (20.6 ms one

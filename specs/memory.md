@@ -196,8 +196,10 @@ same object is where an allocator is set ([below](#allocators-memoryallocator)).
   shared instance per type (a singleton that holds nothing), and it is what `library/list.spite` uses for its
   elements. Its three value functions use the address the way a read does, so a frame-placed allocation may be
   handed to them.
-- **A number's storage** is one line at the top of its file, `var _memory = Memory.Bytes(4)`. The bytes are written out, and any other spelling is `a value states its size as 'var _memory =
-  Memory.Bytes(bytes)', with the bytes written out: ...` (`diagnostics/number_memory_spelling`). The size must be
+- **A number's storage** is one line at the top of its file, `var _memory = Buffer(4)`: a number is a buffer of
+  its bytes, which the compiler keeps as the value itself. The bytes are written out, and any other spelling is `a
+  value states its size as 'var _memory = Buffer(bytes)', with the bytes written out: ...`
+  (`diagnostics/number_memory_spelling`). The size must be
   the C type's: `'Integer' declares 8 bytes of memory, and the compiler lays it out as
   int32_t, which is 4` (`diagnostics/number_memory`). Inside a number `this` is the value, and reading `_memory` is
   `'_memory' is the memory Integer is kept in, and the compiler keeps the value itself there: write 'this'`
@@ -210,7 +212,7 @@ compiler decides the best placement. A program has one way to ask for raw memory
 and one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text
 is the same whichever it makes:
 
-- **Register:** a number's own memory, whose size its file states as `var _memory = Memory.Bytes(4)` (for
+- **Register:** a number's own memory, whose size its file states as `var _memory = Buffer(4)` (for
   `Integer`). The wrapper is flattened: a number is its C scalar, and `this` is the value.
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also

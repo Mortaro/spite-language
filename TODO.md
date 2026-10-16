@@ -6,6 +6,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Language rules
 
+- A member chain read through a `T?` inside `==` or `!=` is a `T?`, so `return made.kind == "make"` compiles; and `and` narrows its right side in every expression, `return` included (D598)
 - A `switch` case of two statements or more is a compile error; about 530 cases in the compiler and `library/` are rewritten first (D576)
 - Three or more classes in a folder sharing a name prefix are an error; the compiler's own `backend/high_*.spite` break it (D588)
 - Environments are a reopenable, walkable enum (D180, D373)
@@ -23,6 +24,9 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Standard library
 
+- Numbers' storage written `var _memory = Buffer(n)` instead of `Memory.Bytes(n)` (D602), and the compiler's use of a buffer's size as a suggestion (less room when proven, plain variables for a small one)
+- Reading and writing bits on a `Buffer`, to pack flags into fewer bytes (D603)
+- `Buffer` replaces `List<Byte>` everywhere bytes are taken or answered, with `position` and the `_at` names (D590)
 - TLS, so HTTPS and `wss` (D294, D394, D395)
 - TLS written in Spite, after an outside security review (D395)
 - HTTP: request bodies sent chunked, and a server that reads several clients' requests at once (D294)
@@ -103,7 +107,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Compiler and backend
 
-- Every line of C written from the high-level IR: arithmetic, calls, references, `assert`/`crash`, texts, lists, dictionaries, layouts, dispatch and `main` (D560, D586, D587)
+- Every line of C written from the high-level IR: arithmetic, calls, references, `assert`/`crash`, texts, lists, dictionaries, layouts, dispatch and `main` (D560, D586, D587, D599: no IR operation for what is a function in the end)
 - The high IR desugared and monomorphised, every decision of the generator a pass over it, and the switch-over made whole (D587)
 - The passes that read or rewrite the C text moved onto the IR (D586, D587)
 - The low level of the IR (D560)
@@ -192,3 +196,4 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - A lent-element function is not checked by the guard lint
 - A write to a copy that dies unread compiles
 - The union `switch` message "every member is covered, so a member added later cannot be forgotten" says the opposite of what it means
+- A program in `docs/` or `specs/` whose `title=` is removed stops being compiled and run, and nothing reports it

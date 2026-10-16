@@ -25342,7 +25342,6 @@ func buffer_without_order(word: String): String {
     return word
 }
 
-# the order a read or write names, written as the enum value; a byte and a tiny have no order and read as little endian
 func buffer_order_of_name(name: String): String {
     var word = buffer_number_word(name)
     if buffer_number_width(word) == 1 {
