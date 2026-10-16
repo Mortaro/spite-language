@@ -36,18 +36,51 @@ the next change. Hand-fused loops, hand-specialised generics and data rewritten 
 harder to read and harder to change, so experts pick their battles. They profile, fix the hot path, and leave the
 rest naive, because the deadline is real.
 
-Spite does not pick battles. It does those transformations below the source, everywhere, in every build: a chain
-of list operations becomes one loop with no list in between, every generic and template is written out for the
-exact types it is used with, nothing is looked up by name while the program runs unless it asks for reflection, a
-small object that never leaves its function lives in the frame instead of the heap, identical generated functions
-are folded into one, and whatever the program does not use is not in the executable. Any method counts as long as
-the answer is the same, so a part of a program the compiler can work out while compiling may be reduced to its
-answer. Your source stays the readable version. When you change it, the optimisations are redone for free, so
-nothing goes stale because someone forgot the tuned version. Every one of them is listed in
-[docs/optimizations.md](docs/optimizations.md).
+Spite does not pick battles. It does those transformations below the source, everywhere, in every build. Your
+source stays the readable version, and when you change it the optimisations are redone for free, so nothing goes
+stale because someone forgot the tuned version.
 
 In other languages you choose elegant or fast. In Spite you write the elegant one, and the compiler ships the
 fast one.
+
+## What the compiler does that others leave to you
+
+Inlining, constant folding and dead code are what every compiler does. Spite's compiler sees the whole program,
+owns the layout of every object and has no runtime to keep compatible, so it makes the decisions other languages
+leave to an expert, or to nobody:
+
+- **Objects are laid out for the cache, not for the source.** Every object of a class comes from that class's own
+  pool, side by side, so a loop over a list of positions walks memory in order instead of jumping between
+  interleaved positions, velocities and health bars. A list that only another list holds is stored inside it, so a
+  `List<List<T>>` is one block, not a block of pointers to blocks.
+- **The shape of a class follows its loops** (the direction, decided and being built). The compiler reads every
+  loop over a list and chooses its layout per list: whole objects where items are used whole, a column per field
+  (a structure of arrays) where loops read a few fields across many items, hot fields split from cold ones, fields
+  reordered and aligned to cache lines. You write `List<Monster>`; the class you wrote is never the layout you
+  pay for. Arenas, rings and grouping items by which parts they have (archetypes, chosen by the compiler instead of
+  declared) follow the same rule.
+- **Whole parts of the program run while compiling.** Any method counts as long as the answer is the same. A
+  table filled once with known values becomes constants, and the loop over it unrolls into only the branches the
+  values take. A test against a value a list can never hold is decided before the program exists. A walk over a
+  class's attributes is unrolled into typed code. A chain of list operations becomes one loop with no list in
+  between.
+- **Concurrency is found, not written.** Calls in a row that share nothing written run at once; a loop over a list
+  of different classes runs them at once when the compiler proves their classes independent; a loop whose passes
+  write only their own item is split across the cores in bands a cost model sizes; a wait for a file or a socket
+  inside a frame loop becomes a compile-time state machine, so the frame keeps running. The direction is every
+  loop cut into chunks that fit the cache, spread over every core, and on the GPU where it pays, without the
+  program ever mentioning it.
+- **Thread safety in its cheapest proven form, per program.** A singleton no other thread reaches takes no lock;
+  one a loop calls takes its lock once for the whole loop; reading functions do not exclude each other; reference
+  counts are atomic only for the classes another thread can really reach.
+- **Counting only where it is needed.** Reference counts are left out wherever the compiler proves they would only
+  go up and back down; objects, function values and argument lists that never escape live in the caller's frame;
+  a returned object is built where the caller keeps it.
+- **Nothing you do not use exists.** Reflection, symbols, registries, the thread pool, the debugger and the REPL
+  are in the executable only when the program reads them, and identical generated functions are folded into one.
+
+Every one of them, with what it costs when it cannot apply and a program that shows it, is in
+[docs/optimizations.md](docs/optimizations.md), and each has a benchmark against plain and hand-tuned C.
 
 **The proof, measured.** Every benchmark in [benchmarks/](benchmarks/README.md) is one program written three
 ways: plainly in Spite, plainly in C the way a C programmer would (naive C), and in C tuned by hand (expert C).
@@ -228,49 +261,18 @@ other questions in [docs/metaprogramming.md](docs/metaprogramming.md). Your arch
 people forget and becomes something the compiler proves, which matters twice over when morons, human or AI, write
 most of the code.
 
-## Memory you never think about
+## Memory and threads you never write
 
-You do not manage memory, and you do not pick the fast path: the compiler does, per use. There is no collector, no
-pause, no lifetimes to annotate and no runtime to ship. What you write is the plain version; what runs is decided
-while compiling:
+You do not manage memory, pick an allocator, take a lock or start a thread. There is no collector, no pause, no
+lifetimes to annotate, no `async` and no `await`, and there never will be. What you write is the plain version;
+where each value lives, what is counted, what runs at once and what is locked is decided while compiling
+([the list above](#what-the-compiler-does-that-others-leave-to-you)).
 
-- **Values that do not need the heap do not reach it.** An object that never leaves its function lives on the
-  stack; a returned object is built in the caller's frame instead of on the heap; a function value or a list of
-  arguments the callee only reads stays in the caller's frame.
-- **Counting only where it is needed.** Every object can be reference counted, but the compiler leaves the count
-  out wherever it proves the count would only go up and back down: an item read from a list only to test it or use
-  it at once, an argument the caller still holds, an attribute a call cannot change. A count that stays is a plain
-  addition, atomic only for classes another thread can really reach.
-- **Objects of one class sit together.** The objects a list holds come from their class's own pool, side by side in
-  memory; a list held only by another list lives inside it; a list that is refilled keeps its room.
-- **Nothing to get wrong by hand.** Where the compiler lends you an item stored inline, it checks at compile time
-  that you do not keep it past the call, and the error names the fix. Two objects that hold each other would never
-  be freed, so a back reference is a `Weak<T>`.
-
-The direction is further still: the layout of a class chosen per loop (columns instead of objects where the loops
-read a few fields), copies that are only made when something writes, and allocation in one block for whatever is
-proven not to outlive it. Each optimisation, and what it costs when it cannot apply, is in
-[docs/optimizations.md](docs/optimizations.md), measured against plain and hand-tuned C in
-[benchmarks/](benchmarks/README.md).
-
-## Concurrency you do not write
-
-There is no `async` and no `await`, and there never will be, and a plain program does not need `Parallel` or
-`Concurrent` either: the compiler finds the work that can run at once and runs it at once.
-
-- **Calls in a row that share nothing written run at the same time.** So do the calls of a loop over objects of
-  different classes, when their work is independent.
-- **A loop whose passes each write only their own item is split across the cores**, in bands sized by a cost model,
-  so a light loop stays on one thread where splitting would only cost.
-- **A wait inside a frame loop does not hold the frame.** A call that reads a file or a socket is started and
-  collected later, so the loop keeps running, and only when the compiler proves no write can be lost.
-- **What threads touch is made safe by the compiler**, in its cheapest safe form: no lock where no other thread
-  reaches, a lock taken once for a whole loop, atomics only where they are needed.
-
-The direction: every loop split into chunks that fit the processor's cache and spread over every core, decided by
-proof and by one check when only the run can tell. `Concurrent` and `Parallel` still exist for the library and for
-measuring the compiler against a hand-threaded form ([docs/concurrency.md](docs/concurrency.md)); the moron is
-never expected to reach for them.
+Nothing is left to get wrong by hand either. Where the compiler lends you an item stored inline, it checks at
+compile time that you do not keep it past the call, and the error names the fix. Two objects that hold each other
+would never be freed, so a back reference is a `Weak<T>`. `Concurrent` and `Parallel` still exist for the library
+and for measuring the compiler against a hand-threaded form ([docs/concurrency.md](docs/concurrency.md),
+[docs/memory.md](docs/memory.md)); the moron is never expected to reach for them.
 
 ## Fast builds while you work, fast programs when you ship
 
