@@ -643,6 +643,89 @@ func write_forwarder(instances: Instances, name: String, described: Analysis.Cla
 
 # ../../../docs/reflection.md#spiteaccess
 func write_accessed(instances: Instances, position: Integer) {
+    var kind = instances.accessed_kinds[position]
+    crash kind
+    if kind == "list_attributes" or kind == "dictionary_attributes" {
+        write_container_attributes(instances, position)
+        return
+    }
+    if kind == "text_call" {
+        write_text_call(instances, position)
+        return
+    }
+    write_described(instances, position)
+}
+
+func write_container_attributes(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var kind = instances.accessed_kinds[position]
+    crash name
+    crash described
+    crash kind
+    var made = instances.front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var function = synthetic_function(name, kind, described)
+    var attribute_element = instances.class_type(attribute_class)
+    var answer = made.list_type_of(attribute_element)
+    function.answer = answer
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var described_function = synthetic_description(kind, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    var listed = -1
+    if kind == "list_attributes" {
+        var element = described.codegen_types[0]
+        listed = reflection.items_attributes(function.receiver, -1, element, null)
+    } else {
+        var key_type = described.codegen_types[0]
+        var value_type = described.codegen_types[1]
+        var key_list_type = made.list_type_of(key_type)
+        var value_list_type = made.list_type_of(value_type)
+        var keys = emitter.load_field(function.receiver, "entry_keys", key_list_type)
+        var values = emitter.load_field(function.receiver, "entry_values", value_list_type)
+        listed = reflection.items_attributes(values, keys, value_type, key_type)
+    }
+    emitter.returns(listed)
+    finish_body(function, emitter)
+}
+
+func write_text_call(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var written = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash written
+    var made = instances.front()
+    var found = described.find_function(written)
+    crash found
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var function = synthetic_function(name, "text_call", described)
+    var attribute_type = instances.class_type(attribute_class)
+    var maybe_attribute = instances.nullable_of(attribute_type)
+    function.answer = maybe_attribute
+    var receiver_type = instances.receiver_type(described)
+    function.receiver = function.new_value(receiver_type, "receiver")
+    var text_type = instances.typed_string()
+    var list_type = made.list_type_of(text_type)
+    var arguments = function.new_value(list_type, "parameter")
+    function.value_at(arguments).name = "arguments"
+    var argument_parameter = Parameter("arguments", list_type, arguments)
+    function.parameters.append(argument_parameter)
+    var described_function = synthetic_description("text_call", name, maybe_attribute)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    reflection.text_call_body(described, found, function.receiver, arguments)
+    finish_body(function, emitter)
+}
+
+func write_described(instances: Instances, position: Integer) {
     var name = instances.accessed_names[position]
     var described = instances.accessed_classes[position]
     var written = instances.accessed_texts[position]
