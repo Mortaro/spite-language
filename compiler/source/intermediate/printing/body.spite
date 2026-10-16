@@ -18,6 +18,7 @@ var parameter_names = Dictionary<Integer, String>()
 var string_constants = Dictionary<Integer, String>()
 var tag_sources = Dictionary<Integer, String>()
 var tag_constants = Dictionary<Integer, String>()
+var restores = Dictionary<Integer, String>()
 var frame_lists = Dictionary<Integer, String>()
 var frame_buffers = Dictionary<Integer, String>()
 var fixed_buffers = Dictionary<Integer, Boolean>()
@@ -32,6 +33,7 @@ func print(printed: Function) {
     string_constants = Dictionary<Integer, String>()
     tag_sources = Dictionary<Integer, String>()
     tag_constants = Dictionary<Integer, String>()
+    restores = Dictionary<Integer, String>()
     frame_lists = Dictionary<Integer, String>()
     frame_buffers = Dictionary<Integer, String>()
     fixed_buffers = Dictionary<Integer, Boolean>()
@@ -98,6 +100,7 @@ func print_machine() {
     string_constants = Dictionary<Integer, String>()
     tag_sources = Dictionary<Integer, String>()
     tag_constants = Dictionary<Integer, String>()
+    restores = Dictionary<Integer, String>()
     frame_lists = Dictionary<Integer, String>()
     frame_buffers = Dictionary<Integer, String>()
     fixed_buffers = Dictionary<Integer, Boolean>()
@@ -382,6 +385,9 @@ func print_singleton_maker() {
         "return {cached};"
         "}"
     ]
+    if not function.filled_by.is_empty() {
+        getter_lines = filled_getter_lines(getter, answered, ending, found, cached, shown, maker)
+    }
     output.prototypes.append("{answered} {getter}(void);")
     output.prototypes.append("{answered} {getter}_peek(void);")
     getter_lines.append(
@@ -393,6 +399,57 @@ func print_singleton_maker() {
     output.runtime_place("{getter}_teardown")
     output.runtime_place(getter)
     output.runtime_place("{getter}_peek")
+}
+
+# ../../../../docs/memory.md#self-referential-classes-and-unions-just-work
+func filled_getter_lines(
+    getter: String,
+    answered: String,
+    ending: String,
+    found: String,
+    cached: String,
+    shown: String,
+    maker: String,
+): List<String> {
+    var filling = lowered.function_named(function.filled_by)
+    if not filling {
+        refuse("it makes '{getter}' and fills it with '{function.filled_by}', which the program does not hold")
+    }
+    return [
+        "static {answered} {getter}_cache = 0;"
+        "static bool {getter}_ready = false;"
+        "static SPITE_THREAD_LOCAL bool {getter}_filling = false;"
+        "static bool {getter}_destroyed = false;"
+        "static int32_t {getter}_lock = 0;"
+        "static void {getter}_teardown(void) \{"
+        "{answered} object = {getter}_cache;"
+        "{getter}_cache = 0;"
+        "__atomic_store_n(&{getter}_ready, false, __ATOMIC_RELEASE);"
+        "{getter}_destroyed = true;"
+        ending
+        "}"
+        "{answered} {getter}(void) \{"
+        "{answered} found = __atomic_load_n(&{getter}_ready, __ATOMIC_ACQUIRE) ? {getter}_cache : 0;"
+        "if (found != 0) return {found};"
+        "if ({getter}_filling) \{ found = {getter}_cache; return {found}; }"
+        "spite_singleton_check_circle(\"{shown}\");"
+        "SPITE_LOCK({getter}_lock);"
+        "if ({getter}_cache == 0) \{"
+        "if ({getter}_destroyed) spite_singleton_used_after_exit(\"{shown}\");"
+        "spite_singleton_making(\"{shown}\");"
+        "{answered} made = {maker}();"
+        "spite_singleton_made();"
+        "spite_singleton_created({getter}_teardown);"
+        "SPITE_SINGLETON_PUBLISH({getter}_cache, made);"
+        "{getter}_filling = true;"
+        "{function.filled_by}(made);"
+        "{getter}_filling = false;"
+        "__atomic_store_n(&{getter}_ready, true, __ATOMIC_RELEASE);"
+        "}"
+        "SPITE_UNLOCK({getter}_lock);"
+        "return {cached};"
+        "}"
+    ]
 }
 
 func print_static_getter(layout: Layout) {

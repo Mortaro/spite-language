@@ -592,6 +592,9 @@ func print_foreign(body: Body, operation: Operation, word: String) {
         "constant": foreign_constant(body, operation)
         "call": foreign_call(body, operation)
         "callback": foreign_callback(body, operation)
+        "struct": foreign_struct(body, operation)
+        "struct_field": foreign_struct_field(body, operation)
+        "trampoline": foreign_trampoline(body, operation)
         _: body.refuse("it calls 'Foreign.{word}', which the printer does not write yet")
     }
 }
@@ -829,6 +832,7 @@ func foreign_call(body: Body, operation: Operation) {
     var call = "(({returned} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")})"
     if returned == "void" {
         body.emit("{call};")
+        restore_trampolines(body, operation)
         return
     }
     if text_answer {
@@ -836,9 +840,98 @@ func foreign_call(body: Body, operation: Operation) {
             operation.result,
             "(\{ const char* spite_foreign_text = {call}; spite_string_from_cstring_owned(spite_foreign_text != 0 ? spite_foreign_text : \"\"); })",
         )
+        restore_trampolines(body, operation)
         return
     }
     body.assign(operation.result, call)
+    restore_trampolines(body, operation)
+}
+
+# ../../../../docs/foreign_libraries.md#for-the-length-of-one-call
+func restore_trampolines(body: Body, operation: Operation) {
+    var index = 1
+    while index < operation.operands.count() {
+        var number = operation.operands[index]
+        if body.restores.has(number) {
+            crash body.restores[number]
+            body.emit(body.restores[number])
+        }
+        index = index + 1
+    }
+}
+
+func foreign_struct(body: Body, operation: Operation) {
+    if operation.literal.is_empty() {
+        body.refuse("it hands C a struct of '{operation.target}' and names no C struct")
+        return
+    }
+    var held = "spite_struct_{operation.result}"
+    body.declare("{operation.literal} {held};")
+    var values = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var value = body.operand(operation, index)
+        values.append(value)
+        index = index + 1
+    }
+    body.emit("{held} = (__typeof__({held}))\{ {values.join(", ")} };")
+    body.assign(operation.result, "(int64_t)(intptr_t)&{held}")
+}
+
+func foreign_struct_field(body: Body, operation: Operation) {
+    var number = body.operand_number(operation, 0)
+    body.assign(operation.result, "spite_struct_{number}.{operation.literal}")
+}
+
+func foreign_trampoline(body: Body, operation: Operation) {
+    var function_value = body.operand(operation, 0)
+    var function_type = body.operand_type(operation, 0)
+    assert function_type
+    var signature = shape.as_class_ref(function_type)
+    if not signature or not signature.has_signature {
+        body.refuse("it hands C a callback that is not a function value")
+        return
+    }
+    output.need("callbacks")
+    var trampoline = "spite_callback_{body.function.c_name}_{operation.result}"
+    var slot = "{trampoline}_slot"
+    var parameters = List<String>()
+    var pointer_parameters = ["void*"]
+    var arguments = ["spite_function->spite_owner"]
+    var index = 0
+    while index < signature.arguments.count() {
+        var written = naming.c_type(signature.arguments[index])
+        parameters.append("{written} spite_argument_{index}")
+        pointer_parameters.append(written)
+        arguments.append("spite_argument_{index}")
+        index = index + 1
+    }
+    if parameters.is_empty() {
+        parameters.append("void")
+    }
+    var returned = "void"
+    if signature.returns and not shape.is_void(signature.returns) {
+        returned = naming.c_type(signature.returns)
+    }
+    var result = "return "
+    if returned == "void" {
+        result = ""
+    }
+    var source = body.source_place(operation)
+    var place = naming.escape_c(source)
+    var heading = "static {returned} {trampoline}({parameters.join(", ")})"
+    output.prototypes.append("{heading};")
+    output.support(
+        "static SPITE_THREAD_LOCAL void* {slot} = 0;\n{heading} \{\nSpite_Function* spite_function = (Spite_Function*){slot};\nif (spite_function == 0) spite_callback_late(\"{place}\", \"after the foreign call that handed it over had returned, or on another thread: a function C keeps, or calls from a thread of its own, is handed over as a ForeignCallback the program keeps for as long as C may call it\");\n{result}(({returned} (*)({pointer_parameters.join(", ")}))spite_function->spite_typed_call)({arguments.join(", ")});\n}",
+    )
+    output.impure()
+    output.runtime_place(trampoline)
+    var saved = "spite_saved_{operation.result}"
+    body.declare("void* {saved};")
+    body.emit("{saved} = {slot};")
+    body.emit("{slot} = (void*)({function_value});")
+    body.restores[operation.result] = "{slot} = {saved};"
+    body.assign(operation.result, "(int64_t)(intptr_t)&{trampoline}")
 }
 
 func crossing_type(argument_type: Analysis.SpiteType): String {
