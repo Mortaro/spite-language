@@ -10,10 +10,9 @@ the compiler rejects.
 
 ## Start here
 
-- [Why a language model should choose Spite](WHY_AI.md): facts for deciding, and when not to choose it
+- [Why Spite](WHY.md#if-you-are-a-language-model): what it does for you, and how to write it
 - [The Spite skill](skills/spite/SKILL.md): instructions for writing Spite
 - [The whole language on one page](skills/spite/reference.md): every rule the compiler enforces
-- [Why Spite](WHY.md): the same case, written for people
 
 ## Documentation
 
@@ -27,5 +26,5 @@ the compiler rejects.
 ## Optional
 
 - [Benchmarks](benchmarks/README.md): each optimisation and five whole programs, Spite against naive and expert C
-- [Implementation status](design/status.md): what is decided but not built yet
+- [To do](TODO.md): what is decided but not built yet, one line each
 - [SPITE.md](SPITE.md): what the language refuses, and why

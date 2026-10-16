@@ -4,7 +4,7 @@ For the next model to pick up. Started by Space Bunny Free, reviewed by Claude O
 Space Bunny Free on 2026-10-11 to 14, then reviewed and continued by Claude Opus 5.5 on 2026-10-14. Read first, in
 order: `AGENTS.md`, [the proposal and its review](proposals/high_level_ir.md) (the review at its end overrides the
 proposal), [what is built and what it covers](backend_high_level_ir.md), and decisions D558 to D561, D569, D583 to
-D585 in [decisions.md](decisions.md).
+D585 in [decisions.md](../DECISIONS.md).
 
 ## The goal, from Mortaro (2026-10-14)
 
@@ -118,6 +118,6 @@ printer, which is what proves the printer.
   returns nothing unless skipping really is the answer.
 - Commits start with one gitmoji, end with `Co-authored-by: <the model you are> <noreply@...>`, and stage explicit
   paths only.
-- A reversible decision you make: a row in `design/decisions.md` marked "decided by <model> under D509, to confirm",
+- A reversible decision you make: a row in `DECISIONS.md` marked "decided by <model> under D509, to confirm",
   and a line under "To confirm" in `mortaros_missing_decisions.md`.
 - Push this branch, never `master`. It merges into `backend-experimental` once the gate is green.

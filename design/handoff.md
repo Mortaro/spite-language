@@ -43,7 +43,7 @@ wait-cycle race fix (D546). Every benchmark case has quiet timings in the table 
 
 None of it is lost. Each item says where it is and what is left. **Re-run `bash check.sh` before merging any of
 them**, because master moved under several, and **renumber decision rows at merge time** (numbers collide often:
-re-read the end of `design/decisions.md` right before appending).
+re-read the end of `DECISIONS.md` right before appending).
 
 | Work | Where | State | Next |
 |---|---|---|---|
