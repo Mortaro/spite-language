@@ -427,6 +427,20 @@ A short guide by task. Find what you are writing; the entries below say the rest
   list, undoes the guard; assigning `row` or `column` inside the inner loop is the error for a proof the loop read.
 - **See.** [the rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_byte_numbers`.
 
+### An index offset by a base is proven by one guard
+
+- **Proves.** `list[base + counter]` is inside the list at both ends.
+- **Rule.** A guard `base + bound <= list.count()` (or `list.count() >= base + bound`) where the read can see it; the
+  read inside `while counter < bound`; `base` and `counter` never negative (as above), named bare; either order
+  (`base + counter` or `counter + base`). A read of a width reaching `k` bytes past the index needs
+  `base + bound + k <= list.count()`.
+- **Buys.** The read needs no narrowing and its position no test of its low end: one compare and the load, as above,
+  for a window or block that starts at a base (a block of a hash, a row of a table starting at an offset).
+- **Falls back.** An index kept in a `var` first, a `base` that may be negative, or a guard written about another list
+  is not traced: narrow the read, or write the index inline. Assigning `base`, `bound` or the list after the guard, or
+  shrinking the list, undoes the guard.
+- **See.** [the rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_base_counter`.
+
 ### A counted loop reads its items unchecked
 
 - **Proves.** Inside `while index < values.count()`, the counter is at least 0 and below the count, and the list's
