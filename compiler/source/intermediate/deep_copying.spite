@@ -172,6 +172,7 @@ func class_body(described: Analysis.ClassInfo, receiver: Integer, owner_type: An
 
 func list_body(described: Analysis.ClassInfo, receiver: Integer): Integer {
     var element = described.codegen_types[0]
+    crash element
     var result = lowering().new_list(element)
     var counter = lowering().list_function(element, "count")
     var reader = lowering().list_function(element, "get_at")
@@ -197,6 +198,8 @@ func dictionary_body(described: Analysis.ClassInfo, receiver: Integer): Integer 
     var emitter = lowering().emitter
     var key_type = described.codegen_types[0]
     var value_type = described.codegen_types[1]
+    crash key_type
+    crash value_type
     var dictionary = Analysis.Types.DictionaryType(value_type, key_type)
     var result = lowering().new_dictionary(dictionary)
     var key_list_type = made.list_type_of(key_type)

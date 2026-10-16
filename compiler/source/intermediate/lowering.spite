@@ -795,6 +795,7 @@ func write_item_function(instances: Instances, position: Integer) {
     var function = synthetic_function(name, kind, described)
     function.made_for = kind
     var element = described.codegen_types[0]
+    crash element
     var boolean = instances.typed_boolean()
     var nothing = instances.typed_nothing()
     var answer = nothing
@@ -959,10 +960,13 @@ func write_container_attributes(instances: Instances, position: Integer) {
     var listed = -1
     if kind == "list_attributes" {
         var element = described.codegen_types[0]
+        crash element
         listed = reflection.items_attributes(function.receiver, -1, element, null)
     } else {
         var key_type = described.codegen_types[0]
         var value_type = described.codegen_types[1]
+        crash key_type
+        crash value_type
         var key_list_type = made.list_type_of(key_type)
         var value_list_type = made.list_type_of(value_type)
         var keys = emitter.load_field(function.receiver, "entry_keys", key_list_type)

@@ -125,6 +125,7 @@ func note_digits(function: Function, uses: Facts.Uses, joined: Operation, part: 
     var number = defining.operands.first()
     crash number
     var number_value = function.value_at(number)
+    crash number_value.spite_type
     var scalar = types.as_scalar(number_value.spite_type)
     assert scalar and kinds.is_whole_kind(scalar.kind)
     var reached = uses.uses_of(part)

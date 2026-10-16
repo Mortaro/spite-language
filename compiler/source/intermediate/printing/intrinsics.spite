@@ -192,6 +192,7 @@ func attribute_bind_item(body: Body, operation: Operation) {
     var listed = body.operand(operation, 1)
     var position = body.operand(operation, 2)
     var list_type = body.operand_type(operation, 1)
+    crash list_type
     var counted = naming.counted_name(list_type)
     var layout = naming.layout_of(list_type)
     if counted.is_empty() or not layout {
@@ -242,6 +243,7 @@ func item_thunk(body: Body, layout: Layout, called: String, last: String, passed
     }
     var argument = passed
     if function.parameters.count() == 2 and function.parameters[1].ownership == "owned" {
+        crash function.parameters[1].spite_type
         var counted = naming.counted_name(function.parameters[1].spite_type)
         argument = "{counted}___retain({passed})"
         if last == "SpiteString text" {
