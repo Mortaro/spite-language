@@ -1976,7 +1976,7 @@ func union_value(body: Body, operation: Operation) {
         tagged_value(body, operation, held, made)
         return
     }
-    if shape.as_string(made) or shape.is_symbol(made) {
+    if shape.as_string(made) or shape.is_symbol(made) or naming.is_symbol_class(made) {
         body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}))->value)")
         return
     }
@@ -1991,9 +1991,9 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
     var tagged = naming.is_tagged(held_type)
     var layout = naming.layout_of(made)
     var scalar = shape.as_scalar(made)
-    if shape.is_symbol(made) and tagged {
+    if (shape.is_symbol(made) or naming.is_symbol_class(made)) and tagged {
         layout = lowered.layout_named("SpiteSymbol")
-    } else if shape.as_string(made) or shape.is_symbol(made) {
+    } else if shape.as_string(made) or shape.is_symbol(made) or naming.is_symbol_class(made) {
         layout = lowered.layout_named("SpiteString")
     } else if scalar {
         layout = lowered.layout_named("Spite{naming.scalar_label(scalar.kind)}")
@@ -2010,7 +2010,7 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
 
 func tagged_value(body: Body, operation: Operation, held: String, made: Analysis.SpiteType) {
     var written = naming.c_type(made)
-    if shape.as_string(made) or shape.is_symbol(made) {
+    if shape.as_string(made) or shape.is_symbol(made) or naming.is_symbol_class(made) {
         body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}).value.object)->value)")
         return
     }

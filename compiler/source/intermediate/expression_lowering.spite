@@ -459,7 +459,7 @@ func union_holds_symbols(wanted: Analysis.SpiteType): Boolean {
     var united = types.as_union(wanted)
     crash united
     var described_union = front().find_union_by_c_name(united.c_name)
-    if not described_union or described_union.is_shape {
+    if not described_union {
         return false
     }
     var index = 0

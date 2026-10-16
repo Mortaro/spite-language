@@ -261,6 +261,17 @@ func is_tagged(spite_type: Analysis.SpiteType): Boolean {
     return layout.kind == "tagged union"
 }
 
+func is_symbol_class(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if not class_ref {
+        return false
+    }
+    return class_ref.c_name == "SpiteSymbol"
+}
+
 func counted_name(spite_type: Analysis.SpiteType): String {
     if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
         return "SpiteString"
