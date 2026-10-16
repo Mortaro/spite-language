@@ -147,3 +147,12 @@ fix. A `D` number is a row of the [decision log](../DECISIONS.md).
 - The language is larger than the part the compiler implements today; each page says what is decided but not
   built, [TODO.md](../TODO.md) lists what is not built yet, and `conformance/` is the part that
   demonstrably works.
+
+## Only the current compiler is tested (D609)
+
+`conformance/` holds the programs that prove the current compiler, organised by the docs page they prove, and keeps
+no code or test for an old stage: git history and tags hold the past. Building the current compiler needs the
+previous release and nothing older, so no stage is bootstrapped from scratch in a row. What must hold is that every
+test passes; two compilers need not write identical binaries. The fixpoint check above stays until Spite has its own
+backend and writes no C (waiting on Mortaro's answer in `mortaros_missing_decisions.md`); after that the bootstrap C
+is no longer released and a build starts from a tag.

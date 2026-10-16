@@ -15,6 +15,16 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D609, the fixpoint check.** Until Spite has its own backend, `check.sh` keeps requiring generation 2 equal to
+  generation 3 byte for byte, since Mortaro's note says binaries need not be identical in the end. Keep it until
+  the own backend, or drop it now and rely on the tests passing?
+- **D608's details:** `File.lock()` waits, answers `File.Lock?` (`null` only when the path cannot be opened), is let
+  go by `unlock()`, by `drop()` and by the system when the process ends; no non-waiting form yet.
+- **D611's details:** `.memory` is read-only everywhere and `Memory.Arena` stays a library class the compiler may
+  use; a program can no longer pick an allocator, so `Memory.Arena(n)` has no user-facing use until the compiler
+  chooses arenas (D485, D501).
+- **D613's exemptions:** 0, 1, -1, `0.0` and `1.0` are exempt, and so is the number on the right of the `var` or
+  attribute that names it. Should 2, 10 or 100 be exempt too, or any literal in a `test_` function?
 - **D605:** every compile passes `-ffp-contract=off`, so floats answer the same in every build and machine,
   at the cost of the C compiler never fusing a multiply-add on its own.
 - **D602's details:** `Buffer(size)` gives room for `size` bytes and starts empty (not `size` zero bytes); the
@@ -312,6 +322,39 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 
 ## Open
 
+- **A test runner written in Spite, and an `Executable` class (Mortaro: "this needs bigger discussion", 2026-10-16).**
+  Wanted: run a program by path from Spite (`Executable("conformance1.exe").execute("argues")`, shaped like
+  `DynamicLibrary`), so the tests are a Spite program that loads the compiler and runs the conformance programs, and
+  `check.sh` shrinks. Also wanted: a `test` folder, `spite tests` (which matches none of the command patterns)
+  replaced by metaprogramming over specially named functions, `examples/` gone (each becomes a conformance program
+  or a piece of documentation), and `conformance/` moved inside the test folder, which also shows a project with
+  several entry points sharing code (a game's scene previews: small scenes without the whole engine). Options:
+  (a) `Executable(path)` with `run(arguments): Executable.Result` (exit code, output, error output) and a
+  `Process` underneath; the test program lives in `test/` as its own entry that `load`s the project and the
+  compiler, tests are the functions named `test_...` found by reflection as now, and `spite tests` becomes
+  `spite test`, one program run like any other; (b) keep `Process.run` (which exists) and add only a compile-and-run helper `Spite.Compiler` the tests call, so there is no new class;
+  (c) as (a), plus entry points as a language feature: a folder may hold several entry files that share the
+  project's classes, each named on the command line, which is what `test/`, scene previews and `examples/`
+  conversions all need. Recommendation: (c) in two steps: (b) first, because `Process` already exists and the
+  conformance runner can move to Spite at once; then `Executable` and the several-entry-points rule (decided on
+  its own, since it changes `load`). Open: what the result of an `execute` carries, whether `examples/` programs
+  that cache shared files become the test folder's cache example, and how a test folder is told apart from an
+  application folder. Blocks: replacing `check.sh` (D580 to D582).
+- **A `Table` in the standard library (Mortaro: "i might be completely wrong tho!", 2026-10-16).** The engine
+  manages columns and rows by hand; a `Table` of rows and named columns, always used the way the library intends,
+  would let the compiler choose its layout with confidence. Options: (a) add `Table` as a class over `Vector`
+  columns (each column a typed list, a row a view); (b) add nothing: `List<Row>` already lets the compiler choose
+  structure of arrays per use (D402, D485, D520), so a `Table` would be a second spelling; (c) a `Table` only as
+  a reflection helper that reads a class's list of rows as columns. Recommendation: (b) first, measured by whether
+  the engine's code can say what it means with plain lists, which `design/optimization_research.md` now tracks;
+  build (a) only if a case shows the compiler cannot recover the columns.
+- **A generic constrained by a union (D175).** Mortaro asks whether it is justified: "one of these classes" as a
+  constraint looks like an obscure abstraction. What it would do: `generic $item_type: Cat or Dog` accepts the
+  members of a union. What the repository uses: nothing; every constraint in `library/` and the corpus is a
+  `type` (`Number`, `Printable`), and the specification already refuses a union there. Options: (a) remove the
+  line from `TODO.md` and the idea (a `type` already says "anything with these functions", and a union is a
+  closed list of classes, which a `switch` over the union handles); (b) keep the TODO for later; (c) allow
+  `Number`-style named unions only. Recommendation: (a).
 - **`assert` misleads models (found by the cheap-agent test, 2026-10-16).** Three separate Sonnet agents, working on
   different parts of the compiler, read Spite's `assert` as a check that should halt and reported it as "inert" or
   "does not fire"; in Spite it answers nothing and returns early, and `crash` is the check that halts. Every other
@@ -325,5 +368,3 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a
   Spite program, or is the rule only about the repository's own tools?
-
-None.

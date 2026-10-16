@@ -11,10 +11,13 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - Three or more classes in a folder sharing a name prefix are an error; the compiler's own `backend/high_*.spite` break it (D588)
 - Environments are a reopenable, walkable enum (D180, D373)
 - Every enum is an instance of `Spite.Enum` and declares its own functions (D371)
-- A template called with a symbol written out: `person.set_attribute('age', 2)` (D10, D11)
+- `person.set_attribute('age', 2)`, a template called with an attribute written out, is an error naming `person.age = 2` (D614)
+- An `if` that only holds an `if`, neither with an `else`, is an error naming `if a and b`; the compiler's and the library's nested ones are rewritten first (D610)
+- A number written in an expression is an error until it is named first, except 0, 1 and -1; every number in `library/` and the compiler is named first (D613)
+- Code that reimplements a standard library function is an error naming the library form, one rule per mistake seen: hand-timed loops where `Benchmark` exists, a class extended with what `Matrix4` has (D607)
 - A numbered enum's number is its identity in binary files and on the network (D386)
 - Storage owns its items, a `T?` holding an object owned elsewhere is weak, and `Weak<T>` goes (D354, D380)
-- A generic constrained by a union, "one of these classes" (D175)
+- A generic constrained by a union, "one of these classes" (D175; Mortaro asks whether it should exist at all: open in `mortaros_missing_decisions.md`)
 - `Fraction<$number_type>` in signatures, so a whole-number vector's `normalized()` answers the fractional class (D486, D510)
 - A class that declares `equals` keyed by its `equals` (D532)
 - An object key or a fraction key written as JSON (D532)
@@ -24,6 +27,8 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Standard library
 
+- `File.lock()`, a lock between processes, so a program needs no operating-system folder for locks (D608, D565)
+- Every operator a library class answers declared in `library/`, none hidden in the compiler (D612)
 - `Buffer(size)`: a buffer made with a size the compiler treats as a suggestion (less room when proven, plain variables for a small one), and numbers' storage written `var _memory = Buffer(n)` instead of `Memory.Bytes(n)` (D602)
 - Byte order named in each read and write (`read_integer_little_endian_at`, `read_integer_big_endian_at`), written once as a template over `Buffer.ByteOrder`; `Buffer` loses `byte_order` (D603, D604)
 - Reading and writing bits on a `Buffer`, to pack flags into fewer bytes (D603)
@@ -43,6 +48,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Memory and the internal namespace
 
+- `.memory` read-only: assigning `.memory.allocator` is an error, and the allocator-setting rules, their diagnostics (`allocator_after_use`), the docs programs and the benchmark case `an_allocator_set_after_construction_is_where_the_object_is_made` go (D611)
 - The memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock`, `Atomic` and `ThreadLocal` move into `Spite.Internal` (D566)
 - The library above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off `Memory` onto `Buffer` and plain values (D566, D590)
 - Using `Memory` directly outside the library is a compile error, once plain foreign structs and a lock between processes exist (D565)
@@ -107,6 +113,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Compiler and backend
 
+- The compiler's argument reading and path handling (`compiler/compiler.spite`) moves into `Build`, `Environment`, `Path` and the library (D606)
 - Every line of C written from the high-level IR: arithmetic, calls, references, `assert`/`crash`, texts, lists, dictionaries, layouts, dispatch and `main` (D560, D586, D587, D599: no IR operation for what is a function in the end)
 - The high IR desugared and monomorphised, every decision of the generator a pass over it, and the switch-over made whole (D587)
 - The passes that read or rewrite the C text moved onto the IR (D586, D587)
@@ -161,6 +168,11 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Tooling
 
+- `conformance/` organised by docs page instead of by stage, with no code or test kept for an old stage; once Spite has its own backend, the bootstrap C is no longer released and builds start from a tag (D609)
+- A test for each flag that prints, with its exact output, `--final-classes` first (D615)
+- A housekeeping pass over `mortaros_missing_decisions.md` and `design/` once the IR work is done: delete what is answered or dead (D615)
+- A naive Python version beside the C ones in each `benchmarks/` case, to show language models the gain (D615)
+- Research: a `Table` in the standard library, and noticing duplicated logic in general (`design/optimization_research.md`)
 - `--final-classes` prints each class with its generics as written, and the generated functions of a generic instance and a list's member templates as source (D61, D366)
 - `--final-classes` prints a plural walk over another class once, not twice
 - A user generic instantiated with `Integer` printed into `instantiated/` and read back past the name lint (not checked by any corpus program)
@@ -176,6 +188,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Bugs that fail silently (D244)
 
+- A `type` and a generic are meant to belong to the file that declares them, yet `Number` and `Nothing` are used as generic constraints from other files: find where the scope leaks, and whether other names resolve without being loaded
 - A float can answer different bits in a default build and an `--optimized` one, since the C compiler fuses a multiply and an add when tuned for the machine: pass `-ffp-contract=off` in every compile (D605)
 - `Integer.smallest.absolute()` may answer the negative value (suspected, not reproduced)
 - `parallel_each_` over a list holding one object twice runs it on two threads at once

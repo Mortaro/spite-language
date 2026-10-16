@@ -671,6 +671,25 @@ and `maths_on_constants_is_worked_out_while_compiling`. New findings:
 
 
 
+## A `Table` in the standard library (Mortaro, 2026-10-16)
+
+Mortaro noticed that the engine's code manages columns and rows by hand, as other applications do, and that a
+`Table` could be a natural evolution of the list: used always the way the library intends, it would let the
+compiler optimise with more confidence. He adds that he might be completely wrong. To investigate: take the
+engine's row and column code and write it with plain lists of classes. If the compiler already recovers the layout
+(structure of arrays, D402, D485, D520), a `Table` is a second spelling of a list and should not exist. If it
+cannot, record which fact it lacked (the columns that are always read together, the rows that are never removed
+from the middle) and whether a `Table` would state it. Open question in `mortaros_missing_decisions.md`.
+
+## Noticing duplicated logic (Mortaro, 2026-10-16)
+
+The engine extends `Matrix4` with what the library's `Matrix4` already does. Either the compiler fails to notice
+reused logic, or the library lacks the function. To investigate for its own sake: how a compiler can notice
+duplicated logic in general (normalise function bodies after inlining and compare, hash the IR of each function,
+compare the shape of loops). Duplication is sometimes a coincidence and is then more flexible left alone, so the
+aim is to tell a reader where a second copy makes the code harder to read, not to refuse it; the refusals stay the
+recognised library patterns of D607.
+
 ## Outside the constraints (recorded, not pursued)
 
 Ideas that would need a runtime or could change a result, kept so they are not rediscovered as new:
