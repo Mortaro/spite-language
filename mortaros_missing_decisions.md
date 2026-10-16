@@ -316,6 +316,9 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   language uses `assert` for what Spite calls `crash`, so a model's prior points the wrong way. Options: rename the
   guard (for example `require`, `expect` or `guard`), or keep the word and teach it harder (the error texts and the
   skill's first lines). Renaming is a large migration but removes the trap for every future writer.
+  A fourth agent added: a guard `assert` that answers nothing prints a `spite.assert` trace line that looks the
+  same as a failure, so it chased those lines first; whatever the keyword, the trace of a guard that returned should
+  not read like an error.
 
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a
