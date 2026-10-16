@@ -403,6 +403,7 @@ func write_reflection(instances: Instances, position: Integer) {
         return
     }
     var function = synthetic_function(name, kind, described)
+    function.made_for = kind
     var owner_type = instances.class_type(described)
     function.receiver = function.new_value(owner_type, "receiver")
     var made = instances.front()
@@ -680,6 +681,7 @@ func write_item_function(instances: Instances, position: Integer) {
     crash described
     crash kind
     var function = synthetic_function(name, kind, described)
+    function.made_for = kind
     var element = described.codegen_types[0]
     var boolean = instances.typed_boolean()
     var nothing = instances.typed_nothing()
@@ -740,6 +742,7 @@ func write_enum_reader(instances: Instances, position: Integer) {
     var text_type = instances.typed_string()
     var maybe_enum = instances.nullable_of(enum_type)
     var function = synthetic_function(name, "from_text", described)
+    function.made_for = "from_text"
     function.answer = maybe_enum
     var text = function.new_value(text_type, "parameter")
     function.value_at(text).name = "text"
@@ -776,6 +779,7 @@ func write_copy(instances: Instances, position: Integer) {
     crash name
     crash described
     var function = synthetic_function(name, "copy", described)
+    function.made_for = "copy"
     var owner_type = instances.class_type(described)
     function.answer = owner_type
     function.receiver = function.new_value(owner_type, "receiver")
@@ -799,6 +803,7 @@ func write_deep_copy(instances: Instances, position: Integer) {
     crash name
     crash described
     var function = synthetic_function(name, "deep_copy", described)
+    function.made_for = "deep_copy"
     var owner_type = instances.class_type(described)
     function.answer = owner_type
     function.receiver = function.new_value(owner_type, "receiver")
@@ -829,6 +834,7 @@ func write_container_attributes(instances: Instances, position: Integer) {
     var attribute_class = made.find_class_by_c_name("Spite_Attribute")
     crash attribute_class
     var function = synthetic_function(name, kind, described)
+    function.made_for = kind
     var attribute_element = instances.class_type(attribute_class)
     var answer = made.list_type_of(attribute_element)
     function.answer = answer
@@ -868,6 +874,7 @@ func write_text_call(instances: Instances, position: Integer) {
     var attribute_class = made.find_class_by_c_name("Spite_Attribute")
     crash attribute_class
     var function = synthetic_function(name, "text_call", described)
+    function.made_for = "text_call"
     var attribute_type = instances.class_type(attribute_class)
     var maybe_attribute = instances.nullable_of(attribute_type)
     function.answer = maybe_attribute
@@ -898,6 +905,7 @@ func write_described(instances: Instances, position: Integer) {
     crash kind
     var made = instances.front()
     var function = synthetic_function(name, kind, described)
+    function.made_for = kind
     var parameter_class = made.find_class_by_c_name("Spite_Function")
     if kind == "functions" or kind == "attributes" {
         parameter_class = made.find_class_by_c_name("Spite_Class")

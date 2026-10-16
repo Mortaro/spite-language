@@ -30,7 +30,7 @@ func note_weak(made: Generation.Generator) {
     var index = 0
     while index < made.classes.count() {
         var each = made.classes[index]
-        if each.qualified_dotted.starts_with("Weak") {
+        if made.is_library_class(each) and each.source_path.ends_with("/weak.spite") {
             weak_held = true
         }
         index = index + 1
