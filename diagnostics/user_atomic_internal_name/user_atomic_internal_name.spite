@@ -1,0 +1,6 @@
+var console = Console()
+
+func UserAtomicInternalName() {
+    var count = Spite.Internal.Atomic<Integer>(0)
+    console.print(count.read())
+}

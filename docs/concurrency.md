@@ -682,45 +682,54 @@ Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows
 `pthread_mutex_t` elsewhere), reached through each system's folder, and a program that makes neither carries
 neither.
 
-### A number every thread shares: `Atomic<T>`
+### A number every thread shares
 
-A counter or a flag that several threads change without a lock is an `Atomic<T>`, for a whole number or a
-`Boolean`: `read()`, `write(value)`, `add(amount)`
-(answering the value after the add), `exchange(value)` (answering the one before) and
-`compare_and_swap(expected, desired)` (answering whether it held `expected` and now holds `desired`). Each is one
-atomic instruction, sequentially consistent, with no lock and no call, and a `Parallel` may reach one like a
-`Lock`:
+A counter or a flag that several threads change is a singleton with a whole number or a `Boolean` that each
+function touches once. You write nothing more: the compiler turns every read and write of it into one atomic
+instruction, sequentially consistent, with no lock and no call, and a `Parallel` may reach it like any singleton
+([the forms](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)).
 
-```gdscript title=atomic_counter/atomic_counter.spite entry
+```gdscript title=shared_counter/jobs_done.spite
+singleton
+
+var count = 0
+
+func add(amount: Integer) {
+    count = count + amount
+}
+
+func total(): Integer {
+    return count
+}
+```
+```gdscript title=shared_counter/shared_counter.spite entry
 var console = Console()
-var jobs_done = Atomic<Integer>(0)
+var jobs = JobsDone()
 
-func AtomicCounter() {
+func SharedCounter() {
     var first = Parallel(finish_jobs)
     var second = Parallel(finish_jobs)
     var finished = first + second
-    var counted = jobs_done.read()
-    var claimed = jobs_done.compare_and_swap(200, 0)
-    var now_held = jobs_done.read()
-    console.print(finished, "finished,", counted, "counted, reset:", claimed, now_held)
+    var counted = jobs.total()
+    console.print(finished, "finished,", counted, "counted")
 }
 
 func finish_jobs(): Integer {
     var index = 0
     while index < 100 {
-        jobs_done.add(1)
+        jobs.add(1)
         index = index + 1
     }
     return index
 }
 ```
 ```output
-200 finished, 200 counted, reset: true 0
+200 finished, 200 counted
 ```
 
-`add` halts when its answer does not fit the type, as `+` does, in every build. An `Atomic` of anything else (a
-`Float`, a `String`, an object) and `add` on an `Atomic<Boolean>` are compile errors where the program calls them
-([failure.md](failure.md#crash)): share an object through a `Lock`, or give each thread its own.
+The class behind it, `Atomic<T>`, is internal to the standard library like `Lock` and `ThreadLocal`: naming it, or
+`Spite.Internal`, in a program is a compile error
+([the rule](../specs/packages.md#packages-namespaces-and-loading)).
 
 A program that makes a `Parallel` (or a `Concurrent`, or a `ForeignCallback` C may call from a thread of its own
 ([foreign_libraries.md](foreign_libraries.md#calling-back-into-spite)), or is built with `--repl-port` or
@@ -729,7 +738,7 @@ the plain, cheaper counts, and so does every class whose objects no other thread
 ([optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)). `Parallel(work)` is checked while compiling: the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values (numbers, `Boolean`, enums, text), its locals and parameters, singletons (which
-the compiler makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
+the compiler makes safe) and a `Lock` or `ThreadLocal`, which are made to be shared. An attribute holding a
 list, a dictionary or another object is an error naming it, since another thread may hold the same object:
 `'Parallel(tally.count_up)' runs 'record' on another thread, so it may reach only the attributes of its own
 'Tally' that hold values, its locals and singletons: 'marks' holds a List<Integer>, which another thread may

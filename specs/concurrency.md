@@ -143,7 +143,9 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   copying it into one twice the size and publishing that with an atomic store, and the arrays it replaced are freed
   with the `ThreadLocal`, so a thread still reading one reads its own unchanged value there.
 
-- **`Atomic<T>`** (`library/atomic.spite`): a whole
+- **`Spite.Internal.Atomic<T>`** (`library/spite/internal/atomic.spite`), internal to the library and refused in a
+  program's source (a program shares a counter or flag through a singleton, which the compiler turns into the same
+  atomic instructions): a whole
   number or a `Boolean` that threads share, in an 8-byte cell of its own that the `Atomic` frees when it is dropped.
   `read()`, `write(value)`, `add(amount)`, `exchange(value)` and `compare_and_swap(expected, desired)` are
   the primitives `read_long_atomically`, `write_long_atomically`, `add_long_atomically`, `exchange_long` and
@@ -153,7 +155,7 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   `compare_and_swap` compares the value as a `T`, retrying when another thread changed the cell's upper bits in
   between. The constructor holds a `crash` on `$value_type` and `add` one on `Boolean`, which fold, so a wrong `T`
   is a compile error where the program makes it (`diagnostics/atomic_misuse`). A `Parallel` may reach an `Atomic`
-  attribute, as it may a `Lock` (`conformance/stage6/atomic_values`). A program that makes none carries none of it.
+  attribute, as it may a `Lock` (`conformance/stage6/atomic_values`, a repository test program, which may name it). A program that makes none carries none of it.
 
 A value per pool worker (`worker_index()` into a list) needs no system call but covers only the pool's workers,
 not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread_locals`,

@@ -125,8 +125,22 @@ package/engine/physics/physics.spite     ->  Engine.Physics.Physics()   (no file
   interpolation. The message names the class written (or `Spite.Internal` alone when no class follows) and the plain
   form to use: "Spite.Internal.Memory is internal to Spite and cannot be used outside the standard library: read
   bytes with Buffer or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
-  (`diagnostics/internal_use`, `diagnostics/internal_class`). Inside `library/` it is ordinary code. A program that
+  (`diagnostics/user_internal_use`, `diagnostics/user_internal_class`). Inside `library/` it is ordinary code. A program that
   does not use the namespace carries none of it.
+  - **A class that moved into the namespace is written in full, or by its name inside it.** `Atomic<T>` is
+    `Spite.Internal.Atomic<T>`, a file of `library/spite/internal/`. Library code outside that folder writes the
+    full name; the files of the folder write the bare name, as any class is written inside its own namespace. The
+    bare name is not a class anywhere else, so a program that writes `Atomic` gets the same refusal as one that
+    writes `Spite.Internal.Atomic`: "Atomic is internal to Spite and cannot be used outside the standard library:
+    read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the
+    compiler" (`diagnostics/user_atomic_bare`, `diagnostics/user_atomic_internal_name`). A class of your own named
+    `Atomic` is fine: the bare name means yours. `Spite.Internal.Memory`, once it exists, is not `Spite.Memory`
+    (the reflection class): the full names differ, and `Memory` bare is neither.
+  - **The repository's own test programs may name it.** A program whose folder lies under `conformance/`,
+    `diagnostics/` or `benchmarks/` of a folder that holds `launcher/launcher.spite` (a checkout of the language) is
+    not refused, because testing the internal classes is the point of some of them; a diagnostic case whose folder
+    is named `user_...` is the exception, and is refused like any program. A program anywhere else, including one
+    in your own folder named `conformance`, is refused.
 - **Each operating system reopens the classes it changes.** `library/` holds what every system shares, and
   `library/windows/`, `library/linux/` and `library/mac/` hold only what differs: `library/linux/file.spite` reopens
   `File` with the functions that call `libc.so.6`, `library/windows/file.spite` the same functions over

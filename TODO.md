@@ -41,7 +41,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Memory and the internal namespace
 
-- The memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock`, `Atomic` and `ThreadLocal` move into `Spite.Internal` (D566)
+- The memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock` and `ThreadLocal` move into `Spite.Internal`, in the order `ThreadLocal` and `Lock`, then `ThreadPool`, `ThreadSlot` and `Parallel`, then `Concurrent` and `Scheduler`, the memory floor last; `Atomic` has moved (D566, D600)
 - The library above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off `Memory` onto `Buffer` and plain values (D566, D590)
 - Using `Memory` directly outside the library is a compile error, once plain foreign structs and a lock between processes exist (D565)
 - `Memory.Heap` asks the operating system for pages itself (D147, D178)

@@ -469,7 +469,7 @@ done
 rm -rf .spite/docs   # so a program deleted from docs/ stops being checked
 "$work/generation_two.exe" scripts/docs_corpus --executable-path="$work/docs_corpus.exe" > /dev/null || {
   echo "FAILED: could not extract the documentation's programs"; exit 1; }
-mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
+mkdir -p "$work/unformatted/launcher" && cp -r diagnostics "$work/unformatted/" && cp launcher/launcher.spite "$work/unformatted/launcher/"   # a folder with a launcher beside diagnostics/ is a Spite checkout, so these may name Spite.Internal
 
 # The longest jobs come first, so the pool does not end waiting on one of them.
 {
@@ -542,7 +542,7 @@ if [ "$generated" == "0" ] && ! cmp -s "$work/generation_two.c" "$work/generatio
   if ! cmp -s "$work/generation_three.c" "$work/generation_four.c"; then echo "FAILED: no fixpoint, generation 3 and 4 still emit different C"; exit 1; fi
   cp "$work/generation_three.c" "$work/generation_two.c"; cp "$work/generation_three.exe" "$work/generation_two.exe"
   cp "$work/generation_two.exe" .spite/spite_development.exe
-  rm -rf "$work/unformatted" && mkdir -p "$work/unformatted" && cp -r diagnostics "$work/unformatted/"
+  rm -rf "$work/unformatted" && mkdir -p "$work/unformatted/launcher" && cp -r diagnostics "$work/unformatted/" && cp launcher/launcher.spite "$work/unformatted/launcher/"   # a folder with a launcher beside diagnostics/ is a Spite checkout, so these may name Spite.Internal
   rm -rf "$fast_root" && mkdir -p "$fast_root"   # the fast reloads copy their programs afresh
   run_pool
 fi
