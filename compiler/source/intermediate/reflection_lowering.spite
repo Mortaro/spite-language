@@ -246,12 +246,12 @@ func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
     var listed = lowering().new_list(element)
     var appender = lowering().list_function(element, "append")
     var index = 0
-    while index < described.declared_functions.count() {
+    var limit = lowering().known().declared_limit(described)
+    while index < described.declared_functions.count() and index < limit {
         var function = described.declared_functions[index]
         var shown = not described.is_container or not function.symbol_owner_c_name.is_empty()
         var plain = not function.is_constructor and not function.symbol_through_caller
-        var written_for_it = not described.is_container and not function.has_body and not function.supplied_body.is_empty()
-        if shown and plain and not written_for_it and function.specialisation_position < 0 {
+        if shown and plain and function.specialisation_position < 0 {
             var made_function = function_of(described, function, owner, function_class, argument_class)
             lowering().call_two_function(appender, listed, made_function)
         }

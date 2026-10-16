@@ -25881,6 +25881,7 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
         index = index + 1
     }
     list_class.declared_functions = kept
+    list_class.forget_function_positions()
 }
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
@@ -43191,23 +43192,23 @@ func narrow_width_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope
 
 # ../../../docs/proofs.md#an-index-offset-by-a-base-is-proven-by-one-guard
 func narrow_offset_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
-    crash binary.left
-    crash binary.right
+    var left_side = binary_left(binary)
+    var right_side = binary_right(binary)
     var counted = ""
-    var sum_ast = binary.left
+    var sum_ast = left_side
     if binary.operator == 'less_equal' {
-        counted = counted_list_text(binary.right)
+        counted = counted_list_text(right_side)
     } else if binary.operator == 'greater_equal' {
-        counted = counted_list_text(binary.left)
-        sum_ast = binary.right
+        counted = counted_list_text(left_side)
+        sum_ast = right_side
     }
     assert not counted.is_empty()
     var sum = shape.as_binary(sum_ast)
     assert sum and sum.operator == 'add'
-    crash sum.left
-    crash sum.right
-    var first = shape.as_identifier(sum.left)
-    var second = shape.as_identifier(sum.right)
+    var sum_left = binary_left(sum)
+    var sum_right = binary_right(sum)
+    var first = shape.as_identifier(sum_left)
+    var second = shape.as_identifier(sum_right)
     assert first and second
     var condition_text = Syntax.SourcePrinter().source_expression(binary)
     var key = offset_guard_key(counted, first.name, second.name)
@@ -43228,11 +43229,13 @@ func offset_read_proven(index_expression: Syntax.Expressions.IndexExpression, sc
     if not sum or sum.operator != 'add' or not sum.left or not sum.right {
         return false
     }
+    var sum_left = binary_left(sum)
+    var sum_right = binary_right(sum)
     var list_text = operand_text(index_expression.object)
     if list_text.is_empty() {
         return false
     }
-    return offset_counted(list_text, sum.left, sum.right, scope) or offset_counted(list_text, sum.right, sum.left, scope)
+    return offset_counted(list_text, sum_left, sum_right, scope) or offset_counted(list_text, sum_right, sum_left, scope)
 }
 
 func offset_counted(
