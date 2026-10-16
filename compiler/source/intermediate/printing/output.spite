@@ -147,6 +147,11 @@ func place(c_name: String, owner: String, name: String, line: Integer) {
     places.append("\{(const void*)&{c_name}, \"{where}\", \"{named}\", {line}},")
 }
 
+func hidden_place(c_name: String) {
+    defined[c_name] = true
+    tag(c_name)
+}
+
 func runtime_place(c_name: String) {
     defined[c_name] = true
     tag(c_name)

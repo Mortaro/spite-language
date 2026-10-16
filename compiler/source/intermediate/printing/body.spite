@@ -689,6 +689,10 @@ func answers_nothing(): Boolean {
 }
 
 func note_place(c_name: String) {
+    if function.name == "main" and c_name == "spite_main" {
+        output.hidden_place(c_name)
+        return
+    }
     var owner = lowered.layout_named(function.owner)
     if not function.source or not owner {
         output.runtime_place(c_name)
@@ -2507,8 +2511,20 @@ func transfer(target: Target): String {
     return "\{ {held.join(" ")} {moved.join(" ")} } goto block_{target.block};"
 }
 
+func in_library_file(): Boolean {
+    var path = ""
+    if function.source {
+        path = function.source.source_path
+    }
+    var owner = lowered.layout_named(function.owner)
+    if path.is_empty() and owner and owner.information {
+        path = owner.information.source_path
+    }
+    return path.starts_with("library/")
+}
+
 func print_return(terminator: Terminator) {
-    if terminator.site >= 0 {
+    if terminator.site >= 0 and not in_library_file() {
         var answered = assert_answer()
         output.need("assert trace")
         lines.append("SPITE_TRACE_ASSERT({sites.assert_line(terminator.site, answered)});")
