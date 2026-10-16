@@ -329,7 +329,7 @@ func finds_stale(function: Function): Boolean {
             if operation.kind == "load" and not key.is_empty() {
                 readers[operation.result] = key
             }
-            if operation.kind == "call" and operation.result >= 0 and container_call(operation, ["count", "get_at", "first", "last", "index_of", "contains", "is_empty"]) {
+            if operation.kind == "call" and operation.result >= 0 and reads_a_container(operation) {
                 readers[operation.result] = "container"
             }
             if operation.kind == "call" and changes_a_container(operation) {
@@ -665,19 +665,6 @@ func start_through_twin(function: Function, block_number: Integer, operation: Op
     operation.operands = arguments
 }
 
-func container_call(operation: Operation, names: List<String>): Boolean {
-    crash lowered
-    var callee = lowered.function_named(operation.callee)
-    if not callee or not names.contains(callee.name) {
-        return false
-    }
-    var layout = lowered.layout_named(callee.owner)
-    if not layout {
-        return false
-    }
-    return layout.qualified == "List" or layout.qualified == "Dictionary"
-}
-
 func changes_after_read(
     changes: List<Operation>,
     changes_at: List<Integer>,
@@ -745,4 +732,30 @@ func holds_items(layout_name: String): Boolean {
         return false
     }
     return layout.qualified == "List" or layout.qualified == "Dictionary"
+}
+
+func reads_a_container(operation: Operation): Boolean {
+    crash lowered
+    crash effects
+    if operation.kind != "call" or operation.operands.is_empty() {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() {
+        return false
+    }
+    var summary = effects.of(callee.c_name)
+    var keys = summary.reads.keys()
+    var index = 0
+    while index < keys.count() {
+        var dot = keys[index].index_of(".")
+        if dot > 0 {
+            var owner = keys[index].slice(0, dot)
+            if holds_items(owner) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
