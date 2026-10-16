@@ -425,14 +425,12 @@ func hand_on(
     crash function
     var origin = borrows.origin_of(value)
     if origin == "lent" and counts_lent_parameter and function.is_parameter(value) {
-        placed.append(counted("retain", value))
+        var lent_retain = counted("retain", value)
+        placed.append(lent_retain)
         retained_count = retained_count + 1
         return
     }
-    assert origin != "plain" and origin != "lent"
-    if origin == "static" {
-        return
-    }
+    assert origin != "plain" and origin != "lent" and origin != "static"
     if tracked.has(value) and not live.has(value) and not moved.contains(value) {
         moved.append(value)
         return
