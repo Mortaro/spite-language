@@ -15,6 +15,8 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D605:** every compile passes `-ffp-contract=off`, so floats answer the same in every build and machine,
+  at the cost of the C compiler never fusing a multiply-add on its own.
 - **D602's details:** `Buffer(size)` gives room for `size` bytes and starts empty (not `size` zero bytes); the
   size is always written (`Buffer(0)` when unknown); `reserve(count)` stays for a buffer that learns its size later.
 - **D566, the programs that test an internal class (decided by Claude Opus 5.5 under D509: (c)).** About 80 conformance programs, diagnostics and benchmarks name

@@ -189,6 +189,10 @@ it. Tree shaking and every other whole-program step run before any output is wri
   program it caches. Nothing in the cache needs deleting by hand.
 - **`optimized` is `-O3`, and link-time optimisation across units.** A build from several units also passes `-flto=thin` (with `-fuse-ld=lld` except on
   macOS) when `CC --version` names clang, `-flto=auto` when it names gcc, and nothing for another compiler.
+- **A float answers the same bits in every build, on every machine.** Every compile passes `-ffp-contract=off`,
+  so the C compiler never fuses a multiply and an add into one rounding on its own: whether a build is tuned for
+  its machine, whether the processor has a fused multiply-add, and how the compiler splits an expression into C
+  statements change nothing a program computes.
 - **A build that is not `--optimized` is tuned for the machine that builds it**: compiling and linking a default
   or `--hot-reload` build, and every reload library, pass `-mcpu=native` when `CC -dumpmachine` starts with
   `aarch64` or `arm`, else `-march=native`. An `--optimized` build passes neither, so it runs on any processor of
