@@ -234,6 +234,9 @@ func attribute_value(owner: Integer, name: String, field_type: Analysis.SpiteTyp
 
 func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
     var made = lowering().front()
+    if described.is_container {
+        made.instantiate_member_templates_of(described)
+    }
     var function_class = made.find_class_by_c_name("Spite_Function")
     var argument_class = made.find_class_by_c_name("Spite_Argument")
     if not function_class or not argument_class {
@@ -311,6 +314,17 @@ func function_of(
     var binding = lowering().emitter.call_operation("Function.bind", operands, null)
     binding.literal = bound_name
     binding.target = bound_name
+    if made.read_evaluate_print_loop and not made.is_inline_supplied(function) and text_callable(function) {
+        var texter = lowering().known().accessed_maker(
+            "{function.c_name}___text_call",
+            described,
+            function.name,
+            "text_call",
+        )
+        var texted = [made_function]
+        var text_binding = lowering().emitter.call_operation("Function.text_call", texted, null)
+        text_binding.target = texter
+    }
     if not made.is_inline_supplied(function) and not made.is_library_class(described) and not made.hot_reload {
         var filler = lowering().known().accessed_maker(
             "{function.c_name}___accessed",
@@ -646,6 +660,27 @@ func held_value(value: Integer, value_type: Analysis.SpiteType): Integer {
 func held_links(value_type: Analysis.SpiteType): String {
     var made = lowering().front()
     var plain = lowering().without_nullable(value_type)
+    var listed = types.as_list(plain)
+    if listed and made.read_evaluate_print_loop {
+        var list_class = made.list_class_of(listed.element)
+        var list_attributes = "{list_class.c_name}___attributes"
+        lowering().known().accessed_maker(list_attributes, list_class, "", "list_attributes")
+        var list_functions = ""
+        if types.as_class_ref(listed.element) {
+            list_functions = "{list_class.c_name}___functions"
+            lowering().known().reflection_maker(list_functions, "functions", list_class, "")
+        }
+        return "{list_attributes},{list_functions},"
+    }
+    var mapped = types.as_dictionary(plain)
+    if mapped and made.read_evaluate_print_loop {
+        var dictionary_name = made.ensure_dictionary(mapped)
+        var dictionary_class = made.find_class_by_c_name(dictionary_name)
+        crash dictionary_class
+        var dictionary_attributes = "{dictionary_name}___attributes"
+        lowering().known().accessed_maker(dictionary_attributes, dictionary_class, "", "dictionary_attributes")
+        return "{dictionary_attributes},,"
+    }
     var class_ref = types.as_class_ref(plain)
     if not class_ref or class_ref.has_signature {
         return ",,"
@@ -793,4 +828,177 @@ func reflect_body(name_value: Integer, value: Integer): Integer {
     emitter.jump(joined, unmade_passed)
     emitter.enter_block(joined)
     return answered
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func items_attributes(
+    items: Integer,
+    keys: Integer,
+    element: Analysis.SpiteType,
+    key_type: Analysis.SpiteType?,
+): Integer {
+    var made = lowering().front()
+    var emitter = lowering().emitter
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        return lowering().not_lowered(null, "the items of a container with no Spite.Attribute class")
+    }
+    var attribute_element = lowering().known().class_type(attribute_class)
+    var result = lowering().new_list(attribute_element)
+    var appender = lowering().list_function(attribute_element, "append")
+    var counter = lowering().list_function(element, "count")
+    var reader = lowering().list_function(element, "get_at")
+    crash counter.owner
+    crash counter.function
+    crash reader.owner
+    crash reader.function
+    var count_operands = [items]
+    var count = lowering().call_reached(counter.owner, counter.function, count_operands)
+    var integer_type = lowering().known().typed_integer()
+    var text_type = lowering().known().typed_string()
+    var symbol_type = lowering().known().typed_symbol()
+    var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("index")
+    var zero = emitter.constant(integer_type, "0")
+    var header = emitter.new_block()
+    var body = emitter.new_block()
+    var done = emitter.new_block()
+    var index = emitter.new_value(integer_type, "parameter")
+    emitter.built_function().block_at(header).parameters.append(index)
+    var start = [zero]
+    emitter.jump(header, start)
+    emitter.enter_block(header)
+    var below = lowering().compare_values('less', index, count, whole)
+    emitter.branch(below, body, done)
+    emitter.enter_block(body)
+    var item_operands = [items, index]
+    crash reader.owner
+    crash reader.function
+    var item = lowering().call_reached(reader.owner, reader.function, item_operands)
+    var name_text = lowering().convert(index, text_type)
+    if keys >= 0 {
+        crash key_type
+        var key_reader = lowering().list_function(key_type, "get_at")
+        crash key_reader.owner
+        crash key_reader.function
+        var key_operands = [keys, index]
+        var key = lowering().call_reached(key_reader.owner, key_reader.function, key_operands)
+        name_text = lowering().convert(key, text_type)
+    }
+    var name_symbol = emitter.emit_call_one("Symbol.of_text", name_text, symbol_type)
+    var attribute = reflect_attribute(name_symbol, item, element)
+    var placed = [attribute, items, index]
+    emitter.call_operation("Attribute.place_item", placed, null)
+    lowering().call_two_function(appender, result, attribute)
+    var one = emitter.constant(integer_type, "1")
+    var next = lowering().number_operation('add', index, one, integer_type, whole)
+    var again = [next]
+    emitter.jump(header, again)
+    emitter.enter_block(done)
+    return result
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func text_callable(function: Analysis.FunctionInfo): Boolean {
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter_type = function.parameters[index].type
+        var counted = types.as_string(parameter_type) or types.as_scalar(parameter_type) or types.as_enum(parameter_type)
+        if not counted {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func text_call_body(
+    described: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    receiver: Integer,
+    arguments: Integer,
+) {
+    var made = lowering().front()
+    var emitter = lowering().emitter
+    var known = lowering().known()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = known.class_type(attribute_class)
+    var maybe_attribute = known.nullable_of(attribute_type)
+    var text_type = known.typed_string()
+    var integer_type = known.typed_integer()
+    var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("arguments")
+    var fail = emitter.new_block()
+    var counter = lowering().list_function(text_type, "count")
+    var reader = lowering().list_function(text_type, "get_at")
+    crash counter.owner
+    crash counter.function
+    crash reader.owner
+    crash reader.function
+    var count_operands = [arguments]
+    var count = lowering().call_reached(counter.owner, counter.function, count_operands)
+    var wanted_text = function.parameters.count().to_string()
+    var wanted = emitter.constant(integer_type, wanted_text)
+    var different = lowering().compare_values('not_equal', count, wanted, whole)
+    var counted_block = emitter.new_block()
+    emitter.branch(different, fail, counted_block)
+    emitter.enter_block(counted_block)
+    var passed = List<Integer>()
+    if not lowering().receiver_less_call(described, function) {
+        passed.append(receiver)
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter_type = function.parameters[index].type
+        var position_text = index.to_string()
+        var position = emitter.constant(integer_type, position_text)
+        var item_operands = [arguments, position]
+        crash reader.owner
+        crash reader.function
+        var item = lowering().call_reached(reader.owner, reader.function, item_operands)
+        var argument = item
+        var scalar = types.as_scalar(parameter_type)
+        var enumerated = types.as_enum(parameter_type)
+        if scalar {
+            var word = known.scalar_word(scalar.kind)
+            var parser = made.written_string_function("to_{word}")
+            var string_class = made.find_class_by_c_name("SpiteString")
+            crash parser
+            crash string_class
+            var parse_operands = [item]
+            var parsed = lowering().call_reached(string_class, parser, parse_operands)
+            argument = unwrapped_or_fail(parsed, parameter_type, fail)
+        } else if enumerated {
+            var maybe_enum = known.nullable_of(parameter_type)
+            var parsed = emitter.emit_call_one("Enum.from_text", item, maybe_enum)
+            argument = unwrapped_or_fail(parsed, parameter_type, fail)
+        }
+        passed.append(argument)
+        index = index + 1
+    }
+    var called = lowering().call_reached(described, function, passed)
+    var result_name = symbol("result")
+    var reflected = -1
+    if types.is_void(function.return_type) {
+        var returned = returned_class(function)
+        var values = [result_name, returned]
+        reflected = lowering().construct_values(attribute_class, values)
+    } else {
+        reflected = reflect_attribute(result_name, called, function.return_type)
+    }
+    var answer = lowering().convert(reflected, maybe_attribute)
+    emitter.returns(answer)
+    emitter.enter_block(fail)
+    var absent = emitter.constant(maybe_attribute, "null")
+    emitter.returns(absent)
+}
+
+func unwrapped_or_fail(parsed: Integer, inner: Analysis.SpiteType, fail: Integer): Integer {
+    var emitter = lowering().emitter
+    var boolean = lowering().known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", parsed, boolean)
+    var kept = emitter.new_block()
+    emitter.branch(present, kept, fail)
+    emitter.enter_block(kept)
+    return emitter.emit_call_one("Nullable.value", parsed, inner)
 }

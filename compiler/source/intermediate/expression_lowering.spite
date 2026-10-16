@@ -4550,3 +4550,11 @@ func every_namespace(): Integer {
     }
     return made_list
 }
+
+func receiver_less_call(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo): Boolean {
+    var made = front()
+    if not information.is_value_class or not made.maths.is_constant(declared.name) {
+        return false
+    }
+    return made.is_inline_supplied(declared)
+}
