@@ -25322,10 +25322,12 @@ func buffer_number_word(name: String): String {
     var without_at = name.slice(0, name_length - 3)
     var without_at_length = without_at.length()
     if name.starts_with("read_") {
-        return buffer_without_order(without_at.slice(5, without_at_length))
+        var read_word = without_at.slice(5, without_at_length)
+        return buffer_without_order(read_word)
     }
     if name.starts_with("write_") {
-        return buffer_without_order(without_at.slice(6, without_at_length))
+        var write_word = without_at.slice(6, without_at_length)
+        return buffer_without_order(write_word)
     }
     return ""
 }

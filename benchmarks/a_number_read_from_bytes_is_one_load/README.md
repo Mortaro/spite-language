@@ -12,7 +12,7 @@ buffer's block, and one byte swap for a big-endian number.
 ## The four forms
 
 - [`naive/`](naive/): 100 000 records of 16 bytes, each three `Integer`s and two `Short`s in a
-  `Buffer('big_endian')`, built with `append_integer` and `append_short`, then decoded 300 times by a loop that walks
+  `Buffer`, built with `append_integer_big_endian` and `append_short_big_endian`, then decoded 300 times by a loop that walks
   them, `while position + 15 < records.count()`, reads the five numbers at `position` to `position + 14` and steps
   `position = position + 16`. Nothing in it is narrowed by hand.
 - [`naive.c`](naive.c): the same program as a C programmer writes it from the Spite: a growable array of bytes, each

@@ -414,7 +414,7 @@ abc a
 to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice
 ([Placement](../specs/memory.md#placement-the-compiler-decides-where-memory-lives)):
 
-- **Register:** a number's own memory (`var _memory = Memory.Bytes(4)` in `library/integer.spite`) is its C
+- **Register:** a number's own memory (`var _memory = Buffer(4)` in `library/integer.spite`) is its C
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text`, hands to a `TypedMemory` or lends to a function of its own class
@@ -797,7 +797,7 @@ pointer.
 reads its list (`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, or passing it to a
 function of its own class that only reads it too), the list and its items are in the caller's frame: no allocation for
 the list or its items, and its elements (the boxes of text above) are released after the call. An empty variadic list (a call that passes
-none of the variadic values, a constructor's included, such as `Buffer()`) costs no allocation either, when the
+none of the variadic values) costs no allocation either, when the
 function only reads it. A function that stores,
 returns, grows or passes on its list anywhere else gets a list on the heap as before, and so does a function of a
 `--hot-reload` build's own classes, which can be swapped.
@@ -3592,23 +3592,23 @@ the same halt, named by the read (`conformance/stage6/proven_read_outside`).
 
 **The case:** [benchmarks/a_number_read_from_bytes_is_one_load](../benchmarks/a_number_read_from_bytes_is_one_load/).
 
-**What it does.** `bytes.read_integer_at(position)` and the other reads of a `Buffer`
+**What it does.** `bytes.read_integer_little_endian_at(position)` and the other reads of a `Buffer` (each also with a `_big_endian_at` twin)
 ([standard_library.md](standard_library.md#bytes-are-a-buffer)) are library functions that compare the position with the
 count and answer a `T?`. Where a proof covers the read
 ([proofs.md](proofs.md#a-proven-count-or-bound-proves-a-read-of-a-width)), the compiler writes the read itself in
 place of the call: one unaligned load from the buffer's block (a `memcpy` of the number's width, which the C
-compiler makes one instruction), and for a `'big_endian'` buffer one byte swap (`__builtin_bswap32` and its kin)
-after it. Inside a counted loop that is all there is, the buffer's block, count and byte order read once before the
-loop (nothing in the loop may set them), so a decoder walking records,
+compiler makes one instruction), and for a `_big_endian_at` read one byte swap (`__builtin_bswap32` and its kin)
+after it; the order is part of the name, so it is known while compiling. Inside a counted loop that is all there is,
+the buffer's block and count read once before the loop (nothing in the loop may set them), so a decoder walking
+records,
 
 ```gdscript
 func decode(records: Buffer): Long {
-    records.byte_order = 'big_endian'
     var total: Long = 0
     var position = 0
     while position + 15 < records.count() {
-        var identity = records.read_integer_at(position)
-        var kind = records.read_short_at(position + 12)
+        var identity = records.read_integer_big_endian_at(position)
+        var kind = records.read_short_big_endian_at(position + 12)
         total = total + identity + kind
         position = position + 16
     }
@@ -3621,7 +3621,7 @@ store the same way. A counted loop may step by more than one for this: `position
 window of `+ 15`.
 
 **When.** Every build, for a `_at` read on a `Buffer` named bare (a local, a parameter or an attribute); a read at
-the buffer's position, `read_<number>()`, stays the library's checked call. Outside a
+the buffer's position, `read_<number>_little_endian()` and its `_big_endian` twin, stays the library's checked call. Outside a
 counted loop the read keeps one compare of its top, which the C compiler is told is never taken, since the buffer
 could have been shrunk through another name since the bound; a position not known to be non-negative adds the
 compare of its low end. `bytes[index]` on a list of numbers gets the same single compare when its index is known not

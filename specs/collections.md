@@ -165,7 +165,7 @@ or a `while` that does more than they do.
 included: the numbers laid out in bytes, their byte order, a reading position and the text bytes spell are a
 `Buffer`'s ([Bytes are a Buffer](standard_library.md#bytes-are-a-buffer)). Calling one of a `Buffer`'s byte
 functions on a list of any element type is the error `List has no method 'read_integer': bytes are a Buffer, which
-has it: make them with 'Buffer()'`, with the function's own name (`read_<number>`, `read_<number>_at`,
+has it: make them with 'Buffer(size)'`, with the function's own name (`read_<number>`, `read_<number>_at`,
 `append_<number>`, `write_<number>_at`, the old `write_<number>` and `_big_endian` names, `append_bytes`,
 `read_bytes`, `to_utf8_text`) (`diagnostics/address_forms`).
 
