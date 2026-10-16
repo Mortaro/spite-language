@@ -1686,6 +1686,16 @@ func print_plain_store(operation: Operation) {
         return
     }
     var written = naming.c_type(stored_type)
+    var waiting = List<String>()
+    if machine and reaches_waiting_drop(stored_type, waiting) {
+        var replaced = release_temporary(written)
+        lines.append("{replaced} = {place}; {place} = {stored};")
+        var finished = suspend_release(replaced, stored_type)
+        if not finished {
+            lines.append("{counted}___release({replaced});")
+        }
+        return
+    }
     lines.append("\{ {written} spite_replaced = {place}; {place} = {stored}; {counted}___release(spite_replaced); }")
 }
 
