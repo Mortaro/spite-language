@@ -262,10 +262,10 @@ a retain and release that meet, `Copies` decides a deep copy and whether it need
 back of what a slot already holds, and `TextAppends` marks appends to text done in place.
 
 **The row rule.** A row borrows its items, counts nothing, and its free releases nothing. It becomes a class only if it
-escapes: stored into a field, returned, or passed to a parameter that keeps it. `RowEscapes` runs before the
-conventions are final and decides it, to a fixed point over `keeping` parameters (a parameter that stores or returns
-what it is given, or passes it on to one that does). An intrinsic never keeps a row. (The code today lets the memory
-intrinsics `write_value` and `swap_values` keep one; see [Where it stands](#where-it-stands).)
+escapes: it is stored into a field, returned, passed to a parameter that keeps it, or given to the intrinsics that keep
+a value (`write_value`, `swap_values`); every other intrinsic never keeps it. `RowEscapes` runs before the conventions
+are final and decides it, to a fixed point over `keeping` parameters (a parameter that stores or returns what it is
+given, or passes it on to one that does).
 
 ### 4. Placement (`placement/`)
 
@@ -381,10 +381,10 @@ now, make it refuse with a message that names the function and the construct; a 
 - Commits start with a gitmoji and name the model; stage explicit paths, never `git add -A`; push `backend-ir`, and
   master only after `bash check.sh --update-seed` passes on exactly what is pushed.
 
-**The IR verifier.** There is none yet. Nothing checks that every value is defined before use, every jump passes as
-many arguments as its target has parameters, every operation's operands exist, or every site index is in
-`Lowered.sites`; a malformed IR shows up as a wrong refusal, a crash in a pass or bad C. A verifier run between passes
-(under a flag, since it costs compile time only) is the first thing to build when a pass's output is in doubt.
+**The IR verifier** (`verifier.spite`). It runs after every pass and after `tidy`, called from `Passes.run` with the
+pass's name. It refuses a value that is used but never defined, a use that its definition does not come before on every
+path (by dominance), and a jump whose arguments do not match the target block's parameters. The first ten problems become
+`error: the high IR is not valid: ...`, each naming the pass that made the IR invalid, so the pass to fix is known.
 
 ## Where it stands
 
@@ -418,9 +418,6 @@ is [design/decisions.md](../../../design/decisions.md): D569 (caching), D586, D5
 
 **Known contradictions between the code and the specification** (each is a bug to fix, not to document):
 
-- the specification lists `site` as an operation kind; the code has none, a check is an intrinsic `call` with a
-  `site` index or a `halt` terminator;
-- an intrinsic never keeps a row, but `RowEscapes` lets `write_value` and `swap_values` keep one;
 - D599 says nothing that is a function in the end becomes an operation: the intrinsics `List.holds_table`,
   `Attribute.hold`, `Attribute.place`, `Attribute.bind_item` and `Instances.fill` reach into list and reflection
   storage and need review against it.
