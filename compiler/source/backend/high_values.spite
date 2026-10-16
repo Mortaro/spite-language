@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 var entries = Dictionary<String, Integer>()
 
 func value_of(key: String): Integer {

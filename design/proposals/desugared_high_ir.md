@@ -1,5 +1,7 @@
 # The desugared high IR, and C written only from it (D587)
 
+The guide to the code, how to run it and where it stands is [compiler/source/intermediate/README.md](../../compiler/source/intermediate/README.md); this page is the normative specification.
+
 Mortaro, 2026-10-14: the high level is only useful to optimise when it is **desugared** (every operator is a call to
 its function) and **monomorphised** (every template, codegen value and specialisation is resolved, so every function
 and type in it is concrete). Then a pass can see what is the same and collapse it, and what can be optimised, without

@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 var program: HighProgram? = null
 var function = HighFunction("", "", "")
 var answers_nothing = true
@@ -420,7 +420,7 @@ func generator_of(): Generation.Generator {
     return program.generator
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func print_checked(
     operation: HighOperation,
     syntax: Syntax.Expressions.BinaryExpression,
@@ -471,7 +471,7 @@ func print_return(operation: HighOperation) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func next_block(block: HighBlock, stop: Integer): Integer {
     if block.edges.is_empty() {
         return -1

@@ -801,7 +801,7 @@ func wrote_final_classes(
     return wrote_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
 }
 
-# ../design/backend_high_level_ir.md#what-the-comparison-checks
+# source/intermediate/README.md#what-the-comparison-checks
 func wrote_high_level_report(generator: Generation.Generator, report_path: String): Boolean {
     var folder = directory_of(report_path)
     create_folder(folder)

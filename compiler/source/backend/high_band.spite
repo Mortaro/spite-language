@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+# ../intermediate/README.md#what-a-band-site-needs
 var program: HighProgram? = null
 var visited = Dictionary<String, Boolean>()
 var item_writes = List<String>()
@@ -151,7 +151,7 @@ func visit_call(function: HighFunction, items: List<Integer>, operation: HighOpe
     visit(callee, passed)
 }
 
-# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+# ../intermediate/README.md#what-a-band-site-needs
 func object_of_operand(function: HighFunction, operation: HighOperation, position: Integer): Integer {
     var operand = operation.operands[position]
     crash operand

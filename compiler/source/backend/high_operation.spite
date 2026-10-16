@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+# ../intermediate/README.md#functions-blocks-and-operations
 var kind = ""
 var reads = List<Integer>()
 var writes = List<Integer>()

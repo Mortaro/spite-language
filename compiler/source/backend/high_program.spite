@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#the-whole-program
+# ../intermediate/README.md#the-whole-program
 var generator: Generation.Generator? = null
 var objects = List<HighObject>()
 var walked_functions = List<HighFunction>()
@@ -102,7 +102,7 @@ func class_named(qualified: String): Analysis.ClassInfo? {
     return found
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func prepare() {
     if not prepared {
         note_classes()
@@ -114,7 +114,7 @@ func class_with_c_name(c_name: String): Analysis.ClassInfo? {
     return classes_by_c_name[c_name]
 }
 
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 func class_of_type(given: Analysis.SpiteType?): Analysis.ClassInfo? {
     var found: Analysis.ClassInfo? = null
     crash generator
@@ -175,7 +175,7 @@ func new_object(class_name: String, kind: String, made_at: String, through_field
     return made
 }
 
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 func items_object_of(list_number: Integer, element_class: String): Integer {
     var key = "items of {list_number}"
     var known: Integer? = null
@@ -204,7 +204,7 @@ func object_at_or_none(number: Integer): HighObject? {
     return found
 }
 
-# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+# ../intermediate/README.md#what-the-comparison-checks
 func declares_function(c_name: String): Boolean {
     return declared_function_names.has(c_name)
 }
@@ -217,7 +217,7 @@ func walked_function_with_c_name(c_name: String): HighFunction? {
     return found
 }
 
-# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+# ../intermediate/README.md#what-a-band-site-needs
 func ensure_walked(c_name: String): HighFunction? {
     var built: HighFunction? = null
     var found = walked_function_with_c_name(c_name)
@@ -308,7 +308,7 @@ func class_c_name(qualified: String): String {
     return found.c_name
 }
 
-# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+# ../intermediate/README.md#what-the-comparison-checks
 func decide_coverage(function: HighFunction) {
     function.covered = true
     if function.fact.unknown_operations > 0 {

@@ -12238,7 +12238,7 @@ func right_operand_code(
     return cast(right_value, right_type, left_type)
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func note_lowered(
     binary: Syntax.Expressions.BinaryExpression,
     checked: String,
@@ -47816,7 +47816,7 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     add_outlined_reports(reports_before)
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func print_from_high_level(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, body_start: Integer) {
     var program = high_level_program()
     assert not program.is_library(information)
@@ -47846,7 +47846,7 @@ func print_from_high_level(information: Analysis.ClassInfo, function: Analysis.F
     }
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func why_the_generator_writes(function: Analysis.FunctionInfo, body_start: Integer): String {
     if hot_reload {
         return "the build reloads code while it runs"
@@ -47888,7 +47888,7 @@ func owns_parameter(function: Analysis.FunctionInfo, parameter: Analysis.ParamIn
     return type_needs_drop(parameter.type)
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func note_parameter_ownership(function: Analysis.FunctionInfo, readable: List<String>, releases: List<String>) {
     var index = 0
     while index < function.parameters.count() {
@@ -47908,7 +47908,7 @@ func note_parameter_ownership(function: Analysis.FunctionInfo, readable: List<St
     }
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func marked_for_later(body_start: Integer): Boolean {
     var index = body_start
     while index < builder.user_count() {
