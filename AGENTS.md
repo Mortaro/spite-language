@@ -16,7 +16,7 @@ error, or a crash that names its cause, and never a wrong value, a lost write, a
 Judge everything you build, and every open item, against it: a compiler rule that lets one of those through, a
 library function that answers a default a caller cannot tell from a real answer, a report that prints a value where
 something is missing. Each is a bug to fix, not a style to document. When you find one you cannot fix now, write
-it into the "still open" list of [design/status.md](design/status.md).
+it as one line under "Bugs that fail silently" in [`TODO.md`](TODO.md).
 
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
 project. Then the docs, in the [reading order](docs/README.md#reading-order). **The specification is normative**
@@ -26,6 +26,8 @@ else disagrees with the specification, the specification wins; a docs page that 
 
 ## Where things live
 
+- [`TODO.md`](TODO.md) is the to-do list: one line per thing decided (or wished for by Mortaro) and not built,
+  grouped by area, with its decision numbers, and the bugs that fail silently under D244.
 - `docs/` is documentation for people learning Spite, and nothing else. It holds no notes to AI writers, no
   implementation status ("not built", "planned", "being replaced"), no decision numbers or open-question
   bookkeeping, and no mention of third-party packages. Each page teaches the language as decided and ends with a
@@ -36,8 +38,6 @@ else disagrees with the specification, the specification wins; a docs page that 
   normative and user-facing like `docs/`, with the same limits: no status, no decision numbers, no notes to agents.
 - `design/` is for the people and agents who build Spite:
   - [`design/decisions.md`](design/decisions.md): the append-only decision log, every decision with when and why;
-  - [`design/status.md`](design/status.md): what is decided but not built, or only partly built, page by page,
-    and the bugs still open under D244;
   - [`design/backlog.md`](design/backlog.md): everything decided and not built, as work: size, dependencies and
     parallel streams;
   - [`design/open_questions.md`](design/open_questions.md): decided work that has no page yet, and open questions;
@@ -57,8 +57,8 @@ else disagrees with the specification, the specification wins; a docs page that 
 - [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
   claim in them is true of Spite today or marked as the direction.
 
-When you build something the docs describe, delete its line from `design/status.md`. A decision that is not built
-yet is still described on its page as the language; `design/status.md` is where it says it is not built.
+When you build something, delete its line from `TODO.md` in the same commit. A decision that is not built yet is
+still described on its page as the language; `TODO.md` is the one place that says it is not built, in one line.
 
 ## Writing
 
@@ -126,8 +126,8 @@ each compiler change rewrote its C. `check.sh` fails when one is out of date.
 
 A change that makes the compiler optimise something on its own, or builds a planned optimisation, updates
 [`docs/optimizations.md`](docs/optimizations.md) in the same commit (D185, D102): what it does, when it applies,
-and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of calls). Whether
-it is built yet goes into [`design/status.md`](design/status.md). An optimisation with a user-visible cost says so
+and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of calls). What
+of it is not built yet goes into [`TODO.md`](TODO.md), one line. An optimisation with a user-visible cost says so
 on the page; one that contradicts a rule in the docs goes into `mortaros_missing_decisions.md`.
 
 **No optimisation is undocumented** (Mortaro, 2026-10-03). `docs/optimizations.md` is how users learn what the
@@ -180,8 +180,8 @@ and a half, on Mortaro's one machine (Mortaro, 2026-10-15: a day was lost to bui
 
 ## Shared files, when more than one agent is running
 
-`design/decisions.md`, `PLAN.md` and `mortaros_notes.md` are written by every session. The manual they replaced,
-`PLAN.md` and the notes have been lost to a whole-file overwrite once already.
+`design/decisions.md`, `TODO.md` and `mortaros_notes.md` are written by every session. The old manual, the old
+plan and the notes have been lost to a whole-file overwrite once already.
 
 - Targeted edits only, matching on surrounding text, never on line numbers: these files move under you. The
   same goes for every page of `docs/`, which many sessions change at once.
@@ -201,8 +201,8 @@ and a half, on Mortaro's one machine (Mortaro, 2026-10-15: a day was lost to bui
   `check.sh` runs too (`scripts/docs_corpus` writes them out), so a page cannot drift from the compiler without
   failing. A program for something not built yet carries no title.
 - `specs/`: the language, normative: one page per docs page with that part's rules in full.
-- `design/`: decisions, status, open questions, proposals and known issues (above).
-- `PLAN.md`: milestones and implementation status.
+- `TODO.md`: what is decided and not built yet, one line each.
+- `design/`: decisions, open questions, proposals and known issues (above).
 - `compiler/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.
 - `conformance/`, `examples/`, `tests/`, `diagnostics/`: what `bash check.sh` runs: programs with their exact
   expected output and balanced memory, the test package, and programs that must fail with exact errors.

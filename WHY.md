@@ -257,8 +257,8 @@ Spite is weeks old: its first decision is dated 2026-09-19. Only Windows runs to
 the standard library compile but have never run. The web target, a language server for editors, our own code
 generator in place of C, and the layout that would give each list the shape its loops want (today a `List`
 of a class keeps its objects side by side in a pool, but is still a list of references) are decided or planned, not
-built. There is no license file yet. What is not built,
-page by page, is in [design/status.md](design/status.md).
+built. There is no license file yet. What is not built
+is listed in [TODO.md](TODO.md).
 
 ## Questions
 

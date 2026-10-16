@@ -1,9 +1,9 @@
 # Backlog
 
 Everything decided and not yet built, in one place, so the work can be ordered and split between sessions. The
-rule lives on its docs page, the reason in [decisions.md](decisions.md), and the gap in [status.md](status.md);
-this page only says what to build, how big it is, what it waits on and who can build it at the same time. When an
-item lands, delete it here and its line in status.md in the same commit.
+rule lives on its docs page, the reason in [decisions.md](decisions.md), and the gap, one line, in
+[TODO.md](../TODO.md); this page only says what to build, how big it is, what it waits on and who can build it at
+the same time. When an item lands, delete it here and its line in TODO.md in the same commit.
 
 Drafted 2026-10-02 from `master` (decisions to D376) and the unmerged branches below.
 Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are relative to the repository;
@@ -20,7 +20,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 
 ## Items
 
-### Reflection migration (D316, D317, D318, D335, D330; status.md "Reflection known while compiling")
+### Reflection migration (D316, D317, D318, D335, D330)
 
 - **R5 The rest of the object model** (D316, D317; status "Not built" and "Run time only through the old tables").
   Specialisation of enum parameters (only for values from reflection, D497); `.owner`, `.element_type` and
@@ -57,7 +57,7 @@ Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are
 - **J1 Binary as library Spite specialised per class** (D319, D384). The JSON pair and `Spite.DebugInstance` walk
   with `each`, and all four serializers skip private and singleton attributes. Left: `binary_format.spite` still
   walks a class's attributes and an enum's values with `Symbol<$value_type>` plurals, since an `each` walk would
-  keep the cursor in `BinaryFormat`, a singleton every thread shares (status.md, json.md). Waits on
+  keep the cursor in `BinaryFormat`, a singleton every thread shares (json.md). Waits on
   `mortaros_missing_decisions.md` item 280. **M.**
 - **J2 Rename map keyed by attribute objects** (D320, D329). `JsonWriter<Monster>()` with its `keys` set to
   `{Monster.attributes['health']: "hp"}` (D478), the reader taking the same map, every serializer the same kind; a constant map folds into literal keys
@@ -311,7 +311,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 7 Language rules | L3, S6, F1, F2, F4 | `compiler/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |
-| 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `design/status.md`, `docs/` pages as items land |
+| 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `TODO.md`, `docs/` pages as items land |
 
 Stream 1 is the longest (several weeks), then streams 2 and 3 (N1 and N2 are each a week or more), then the
 memory stream. Streams 5 and 9 are many small items and the right place for a session with little context.

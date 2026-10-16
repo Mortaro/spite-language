@@ -27,5 +27,5 @@ the compiler rejects.
 ## Optional
 
 - [Benchmarks](benchmarks/README.md): each optimisation and five whole programs, Spite against naive and expert C
-- [Implementation status](design/status.md): what is decided but not built yet
+- [To do](TODO.md): what is decided but not built yet, one line each
 - [SPITE.md](SPITE.md): what the language refuses, and why

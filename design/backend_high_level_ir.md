@@ -166,7 +166,7 @@ summary of the operations and the joins, never a second walk:
 The summary is per function and keyed by the abstract object and the field, the same keys the comparison uses. It is
 what D559 step 1 needs: a caller that reads a scratch's field after a `true` answer needs no check, because the callee
 wrote it. Nothing reads the summary yet, so its entry in `docs/proofs.md` waits for its consumer (see
-[design/status.md](status.md)); `--high-level-report` prints it for every function that returns, with the fields it names, and
+[TODO.md](../TODO.md)); `--high-level-report` prints it for every function that returns, with the fields it names, and
 `conformance/stage6/must_write_scratch` is the program that exercises it: its `expected_high_level.txt` holds the
 summaries the report must print word for word, and `scripts/high_level_coverage.sh` fails when one is missing, so the
 summary is a checked answer and not only printed.

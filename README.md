@@ -167,7 +167,7 @@ without BOM.
 
 **`docs/` is the ground truth for what the language is**: every titled program in it, and every program in
 `conformance/` and `examples/`, is compiled and checked by `bash check.sh`. What is decided but not built yet is
-listed in [design/status.md](design/status.md).
+listed in [TODO.md](TODO.md).
 
 ## Build it yourself
 
@@ -213,15 +213,13 @@ bash check.sh
   Every titled Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
 - [`specs/`](specs/README.md): the language specification, normative: one page per docs page, with every rule,
   edge case and exact error text. When anything else disagrees with the specification, the specification wins.
-- [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), what is
-  [not built yet](design/status.md), [open questions](design/open_questions.md), proposals,
+- [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), [open questions](design/open_questions.md), proposals,
   [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).
 - [`skills/spite/`](skills/spite/SKILL.md): the skill an AI loads before writing Spite, with the whole language on
   one dense page ([reference.md](skills/spite/reference.md)).
 - [`WHY.md`](WHY.md), [`WHY_AI.md`](WHY_AI.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
   language models.
-- [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
-  left.
+- [`TODO.md`](TODO.md): what is decided and not built yet, one line each.
 - [`compiler/COMPILER_PLAN.md`](compiler/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
   implements today, and what it does not.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.

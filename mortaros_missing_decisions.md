@@ -224,7 +224,7 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   on the heap with its reflection (a constructor of a library class gets no framed value yet), outside the
   measured time; the call through it is one pointer. In a program that starts a `Parallel`, the work counts as
   code another thread may run (values are matched to a thread's calls by argument count), so five cases whose point
-  is a lock or a plain count left out keep their two clock readings (design/status.md).
+  is a lock or a plain count left out keep their two clock readings (`TODO.md`).
 - **D546, the program ends after its `Concurrent`s**: when the entry function returns, every `Concurrent` still
   running runs to its end before singletons are destroyed. Why: a singleton holding a running handle let it go
   after the scheduler was destroyed, reading freed memory and halting with the wrong cause. The cost to confirm: a

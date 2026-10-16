@@ -36,7 +36,7 @@ The cloud session that ran out of quota on 2026-10-04 pushed 8 commits to `origi
 
 Loose ends it left:
 
-- `design/status.md`'s D505 line still says own-function calls and mixed rows are not built; `669adde7` built
+- The status page's D505 line (now `TODO.md`) still says own-function calls and mixed rows are not built; `669adde7` built
   them. Not verified by a `check.sh` run here yet.
 - D506 has a decision row but no docs page: no page teaches "write it plainly, the compiler makes it fast", and
   D506 asked for "how to enter that mode" to be documented.
@@ -125,7 +125,7 @@ running. W1 is therefore on the path to replacing main, after the stress and phy
 5. **Nothing silent** (D244): an optimisation that cannot be applied falls back to the plain, correct form and
    says so in `--optimization-report`; it never changes what a program prints or computes.
 6. **Documented in the same commit** (D185, D276): `docs/optimizations.md` section with an example program,
-   `docs/proofs.md` entry, `design/status.md` line removed.
+   `docs/proofs.md` entry, `TODO.md` line removed.
 
 ## Stages
 
@@ -135,7 +135,7 @@ order below is by what the measurements so far say pays most.
 ### Stage 0: settle what the cloud session left (small)
 
 - Run `bash check.sh` on `master` to confirm `669adde7` is green on Windows.
-- Fix the stale D505 line in `design/status.md`.
+- Fix the stale D505 line in `TODO.md`.
 - Write the docs for D506 to D508 (done: `docs/write_it_plainly.md` and the README's philosophy).
 - Clear the inbox (done with this plan: D507 row recorded).
 
@@ -284,7 +284,7 @@ made in turn, gets them side by side.
 Pooling every class instead of the ones a list holds was measured too: `vector_maths` ran in 0.57 of the time (its
 `Vector3` temporaries reuse one block), but `particles` ran 4% slower, traced to where its single `Vector` header
 landed, and `number_dictionary` moved by as much from code placement alone. So only listed classes are pooled; the
-rest is in [status.md](status.md).
+rest is in [TODO.md](../TODO.md).
 
 After M6 the profile of the stress tick is: writing rows back 32%, matching 28% (half of it in `candidates()`),
 filling rows 18% (reading the components themselves 5%), the candidate list 15%, `choose` 9%. Next, by the
