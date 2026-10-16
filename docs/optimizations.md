@@ -1943,8 +1943,24 @@ free each one a moment later; it copies none now.
 
 **When.** Every foreign library a program opens, in every build.
 
+**Example.** Calling two functions of `kernel32.dll` whose names are longer than 15 bytes copies neither:
+
+```gdscript title=foreign_names/foreign_names.spite entry system=windows
+var console = Console()
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func ForeignNames() {
+    var tick = kernel.GetTickCount64()
+    var running = kernel.GetCurrentProcessId()
+    console.print("asked", tick > 0, running > 0)
+}
+```
+```output
+asked true true
+```
+
 **What you notice.** Fewer allocations under `--debug-memory`, where a library is opened after the allocation
-table started counting. On Linux every library the standard one opens is the C library, which the
+table started counting: on Windows this program makes 3 allocations, none of them for a name. On Linux every library the standard one opens is the C library, which the
 allocation table itself opens before it counts, so there the counts are as they were. The C shows each name as
 `((SpiteString)SPITE_STATIC_STRING("AcquireSRWLockExclusive", 23))`.
 
