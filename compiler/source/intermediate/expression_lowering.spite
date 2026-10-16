@@ -3214,8 +3214,20 @@ func nullable_equality(operator: Syntax.Expressions.BinaryOperator, left: Intege
 
 func inner_equality(left: Integer, right: Integer): Integer {
     var left_type = type_of(left)
-    var converted = convert(right, left_type)
     var class_ref = types.as_class_ref(left_type)
+    if class_ref {
+        var held_class = front().find_class_by_c_name(class_ref.c_name)
+        if held_class {
+            var comparing = front().find_or_instantiate_function(held_class, "equals")
+            if comparing and comparing.parameters.count() == 1 {
+                var parameter_type = comparing.parameters[0].type
+                var passed = convert(right, parameter_type)
+                var compared = [left, passed]
+                return call_reached(held_class, comparing, compared)
+            }
+        }
+    }
+    var converted = convert(right, left_type)
     if not class_ref {
         var boolean = known().typed_boolean()
         var owner = known().owner_name(left_type)
