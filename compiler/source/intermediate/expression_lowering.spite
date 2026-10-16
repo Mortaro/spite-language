@@ -459,7 +459,7 @@ func union_holds_symbols(wanted: Analysis.SpiteType): Boolean {
     var united = types.as_union(wanted)
     crash united
     var described_union = front().find_union_by_c_name(united.c_name)
-    if not described_union or described_union.is_shape {
+    if not described_union {
         return false
     }
     var index = 0
@@ -3397,6 +3397,19 @@ func reflection_read(member: Syntax.Expressions.MemberExpression, object: Intege
     var union_reflected = member.name == "class" or member.name == "attributes" or member.name == "functions"
     if united and union_reflected {
         return union_reflection(object, united.c_name, member.name)
+    }
+    var held_class = types.as_class_ref(object_type)
+    if held_class and not held_class.has_signature and member.name == "attributes" {
+        var held_described = made.find_class_by_c_name(held_class.c_name)
+        if held_described {
+            return reflection_call(
+                "{held_described.c_name}___attributes",
+                "attributes",
+                held_described,
+                object,
+                "Spite_Attribute",
+            )
+        }
     }
     var probe = Generation.ExpressionResult("spite_reflected", object_type)
     var result = made.generate_reflection_read(member.name, probe, member.object)
