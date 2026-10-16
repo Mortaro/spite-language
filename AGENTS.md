@@ -161,6 +161,23 @@ A proposal not yet decided is marked "(proposed by Claude, unconfirmed)".
 `mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the specification and the
 docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
 
+## Builds and test runs cost hours and quota: batch them
+
+Building the compiler takes about 25 minutes, a run over the whole corpus about 15 more, and `check.sh` about an hour
+and a half, on Mortaro's one machine (Mortaro, 2026-10-15: a day was lost to builds after every fix).
+
+- **Type-check while fixing.** `spite compiler --check` (about 5 minutes) is the check between edits. Never build a
+  compiler or run the corpus to test a single fix.
+- **Batch, then test once.** Make every fix you can see, push them together, and only then build and run the corpus
+  (or `check.sh`) once for the whole batch. Read the failures, fix them all, and test again.
+- **When several agents work in parallel, one of them builds and tests.** Workers type-check, push a batch and send
+  one short report, then stop. The coordinator merges every batch, runs one build and one corpus round for all of
+  them, and sends each worker only the failures that are its own. A worker may run a single program with a compiler
+  that already exists to diagnose a failure, never a build of its own.
+- **At most two builds at once** on the machine, counting every agent and every worktree.
+- **Report briefly, after each round:** the pass count, what changed since the last round, and the failures by owner.
+  Long reports cost quota too.
+
 ## Shared files, when more than one agent is running
 
 `design/decisions.md`, `PLAN.md` and `mortaros_notes.md` are written by every session. The manual they replaced,
