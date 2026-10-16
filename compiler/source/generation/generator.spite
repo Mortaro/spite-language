@@ -25228,6 +25228,10 @@ func generate_index_read(
     var read_path = operand_text(index_expression)
     var proven = not read_path.is_empty() and scope.is_path_narrowed(read_path)
     var present = not read_path.is_empty() and scope.is_present_narrowed(read_path)
+    if not present and offset_read_proven(index_expression, scope) {
+        proven = true
+        present = true
+    }
     crash index_expression.object
     var object_result = generate_expression(index_expression.object, scope, class_information)
     crash index_expression.object
@@ -43103,6 +43107,7 @@ func narrow_proven_indices(
     narrow_not_negative(binary, scope)
     narrow_width_room(binary, scope)
     narrow_area_room(binary, scope)
+    narrow_offset_room(binary, scope)
     narrow_counter_room(binary, scope)
     narrow_nonzero(binary, scope)
     if binary.operator == 'less' {
@@ -43182,6 +43187,71 @@ func narrow_width_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope
     }
     crash reached.left
     narrow_stride(counted, reached.left, reach, condition_text, scope)
+}
+
+# ../../../docs/proofs.md#an-index-offset-by-a-base-is-proven-by-one-guard
+func narrow_offset_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    crash binary.left
+    crash binary.right
+    var counted = ""
+    var sum_ast = binary.left
+    if binary.operator == 'less_equal' {
+        counted = counted_list_text(binary.right)
+    } else if binary.operator == 'greater_equal' {
+        counted = counted_list_text(binary.left)
+        sum_ast = binary.right
+    }
+    assert not counted.is_empty()
+    var sum = shape.as_binary(sum_ast)
+    assert sum and sum.operator == 'add'
+    crash sum.left
+    crash sum.right
+    var first = shape.as_identifier(sum.left)
+    var second = shape.as_identifier(sum.right)
+    assert first and second
+    var condition_text = Syntax.SourcePrinter().source_expression(binary)
+    var key = offset_guard_key(counted, first.name, second.name)
+    scope.narrow_bound_path(key, condition_text)
+}
+
+func offset_guard_key(list_text: String, first: String, second: String): String {
+    if second < first {
+        return "{list_text}[<+{second}+{first}]"
+    }
+    return "{list_text}[<+{first}+{second}]"
+}
+
+func offset_read_proven(index_expression: Syntax.Expressions.IndexExpression, scope: Scope): Boolean {
+    crash index_expression.index
+    crash index_expression.object
+    var sum = shape.as_binary(index_expression.index)
+    if not sum or sum.operator != 'add' or not sum.left or not sum.right {
+        return false
+    }
+    var list_text = operand_text(index_expression.object)
+    if list_text.is_empty() {
+        return false
+    }
+    return offset_counted(list_text, sum.left, sum.right, scope) or offset_counted(list_text, sum.right, sum.left, scope)
+}
+
+func offset_counted(
+    list_text: String,
+    base_ast: Syntax.Expressions.Expression,
+    counter_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+): Boolean {
+    var base = shape.as_identifier(base_ast)
+    var counter = shape.as_identifier(counter_ast)
+    if not base or not counter {
+        return false
+    }
+    var bound = narrowed_counter_bound(counter.name, 0, scope)
+    if bound.is_empty() or not never_below_zero(base_ast, scope) {
+        return false
+    }
+    var key = offset_guard_key(list_text, base.name, bound)
+    return scope.is_path_narrowed(key)
 }
 
 func narrow_area_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {

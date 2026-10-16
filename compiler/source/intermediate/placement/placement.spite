@@ -219,7 +219,7 @@ func list_capacity(function: Function, uses: Facts.Uses, flow: Facts.Flow, opera
     var index = 0
     while index < reached.count() {
         var place = reached[index]
-        var growth = list_growth(function, flow, place, made_block)
+        var growth = list_growth(function, flow, place, made_block, operation.result)
         if growth < 0 {
             return -2
         }
@@ -232,7 +232,13 @@ func list_capacity(function: Function, uses: Facts.Uses, flow: Facts.Flow, opera
     return appended
 }
 
-func list_growth(function: Function, flow: Facts.Flow, place: Facts.Place, made_block: Integer): Integer {
+func list_growth(
+    function: Function,
+    flow: Facts.Flow,
+    place: Facts.Place,
+    made_block: Integer,
+    list: Integer,
+): Integer {
     crash intrinsics
     if place.position < 0 {
         return -1
@@ -265,7 +271,47 @@ func list_growth(function: Function, flow: Facts.Flow, place: Facts.Place, made_
     if meaning == "append" and not loops_around_without(flow, place.block, made_block) {
         return 1
     }
+    if only_reads_list(function, operation, list) {
+        return 0
+    }
     return -1
+}
+
+func only_reads_list(function: Function, operation: Operation, list: Integer): Boolean {
+    crash lowered
+    crash waiting
+    crash kinds
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() or callee.blocks.is_empty() {
+        return false
+    }
+    var list_value = function.value_at(list)
+    var layout = kinds.layout_of(list_value.spite_type)
+    if not layout {
+        return false
+    }
+    var summary = waiting.of(callee.c_name)
+    if summary.unknown or summary.calls_values {
+        return false
+    }
+    var prefix = "{layout.c_name}."
+    var written = summary.writes.keys()
+    var grown = summary.grows.keys()
+    var index = 0
+    while index < written.count() {
+        if written[index].starts_with(prefix) {
+            return false
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < grown.count() {
+        if grown[index].starts_with(prefix) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
 }
 
 # ../../../../docs/proofs.md#a-buffer-freed-in-its-block-lives-in-the-frame
