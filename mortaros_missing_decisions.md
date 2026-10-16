@@ -22,6 +22,26 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
   (no C reading, unswappable changes refused by name); a store releases what the field held; class objects answer
   retained references; the pipeline switched on only in a test-built compiler until the switch-over. Each is easy
   to change.
+- **D566, the programs that test an internal class (decided by Claude Opus 5.5 under D509: (c)).** About 80 conformance programs, diagnostics and benchmarks name
+  `Concurrent`, `Parallel`, `Lock`, `Atomic`, `ThreadLocal` or `Memory.Heap` because testing that class (or the lock a
+  `Parallel` makes the compiler add) is their point. Once those classes are internal, naming them outside `library/` is
+  an error. Which way? (a) Rewrite them to the plain forms, so they test what the compiler does with plain code (calls
+  in a row, bands, the cost of a singleton two threads reach) and the internal classes are tested only through it; (b)
+  let programs inside the repository's `conformance/`, `diagnostics/` and `benchmarks/` name `Spite.Internal`, which a
+  user's program still cannot; (c) a mix: (a) wherever a plain form exists, (b) for the rest until it does. Chosen:
+  (c), so the move can start; easy to change, since it only decides which folders may name the namespace.
+- **D598's limits:** a chain through a `T?` counts as missing only inside `==` and `!=` (`made.kind == "make"` is
+  `false`, `made.kind != "make"` is `true` when `made` is null); `<`, `<=`, `>` and `>=` still refuse a `T?`, and a
+  bare `made.kind` outside a comparison still needs narrowing. Easy to widen.
+- **`Buffer.text(position, count): String?`**, added while building Buffer: reads that range as UTF-8, `null` when
+  it is not valid UTF-8 or runs past the end.
+- **D590's details** (your four points are decided; these were chosen while writing the spec): `MappedFile` and
+  `ForeignBytes` use the same `_at` names and take a `byte_order` (`ForeignBytes` has no position); `byte` reads only as
+  `read_byte()`, the list forms cover the rest; `remaining()`, `read_bytes(count)` and `read_bytes_at(position,
+  count): Buffer?` instead of a slice; the order is the enum `Buffer.ByteOrder`, made with `Buffer('big_endian')` and
+  settable any time, and a `position` set outside `0` to `count()` halts; only `_at` reads can be proven; the
+  binary format stays little-endian whatever the buffer's order and a serializer never moves its `position`. Each is
+  easy to change.
 - **D586, C written from the high level in every build, with no setting.** A function the high level's printer
   covers gets its C from the high level; everything else stays the generator's, and `check.sh` over the whole corpus
   is the proof. The other choice was a setting to turn it on, which costs a field in every program's C. Easy to
@@ -224,7 +244,7 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   on the heap with its reflection (a constructor of a library class gets no framed value yet), outside the
   measured time; the call through it is one pointer. In a program that starts a `Parallel`, the work counts as
   code another thread may run (values are matched to a thread's calls by argument count), so five cases whose point
-  is a lock or a plain count left out keep their two clock readings (design/status.md).
+  is a lock or a plain count left out keep their two clock readings (`TODO.md`).
 - **D546, the program ends after its `Concurrent`s**: when the entry function returns, every `Concurrent` still
   running runs to its end before singletons are destroyed. Why: a singleton holding a running handle let it go
   after the scheduler was destroyed, reading freed memory and halting with the wrong cause. The cost to confirm: a
@@ -294,6 +314,13 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   D578.
 
 ## Open
+
+- **`assert` misleads models (found by the cheap-agent test, 2026-10-16).** Three separate Sonnet agents, working on
+  different parts of the compiler, read Spite's `assert` as a check that should halt and reported it as "inert" or
+  "does not fire"; in Spite it answers nothing and returns early, and `crash` is the check that halts. Every other
+  language uses `assert` for what Spite calls `crash`, so a model's prior points the wrong way. Options: rename the
+  guard (for example `require`, `expect` or `guard`), or keep the word and teach it harder (the error texts and the
+  skill's first lines). Renaming is a large migration but removes the trap for every future writer.
 
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a

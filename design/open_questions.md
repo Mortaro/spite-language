@@ -1,8 +1,8 @@
 # Open questions and decided work
 
 Two lists that belong to no single page: what Mortaro decided that has not reached the page it belongs on,
-and the questions still open. Both were moved whole from the language manual when [D193](decisions.md)
-dissolved it; a `D` number is a row of the [decision log](decisions.md). An answered question keeps its
+and the questions still open. Both were moved whole from the language manual when [D193](../DECISIONS.md)
+dissolved it; a `D` number is a row of the [decision log](../DECISIONS.md). An answered question keeps its
 place, marked with the decision that answered it, so the argument is not lost. Questions only Mortaro can
 answer are gathered in [`mortaros_missing_decisions.md`](../mortaros_missing_decisions.md).
 

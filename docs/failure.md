@@ -455,8 +455,20 @@ is read inside the index of 'draws': compute it first into a named 'var' and pas
 `==` and `!=` accept a `T?` on either side: `null` is equal only to `null`. So `maybe_name == "ada"` is a
 whole test, and is `false` when there is no name, while two values that are both missing are equal
 (`texts["a"] == texts["b"]` on an empty dictionary is `true`), so comparing two `T?` values to see whether
-something changed never answers "changed" when neither is there. Only the comparison is exempt: reading a member
-through a `T?` still needs it narrowed, and so does assigning through one.
+something changed never answers "changed" when neither is there.
+
+The same goes for a chain read through a `T?` inside a comparison: `made.kind == "make"` is `false` when there is
+no `made`, so you write the comparison you mean and nothing in front of it, in an `if`, an `assert`, a `crash` or a
+`return` alike:
+
+```gdscript
+func is_made(made: Operation?): Boolean {
+    return made.kind == "make"
+}
+```
+
+Outside a comparison, reading a member through a `T?` still needs it narrowed, and so does assigning through one
+([the rule](../specs/failure.md#nothing-fails-silently-the-rule)).
 
 ```gdscript title=nullable_comparison/nullable_comparison.spite entry
 var console = Console()

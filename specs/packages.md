@@ -124,7 +124,7 @@ package/engine/physics/physics.spite     ->  Engine.Physics.Physics()   (no file
   inheritance, a class written in a `spite/internal/` folder (new or reopening one), or the name inside a string
   interpolation. The message names the class written (or `Spite.Internal` alone when no class follows) and the plain
   form to use: "Spite.Internal.Memory is internal to Spite and cannot be used outside the standard library: read
-  bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+  bytes with Buffer or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
   (`diagnostics/internal_use`, `diagnostics/internal_class`). Inside `library/` it is ordinary code. A program that
   does not use the namespace carries none of it.
 - **Each operating system reopens the classes it changes.** `library/` holds what every system shares, and

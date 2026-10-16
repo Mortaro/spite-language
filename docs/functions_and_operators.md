@@ -179,6 +179,11 @@ that may be absent, `get_at` answers a `T?`: `func get_at(index: Integer): Integ
 `null` when nothing is at the index, and the reader narrows it (`crash shelf[0]`, then `shelf[0] + 1`). A `get_at`
 that answers a plain `Integer` is an error naming `Integer?`.
 
+`==` and `!=` also take a value that may be missing, with nothing to narrow first: a missing value equals only
+another missing one, and a chain read through one (`made.kind == "make"`) is missing when any link is, so the
+comparison is simply `false` when there is no `made`. Write the comparison you mean, in a `return` as in an `if`
+([Comparing needs no narrowing](failure.md#comparing-needs-no-narrowing)).
+
 `not`/`and`/`or` stay built-in keywords, never functions. On numbers, `Boolean`, enums, `String`, `List<T>` and
 `Dictionary<Key, Value>` the operators are built in (on numbers, the machine's own arithmetic); number arithmetic is done in the left side's
 type, so a wider right side is an error that says to write the wider operand first

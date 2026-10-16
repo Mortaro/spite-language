@@ -79,9 +79,12 @@ Ada "the" first shipped tea 2
 
 ## Write and read bytes
 
-`BinaryWriter` and `BinaryReader` have the same shape as the JSON pair: each names its type, is made once and is
-reused, and each call carries its own input. The bytes are a `List<Byte>`, the bytes themselves in one
-block ([collections.md](collections.md#listt)):
+`BinaryWriter` and `BinaryReader` are the JSON pair for bytes: a serializer that knows its type, turning a whole
+value into bytes and back. Each names its type, is made once and is reused, and each call carries its own input.
+The bytes are a `Buffer`, the bytes themselves in one block
+([standard_library.md](standard_library.md#bytes-are-a-buffer)). Reading or writing a single number at a position is
+not a serializer's job but the buffer's own (`buffer.read_integer()`, `buffer.append_long(value)`); the pair is for
+values of your classes:
 
 ```gdscript title=binary_basics/order.spite
 enum Status {
@@ -137,8 +140,8 @@ The same `Order` is 23 bytes here and 104 as JSON: `id` and `total` (a `Float`) 
 `"Ada"` a length byte and three, the empty `note` one, and there are no keys, quotes or commas at all. [The binary format](#the-binary-format)
 says exactly what each type becomes.
 
-- `write(value): List<Byte>` answers a new list holding the value. `append_to(value, bytes)` writes it at the
-  end of a list the program already has instead, so many values (a network frame's worth of messages, a file's
+- `write(value): Buffer` answers a new buffer holding the value. `append_to(value, bytes)` writes it at the
+  end of a buffer the program already has instead, so many values (a network frame's worth of messages, a file's
   records) go into one buffer with no copying.
 - `read(bytes): T?` reads one value that fills the bytes exactly. It answers `null` when the bytes run out in the
   middle of the value, when they are not a `T` (a `Boolean` byte that is neither 0 nor 1, an enum index the enum
@@ -148,7 +151,7 @@ says exactly what each type becomes.
   `position` (an attribute) is then where the value ended, so values written one after another are read one
   after another by starting each read at the last one's `position`. It answers `null` for the same bad bytes and
   when `start` is at or past the end, and a failed read leaves `position` where it was; a negative `start` halts.
-Bytes from a `Socket` or a `File` are already a `List<Byte>`, so they are read the same way:
+Bytes from a `Socket` or a `File` are already a `Buffer`, so they are read the same way:
 
 ```gdscript
 var received = connection.read_bytes_now()
@@ -160,11 +163,11 @@ Infinity and not-a-number are ordinary bytes: only JSON cannot hold them, so `Bi
 
 ### Several values in one buffer
 
-```gdscript title=binary_stream/binary_stream.spite entry
+```gdscript
 var console = Console()
 
 func BinaryStream() {
-    var bytes = List<Byte>()
+    var bytes = Buffer()
     var names = ["ada", "bo", "cy"]
     var name_writer = BinaryWriter<List<String>>()
     name_writer.append_to(names, bytes)
@@ -238,8 +241,9 @@ from the new source, since nothing in the bytes says which class they are or wha
 - **No header, no keys, no padding.** The bytes are the value and nothing else, so values can follow each other in
   one buffer and a program frames them however its transport needs.
 - **Little-endian everywhere.** It is the order of every machine Spite compiles for (x86-64, ARM64 and
-  WebAssembly), so a number is one store and one load with no swapping. A big-endian
-  target would have to swap each number's bytes in `BinaryOutput` and `BinaryInput`; the format would not change.
+  WebAssembly), so a number is one store and one load with no swapping. The format is little-endian whatever
+  `byte_order` the buffer has, and a writer or reader never moves the buffer's `position`; a big-endian target
+  would swap each number's bytes, and the format would not change.
 - **Reading never trusts a count.** A text length or an element count larger than the bytes left fails the read
   before anything is allocated, so a corrupt or hostile buffer cannot make a reader allocate gigabytes.
 
@@ -499,8 +503,8 @@ compiles to.
 The binary pair keeps the walk in `BinaryFormat<T>` (`library/binary_format.spite`), a singleton that holds
 nothing, so it is a static object and the walk makes no object at all; its `write_attribute` is the one above
 with `BinaryFormat<attribute.class>()` in place of the `JsonWriter`. An enum is walked the same way, over its
-values, to find its index. `BinaryOutput` and `BinaryInput` are the
-cursors over the bytes. Reading JSON text goes through `JsonCursor` (`library/json_cursor.spite`), a cursor over the
+values, to find its index. Its numbers are written and read with the
+buffer's own appends and reads of numbers, so the walk adds no cursor class of its own. Reading JSON text goes through `JsonCursor` (`library/json_cursor.spite`), a cursor over the
 text that remembers the first thing that went wrong.
 
 ---

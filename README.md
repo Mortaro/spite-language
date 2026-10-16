@@ -9,7 +9,7 @@ function (the wrong case, or an abbreviation such as `msg` for `message`) is a c
 > **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
 > possible code.**
 
-**Why Spite:** [WHY.md](WHY.md) for people, [WHY_AI.md](WHY_AI.md) for language models choosing a language.
+**Why Spite:** [WHY.md](WHY.md), for people and for language models choosing a language.
 
 **Built mostly by AI, decided by a person.** Nearly all of Spite's code, docs and tests are written by AI agents,
 and every rule of the language is decided by its author, Mortaro. That is the experiment, not a shortcut: a
@@ -167,7 +167,7 @@ without BOM.
 
 **`docs/` is the ground truth for what the language is**: every titled program in it, and every program in
 `conformance/` and `examples/`, is compiled and checked by `bash check.sh`. What is decided but not built yet is
-listed in [design/status.md](design/status.md).
+listed in [TODO.md](TODO.md).
 
 ## Build it yourself
 
@@ -203,8 +203,6 @@ bash check.sh
 
 ## Where to look
 
-- [`RESEARCH.md`](RESEARCH.md): if you have agent time to donate, the research Spite needs and how to contribute
-  findings.
 - [`AGENTS.md`](AGENTS.md): how to work in this repository (gitmoji commits, how decisions are recorded, and the
   conventions for shared files when more than one agent is running).
 - [`SPITE.md`](SPITE.md): things that cause Mortaro spite, with what to do instead. Read it before proposing
@@ -213,24 +211,21 @@ bash check.sh
   Every titled Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
 - [`specs/`](specs/README.md): the language specification, normative: one page per docs page, with every rule,
   edge case and exact error text. When anything else disagrees with the specification, the specification wins.
-- [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), what is
-  [not built yet](design/status.md), [open questions](design/open_questions.md), proposals,
+- [`DECISIONS.md`](DECISIONS.md): every language decision, with its date, who made it and why.
+- [`design/`](design/): for the people building Spite: [open questions](design/open_questions.md), proposals,
   [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).
 - [`skills/spite/`](skills/spite/SKILL.md): the skill an AI loads before writing Spite, with the whole language on
   one dense page ([reference.md](skills/spite/reference.md)).
-- [`WHY.md`](WHY.md), [`WHY_AI.md`](WHY_AI.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
+- [`WHY.md`](WHY.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
   language models.
-- [`PLAN.md`](PLAN.md): implementation milestones, decisions made where the docs were silent, and what is
-  left.
-- [`compiler/COMPILER_PLAN.md`](compiler/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
-  implements today, and what it does not.
+- [`TODO.md`](TODO.md): what is decided and not built yet, one line each.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
 
 ## How to contribute
 
-Spite is built mostly by AI agents, so the most useful thing to give is agent time. [RESEARCH.md](RESEARCH.md) lists
-the research Spite needs (closing the gap to C tuned by hand, layout, cores, the compiler's own backend) and how to
-hand back what you find: a finding in the research notebook, a benchmark case, or a pull request whose commits
-name the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing the compiler, and
+Spite is built mostly by AI agents, so the most useful thing to give is agent time.
+[Help build it](WHY.md#help-build-it) lists the research Spite needs (closing the gap to C tuned by hand, layout,
+cores, the compiler's own backend) and how to hand back what you find: a finding in the research notebook, a
+benchmark case, or a pull request whose commits name the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing the compiler, and
 [Working on Spite itself](docs/getting_started.md#working-on-spite-itself) for how `bash check.sh` keeps the compiler
 you run.

@@ -43,7 +43,7 @@ wait-cycle race fix (D546). Every benchmark case has quiet timings in the table 
 
 None of it is lost. Each item says where it is and what is left. **Re-run `bash check.sh` before merging any of
 them**, because master moved under several, and **renumber decision rows at merge time** (numbers collide often:
-re-read the end of `design/decisions.md` right before appending).
+re-read the end of `DECISIONS.md` right before appending).
 
 | Work | Where | State | Next |
 |---|---|---|---|
@@ -74,7 +74,7 @@ sandbox: use the file tools for `compiler/source`.
 ## The engine still places memory by hand (D564)
 
 44 files use `Raw()`, 25 use `Memory.` and 20 `TypedMemory`. Bytes and tables (zstd, PNG, texture compression,
-recipes, network, assets) can move to `List<Byte>` and plain lists now; the Vulkan, Windows and XInput bindings need
+recipes, network, assets) can move to `Buffer` (D590, once built; `List<Byte>` until then) and plain lists; the Vulkan, Windows and XInput bindings need
 the language's plain foreign structs first (D536's second half, `design/proposals/plain_bytes_and_foreign_structs.md`,
 and finding R17's six-step plan in `design/optimization_research.md`).
 
@@ -82,7 +82,8 @@ and finding R17's six-step plan in `design/optimization_research.md`).
 
 Before the error can be switched on: plain foreign structs (D536's second half; the engine's Vulkan, Windows and
 XInput bindings and `Raw` are the last users), a lock between processes in the library (the engine's store lock),
-and a byte order a `BinaryReader` record can declare (PNG and PSD headers are big-endian). The engine's audit of
+and a byte order for big-endian formats, which is now the `Buffer`'s `byte_order` (D590: PNG and PSD headers are read
+from a `Buffer('big_endian')`, while `BinaryReader` stays a serializer of Spite's own little-endian format). The engine's audit of
 other library duplicates (its own inflate beside `Zlib.decompress`, `clamped` beside `.clamp`, hand hashes beside
 `Sha256`, `index_of_name`, two hand sorts, `.reserve` hints) and two fixes in its last change (`lossy_text_at`
 replaces bad bytes with `?`, a silent wrong value; copies written as `m * Matrix4<Float>()` instead of `m.copy()`)
@@ -93,11 +94,31 @@ are open engine work.
 Everything a program must not use directly (the memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock`,
 `Atomic`, `ThreadLocal`) moves into `Spite.Internal` (name to confirm); outside `library/` naming it is a compile error
 that names the plain form. Library code above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off memory
-onto `List<Byte>` and plain values. The compiler then reads a `BinaryReader` record from a `List<Byte>` with one check
-and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace. The error
+onto `Buffer` (D590) and plain values; `BinaryInput` and `BinaryOutput` give way to the buffer's own position reads
+and appends. The compiler then reads a `BinaryReader` record from a `Buffer` with one check and direct loads. Order: plain foreign structs, the library off memory above its floor, the namespace. The error
 itself is built (D568): any file outside `library/` and `compiler/` that names `Spite.Internal` is refused, so moving
 a class into `library/spite/internal/` is all the namespace needs. A moved class still named bare (`Memory`) would
 resolve without the prefix: refuse those names when the first class moves.
+
+### Inventory of the move (2026-10-16, read-only, by a Sonnet agent)
+
+- **Library side:** `Memory.Heap` has 45 library users, `Memory.Address` 54, `Memory.Arena` 0, `TypedMemory` 3,
+  `InlineMemory` 2, `Atomic` 0, `Lock` 6, `ThreadLocal` 2, `Concurrent` 3, `Parallel` 1. `Memory.Bytes` and the bare
+  `Memory` are compiler-provided. `library/spite/memory.spite` is the reflection class `Spite.Memory`, which would clash
+  with `Spite.Internal.Memory`.
+- **Programs that name them (all in `conformance/stage6/`, `diagnostics/`, 16 benchmark naive programs, docs, specs,
+  skills/spite):** `Concurrent` 27 programs, `Parallel` 42 files (the singleton lock family, parallel_*), `Memory.*`
+  about 25 (placement checks through `heap.live_allocations()`, allocator choice, foreign buffers), `Lock`/`Atomic`/
+  `ThreadLocal` about 10.
+- **No plain form yet, so these block the move:** handles, `finished` and wait order of `Concurrent`; cancelling one
+  (D480); IO concurrent by default (D378); user-level `Lock`, `Atomic`, `ThreadLocal`; allocator choice by the compiler
+  (D485, D501, D352, D152); a test hook in place of `heap.live_allocations()`; plain foreign structs (D536).
+- **Compiler side:** about 100 references, 64 in `generation/generator.spite` (`qualified_dotted == "Concurrent"`
+  and the like), C symbol names in `generation/prelude.spite`, and the seeds' mangled names: a move renames them.
+- **Order:** (1) name rules: a moved class named bare outside `library/` is refused, and `Spite.Internal.Memory` stays
+  apart from `Spite.Memory`; (2) `Atomic`; (3) `ThreadLocal`, `Lock`; (4) `ThreadPool`, `ThreadSlot`, `Parallel`; (5)
+  `Concurrent`, `Scheduler`; (6) the memory floor last. Programs whose point is testing an internal class need a way to
+  keep testing it once it is internal.
 
 ## The order of work after that (by what closes the engine gap)
 

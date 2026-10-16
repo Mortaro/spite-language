@@ -414,7 +414,7 @@ What remains, by piece:
   the older walk below are deleted.
 
 The list of decided and unbuilt work is `TODO.md` on master (this branch does not carry it). The decision log
-is [design/decisions.md](../../../design/decisions.md): D569 (caching), D586, D587, D588, D599.
+is [DECISIONS.md](../../../DECISIONS.md): D569 (caching), D586, D587, D588, D599.
 
 **Known contradictions between the code and the specification** (each is a bug to fix, not to document):
 

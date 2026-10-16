@@ -44,8 +44,6 @@ var empty = List<String>()
 | `clear()` / `reverse()` | | in place; `clear()` keeps the buffer's capacity |
 | `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Boolean`, an enum value |
 | `copy()` / `deep_copy()` | `List<T>` | one level, or all the way down ([memory.md](memory.md)) |
-| `to_utf8_text()` | `String?` | a `List<Byte>` only: the text those bytes spell, or `null` when they are not valid UTF-8 ([standard_library.md](standard_library.md#bytes-base64-compression-hashes-and-passwords)) |
-| `read_integer(position)`, `append_integer(value)`, `write_integer(position, value)` and the other numbers, each with a `_big_endian` twin; `append_bytes(other, start, count)` | `T?` for a read | a `List<Byte>` only: the numbers laid out in the bytes, little-endian or big-endian; a read is `null` unless all its bytes are in the list, a write outside it halts ([standard_library.md](standard_library.md#numbers-in-bytes)) |
 
 `append`, `remove_last`, `list[index]` and their kin take the same time however long the list is; `prepend`,
 `insert`, `remove_first` and `remove_at` move every later element, and `contains` looks at each in turn. An empty
@@ -53,6 +51,10 @@ list has no buffer; the first element gets one of four slots, and a full buffer 
 
 Names say where: `append` and `prepend`, never `add`; `remove_last`, never `pop`
 ([the rule](../specs/collections.md#listt-additions)).
+
+A list has the same members whatever it holds. Bytes from a file or a socket, and the numbers and text laid out in
+them, are a `Buffer`, which still reads like a list of bytes and adds what bytes need
+([standard_library.md](standard_library.md#bytes-are-a-buffer)).
 
 ## `Dictionary<Key, Value>`
 

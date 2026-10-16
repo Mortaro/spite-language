@@ -217,7 +217,7 @@ func _send(event: UnsignedInteger, wheel_amount: UnsignedInteger) {
 ### What crosses
 
 [The table on the page](../docs/foreign_libraries.md#what-crosses) is the rule, costs included: a number type is the C type of its width
-([Variables and values](values_and_types.md#variables-and-values)), text, lists of numbers and
+([Variables and values](values_and_types.md#variables-and-values)), text, lists of numbers, a `Buffer` (its block of bytes) and
 number-only `type`s cross by address at no cost, a text result is copied, and a class instance never crosses, since
 its layout (header, reference count) is the compiler's business. Anything else is an error at the call:
 `a Console cannot cross into C: a foreign function takes numbers, Boolean, enum values, text and a type whose

@@ -85,7 +85,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A switch covers every case](#a-switch-covers-every-case) | refuses a forgotten case | add the case or `_:` |
 | [A proven count or bound proves a read](#a-proven-count-or-bound-proves-a-read) | `list[i]` read without narrowing | refused until proven, naming how |
 | [A proven read halts outside its list](#a-proven-read-halts-outside-its-list) | a stray counter stops the program | none |
-| [A read of a width](#a-proven-count-or-bound-proves-a-read-of-a-width) | `bytes.read_integer(position)` read as a number, one load in a counted loop | a `T?` to narrow |
+| [A read of a width](#a-proven-count-or-bound-proves-a-read-of-a-width) | `bytes.read_integer_at(position)` read as a number, one load in a counted loop | a `T?` to narrow |
 | [An index built from loop counters](#an-index-built-from-loop-counters-is-proven-by-one-guard) | `list[row * stride + column]` read under one guard | a `T?` to narrow |
 | [A counted loop reads its items unchecked](#a-counted-loop-reads-its-items-unchecked) | no range checks, vectorisable | the ordinary checked loop |
 | [A proven divisor is not checked](#a-proven-divisor-is-not-checked) | no zero check | the zero check |
@@ -391,25 +391,25 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 ### A proven count or bound proves a read of a width
 
-- **Proves.** A `List<Byte>`'s `read_<number>(position)` reads only bytes inside the list, so it answers the number,
+- **Proves.** A `Buffer`'s `read_<number>_at(position)` reads only bytes inside the buffer, so it answers the number,
   not a `T?`; and, when the position cannot be negative, that it needs no test of its low end.
 - **Rule.** A read of width `w` at `position` is proven exactly when `bytes[position + w - 1]` would be, the sum
-  written out (`read_integer(body + 4)` needs `bytes[body + 7]`): by a bound, a count or a counted loop's window, as
+  written out (`read_integer_at(body + 4)` needs `bytes[body + 7]`): by a bound, a count or a counted loop's window, as
   [above](#a-proven-count-or-bound-proves-a-read). A bound may be written with `<=`: `base + k <= bytes.count()`, `k` a
   literal from 1 to 64, proves `bytes[base]` to `bytes[base + k - 1]`, so `crash body + 13 <= bytes.count()` proves
   every read of width `w` at `body + j` with `j + w <= 13`. The position cannot be negative when it is a literal of 0
   or more, a local whose every assignment in the function is such a literal or adds one to itself, a name proven
   `>= 0` or `> 0` inside the same loop, or one of those plus a literal. A counted loop may step its counter by any
   literal up to its window: `while position + 15 < records.count()` with `position = position + 16` last.
-- **Buys.** In a counted loop, one load from the list (and one byte swap for `_big_endian`), with no test and no
+- **Buys.** In a counted loop, one load from the buffer (and one byte swap for a `'big_endian'` buffer), with no test and no
   call: the hand-written loop's code. Elsewhere one compare of the top, which the C compiler is told is never taken,
-  and the load; two compares when the low end is not known. A `write_<number>` in a counted loop is one store.
-- **Falls back.** Unproven, the read is a `T?` the program narrows (`crash header`, `if value { }`), and the
+  and the load; two compares when the low end is not known. A `write_<number>_at` in a counted loop is one store.
+- **Falls back.** Unproven, and always for a read at the buffer's position (`read_<number>()`), the read is a `T?` the program narrows (`crash header`, `if value { }`), and the
   library's own read compares both ends. Outside a counted loop the compare stays, because another name for the same
-  list could have shrunk it since the bound; a read that finds it so halts naming the read
+  buffer could have shrunk it since the bound; a read that finds it so halts naming the read
   ([below](#a-proven-read-halts-outside-its-list)). Nothing proves a read whose position comes from another read
   (an offset stored in the file): narrow it.
-- **See.** [standard_library.md: Numbers in bytes](standard_library.md#numbers-in-bytes), [the
+- **See.** [standard_library.md: Bytes are a Buffer](standard_library.md#bytes-are-a-buffer), [the
   rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_byte_numbers`,
   `diagnostics/byte_reads`.
 

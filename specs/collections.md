@@ -161,13 +161,13 @@ what a `Vector` of them held (`conformance/stage6/plain_items`). There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming)),
 or a `while` that does more than they do.
 
-**A `List<Byte>` reads and writes numbers.** `read_<number>(position): <number>?`, `append_<number>(value)` and
-`write_<number>(position, value)` for `tiny`, `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`,
-`unsigned_long`, `float` and `double`, each but `tiny` with a `_big_endian` twin, and `append_bytes(other, start,
-count)`, are members of `List<Byte>` only; their rules are under [Bytes are a
-List<Byte>](standard_library.md#bytes-are-a-listbyte). On a list of anything else each is the error
-`'read_integer' reads and writes the bytes of a List<Byte>, and this is a List<Integer>: only a List<Byte> answers it`
-(`diagnostics/address_forms`).
+**A list has no functions for bytes.** Every `List<T>` has the same members whatever `T` is, a `List<Byte>`
+included: the numbers laid out in bytes, their byte order, a reading position and the text bytes spell are a
+`Buffer`'s ([Bytes are a Buffer](standard_library.md#bytes-are-a-buffer)). Calling one of a `Buffer`'s byte
+functions on a list of any element type is the error `List has no method 'read_integer': bytes are a Buffer, which
+has it: make them with 'Buffer()'`, with the function's own name (`read_<number>`, `read_<number>_at`,
+`append_<number>`, `write_<number>_at`, the old `write_<number>` and `_big_endian` names, `append_bytes`,
+`read_bytes`, `to_utf8_text`) (`diagnostics/address_forms`).
 
 `contains(value)` compares with `==`, so it is there only for elements that are numbers, `Boolean`, `String` or an
 enum; on a list of a class the call is `List has no method 'contains'`: ask with `any(f)` or `find_by_<member>`.

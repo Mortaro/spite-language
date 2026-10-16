@@ -2,7 +2,7 @@
 
 **Read [`mortaros_notes.md`](mortaros_notes.md) first, every time.** It is Mortaro's inbox. For each note: record the
 decision (the rule in the spec page for that part of the language, the teaching in its docs page, and a row in
-[`design/decisions.md`](design/decisions.md)) or act on it, then delete the note, so the inbox only ever holds
+[`DECISIONS.md`](DECISIONS.md)) or act on it, then delete the note, so the inbox only ever holds
 what nobody has handled yet. Questions only Mortaro can answer go to
 [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
 
@@ -16,7 +16,7 @@ error, or a crash that names its cause, and never a wrong value, a lost write, a
 Judge everything you build, and every open item, against it: a compiler rule that lets one of those through, a
 library function that answers a default a caller cannot tell from a real answer, a report that prints a value where
 something is missing. Each is a bug to fix, not a style to document. When you find one you cannot fix now, write
-it into the "still open" list of [design/status.md](design/status.md).
+it as one line under "Bugs that fail silently" in [`TODO.md`](TODO.md).
 
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
 project. Then the docs, in the [reading order](docs/README.md#reading-order). **The specification is normative**
@@ -26,6 +26,10 @@ else disagrees with the specification, the specification wins; a docs page that 
 
 ## Where things live
 
+- [`TODO.md`](TODO.md) is the to-do list: one line per thing decided (or wished for by Mortaro) and not built,
+  grouped by area, with its decision numbers, and the bugs that fail silently under D244.
+- [`DECISIONS.md`](DECISIONS.md) is the append-only decision log: every decision, with its date, who made it and
+  why.
 - `docs/` is documentation for people learning Spite, and nothing else. It holds no notes to AI writers, no
   implementation status ("not built", "planned", "being replaced"), no decision numbers or open-question
   bookkeeping, and no mention of third-party packages. Each page teaches the language as decided and ends with a
@@ -35,9 +39,6 @@ else disagrees with the specification, the specification wins; a docs page that 
   named after it, holding every rule, edge case and exact error text of that part of the language. It is
   normative and user-facing like `docs/`, with the same limits: no status, no decision numbers, no notes to agents.
 - `design/` is for the people and agents who build Spite:
-  - [`design/decisions.md`](design/decisions.md): the append-only decision log, every decision with when and why;
-  - [`design/status.md`](design/status.md): what is decided but not built, or only partly built, page by page,
-    and the bugs still open under D244;
   - [`design/backlog.md`](design/backlog.md): everything decided and not built, as work: size, dependencies and
     parallel streams;
   - [`design/open_questions.md`](design/open_questions.md): decided work that has no page yet, and open questions;
@@ -53,12 +54,21 @@ else disagrees with the specification, the specification wins; a docs page that 
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
-- [`RESEARCH.md`](RESEARCH.md) is for people donating agent time: what research is useful and how to contribute it.
-- [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
-  claim in them is true of Spite today or marked as the direction.
+- [`WHY.md`](WHY.md) says why to use Spite and why to help build it, to people and to language models alike. Like
+  `docs/`, it describes Spite as decided and does not say what is not built yet (that is `TODO.md`'s); only what
+  someone choosing Spite today must know (the platforms that run, maturity, license) is stated as it is today.
 
-When you build something the docs describe, delete its line from `design/status.md`. A decision that is not built
-yet is still described on its page as the language; `design/status.md` is where it says it is not built.
+**`TODO.md` is always up to date** (Mortaro, 2026-10-15). It is how Mortaro sees what is missing, so every commit
+that changes what is missing changes it in the same commit:
+
+- a decision recorded and not built yet adds its line (with its decision number), and so does a wish of Mortaro's;
+- building something deletes its line, and building part of it rewrites the line to say only what is left;
+- a bug that fails silently (D244) and is not fixed now adds a line under "Bugs that fail silently";
+- a decision that supersedes another rewrites or deletes the old one's line.
+
+A decision that is not built yet is still described on its page as the language; `TODO.md` is the one place that
+says it is not built, in one line. It lists only the language and what this repository builds (the compiler, the
+library, the tools); work in packages outside it is not a line.
 
 ## Writing
 
@@ -126,8 +136,8 @@ each compiler change rewrote its C. `check.sh` fails when one is out of date.
 
 A change that makes the compiler optimise something on its own, or builds a planned optimisation, updates
 [`docs/optimizations.md`](docs/optimizations.md) in the same commit (D185, D102): what it does, when it applies,
-and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of calls). Whether
-it is built yet goes into [`design/status.md`](design/status.md). An optimisation with a user-visible cost says so
+and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of calls). What
+of it is not built yet goes into [`TODO.md`](TODO.md), one line. An optimisation with a user-visible cost says so
 on the page; one that contradicts a rule in the docs goes into `mortaros_missing_decisions.md`.
 
 **No optimisation is undocumented** (Mortaro, 2026-10-03). `docs/optimizations.md` is how users learn what the
@@ -151,25 +161,44 @@ that part of the language; `proofs.md` summarises and links.
 The specification is the record of the language, and the decision log is the record of why. Every language decision
 goes, when it is made, into the spec page that states its rule (`specs/<page>.md`), into the teaching of the docs
 page of the same name where that changes, **and** into the decision log,
-[`design/decisions.md`](design/decisions.md), as a new row: a decision that exists only in a conversation will be
+[`DECISIONS.md`](DECISIONS.md), as a new row: a decision that exists only in a conversation will be
 re-litigated. The spec states the rule without its decision number. A rule belongs to exactly one page; a decision
 that fits no page yet goes into [`design/open_questions.md`](design/open_questions.md) until its page exists. Mortaro decides
 what cannot be undone cheaply; an agent decides anything that can be changed later without losing work (D509),
 records it as "decided by Claude under D509", and lists it under "To confirm" in `mortaros_missing_decisions.md`.
 A proposal not yet decided is marked "(proposed by Claude, unconfirmed)".
 
+A decision not built in the same commit also gets its line in [`TODO.md`](TODO.md).
+
 `mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the specification and the
-docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
+docs (the spec page, the teaching, a decision-log row and, until it is built, a `TODO.md` line), clear it. Agent-owned state belongs in an agent-owned file.
+
+## Builds and test runs cost hours and quota: batch them
+
+Building the compiler takes about 25 minutes, a run over the whole corpus about 15 more, and `check.sh` about an hour
+and a half, on Mortaro's one machine (Mortaro, 2026-10-15: a day was lost to builds after every fix).
+
+- **Type-check while fixing.** `spite compiler --check` (about 5 minutes) is the check between edits. Never build a
+  compiler or run the corpus to test a single fix.
+- **Batch, then test once.** Make every fix you can see, push them together, and only then build and run the corpus
+  (or `check.sh`) once for the whole batch. Read the failures, fix them all, and test again.
+- **When several agents work in parallel, one of them builds and tests.** Workers type-check, push a batch and send
+  one short report, then stop. The coordinator merges every batch, runs one build and one corpus round for all of
+  them, and sends each worker only the failures that are its own. A worker may run a single program with a compiler
+  that already exists to diagnose a failure, never a build of its own.
+- **At most two builds at once** on the machine, counting every agent and every worktree.
+- **Report briefly, after each round:** the pass count, what changed since the last round, and the failures by owner.
+  Long reports cost quota too.
 
 ## Shared files, when more than one agent is running
 
-`design/decisions.md`, `PLAN.md` and `mortaros_notes.md` are written by every session. The manual they replaced,
-`PLAN.md` and the notes have been lost to a whole-file overwrite once already.
+`DECISIONS.md`, `TODO.md` and `mortaros_notes.md` are written by every session. The old manual, the old
+plan and the notes have been lost to a whole-file overwrite once already.
 
 - Targeted edits only, matching on surrounding text, never on line numbers: these files move under you. The
   same goes for every page of `docs/`, which many sessions change at once.
 - Re-read a file immediately before writing it. Do not reuse a copy read minutes ago.
-- `design/decisions.md` is append-only. Never renumber or reorder rows; supersede with a new row instead.
+- `DECISIONS.md` is append-only. Never renumber or reorder rows; supersede with a new row instead.
 - Never restore these three files, or a page of `docs/`, from a backup. Exclude them from any mirroring or
   restore you run.
 - Check `ListAgents` before a large edit. If another session is live, agree who owns which files first.
@@ -184,11 +213,20 @@ docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned
   `check.sh` runs too (`scripts/docs_corpus` writes them out), so a page cannot drift from the compiler without
   failing. A program for something not built yet carries no title.
 - `specs/`: the language, normative: one page per docs page with that part's rules in full.
-- `design/`: decisions, status, open questions, proposals and known issues (above).
-- `PLAN.md`: milestones and implementation status.
-- `compiler/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.
+- `TODO.md`: what is decided and not built yet, one line each.
+- `DECISIONS.md`: every decision, with its date and why.
+- `design/`: open questions, proposals and known issues (above).
+- `compiler/`: the compiler, written in Spite; `compiler/compiler.spite` is its entry class and
+  `compiler/seed/spite_compiler.c` the C it writes for itself ([design/self_hosting.md](design/self_hosting.md)).
 - `conformance/`, `examples/`, `tests/`, `diagnostics/`: what `bash check.sh` runs: programs with their exact
   expected output and balanced memory, the test package, and programs that must fail with exact errors.
+  A program is `conformance/<stage>/<name>/<name>.spite` with `expected_output.txt`, or
+  `diagnostics/<name>/<name>.spite` with `expected_errors.txt`; either may carry `flags.txt` (the command line
+  after the file, such as `--name=server`), and a conformance program `input.txt` (what it reads from the
+  console). Add one with every feature or fixed error.
+- A program in `docs/` or `specs/` is a fenced block headed `spite title=<folder>/<file>.spite`, optionally with
+  `entry`, `error`, `vars=name:value`, `build=name:value` and `arguments=word,word`, followed by an `output` or
+  `diagnostic` block. `CHECK_JOBS=N` sets how many programs `check.sh` runs at once.
 - `backend/`: what the own backend builds, one program per milestone, each loading what it proves out of
   `compiler/source/backend/` and answering it on the system whose executable it writes.
 - `benchmarks/`: one folder per case, each a program in naive Spite, naive C and expert C with the whole C the

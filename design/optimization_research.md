@@ -401,7 +401,7 @@ to the plain dispatch for the classes that never wait. And the frame's pace has 
 its own object's functions, the work is every call on another object. The engine's `io_systems` advanced 17
 frames while its three lookups waited (3 before; main, with eight hand-made workers, 31). The open point the note
 did not list: interleaving a started call with the frame can lose a write the frame made between the call's read
-and its write across a wait, which is in design/status.md's still-open list under D244.
+and its write across a wait, which was in the still-open list under D244 (now `TODO.md`).
 
 **R12, results built into the caller's slot.** Already fixed (`d083a22b`) by the time the model read it:
 `normalized()` and `Matrix4.multiply` now fill a fresh frame slot and copy its fields into the target. The next

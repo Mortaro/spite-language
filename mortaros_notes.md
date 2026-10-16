@@ -1,6 +1,6 @@
 # Mortaro's inbox
 
-Empty. Add notes here; an agent moves them into the docs (the page and `design/decisions.md`) and clears this file.
+Empty. Add notes here; an agent moves them into the docs (the page and `DECISIONS.md`) and clears this file.
 
 a lot of compiler/compiler.spite is just code over reading arguments. that means either our Environment/Build are not feature complete, or we are failing at looking for behavior that duplicates standard library. a lot of the behavior there also like looking for the program and formating paths should be part of our standard library, so when a moron reads it it quickly can understand the intention.
 
@@ -19,10 +19,6 @@ the engine still extends Matrix4 thats same as bellow listed, either its a compi
 ---
 
 the engine still has a "os" folder for locks, writing os specific code is most likely a smell or a lack from our library, we cant force it at compile time because sometimes its actually needed, but in this case its just for file locking which most certainly is a flaw of our standard library not having something like file.lock()
-
----
-
-maybe List<Byte> should become a class Buffer that has all the methods we need to read information from the binary as different formats, BinaryWriter would then be able to use it and gives us control about how to best allocate it. the engine also seem to duplicate a lot of logic because we miss the Buffer class, the buffer class would just internally have a List<Byte> most likely, unless BinaryReader or Writer already cover it 
 
 ---
 
@@ -49,3 +45,7 @@ if modified and size
 ---
 
 .memory should become only getters to learn about the object and no longer a thing we can set as a move to remove manual memory management
+
+---
+
+a type and a generic are namespaced to the class file they are declared, weve been somehow using Number as a generic type and Nothing, so we have some leak on scope somewhere

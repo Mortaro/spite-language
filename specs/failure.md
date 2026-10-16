@@ -177,7 +177,9 @@ for the rest of that block and any block nested inside it. It is the same rule [
 `assert value and other_condition`, applied along a member chain instead of across an `and`.
 Across an `and`, every side narrows, for `assert`, `crash` and `if` alike, since each side is known true when the
 whole is: `crash names[position] and ages[position]` proves both elements, as two `crash` lines would
-(`conformance/stage6/and_narrowing`).
+(`conformance/stage6/and_narrowing`). Inside any `and`, in a `return` or any other expression too, the right side
+sees the left side's narrowing, since it is only computed when the left side is true: `return made and
+made.kind == "make"` reads `made.kind` on a plain `made`.
 
 - It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
   `class.namespace.namespace` says nothing about `other_class.namespace`.
@@ -252,9 +254,9 @@ How a read is proven:
   only `names[base]`. Written with `<=`, `base + k <= names.count()` (or `names.count() >= base + k`), `k` a literal
   from 1 to 64, proves `names[base]` to `names[base + k - 1]`, which is how a header's size reads: after `crash
   body + 13 <= bytes.count()`, `bytes[body + 12]` is proven.
-- **A read of a width is proven by its last byte.** A `List<Byte>`'s `read_<number>(position)`
-  ([Bytes are a List<Byte>](standard_library.md#bytes-are-a-listbyte)) is proven when the read of its last byte,
-  `bytes[position + width - 1]`, is: `read_integer(body + 4)` by whatever proves `bytes[body + 7]`, with `body + 4 + 3`
+- **A read of a width is proven by its last byte.** A `Buffer`'s `read_<number>_at(position)`
+  ([Bytes are a Buffer](standard_library.md#bytes-are-a-buffer)) is proven when the read of its last byte,
+  `bytes[position + width - 1]`, is: `read_integer_at(body + 4)` by whatever proves `bytes[body + 7]`, with `body + 4 + 3`
   written `body + 7`. The read then answers the number itself, not a `T?`. A width read is proven like any other
   read, by a bound, a count, a counted loop's window or the guard below, and undone the same way.
 - **A position known not to be negative** needs no test below: an index that is a whole-number literal of 0 or
@@ -266,7 +268,7 @@ How a read is proven:
   stride`), with `rows` and `stride` names or literals, proves `list[row * stride + column]`, and a read of width `w`
   there, inside `while row < rows` and `while column < stride` (or `while column + k < stride` with `w - 1 <= k`)
   when `row` and `column` are locals that are never negative (above). A literal `stride` may take a literal column
-  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer(index * 16 + 4)`
+  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer_at(index * 16 + 4)`
   is proven, since `4 + 3 < 16`. Assigning `rows`, `stride` or the list, or shrinking the list, undoes the guard;
   assigning `row` or `column` undoes their loops' part, and inside a loop that has read them that is the error for a
   proof undone inside a loop (`conformance/stage6/list_byte_numbers`).
@@ -357,8 +359,18 @@ and `remove_last()`: nothing to take from an empty list is a normal outcome. `te
 
 **Comparing needs no narrowing.** `==` and `!=` accept a `T?` on the left:
 null is equal only to null, so `crash Spite.Class.namespace == "Spite"` is a whole test, and two missing values are
-equal. Either side may be the `T?`. Only the comparison
-is exempt: reading a member through a `T?` still needs it narrowed first. A `Spite.Namespace` compares with
+equal. Either side may be the `T?`.
+
+**A chain read inside a comparison needs no narrowing either.** On either side of `==` or `!=`, a member chain
+that reads through a `T?` (`made.kind`, `player.weapon.name`) is itself a `T?`, missing when any link of it is
+missing, so `made.kind == "make"` is `false` when `made` is null and `made.kind != "make"` is `true`, exactly as
+for a `T?` compared directly. It holds wherever the comparison is written: in an `if`, an `assert`, a `crash`, a
+`return` or any other expression, so `return made.kind == "make"` needs no `made and` in front. The compiler
+writes the presence test of each link while compiling, once per link, and the value read is the chain's own, with
+nothing computed twice. Outside a comparison, reading a member through a `T?` still needs it narrowed first:
+`made.kind` on its own, an argument, an assignment or arithmetic. `<`, `<=`, `>` and `>=` take no `T?` at all.
+
+A `Spite.Namespace` compares with
 text through `equals(String)` in `library/spite/namespace.spite`, against its `name_with_namespaces`; two
 namespaces still compare by identity, because a class's `equals` is used for a right side of that same class
 only when `equals` takes that class.
