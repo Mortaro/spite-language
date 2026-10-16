@@ -350,7 +350,10 @@ func hands_over_by_count(operation: Operation, value: Integer): Boolean {
     }
     crash uses
     var defining = uses.definition_of(value)
-    return not defining or not consumption_is_wrap(defining)
+    if not defining {
+        return true
+    }
+    return not consumption_is_wrap(defining)
 }
 
 func consumption_is_wrap(operation: Operation): Boolean {
