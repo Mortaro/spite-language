@@ -452,7 +452,7 @@ func generator_pass(
 func write_from_intermediate(generator: Generation.Generator) {
     var pipeline = Intermediate.Pipeline(generator)
     pipeline.optimized = is_on("optimized")
-    pipeline.lowers_only = is_on("check") and option("high_ir").is_empty()
+    pipeline.lowers_only = is_on("check") and option("high_ir").is_empty() and not is_on("c_source")
     var written = pipeline.run()
     if pipeline.has_error() {
         var refused_ir_folder = option("high_ir")
