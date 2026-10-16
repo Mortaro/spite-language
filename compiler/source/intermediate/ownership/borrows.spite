@@ -397,6 +397,7 @@ func valid_until(value: Integer, start: Facts.Place, at: Facts.Place): Boolean {
     var block = function.block_at(at.block)
     crash block.operations[at.position]
     var used_in = block.operations[at.position]
+    crash consumption
     if used_in.kind == "call" and consumption.consumes(used_in, value) and hands_over_by_count(used_in) {
         return true
     }
