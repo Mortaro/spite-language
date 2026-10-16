@@ -282,7 +282,57 @@ func function_of(
     var binding = lowering().emitter.call_operation("Function.bind", operands, null)
     binding.literal = bound_name
     binding.target = bound_name
+    if not made.is_inline_supplied(function) and not made.is_library_class(described) and not made.hot_reload {
+        var filler = lowering().known().accessed_maker("{function.c_name}___accessed", described, function.name)
+        var filled = [made_function]
+        lowering().emitter.emit_call(filler, filled, null)
+    }
     return made_function
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func fill_accesses(described: Analysis.ClassInfo, function: Analysis.FunctionInfo, made_function: Integer) {
+    var made = lowering().front()
+    var plain_name = function.c_name == "{described.c_name}_{function.name}"
+    var in_source = plain_name and function.line > 0 and function.symbol_name.is_empty() and function.specialisation_position < 0
+    var listed = made.reflected_accesses(described, function, in_source)
+    var symbol_type = lowering().known().typed_symbol()
+    var class_type = made.spite_class_type()
+    var names = lowering().new_list(symbol_type)
+    var classes = lowering().new_list(class_type)
+    var name_appender = lowering().list_function(symbol_type, "append")
+    var class_appender = lowering().list_function(class_type, "append")
+    var entries = List<String>()
+    var index = 0
+    while index < listed.elements.count() {
+        var access = listed.elements[index]
+        var target = access.elements.first()
+        crash target
+        crash target.described_type
+        var kind = "g"
+        if target.kind == "attribute" {
+            kind = "a"
+        }
+        var read = "-"
+        if access.is_read {
+            read = "r"
+        }
+        var written = "-"
+        if access.is_written {
+            written = "w"
+        }
+        entries.append("{kind}{read}{written}")
+        var name_value = symbol(target.name)
+        lowering().call_two_function(name_appender, names, name_value)
+        var class_value = lowering().class_object_of(target.described_type)
+        lowering().call_two_function(class_appender, classes, class_value)
+        index = index + 1
+    }
+    var joined = entries.join(";")
+    var encoded = lowering().text_constant(joined)
+    lowering().emitter.store_field(made_function, "_accessed", encoded)
+    lowering().emitter.store_field(made_function, "_accessed_names", names)
+    lowering().emitter.store_field(made_function, "_accessed_classes", classes)
 }
 
 func bound_caller(
