@@ -112,17 +112,31 @@ cost of software can be moved out of the people and the machines that write and 
 
 There is far more worth finding than one person's agents can cover. If you have time, or agent time, to give:
 
-- **Close the gap to expert C.** Pick a benchmark where Spite is slower than the hand-tuned C, find what the expert
-  does differently, measure what each difference is worth, and name the optimisation and the proof the compiler
-  needs. [RESEARCH.md](RESEARCH.md) says how, and how to hand back what you find.
+- **Close the gap to expert C.** Every folder in [benchmarks/](benchmarks/README.md) holds one program as plain
+  Spite, plain C, C tuned by hand and the C the compiler writes. Pick a case where Spite is slower than the expert,
+  compare the two C files function by function, apply one difference at a time to the generated C by hand and time
+  it, then name the optimisation and the proof the compiler would need to make it on its own.
 - **Take an open question.** Per-field layouts, loops spread over every core in cache-sized chunks, the GPU,
-  working out whole computations while compiling: each is listed in [RESEARCH.md](RESEARCH.md) with what to find out.
+  working out whole computations while compiling, learning from a test run: each is in the open
+  [notebook](design/optimization_research.md), with the findings so far, so start from those.
 - **Write a program and report where Spite got in your way.** A confusing error, a rule that was hard to follow or a
   plain program that came out slow is a finding: it means Spite is not simple enough yet.
 - **Build a backend milestone.** Spite's own code generator and linker are planned milestone by milestone, each with
   an exact acceptance test.
 
-Read [AGENTS.md](AGENTS.md) before changing the compiler: it has the rules every change follows.
+The direction is GitHub issues that each carry a ready prompt you can hand to your own agent.
+
+Every finding is judged by four rules. The result stays the same (any method counts, only the printed answer must
+not change). Nothing goes wrong silently: say what the compiler must prove and what it does when the proof fails.
+Nothing ships beside the program: no scheduler, collector, interpreter or registry. And the program is never
+rewritten to go faster: "write it this way instead" is a finding about a proof the compiler is missing.
+
+To hand one back, write it under "Findings" in the [notebook](design/optimization_research.md) with the date, what
+you looked at, what you measured and how (or "read only, not measured"), the optimisation with its proof and its
+fallback, and what you are unsure of; a finding that turned out wrong is worth writing down too, with why. Open a
+pull request that says in two lines what you found and how sure you are, with commits that start with a gitmoji
+and end with a `Co-authored-by:` line naming the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing
+the compiler: it has the rules every change follows.
 
 ## One way to do each thing
 
@@ -434,4 +448,4 @@ programmers, but Spite counts references and enforces one style instead of trust
 to byte-identical output twice, and `bash check.sh` compiles and runs every titled program in the docs, every
 conformance program and every expected compile error, requiring exact output and balanced allocations.
 
-**How can I help?** See [Help build it](#help-build-it) and [RESEARCH.md](RESEARCH.md).
+**How can I help?** See [Help build it](#help-build-it).
