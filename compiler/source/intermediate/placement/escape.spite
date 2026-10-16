@@ -105,7 +105,7 @@ func escapes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value:
         return escapes_through(function, uses, operation.result, depth + 1)
     }
     if operation.kind == "store" {
-        return operation.operands.last() == value
+        return operation.operands.last() == value and not stored_into_borrowing_row(function, uses, operation, depth)
     }
     if operation.kind == "call value" {
         return value_kept_by_call_value(operation, value)
@@ -114,6 +114,19 @@ func escapes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value:
         return true
     }
     return call_keeps(function, uses, operation, value, depth)
+}
+
+func stored_into_borrowing_row(function: Function, uses: Facts.Uses, operation: Operation, depth: Integer): Boolean {
+    crash consumption
+    var target = operation.operands.first()
+    if not target or depth > 4 {
+        return false
+    }
+    var defining = uses.definition_of(target)
+    if not defining or defining.kind != "make" or not consumption.is_row_value(function, target) {
+        return false
+    }
+    return not escapes_through(function, uses, target, depth + 1)
 }
 
 func value_kept_by_call_value(operation: Operation, value: Integer): Boolean {

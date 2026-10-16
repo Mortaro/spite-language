@@ -3673,6 +3673,8 @@ and a list do. Four places use it:
   in a text's hole other than as `{name.attribute}`.
 - **A wrapped object.** An object put into a union or a nullable (a row for a system's `each`, a `T?`) stays in the frame
   when the wrapped value goes only to calls that keep nothing; storing, returning or handing it to a keeper still moves it to the heap.
+- **Items of a row.** An object stored into a row (a system's row, whose items are borrowed and uncounted) that itself
+  stays in the frame is framed too, as long as nothing else lets it go.
 - **A function value.** `apply(scorer.score, value)` builds one `Spite.Function` holding the object and its function; when the
   callee only calls it (`change(value)`) and keeps it nowhere, the function value itself lives in the frame
   instead of on the heap (its list of arguments is still made).
