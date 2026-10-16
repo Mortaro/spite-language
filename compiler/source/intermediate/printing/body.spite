@@ -179,14 +179,18 @@ func declared_name(declared: String): String {
 }
 
 func print_wait_call(operation: Operation, callee: Function) {
+    var arguments = call_arguments(operation)
+    print_wait_through(operation.result, callee, arguments)
+}
+
+func print_wait_through(result: Integer, callee: Function, arguments: String) {
     resume_count = resume_count + 1
     var point = resume_count
     var slot = "spite_frame->spite_wait_{point}"
-    var arguments = call_arguments(operation)
     lines.append("{slot} = {callee.c_name}___begin({arguments});")
     lines.append("spite_resume_{point}: if (!{callee.c_name}___step({slot})) SPITE_SUSPEND({point});")
-    if is_declared(operation.result) {
-        assign(operation.result, "(({callee.c_name}___frame*){slot})->spite_result")
+    if is_declared(result) {
+        assign(result, "(({callee.c_name}___frame*){slot})->spite_result")
     }
     lines.append("SPITE_FREE({slot});")
 }
@@ -1092,7 +1096,61 @@ func print_call_value(operation: Operation) {
         returned = naming.c_type(answered)
     }
     var pointer = "(({returned} (*)({pointer_parameters.join(", ")}))({called})->spite_typed_call)"
-    assign(operation.result, "{pointer}({arguments.join(", ")})")
+    var passed_text = arguments.join(", ")
+    var targets = List<Function>()
+    if machine {
+        targets = resumable_value_targets(called_signature)
+    }
+    var index_target = 0
+    while index_target < targets.count() {
+        var target = targets[index_target]
+        index_target = index_target + 1
+        lines.append("if (({called})->spite_typed_call == (void*){target.c_name}) \{")
+        print_wait_through(operation.result, target, passed_text)
+        lines.append("} else")
+    }
+    if targets.is_empty() {
+        assign(operation.result, "{pointer}({passed_text})")
+    } else {
+        lines.append("\{")
+        assign(operation.result, "{pointer}({passed_text})")
+        lines.append("}")
+    }
+}
+
+func resumable_value_targets(called_shape: Analysis.Types.ClassRefType): List<Function> {
+    var found = List<Function>()
+    var names = List<String>()
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var holder = lowered.concrete_functions[index]
+        index = index + 1
+        var block_index = 0
+        while block_index < holder.blocks.count() {
+            var operations = holder.blocks[block_index].operations
+            block_index = block_index + 1
+            var position = 0
+            while position < operations.count() {
+                var operation = operations[position]
+                position = position + 1
+                var named = operation.callee == "Function.bind" or operation.kind == "constant"
+                if named and not operation.literal.is_empty() and not names.contains(operation.literal) {
+                    names.append(operation.literal)
+                    var target = lowered.function_named(operation.literal)
+                    if target and target.parameters.count() == called_shape.arguments.count() and waits_in_machine(target) {
+                        if target.receiver < 0 {
+                            refuse(
+                                "it calls a function value that may be '{target.c_name}', which waits and has no owner to start it with",
+                            )
+                        } else {
+                            found.append(target)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return found
 }
 
 func is_copy_call(callee: String): Boolean {
@@ -1953,7 +2011,45 @@ func print_release(operation: Operation) {
         print_unframe(operation, name, held)
         return
     }
-    lines.append("{name}___release({held});")
+    var handled = false
+    if machine {
+        handled = print_waiting_release(counted, name, held)
+    }
+    if not handled {
+        lines.append("{name}___release({held});")
+    }
+}
+
+func print_waiting_release(counted: Analysis.SpiteType?, name: String, held: String): Boolean {
+    var layout = naming.layout_of(counted)
+    if not layout or not layout.information or not layout.information.drop_function or not drops_waiting(layout) {
+        return false
+    }
+    var dropper = lowered.function_named(layout.information.drop_function.c_name)
+    crash dropper
+    if not waits_in_machine(dropper) {
+        return false
+    }
+    var counting = "SPITE_COUNT"
+    if lowered.makes_threads and not layout.atomic_counts {
+        counting = "SPITE_PLAIN_COUNT"
+    }
+    lines.append("if (({held}) != 0 && {counting}_DOWN(({held})->header.ref_count) <= 0) \{")
+    print_wait_through(-1, dropper, held)
+    lines.append("{name}___free_after_drop({held});")
+    lines.append("}")
+    return true
+}
+
+func drops_waiting(layout: Layout): Boolean {
+    if layout.hot or not layout.information or not layout.information.drop_function {
+        return false
+    }
+    var dropper = lowered.function_named(layout.information.drop_function.c_name)
+    if not dropper {
+        return false
+    }
+    return dropper.resumable or not dropper.waiting_kind.is_empty()
 }
 
 func print_unframe(operation: Operation, name: String, held: String) {
