@@ -1,6 +1,7 @@
 var _crypt = DynamicLibrary("bcrypt.dll", 'identity', "")
 
-func _fill(address: Memory.Address, count: Integer) {
-    var status = _crypt.BCryptGenRandom(0, address, count, 2)
+func _fill(filled: Buffer, count: Integer) {
+    var status = _crypt.BCryptGenRandom(0, filled.items, count, 2)
     crash status == 0
+    filled.item_count = count
 }

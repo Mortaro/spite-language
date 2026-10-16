@@ -1,4 +1,3 @@
-var heap = Memory.Heap()
 var _window = 32768
 var _hash_size = 32768
 var _chain_limit = 24
@@ -73,60 +72,49 @@ var _code_length_order = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2,
 var _bit_buffer: Long = 0
 var _bit_count = 0
 
-var _source: Memory.Address = 0
+var _source = Buffer()
 var _source_length = 0
-var _scratch: Memory.Address = 0
-var _head: Memory.Address = 0
-var _previous: Memory.Address = 0
-var _literal_frequencies: Memory.Address = 0
-var _distance_frequencies: Memory.Address = 0
-var _literal_lengths: Memory.Address = 0
-var _literal_codes: Memory.Address = 0
-var _distance_lengths: Memory.Address = 0
-var _distance_codes: Memory.Address = 0
-var _run_frequencies: Memory.Address = 0
-var _run_lengths: Memory.Address = 0
-var _run_codes: Memory.Address = 0
-var _all_lengths: Memory.Address = 0
-var _runs: Memory.Address = 0
-var _run_extras: Memory.Address = 0
+var _scratch = List<Integer>()
+var _head = 0
+var _previous = 32768
+var _literal_frequencies = 65536
+var _distance_frequencies = 65836
+var _literal_lengths = 65886
+var _literal_codes = 66186
+var _distance_lengths = 66486
+var _distance_codes = 66536
+var _run_frequencies = 66586
+var _run_lengths = 66611
+var _run_codes = 66636
+var _all_lengths = 66661
+var _runs = 66986
+var _run_extras = 67311
+var _weights = 67636
+var _parents = 68236
+var _alive = 68836
+var _compress_scratch_count = 69436
 var _run_count = 0
 var _symbols = List<Integer>()
 var _extras = List<Integer>()
 var _output = Buffer()
 
-var _input: Memory.Address = 0
 var _input_length = 0
 var _position = 0
 var _failed = false
 var _result = Buffer()
-var _tables: Memory.Address = 0
-var _literal_table: Memory.Address = 0
-var _distance_table: Memory.Address = 0
-var _length_table: Memory.Address = 0
-var _table_lengths: Memory.Address = 0
+var _literal_table = 0
+var _distance_table = 32768
+var _length_table = 65536
+var _table_lengths = 65664
+var _decompress_scratch_count = 67500
 var _literal_mask: Long = 0
 var _distance_mask: Long = 0
 var _length_mask: Long = 0
 
 func compress(bytes: Buffer): Buffer {
-    _source = bytes.items
-    _source_length = bytes.item_count
-    _scratch = heap.allocate(280000)
-    _head = _scratch
-    _previous = _scratch + 131072
-    _literal_frequencies = _scratch + 262144
-    _distance_frequencies = _literal_frequencies + 1200
-    _literal_lengths = _distance_frequencies + 200
-    _literal_codes = _literal_lengths + 1200
-    _distance_lengths = _literal_codes + 1200
-    _distance_codes = _distance_lengths + 200
-    _run_frequencies = _distance_codes + 200
-    _run_lengths = _run_frequencies + 100
-    _run_codes = _run_lengths + 100
-    _all_lengths = _run_codes + 100
-    _runs = _all_lengths + 1300
-    _run_extras = _runs + 1300
+    _source = bytes
+    _source_length = bytes.count()
+    _allocate_scratch(_compress_scratch_count)
     _fill(_head, _hash_size, -1)
     _fill(_previous, _window, -1)
     _output = Buffer()
@@ -137,7 +125,7 @@ func compress(bytes: Buffer): Buffer {
     var position = 0
     while position < _source_length {
         position = _step(position)
-        if _symbols.item_count >= _block_symbols {
+        if _symbols.count() >= _block_symbols {
             _add_symbol(256, 0)
             _write_block(false)
             _start_block()
@@ -146,9 +134,6 @@ func compress(bytes: Buffer): Buffer {
     _add_symbol(256, 0)
     _write_block(true)
     _flush()
-    heap.free(_scratch)
-    _scratch = 0
-    _source = 0
     _symbols = List<Integer>()
     _extras = List<Integer>()
     var result = _output
@@ -157,27 +142,41 @@ func compress(bytes: Buffer): Buffer {
 }
 
 func decompress(bytes: Buffer): Buffer? {
-    _input = bytes.items
-    _input_length = bytes.item_count
+    _source = bytes
+    _input_length = bytes.count()
     _position = 0
     _bit_buffer = 0
     _bit_count = 0
     _failed = false
     _result = Buffer()
     _result.reserve(_input_length * 2 + 64)
-    _tables = heap.allocate(270000)
-    _literal_table = _tables
-    _distance_table = _tables + 131072
-    _length_table = _tables + 262144
-    _table_lengths = _length_table + 512
+    _allocate_scratch(_decompress_scratch_count)
     _inflate_blocks()
-    heap.free(_tables)
-    _tables = 0
-    _input = 0
     var result = _result
     _result = Buffer()
     assert not _failed
     return result
+}
+
+func _allocate_scratch(entry_count: Integer) {
+    _scratch.clear()
+    _scratch.reserve(entry_count)
+    var index = 0
+    while index < entry_count {
+        _scratch.append(0)
+        index = index + 1
+    }
+}
+
+func _byte(bytes: Buffer, index: Integer): Byte {
+    var value = bytes[index]
+    crash value
+    return value
+}
+
+func _bump(table: List<Integer>, index: Integer) {
+    var value = _entry(table, index)
+    table[index] = value + 1
 }
 
 func _entry(table: List<Integer>, index: Integer): Integer {
@@ -185,17 +184,16 @@ func _entry(table: List<Integer>, index: Integer): Integer {
     return table[index]
 }
 
-func _fill(address: Memory.Address, filled_count: Integer, value: Integer) {
+func _fill(address: Integer, filled_count: Integer, value: Integer) {
     var index = 0
     while index < filled_count {
-        address.write_integer(index * 4, value)
+        _scratch[address + index] = value
         index = index + 1
     }
 }
 
-func _increment(address: Memory.Address, index: Integer) {
-    var value = address.read_integer(index * 4)
-    address.write_integer(index * 4, value + 1)
+func _increment(address: Integer, index: Integer) {
+    _bump(_scratch, address + index)
 }
 
 func _start_block() {
@@ -214,7 +212,7 @@ func _step(position: Integer): Integer {
             limit = 258
         }
         var hash = _hash_at(position)
-        var candidate = _head.read_integer(hash * 4)
+        var candidate = _entry(_scratch, _head + hash)
         var tries = 0
         while candidate >= 0 and position - candidate <= _window and tries < _chain_limit and best_length < limit {
             var matched = _match_length(candidate, position, limit)
@@ -223,7 +221,7 @@ func _step(position: Integer): Integer {
                 best_distance = position - candidate
             }
             var slot = candidate.bits_and(_window - 1)
-            candidate = _previous.read_integer(slot * 4)
+            candidate = _entry(_scratch, _previous + slot)
             tries = tries + 1
         }
         _insert(position, hash)
@@ -233,15 +231,15 @@ func _step(position: Integer): Integer {
         _insert_range(position + 1, position + best_length)
         return position + best_length
     }
-    var literal: Integer = _source.read_byte(position)
+    var literal: Integer = _byte(_source, position)
     _add_symbol(literal, 0)
     return position + 1
 }
 
 func _hash_at(position: Integer): Integer {
-    var first: Integer = _source.read_byte(position)
-    var second: Integer = _source.read_byte(position + 1)
-    var third: Integer = _source.read_byte(position + 2)
+    var first: Integer = _byte(_source, position)
+    var second: Integer = _byte(_source, position + 1)
+    var third: Integer = _byte(_source, position + 2)
     var middle = second.shifted_left(5)
     var mixed = first.shifted_left(10).bits_exclusive_or(middle).bits_exclusive_or(third)
     return mixed.bits_and(_hash_size - 1)
@@ -249,9 +247,9 @@ func _hash_at(position: Integer): Integer {
 
 func _insert(position: Integer, hash: Integer) {
     var slot = position.bits_and(_window - 1)
-    var older = _head.read_integer(hash * 4)
-    _previous.write_integer(slot * 4, older)
-    _head.write_integer(hash * 4, position)
+    var older = _entry(_scratch, _head + hash)
+    _scratch[_previous + slot] = older
+    _scratch[_head + hash] = position
 }
 
 func _insert_range(from: Integer, to: Integer) {
@@ -265,7 +263,7 @@ func _insert_range(from: Integer, to: Integer) {
 
 func _match_length(candidate: Integer, position: Integer, limit: Integer): Integer {
     var matched = 0
-    while matched < limit and _source.read_byte(candidate + matched) == _source.read_byte(position + matched) {
+    while matched < limit and _byte(_source, candidate + matched) == _byte(_source, position + matched) {
         matched = matched + 1
     }
     return matched
@@ -301,11 +299,11 @@ func _code_for(bases: List<Integer>, value: Integer): Integer {
 
 func _write_block(last: Boolean) {
     _build_code(_literal_frequencies, 286, 15, _literal_lengths, _literal_codes)
-    if _distance_frequencies.read_integer(0) == 0 {
-        _distance_frequencies.write_integer(0, 1)
+    if _entry(_scratch, _distance_frequencies) == 0 {
+        _scratch[_distance_frequencies] = 1
     }
-    if _distance_frequencies.read_integer(4) == 0 {
-        _distance_frequencies.write_integer(4, 1)
+    if _entry(_scratch, _distance_frequencies + 1) == 0 {
+        _scratch[_distance_frequencies + 1] = 1
     }
     _build_code(_distance_frequencies, 30, 15, _distance_lengths, _distance_codes)
     var final_bit = 0
@@ -319,32 +317,32 @@ func _write_block(last: Boolean) {
 }
 
 func _write_symbols() {
-    var symbols = _symbols.items
-    var extras = _extras.items
-    var total = _symbols.item_count
+    var symbols = _symbols
+    var extras = _extras
+    var total = _symbols.count()
     var index = 0
     while index < total {
-        var symbol = symbols.read_integer(index * 4)
+        var symbol = _entry(symbols, index)
         _write_symbol_code(_literal_lengths, _literal_codes, symbol)
         index = index + 1
         if symbol > 256 {
             var length_code = symbol - 257
             var length_bits = _entry(_length_extra, length_code)
-            var length_more = extras.read_integer((index - 1) * 4)
+            var length_more = _entry(extras, index - 1)
             _write_bits(length_more, length_bits)
-            var distance_code = symbols.read_integer(index * 4)
+            var distance_code = _entry(symbols, index)
             _write_symbol_code(_distance_lengths, _distance_codes, distance_code)
             var distance_bits = _entry(_distance_extra, distance_code)
-            var distance_more = extras.read_integer(index * 4)
+            var distance_more = _entry(extras, index)
             _write_bits(distance_more, distance_bits)
             index = index + 1
         }
     }
 }
 
-func _write_symbol_code(lengths: Memory.Address, codes: Memory.Address, symbol: Integer) {
-    var code = codes.read_integer(symbol * 4)
-    var bits = lengths.read_integer(symbol * 4)
+func _write_symbol_code(lengths: Integer, codes: Integer, symbol: Integer) {
+    var code = _entry(_scratch, codes + symbol)
+    var bits = _entry(_scratch, lengths + symbol)
     _write_code(code, bits)
 }
 
@@ -353,21 +351,21 @@ func _write_code_lengths() {
     var distance_count = _trimmed_count(_distance_lengths, 30, 1)
     var index = 0
     while index < literal_count {
-        var value = _literal_lengths.read_integer(index * 4)
-        _all_lengths.write_integer(index * 4, value)
+        var value = _entry(_scratch, _literal_lengths + index)
+        _scratch[_all_lengths + index] = value
         index = index + 1
     }
     index = 0
     while index < distance_count {
-        var value = _distance_lengths.read_integer(index * 4)
-        _all_lengths.write_integer((literal_count + index) * 4, value)
+        var value = _entry(_scratch, _distance_lengths + index)
+        _scratch[_all_lengths + (literal_count + index)] = value
         index = index + 1
     }
     _run_length(literal_count + distance_count)
     _fill(_run_frequencies, 19, 0)
     index = 0
     while index < _run_count {
-        var run = _runs.read_integer(index * 4)
+        var run = _entry(_scratch, _runs + index)
         _increment(_run_frequencies, run)
         index = index + 1
     }
@@ -387,8 +385,8 @@ func _write_code_lengths() {
     }
     index = 0
     while index < _run_count {
-        var symbol = _runs.read_integer(index * 4)
-        var extra = _run_extras.read_integer(index * 4)
+        var symbol = _entry(_scratch, _runs + index)
+        var extra = _entry(_scratch, _run_extras + index)
         _write_symbol_code(_run_lengths, _run_codes, symbol)
         if symbol == 16 {
             _write_bits(extra, 2)
@@ -403,12 +401,12 @@ func _write_code_lengths() {
 
 func _order_length(position: Integer): Integer {
     var symbol = _entry(_code_length_order, position)
-    return _run_lengths.read_integer(symbol * 4)
+    return _entry(_scratch, _run_lengths + symbol)
 }
 
-func _trimmed_count(lengths: Memory.Address, total: Integer, minimum: Integer): Integer {
+func _trimmed_count(lengths: Integer, total: Integer, minimum: Integer): Integer {
     var kept = total
-    while kept > minimum and lengths.read_integer((kept - 1) * 4) == 0 {
+    while kept > minimum and _entry(_scratch, lengths + (kept - 1)) == 0 {
         kept = kept - 1
     }
     return kept
@@ -418,9 +416,9 @@ func _run_length(total: Integer) {
     _run_count = 0
     var index = 0
     while index < total {
-        var value = _all_lengths.read_integer(index * 4)
+        var value = _entry(_scratch, _all_lengths + index)
         var repeat = 1
-        while index + repeat < total and _all_lengths.read_integer((index + repeat) * 4) == value {
+        while index + repeat < total and _entry(_scratch, _all_lengths + (index + repeat)) == value {
             repeat = repeat + 1
         }
         index = index + _emit_run(value, repeat)
@@ -428,8 +426,8 @@ func _run_length(total: Integer) {
 }
 
 func _add_run(symbol: Integer, extra: Integer) {
-    _runs.write_integer(_run_count * 4, symbol)
-    _run_extras.write_integer(_run_count * 4, extra)
+    _scratch[_runs + _run_count] = symbol
+    _scratch[_run_extras + _run_count] = extra
     _run_count = _run_count + 1
 }
 
@@ -453,18 +451,18 @@ func _emit_run(value: Integer, repeat: Integer): Integer {
 }
 
 func _build_code(
-    frequencies: Memory.Address,
+    frequencies: Integer,
     symbol_count: Integer,
     limit: Integer,
-    lengths: Memory.Address,
-    codes: Memory.Address,
+    lengths: Integer,
+    codes: Integer,
 ) {
     _fill(lengths, symbol_count, 0)
     _fill(codes, symbol_count, 0)
     var used = List<Integer>()
     var index = 0
     while index < symbol_count {
-        if frequencies.read_integer(index * 4) > 0 {
+        if _entry(_scratch, frequencies + index) > 0 {
             used.append(index)
         }
         index = index + 1
@@ -472,32 +470,30 @@ func _build_code(
     var used_count = used.count()
     if used_count == 1 {
         var only = _entry(used, 0)
-        lengths.write_integer(only * 4, 1)
+        _scratch[lengths + only] = 1
         var partner = 0
         if only == 0 {
             partner = 1
         }
-        lengths.write_integer(partner * 4, 1)
+        _scratch[lengths + partner] = 1
     } else if used_count > 1 {
         _tree_lengths(frequencies, used, limit, lengths)
     }
     _assign_codes(lengths, symbol_count, limit, codes)
 }
 
-func _tree_lengths(frequencies: Memory.Address, used: List<Integer>, limit: Integer, lengths: Memory.Address) {
+func _tree_lengths(frequencies: Integer, used: List<Integer>, limit: Integer, lengths: Integer) {
     var leaves = used.count()
-    var nodes = leaves * 2
-    var block = heap.allocate(nodes * 16)
-    var weights = block
-    var parents = block + nodes * 8
-    var alive = parents + nodes * 4
+    var weights = _weights
+    var parents = _parents
+    var alive = _alive
     var leaf = 0
     while leaf < leaves {
-        var symbol = used.items.read_integer(leaf * 4)
-        var weight: Long = frequencies.read_integer(symbol * 4)
-        weights.write_long(leaf * 8, weight)
-        parents.write_integer(leaf * 4, -1)
-        alive.write_integer(leaf * 4, leaf)
+        var symbol = _entry(used, leaf)
+        var weight = _entry(_scratch, frequencies + symbol)
+        _scratch[weights + leaf] = weight
+        _scratch[parents + leaf] = -1
+        _scratch[alive + leaf] = leaf
         leaf = leaf + 1
     }
     var alive_count = leaves
@@ -507,64 +503,63 @@ func _tree_lengths(frequencies: Memory.Address, used: List<Integer>, limit: Inte
         alive_count = alive_count - 1
         var second = _take_lightest(alive, alive_count, weights)
         alive_count = alive_count - 1
-        var first_weight = weights.read_long(first * 8)
-        var second_weight = weights.read_long(second * 8)
-        weights.write_long(node_count * 8, first_weight + second_weight)
-        parents.write_integer(node_count * 4, -1)
-        parents.write_integer(first * 4, node_count)
-        parents.write_integer(second * 4, node_count)
-        alive.write_integer(alive_count * 4, node_count)
+        var first_weight = _entry(_scratch, weights + first)
+        var second_weight = _entry(_scratch, weights + second)
+        _scratch[weights + node_count] = first_weight + second_weight
+        _scratch[parents + node_count] = -1
+        _scratch[parents + first] = node_count
+        _scratch[parents + second] = node_count
+        _scratch[alive + alive_count] = node_count
         alive_count = alive_count + 1
         node_count = node_count + 1
     }
     leaf = 0
     while leaf < leaves {
         var depth = 0
-        var node = parents.read_integer(leaf * 4)
+        var node = _entry(_scratch, parents + leaf)
         while node >= 0 {
             depth = depth + 1
-            node = parents.read_integer(node * 4)
+            node = _entry(_scratch, parents + node)
         }
         if depth > limit {
             depth = limit
         }
-        var symbol = used.items.read_integer(leaf * 4)
-        lengths.write_integer(symbol * 4, depth)
+        var symbol = _entry(used, leaf)
+        _scratch[lengths + symbol] = depth
         leaf = leaf + 1
     }
-    heap.free(block)
     _fit_kraft(used, limit, lengths)
 }
 
-func _take_lightest(alive: Memory.Address, alive_count: Integer, weights: Memory.Address): Integer {
+func _take_lightest(alive: Integer, alive_count: Integer, weights: Integer): Integer {
     var best = 0
-    var first_node = alive.read_integer(0)
-    var best_weight = weights.read_long(first_node * 8)
+    var first_node = _entry(_scratch, alive)
+    var best_weight = _entry(_scratch, weights + first_node)
     var position = 1
     while position < alive_count {
-        var node = alive.read_integer(position * 4)
-        var weight = weights.read_long(node * 8)
+        var node = _entry(_scratch, alive + position)
+        var weight = _entry(_scratch, weights + node)
         if weight < best_weight {
             best = position
             best_weight = weight
         }
         position = position + 1
     }
-    var chosen = alive.read_integer(best * 4)
-    var last = alive.read_integer((alive_count - 1) * 4)
-    alive.write_integer(best * 4, last)
+    var chosen = _entry(_scratch, alive + best)
+    var last = _entry(_scratch, alive + (alive_count - 1))
+    _scratch[alive + best] = last
     return chosen
 }
 
-func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Memory.Address) {
+func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Integer) {
     var one: Long = 1
     var capacity = one.shifted_left(limit)
     var kraft: Long = 0
     var leaves = used.count()
     var leaf = 0
     while leaf < leaves {
-        var symbol = used.items.read_integer(leaf * 4)
-        var depth = lengths.read_integer(symbol * 4)
+        var symbol = _entry(used, leaf)
+        var depth = _entry(_scratch, lengths + symbol)
         kraft = kraft + one.shifted_left(limit - depth)
         leaf = leaf + 1
     }
@@ -573,8 +568,8 @@ func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Memory.Address) {
         var best_depth = 0
         leaf = 0
         while leaf < leaves {
-            var symbol = used.items.read_integer(leaf * 4)
-            var depth = lengths.read_integer(symbol * 4)
+            var symbol = _entry(used, leaf)
+            var depth = _entry(_scratch, lengths + symbol)
             if depth < limit and depth > best_depth {
                 best = symbol
                 best_depth = depth
@@ -582,7 +577,7 @@ func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Memory.Address) {
             leaf = leaf + 1
         }
         crash best >= 0
-        lengths.write_integer(best * 4, best_depth + 1)
+        _scratch[lengths + best] = best_depth + 1
         kraft = kraft - one.shifted_left(limit - best_depth - 1)
     }
     while kraft < capacity {
@@ -591,8 +586,8 @@ func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Memory.Address) {
         var best_depth = 1
         leaf = 0
         while leaf < leaves {
-            var symbol = used.items.read_integer(leaf * 4)
-            var depth = lengths.read_integer(symbol * 4)
+            var symbol = _entry(used, leaf)
+            var depth = _entry(_scratch, lengths + symbol)
             if depth > best_depth and one.shifted_left(limit - depth) <= spare {
                 best = symbol
                 best_depth = depth
@@ -600,12 +595,12 @@ func _fit_kraft(used: List<Integer>, limit: Integer, lengths: Memory.Address) {
             leaf = leaf + 1
         }
         assert best >= 0
-        lengths.write_integer(best * 4, best_depth - 1)
+        _scratch[lengths + best] = best_depth - 1
         kraft = kraft + one.shifted_left(limit - best_depth)
     }
 }
 
-func _assign_codes(lengths: Memory.Address, symbol_count: Integer, limit: Integer, codes: Memory.Address) {
+func _assign_codes(lengths: Integer, symbol_count: Integer, limit: Integer, codes: Integer) {
     var counts = List<Integer>()
     var next = List<Integer>()
     var index = 0
@@ -616,27 +611,27 @@ func _assign_codes(lengths: Memory.Address, symbol_count: Integer, limit: Intege
     }
     index = 0
     while index < symbol_count {
-        var bits = lengths.read_integer(index * 4)
-        _increment(counts.items, bits)
+        var bits = _entry(_scratch, lengths + index)
+        _bump(counts, bits)
         index = index + 1
     }
     counts[0] = 0
     var code = 0
     var bits = 1
     while bits <= limit {
-        var shorter = counts.items.read_integer((bits - 1) * 4)
+        var shorter = _entry(counts, (bits - 1))
         var counted_code = code + shorter
         code = counted_code.shifted_left(1)
-        next.items.write_integer(bits * 4, code)
+        next[bits] = code
         bits = bits + 1
     }
     index = 0
     while index < symbol_count {
-        var length = lengths.read_integer(index * 4)
+        var length = _entry(_scratch, lengths + index)
         if length > 0 {
-            var assigned = next.items.read_integer(length * 4)
-            codes.write_integer(index * 4, assigned)
-            next.items.write_integer(length * 4, assigned + 1)
+            var assigned = _entry(next, length)
+            _scratch[codes + index] = assigned
+            next[length] = assigned + 1
         }
         index = index + 1
     }
@@ -694,7 +689,7 @@ func _refill() {
     while _bit_count < 56 {
         var next: Long = 0
         if _position < _input_length {
-            next = _input.read_byte(_position)
+            next = _byte(_source, _position)
         }
         var placed = next.shifted_left(_bit_count)
         _bit_buffer = _bit_buffer.bits_or(placed)
@@ -713,10 +708,10 @@ func _read_bits(bits: Integer): Integer {
     return value
 }
 
-func _decode_symbol(table: Memory.Address, mask: Long): Integer {
+func _decode_symbol(table: Integer, mask: Long): Integer {
     _refill()
-    var index = _bit_buffer.bits_and(mask)
-    var entry = table.read_integer(index * 4)
+    var index: Integer = _bit_buffer.bits_and(mask)
+    var entry = _entry(_scratch, table + index)
     var bits = entry.bits_and(15)
     if bits == 0 {
         _failed = true
@@ -760,26 +755,25 @@ func _rewind_to_byte() {
 }
 
 func _ensure_room(added: Integer) {
-    _result.reserve(_result.item_count + added)
+    var held = _result.count()
+    _result.reserve(held + added)
 }
 
 func _copy_stored() {
     _rewind_to_byte()
     _fail_when(_position + 4 > _input_length)
     assert not _failed
-    var low: Integer = _input.read_byte(_position)
-    var high: Integer = _input.read_byte(_position + 1)
-    var complement_low: Integer = _input.read_byte(_position + 2)
-    var complement_high: Integer = _input.read_byte(_position + 3)
+    var low: Integer = _byte(_source, _position)
+    var high: Integer = _byte(_source, _position + 1)
+    var complement_low: Integer = _byte(_source, _position + 2)
+    var complement_high: Integer = _byte(_source, _position + 3)
     var size = high * 256 + low
     var complement = complement_high * 256 + complement_low
     _position = _position + 4
     _fail_when(size + complement != 65535 or _position + size > _input_length)
     assert not _failed
     _ensure_room(size)
-    var stored: Memory.Address = _input + _position
-    stored.copy_to(_result.items + _result.item_count, size)
-    _result.item_count = _result.item_count + size
+    _result.append_bytes(_source, _position, size)
     _position = _position + size
 }
 
@@ -791,8 +785,8 @@ func _decode_symbols() {
         assert not _failed
         if symbol < 256 {
             _ensure_room(1)
-            _result.items.write_byte(_result.item_count, symbol)
-            _result.item_count = _result.item_count + 1
+            var literal: Byte = symbol
+            _result.append(literal)
         } else if symbol > 256 {
             _copy_match(symbol)
         }
@@ -816,24 +810,21 @@ func _copy_match(symbol: Integer) {
     var distance_base = _entry(_distance_bases, distance_symbol)
     var distance_more = _read_bits(distance_bits)
     var distance = distance_base + distance_more
-    _fail_when(distance > _result.item_count)
+    var held = _result.count()
+    _fail_when(distance > held)
     assert not _failed
     _ensure_room(match_length)
-    var items = _result.items
-    var at = _result.item_count
-    var from = at - distance
+    var from = _result.count() - distance
     if distance >= match_length {
-        var matched: Memory.Address = items + from
-        matched.copy_to(items + at, match_length)
+        _result.append_bytes(_result, from, match_length)
     } else {
         var copied = 0
         while copied < match_length {
-            var value = items.read_byte(from + copied)
-            items.write_byte(at + copied, value)
+            var value = _byte(_result, from + copied)
+            _result.append(value)
             copied = copied + 1
         }
     }
-    _result.item_count = at + match_length
 }
 
 func _build_fixed_tables() {
@@ -849,7 +840,7 @@ func _build_fixed_tables() {
         } else if index < 288 {
             bits = 8
         }
-        _table_lengths.write_integer(index * 4, bits)
+        _scratch[_table_lengths + index] = bits
         index = index + 1
     }
     _literal_mask = _build_table(_literal_table, 0, 288)
@@ -866,7 +857,7 @@ func _read_dynamic_tables() {
     while index < code_length_count {
         var slot = _entry(_code_length_order, index)
         var bits = _read_bits(3)
-        _table_lengths.write_integer(slot * 4, bits)
+        _scratch[_table_lengths + slot] = bits
         index = index + 1
     }
     _length_mask = _build_table(_length_table, 0, 19)
@@ -882,7 +873,7 @@ func _read_dynamic_tables() {
         } else if symbol == 16 {
             _fail_when(filled == 0)
             if filled > 0 {
-                value = _table_lengths.read_integer((filled - 1) * 4 + 1024)
+                value = _entry(_scratch, _table_lengths + 256 + (filled - 1))
             }
             repeat = _read_bits(2) + 3
         } else if symbol == 17 {
@@ -893,19 +884,19 @@ func _read_dynamic_tables() {
         var overrun = _overrun()
         _fail_when(filled + repeat > total or overrun)
         if not _failed {
-            _fill(_table_lengths + 1024 + filled * 4, repeat, value)
+            _fill(_table_lengths + 256 + filled, repeat, value)
             filled = filled + repeat
         }
     }
     assert not _failed
-    var end_bits = _table_lengths.read_integer(1024 + 256 * 4)
+    var end_bits = _entry(_scratch, _table_lengths + 256 + 256)
     _fail_when(end_bits == 0)
     _literal_mask = _build_table(_literal_table, 256, literal_count)
     _distance_mask = _build_table(_distance_table, 256 + literal_count, distance_count)
     _fail_when(_literal_mask < 0 or _distance_mask < 0)
 }
 
-func _build_table(table: Memory.Address, first: Integer, symbol_count: Integer): Long {
+func _build_table(table: Integer, first: Integer, symbol_count: Integer): Long {
     var counts = List<Integer>()
     var next = List<Integer>()
     while counts.count() < 16 {
@@ -915,8 +906,8 @@ func _build_table(table: Memory.Address, first: Integer, symbol_count: Integer):
     var maximum = 1
     var symbol = 0
     while symbol < symbol_count {
-        var bits = _table_lengths.read_integer((first + symbol) * 4)
-        _increment(counts.items, bits)
+        var bits = _entry(_scratch, _table_lengths + (first + symbol))
+        _bump(counts, bits)
         if bits > maximum {
             maximum = bits
         }
@@ -926,28 +917,28 @@ func _build_table(table: Memory.Address, first: Integer, symbol_count: Integer):
     var available = 1
     var bits = 1
     while bits < 16 {
-        var counted = counts.items.read_integer(bits * 4)
+        var counted = _entry(counts, bits)
         available = available * 2 - counted
         if available < 0 {
             return -1
         }
-        next.items.write_integer(bits * 4, code)
+        next[bits] = code
         code = (code + counted) * 2
         bits = bits + 1
     }
-    var one: Long = 1
+    var one = 1
     var size = one.shifted_left(maximum)
-    var slot: Long = 0
+    var slot = 0
     while slot < size {
-        table.write_integer(slot * 4, 0)
+        _scratch[table + slot] = 0
         slot = slot + 1
     }
     symbol = 0
     while symbol < symbol_count {
-        var length = _table_lengths.read_integer((first + symbol) * 4)
+        var length = _entry(_scratch, _table_lengths + (first + symbol))
         if length > 0 {
-            var assigned = next.items.read_integer(length * 4)
-            next.items.write_integer(length * 4, assigned + 1)
+            var assigned = _entry(next, length)
+            next[length] = assigned + 1
             var reversed = 0
             var step = 0
             while step < length {
@@ -957,9 +948,9 @@ func _build_table(table: Memory.Address, first: Integer, symbol_count: Integer):
             }
             var entry = symbol.shifted_left(4).bits_or(length)
             var stride = one.shifted_left(length)
-            var place: Long = reversed
+            var place = reversed
             while place < size {
-                table.write_integer(place * 4, entry)
+                _scratch[table + place] = entry
                 place = place + stride
             }
         }

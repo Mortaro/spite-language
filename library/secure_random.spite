@@ -5,8 +5,7 @@ func bytes(count: Integer): Buffer {
     var filled = Buffer()
     filled.reserve(count)
     if count > 0 {
-        _fill(filled.items, count)
+        _fill(filled, count)
     }
-    filled.item_count = count
     return filled
 }

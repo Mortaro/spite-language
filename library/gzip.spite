@@ -1,88 +1,90 @@
 singleton
 
-var heap = Memory.Heap()
-
 func compress(bytes: Buffer): Buffer {
     var deflate = Deflate()
     var body = deflate.compress(bytes)
-    var body_count = body.item_count
     var output = Buffer()
+    var body_count = body.count()
     output.reserve(body_count + 18)
-    var header = [31, 139, 8, 0, 0, 0, 0, 0, 0, 255]
+    var header: List<Byte> = [31, 139, 8, 0, 0, 0, 0, 0, 0, 255]
     var index = 0
     while index < 10 {
-        var value = header.items.read_integer(index * 4)
-        output.items.write_byte(index, value)
+        var value = header[index]
+        crash value
+        output.append(value)
         index = index + 1
     }
-    body.items.copy_to(output.items + 10, body_count)
-    output.item_count = body_count + 10
-    var checksum = _crc32(bytes.items, bytes.item_count)
+    output.append_bytes(body, 0, body_count)
+    var bytes_count = bytes.count()
+    var checksum = _crc32(bytes, bytes_count)
     _append_little_endian(output, checksum)
-    var size: UnsignedInteger = bytes.item_count
+    var size: UnsignedInteger = bytes_count
     _append_little_endian(output, size)
     return output
 }
 
 func decompress(bytes: Buffer): Buffer? {
-    var total = bytes.item_count
-    var items = bytes.items
+    var total = bytes.count()
     assert total >= 18
-    var first: Integer = items.read_byte(0)
-    var second: Integer = items.read_byte(1)
-    var method: Integer = items.read_byte(2)
-    var flags: Integer = items.read_byte(3)
+    var first: Integer = _byte(bytes, 0)
+    var second: Integer = _byte(bytes, 1)
+    var method: Integer = _byte(bytes, 2)
+    var flags: Integer = _byte(bytes, 3)
     assert first == 31 and second == 139 and method == 8
     assert flags.bits_and(224) == 0
     var position = 10
     if flags.bits_and(4) != 0 {
         assert position + 2 <= total
-        var low: Integer = items.read_byte(position)
-        var high: Integer = items.read_byte(position + 1)
+        var low: Integer = _byte(bytes, position)
+        var high: Integer = _byte(bytes, position + 1)
         position = position + 2 + high * 256 + low
     }
     if flags.bits_and(8) != 0 {
-        position = _skip_text(items, position, total)
+        position = _skip_text(bytes, position, total)
     }
     if flags.bits_and(16) != 0 {
-        position = _skip_text(items, position, total)
+        position = _skip_text(bytes, position, total)
     }
     if flags.bits_and(2) != 0 {
         assert position + 2 <= total
-        var header_check = _crc32(items, position).bits_and(65535)
-        var stored = _read_little_endian(items, position).bits_and(65535)
+        var header_check = _crc32(bytes, position).bits_and(65535)
+        var stored = _read_little_endian(bytes, position).bits_and(65535)
         assert header_check == stored
         position = position + 2
     }
     assert position + 8 <= total
     var body_count = total - 8 - position
-    var body = Buffer()
-    body.reserve(body_count)
-    var body_start: Memory.Address = items + position
-    body_start.copy_to(body.items, body_count)
-    body.item_count = body_count
+    var body = bytes.read_bytes_at(position, body_count)
+    crash body
     var deflate = Deflate()
     var output = deflate.decompress(body)
     assert output
-    var expected = _read_little_endian(items, total - 8)
-    var computed = _crc32(output.items, output.item_count)
+    var expected = _read_little_endian(bytes, total - 8)
+    var output_count = output.count()
+    var computed = _crc32(output, output_count)
     assert expected == computed
-    var expected_size = _read_little_endian(items, total - 4)
-    var size: UnsignedInteger = output.item_count
+    var expected_size = _read_little_endian(bytes, total - 4)
+    var size: UnsignedInteger = output_count
     assert expected_size == size
     return output
 }
 
-func _skip_text(items: Memory.Address, from: Integer, total: Integer): Integer {
+func _byte(bytes: Buffer, index: Integer): Byte {
+    var value = bytes[index]
+    crash value
+    return value
+}
+
+func _skip_text(bytes: Buffer, from: Integer, total: Integer): Integer {
     var position = from
-    while position < total and items.read_byte(position) != 0 {
+    while position < total and _byte(bytes, position) != 0 {
         position = position + 1
     }
     return position + 1
 }
 
-func _crc32(items: Memory.Address, total: Integer): UnsignedInteger {
-    var table = heap.allocate(1024)
+func _crc32(bytes: Buffer, total: Integer): UnsignedInteger {
+    var table = List<UnsignedInteger>()
     var polynomial: UnsignedInteger = 3988292384
     var entry = 0
     while entry < 256 {
@@ -96,27 +98,27 @@ func _crc32(items: Memory.Address, total: Integer): UnsignedInteger {
             }
             bit = bit + 1
         }
-        table.write_unsigned_integer(entry * 4, value)
+        table.append(value)
         entry = entry + 1
     }
     var crc: UnsignedInteger = 4294967295
     var index = 0
     while index < total {
-        var byte_value: UnsignedInteger = items.read_byte(index)
-        var slot = crc.bits_exclusive_or(byte_value).bits_and(255)
-        var looked = table.read_unsigned_integer(slot * 4)
+        var byte_value: UnsignedInteger = _byte(bytes, index)
+        var slot = crc.bits_exclusive_or(byte_value).bits_and(255).bits_as_signed()
+        var looked = table[slot]
+        crash looked
         crc = crc.shifted_right(8).bits_exclusive_or(looked)
         index = index + 1
     }
-    heap.free(table)
     return crc.bits_exclusive_or(4294967295)
 }
 
-func _read_little_endian(items: Memory.Address, at: Integer): UnsignedInteger {
+func _read_little_endian(bytes: Buffer, at: Integer): UnsignedInteger {
     var value: UnsignedInteger = 0
     var index = 3
     while index >= 0 {
-        var part: UnsignedInteger = items.read_byte(at + index)
+        var part: UnsignedInteger = _byte(bytes, at + index)
         value = value.shifted_left(8).bits_or(part)
         index = index - 1
     }

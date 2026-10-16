@@ -1,6 +1,5 @@
 singleton
 
-var heap = Memory.Heap()
 var _alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 var _url_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -22,50 +21,51 @@ func decode_url(text: String): Buffer? {
 
 func _encoded(bytes: Buffer, alphabet: String, padded: Boolean): String {
     var count = bytes.count()
-    var room: Long = (count + 2) / 3 * 4
-    var address = heap.allocate(room + 1)
-    var source = bytes.items
-    var written: Long = 0
+    var written = Buffer()
+    written.reserve((count + 2) / 3 * 4)
     var index = 0
     while index < count {
-        var first: Integer = source.read_byte(index)
+        var first: Integer = _byte(bytes, index)
         var group = first.shifted_left(16)
         var present = count - index
         if present > 1 {
-            var second: Integer = source.read_byte(index + 1)
+            var second: Integer = _byte(bytes, index + 1)
             var shifted = second.shifted_left(8)
             group = group.bits_or(shifted)
         }
         if present > 2 {
-            var third: Integer = source.read_byte(index + 2)
+            var third: Integer = _byte(bytes, index + 2)
             group = group.bits_or(third)
         }
-        written = _write_digit(address, written, alphabet, group, 18)
-        written = _write_digit(address, written, alphabet, group, 12)
+        _write_digit(written, alphabet, group, 18)
+        _write_digit(written, alphabet, group, 12)
         if present > 1 {
-            written = _write_digit(address, written, alphabet, group, 6)
+            _write_digit(written, alphabet, group, 6)
         } else if padded {
-            address.write_byte(written, 61)
-            written = written + 1
+            written.append(61)
         }
         if present > 2 {
-            written = _write_digit(address, written, alphabet, group, 0)
+            _write_digit(written, alphabet, group, 0)
         } else if padded {
-            address.write_byte(written, 61)
-            written = written + 1
+            written.append(61)
         }
         index = index + 3
     }
-    var text = address.text(written)
-    heap.free(address)
+    var text = written.to_utf8_text()
+    crash text
     return text
 }
 
-func _write_digit(address: Memory.Address, at: Long, alphabet: String, group: Integer, shift: Integer): Long {
+func _byte(bytes: Buffer, index: Integer): Byte {
+    var value = bytes[index]
+    crash value
+    return value
+}
+
+func _write_digit(written: Buffer, alphabet: String, group: Integer, shift: Integer) {
     var value = group.shifted_right(shift).bits_and(63)
-    var digit = alphabet.code_at(value)
-    address.write_byte(at, digit)
-    return at + 1
+    var digit: Byte = alphabet.code_at(value)
+    written.append(digit)
 }
 
 func _decoded(text: String, url: Boolean): Buffer? {
