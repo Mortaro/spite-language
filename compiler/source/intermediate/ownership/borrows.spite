@@ -64,6 +64,9 @@ func classified(value: Integer): String {
     if defining.kind == "call" and defining.callee == "Union.tag" {
         return "plain"
     }
+    if defining.form == "digits_in_place" {
+        return "plain"
+    }
     if defining.kind == "call" and (defining.callee == "Singleton.peek" or defining.callee == "Object.allocator") {
         return "held"
     }

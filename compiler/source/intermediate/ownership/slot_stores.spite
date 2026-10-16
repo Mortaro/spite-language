@@ -155,7 +155,7 @@ func quiet_between(
     index: Integer,
 ): Boolean {
     crash effects
-    var between = Facts.Between().operations_between(function, flow, start, end)
+    var between = path_between(function, flow, start, end)
     var list_key = relations.key_of(list)
     var index_key = relations.key_of(index)
     var watched = List<String>()
@@ -504,4 +504,18 @@ func remove_dropped(function: Function, dropped: Dictionary<Operation, Boolean>)
         block.operations = kept
         index = index + 1
     }
+}
+
+func path_between(function: Function, flow: Facts.Flow, start: Facts.Place, end: Facts.Place): List<Operation> {
+    if start.block == end.block and start.before(end) {
+        var straight = List<Operation>()
+        var block = function.block_at(start.block)
+        var position = start.position + 1
+        while position < end.position and position < block.operations.count() {
+            straight.append(block.operations[position])
+            position = position + 1
+        }
+        return straight
+    }
+    return Facts.Between().operations_between(function, flow, start, end)
 }

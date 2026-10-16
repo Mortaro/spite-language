@@ -14,6 +14,7 @@ var dominator_children = Dictionary<Integer, List<Integer>>()
 var retained_count = 0
 var released_count = 0
 var held_by = Dictionary<Integer, List<Integer>>()
+var lowered_functions: Lowered? = null
 var held_block = Dictionary<Integer, Integer>()
 var held_position = Dictionary<Integer, Integer>()
 var held_reach = Dictionary<Integer, List<Integer>>()
@@ -28,6 +29,7 @@ func Counting(
     borrows = studied_borrows
     consumption = studied_consumption
     kinds = studied_kinds
+    lowered_functions = studied_kinds.lowered
     crash studied_borrows.flow
     crash studied_borrows.uses
     flow = studied_borrows.flow
@@ -136,7 +138,11 @@ func bind_in_block(value: Integer, name: String, block_number: Integer, start: I
     while index < block.operations.count() {
         var operation = block.operations[index]
         if operation.result >= 0 and operation.result != value and function.value_at(operation.result).name == name {
-            add_pseudo_use(pseudo_uses, block_number * 100000 + index, value)
+            var finished = index
+            if runs_drop_observably(value) {
+                finished = constructed_at(block, operation.result, index)
+            }
+            add_pseudo_use(pseudo_uses, block_number * 100000 + finished, value)
             return false
         }
         index = index + 1
@@ -623,4 +629,27 @@ func blocks_reached_from(start: Integer): List<Integer> {
     }
     held_reach[start] = seen
     return seen
+}
+
+func runs_drop_observably(value: Integer): Boolean {
+    crash function
+    crash kinds
+    var described = function.value_at(value)
+    return kinds.may_run_drop(described.spite_type)
+}
+
+func constructed_at(block: Block, made: Integer, start: Integer): Integer {
+    crash lowered_functions
+    var index = start + 1
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind == "call" and operation.operands.first() == made {
+            var callee = lowered_functions.function_named(operation.callee)
+            if callee and callee.is_constructor {
+                return index
+            }
+        }
+        index = index + 1
+    }
+    return start
 }
