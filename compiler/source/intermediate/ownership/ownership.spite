@@ -117,7 +117,9 @@ func refuse_lent_join(function: Function, borrows: Borrows, uses: Facts.Uses, va
             var terminator = function.block_at(place.block).terminator
             var returns = terminator.kind == "return" and not function.lends_answer and not function.is_parameter(value)
             if returns or joins_owned(function, borrows, terminator, value) {
-                problems.append("ownership left the lent value v{value} reaching a join or the return of '{function.c_name}' uncounted")
+                problems.append(
+                    "ownership left the lent value v{value} reaching a join or the return of '{function.c_name}' uncounted",
+                )
                 return
             }
         }
