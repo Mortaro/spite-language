@@ -653,7 +653,56 @@ func write_accessed(instances: Instances, position: Integer) {
         write_text_call(instances, position)
         return
     }
+    if kind == "item_assign" or kind == "item_store" {
+        write_item_function(instances, position)
+        return
+    }
     write_described(instances, position)
+}
+
+func write_item_function(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var kind = instances.accessed_kinds[position]
+    crash name
+    crash described
+    crash kind
+    var function = synthetic_function(name, kind, described)
+    var element = described.codegen_types[0]
+    var boolean = instances.typed_boolean()
+    var nothing = instances.typed_nothing()
+    var answer = nothing
+    if kind == "item_assign" {
+        answer = boolean
+    }
+    function.answer = answer
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var integer_type = instances.typed_integer()
+    var index = function.new_value(integer_type, "parameter")
+    function.value_at(index).name = "index"
+    var index_parameter = Parameter("index", integer_type, index)
+    function.parameters.append(index_parameter)
+    var last_type = element
+    var last_name = "value"
+    if kind == "item_assign" {
+        last_type = instances.typed_string()
+        last_name = "text"
+    }
+    var last = function.new_value(last_type, "parameter")
+    function.value_at(last).name = last_name
+    var last_parameter = Parameter(last_name, last_type, last)
+    function.parameters.append(last_parameter)
+    var described_function = synthetic_description(kind, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    if kind == "item_assign" {
+        reflection.item_assign_body(described, element, function.receiver, index, last)
+    } else {
+        reflection.item_store_body(described, function.receiver, index, last)
+    }
+    finish_body(function, emitter)
 }
 
 func write_container_attributes(instances: Instances, position: Integer) {
