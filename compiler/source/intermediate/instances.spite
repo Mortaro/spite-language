@@ -20,10 +20,25 @@ var accessed_classes = List<Analysis.ClassInfo>()
 var accessed_texts = List<String>()
 var accessed_kinds = List<String>()
 var row_classes = Dictionary<String, Boolean>()
+var declared_before = Dictionary<String, Integer>()
 
 func Instances(starting_generator: Generation.Generator) {
     generator = starting_generator
     starting_generator.item_values_on = false
+    var counted = 0
+    while counted < starting_generator.classes.count() {
+        var known = starting_generator.classes[counted]
+        declared_before[known.c_name] = known.declared_functions.count()
+        counted = counted + 1
+    }
+}
+
+func declared_limit(information: Analysis.ClassInfo): Integer {
+    if information.is_container or not declared_before.has(information.c_name) {
+        return information.declared_functions.count()
+    }
+    crash declared_before[information.c_name]
+    return declared_before[information.c_name]
 }
 
 func front(): Generation.Generator {

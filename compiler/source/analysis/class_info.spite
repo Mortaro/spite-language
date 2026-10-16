@@ -29,6 +29,8 @@ var source_path = ""
 var source_paths = List<String>()
 var fields = List<FieldInfo>()
 var declared_functions = List<FunctionInfo>()
+var function_positions = Dictionary<String, Integer>()
+var positions_counted = 0
 var templates = List<TemplateInfo>()
 var constructor: FunctionInfo? = null
 var drop_function: FunctionInfo? = null
@@ -52,5 +54,27 @@ func find_field(name: String): FieldInfo? {
 }
 
 func find_function(name: String): FunctionInfo? {
-    return declared_functions.find_by_name(name)
+    note_function_positions()
+    assert function_positions[name]
+    var position = function_positions[name]
+    return declared_functions[position]
+}
+
+func note_function_positions() {
+    if positions_counted > declared_functions.count() {
+        function_positions = Dictionary<String, Integer>()
+        positions_counted = 0
+    }
+    while positions_counted < declared_functions.count() {
+        var function = declared_functions[positions_counted]
+        if not function_positions.has(function.name) {
+            function_positions[function.name] = positions_counted
+        }
+        positions_counted = positions_counted + 1
+    }
+}
+
+func forget_function_positions() {
+    function_positions = Dictionary<String, Integer>()
+    positions_counted = 0
 }
