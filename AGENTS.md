@@ -67,7 +67,8 @@ that changes what is missing changes it in the same commit:
 - a decision that supersedes another rewrites or deletes the old one's line.
 
 A decision that is not built yet is still described on its page as the language; `TODO.md` is the one place that
-says it is not built, in one line.
+says it is not built, in one line. It lists only the language and what this repository builds (the compiler, the
+library, the tools); work in packages outside it is not a line.
 
 ## Writing
 

@@ -123,7 +123,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Optimisations and proofs
 
-- Naive programs reach hand-written speed, the engine package included (D506, D507, D508, D550)
+- Naive programs reach hand-written speed (D506, D507, D508, D550)
 - Independent loops written as a `while`, and reductions, run at once (D506)
 - Layout chosen by the compiler: structure of arrays, hot and cold splitting, field order, cache-line alignment (D402, D485)
 - List storage by concrete class for a list of a `type` or union (D331)
@@ -170,12 +170,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - WebSocket run on Windows and macOS, not only on Linux
 - The call chain of an `--optimized` crash on Linux and macOS (D25, D479)
 - Releases for Linux and macOS (D574, D578)
-
-## Packages outside this repository
-
-- The engine package moves from its own `Pack<T>` (`slop/pack.spite`) to `BinaryWriter`/`BinaryReader` (D208)
-- The engine package moves onto the generic maths, `Vector3<Float>` and the rest (D355, D381, D477)
-- The engine package stops placing memory by hand: 44 files use `Raw()` (D564)
 
 ## Bugs that fail silently (D244)
 
