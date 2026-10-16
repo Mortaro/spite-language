@@ -351,11 +351,13 @@ func print_singleton_maker() {
     var ending = "{name}___release(object);"
     var found = "found"
     var cached = "{getter}_cache"
+    var handed = "made"
     if layout.is_singleton {
         ending = "{name}___destroy(object);"
     } else {
         found = "{name}___retain(found)"
         cached = "{name}___retain({getter}_cache)"
+        handed = "{name}___retain(made)"
         shown = getter
     }
     var getter_lines = [
@@ -386,7 +388,7 @@ func print_singleton_maker() {
         "}"
     ]
     if not function.filled_by.is_empty() {
-        getter_lines = filled_getter_lines(getter, answered, ending, found, cached, shown, maker)
+        getter_lines = filled_getter_lines(getter, answered, ending, found, cached, shown, maker, handed)
     }
     output.prototypes.append("{answered} {getter}(void);")
     output.prototypes.append("{answered} {getter}_peek(void);")
@@ -410,6 +412,7 @@ func filled_getter_lines(
     cached: String,
     shown: String,
     maker: String,
+    handed: String,
 ): List<String> {
     var filling = lowered.function_named(function.filled_by)
     if not filling {
@@ -442,7 +445,7 @@ func filled_getter_lines(
         "spite_singleton_created({getter}_teardown);"
         "SPITE_SINGLETON_PUBLISH({getter}_cache, made);"
         "{getter}_filling = true;"
-        "{function.filled_by}(made);"
+        "{function.filled_by}({handed});"
         "{getter}_filling = false;"
         "__atomic_store_n(&{getter}_ready, true, __ATOMIC_RELEASE);"
         "}"

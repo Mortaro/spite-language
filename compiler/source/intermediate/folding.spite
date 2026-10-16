@@ -50,6 +50,10 @@ func fold_once(lowered: Lowered): Boolean {
 }
 
 func redirect(function: Function, replaced: Dictionary<String, String>) {
+    if replaced.has(function.filled_by) {
+        crash replaced[function.filled_by]
+        function.filled_by = replaced[function.filled_by]
+    }
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]
