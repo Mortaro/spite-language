@@ -357,12 +357,20 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
 `Sha256`, `SecureRandom`, `Argon2.derive`, `BinaryWriter`, `BinaryReader`, `ForeignBytes.read_bytes_at` and
 `MappedFile`'s reads of numbers.
 
-- **The class.** `Buffer()` is an empty buffer whose `byte_order` is `'little_endian'`; `Buffer(byte_order)` names
-  the order, `Buffer('big_endian')`. A `Buffer` keeps its bytes in one block it owns, at the library's memory floor
-  as `String` and `List` do: the buffer is one object, a read is one load from its block, and there is no `List`
-  inside it. The block starts empty, the first byte gets room for four, and a full block is resized to twice its
-  size; `reserve(count)` makes room for `count` bytes in all without adding any, so a writer that knows its size
-  allocates once.
+- **The class.** `Buffer(size)` is an empty buffer with room for `size` bytes, whose `byte_order` is
+  `'little_endian'`; `Buffer(size, byte_order)` names the order, `Buffer(16, 'big_endian')`. The size is always
+  written: `Buffer(0)` when nothing about it is known. A `Buffer` keeps its bytes in one block it owns, at the
+  library's memory floor as `String` and `List` do: the buffer is one object, a read is one load from its block, and
+  there is no `List` inside it. A full block is resized to twice its size; `reserve(count)` makes room for `count`
+  bytes in all without adding any, for a buffer that learns its size later.
+- **The size is a suggestion to the compiler, never a limit.** Appending past it grows the buffer as always. The
+  compiler may keep less room when it proves fewer bytes are ever written, and may keep a buffer of a few bytes whose
+  every read and write is at a proven position, and which never leaves its function or its object, in plain variables
+  with no block at all. None of this changes what a program reads; it shows only in the allocations `--debug-memory`
+  counts.
+- **A number's storage is a buffer.** A number class states its size as `var _memory = Buffer(4)` (`Integer`),
+  `Buffer(1)` (`Byte`) and so on: a `Byte` is a buffer of one byte, which the compiler keeps as the value itself
+  ([memory.md](memory.md)).
 - **It is still a run of bytes.** `count(): Integer`, `is_empty(): Boolean`, `buffer[index]` (`get_at(index):
   Byte?`, `null` out of range), `buffer[index] = byte` (`set_at`, halting out of range), `append(byte)`,
   `truncate(count)`, `clear()` (which keeps the block) and `copy(): Buffer` mean what they mean on a `List`

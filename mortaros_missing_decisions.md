@@ -15,6 +15,9 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D602's details:** `Buffer(size)` gives room for `size` bytes and starts empty (not `size` zero bytes); the
+  size is always written (`Buffer(0)` when unknown); the byte order stays an optional second argument,
+  `Buffer(16, 'big_endian')`; `reserve(count)` stays for a buffer that learns its size later.
 - **D566, the programs that test an internal class (decided by Claude Opus 5.5 under D509: (c)).** About 80 conformance programs, diagnostics and benchmarks name
   `Concurrent`, `Parallel`, `Lock`, `Atomic`, `ThreadLocal` or `Memory.Heap` because testing that class (or the lock a
   `Parallel` makes the compiler add) is their point. Once those classes are internal, naming them outside `library/` is

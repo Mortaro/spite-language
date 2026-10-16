@@ -24,6 +24,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Standard library
 
+- `Buffer(size)`: a buffer made with a size the compiler treats as a suggestion (less room when proven, plain variables for a small one), and numbers' storage written `var _memory = Buffer(n)` instead of `Memory.Bytes(n)` (D602)
 - `Buffer` replaces `List<Byte>` everywhere bytes are taken or answered, with `byte_order`, `position` and the `_at` names (D590)
 - TLS, so HTTPS and `wss` (D294, D394, D395)
 - TLS written in Spite, after an outside security review (D395)
