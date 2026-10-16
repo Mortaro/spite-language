@@ -204,11 +204,12 @@ func list_capacity(function: Function, uses: Facts.Uses, flow: Facts.Flow, opera
         return -1
     }
     var appended = 0
+    var made_block = block_of_value(function, operation.result)
     var reached = uses.uses_of(operation.result)
     var index = 0
     while index < reached.count() {
         var place = reached[index]
-        var growth = list_growth(function, flow, place)
+        var growth = list_growth(function, flow, place, made_block)
         if growth < 0 {
             return -2
         }
@@ -221,7 +222,7 @@ func list_capacity(function: Function, uses: Facts.Uses, flow: Facts.Flow, opera
     return appended
 }
 
-func list_growth(function: Function, flow: Facts.Flow, place: Facts.Place): Integer {
+func list_growth(function: Function, flow: Facts.Flow, place: Facts.Place, made_block: Integer): Integer {
     crash intrinsics
     if place.position < 0 {
         return -1
@@ -251,7 +252,7 @@ func list_growth(function: Function, flow: Facts.Flow, place: Facts.Place): Inte
     if shrinking.contains(meaning) {
         return 0
     }
-    if meaning == "append" and not flow.in_any_loop(place.block) {
+    if meaning == "append" and not loops_around_without(flow, place.block, made_block) {
         return 1
     }
     return -1
@@ -414,4 +415,33 @@ func mark_frame_releases(function: Function, framed: Dictionary<Integer, Boolean
         block.operations = kept
         block_index = block_index + 1
     }
+}
+
+func loops_around_without(flow: Facts.Flow, block: Integer, made_block: Integer): Boolean {
+    var headers = flow.loop_headers.keys()
+    var index = 0
+    while index < headers.count() {
+        var body = flow.body_of(headers[index])
+        if body.contains(block) and not body.contains(made_block) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func block_of_value(function: Function, value: Integer): Integer {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            if block.operations[index].result == value {
+                return block_index
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return -1
 }
