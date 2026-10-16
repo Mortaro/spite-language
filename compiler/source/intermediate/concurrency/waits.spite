@@ -7,6 +7,8 @@ var started_count = 0
 var resumable_count = 0
 var sleeping = Dictionary<String, Boolean>()
 var worked = Dictionary<String, Boolean>()
+var twins = Dictionary<String, String>()
+var started_sites = 0
 var stale_cache = Dictionary<String, Boolean>()
 var shape = Analysis.TypeShape()
 
@@ -575,4 +577,74 @@ func note_passed_functions(function: Function, uses: Facts.Uses, operation: Oper
         }
         index = index + 1
     }
+}
+
+# ../../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func rewrite_started_calls() {
+    crash lowered
+    var functions = lowered.concrete_functions
+    functions.each(note_twin)
+    functions.each(rewrite_started_in)
+}
+
+func note_twin(function: Function) {
+    assert function.made_for == "started"
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.callee == "Function.bind" and not operation.literal.is_empty() {
+                twins[operation.literal] = function.c_name
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func rewrite_started_in(function: Function) {
+    assert not function.blocks.is_empty()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var rebuilt = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.form == "started" and operation.kind == "call" {
+                start_through_twin(function, block_index, operation, rebuilt)
+            }
+            rebuilt.append(operation)
+            index = index + 1
+        }
+        block.operations = rebuilt
+        block_index = block_index + 1
+    }
+}
+
+func start_through_twin(function: Function, block_number: Integer, operation: Operation, rebuilt: List<Operation>) {
+    crash lowered
+    operation.form = ""
+    assert twins.has(operation.callee) and operation.operands.count() == 1
+    var twin_name = twins[operation.callee]
+    crash twin_name
+    var twin = lowered.function_named(twin_name)
+    assert twin and twin.parameters.count() == 1
+    var site_type = twin.parameters[0].spite_type
+    var receiver = operation.operands.first()
+    crash receiver
+    started_sites = started_sites + 1
+    var site = Operation("constant", operation.line)
+    site.literal = started_sites
+    site.spite_type = site_type
+    site.result = function.new_value(site_type, "operation")
+    function.value_at(site.result).block = block_number
+    rebuilt.append(site)
+    operation.callee = twin.c_name
+    var arguments = List<Integer>()
+    arguments.append(receiver)
+    arguments.append(site.result)
+    operation.operands = arguments
 }
