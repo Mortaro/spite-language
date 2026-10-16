@@ -907,30 +907,7 @@ func union_store(union_name: String, name: String, object: Integer, assigned: Sy
         return
     }
     var value = lowering().lower_toward(assigned, field_type)
-    var tag_type = known().typed_symbol()
-    var tag = emitter.emit_call_one("Union.tag", object, tag_type)
-    var joined = emitter.new_block()
-    var tags = List<String>()
-    var targets = List<Integer>()
-    var index = 0
-    while index < described_union.members.count() {
-        var member = described_union.members[index]
-        tags.append(member.c_name)
-        var target = emitter.new_block()
-        targets.append(target)
-        index = index + 1
-    }
-    emitter.switch_on(tag, tags, targets)
-    index = 0
-    while index < described_union.members.count() {
-        var member = described_union.members[index]
-        crash targets[index]
-        emitter.enter_block(targets[index])
-        store_member_value(member, name, object, value)
-        emitter.jump_plain(joined)
-        index = index + 1
-    }
-    emitter.enter_block(joined)
+    lowering().union_store_value(described_union, name, object, value)
 }
 
 func union_field_type(described_union: Analysis.UnionInfo, name: String): Analysis.SpiteType? {
@@ -943,28 +920,6 @@ func union_field_type(described_union: Analysis.UnionInfo, name: String): Analys
     var field = first_member.find_field(name)
     assert field
     return field.type
-}
-
-func store_member_value(member: Analysis.ClassInfo, name: String, object: Integer, value: Integer) {
-    var made = front()
-    var narrowed_type = lowering().member_type(member)
-    var narrowed = emitter.emit_call_one("Union.value", object, narrowed_type)
-    var setter = made.find_setter(member, name, lowered_class)
-    if setter {
-        crash setter.parameters[0]
-        var parameter_type = setter.parameters[0].type
-        var converted = lowering().convert(value, parameter_type)
-        var operands = [narrowed, converted]
-        lowering().call_reached(member, setter, operands)
-        return
-    }
-    var field = member.find_field(name)
-    if not field {
-        emitter.fail_lowering("an assignment to '{name}', which a member of a union does not hold")
-        return
-    }
-    var stored = lowering().convert(value, field.type)
-    emitter.store_field(narrowed, name, stored)
 }
 
 func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned: Syntax.Expressions.Expression) {

@@ -3175,17 +3175,42 @@ func foreign_call(name: String, object: Integer, arguments: List<Syntax.Expressi
     }
     var symbol = made.foreign_symbol_name(base_name, naming)
     var operands = [object]
+    var written_back = List<ForeignStruct>()
     var index = 0
     while index < arguments.count() {
         var argument = lower(arguments[index])
-        var crossing = foreign_argument(argument)
+        var crossing = foreign_argument(argument, arguments[index], written_back)
         operands.append(crossing)
         index = index + 1
     }
     var called = emitter.call_operation("Foreign.call", operands, answer)
     called.target = symbol
     called.literal = library.to_string()
+    foreign_write_back(written_back)
     return called.result
+}
+
+# ../../../docs/foreign_libraries.md#what-crosses
+func foreign_write_back(handed: List<ForeignStruct>) {
+    var made = front()
+    var index = 0
+    while index < handed.count() {
+        var item = handed[index]
+        assert item.shaped
+        var shaped = item.shaped
+        var field_index = 0
+        while field_index < shaped.shape_fields.count() {
+            var field = shaped.shape_fields[field_index]
+            var field_type = made.shape_field_type(shaped, field.name)
+            crash field_type
+            var operands = [item.handle]
+            var read = emitter.call_operation("Foreign.struct_field", operands, field_type)
+            read.literal = made.c_value_name(field.name)
+            union_store_value(shaped, field.name, item.object, read.result)
+            field_index = field_index + 1
+        }
+        index = index + 1
+    }
 }
 
 func foreign_suffix(name: String): String {
@@ -3211,7 +3236,11 @@ func foreign_answer(suffix: String): Analysis.SpiteType {
     return known().typed_string()
 }
 
-func foreign_argument(argument: Integer): Integer {
+func foreign_argument(
+    argument: Integer,
+    written: Syntax.Expressions.Expression,
+    written_back: List<ForeignStruct>,
+): Integer {
     var made = front()
     var argument_type = type_of(argument)
     if types.is_symbol(argument_type) {
@@ -3225,9 +3254,115 @@ func foreign_argument(argument: Integer): Integer {
         return argument
     }
     if made.passes_as_struct(argument_type) {
-        return not_lowered(null, "a type handed to C as a struct")
+        return foreign_struct(argument, argument_type, written_back)
+    }
+    if made.is_function_value_type(argument_type) {
+        return foreign_trampoline(argument, argument_type, written)
     }
     return not_lowered(null, "a value of a kind that cannot cross into C")
+}
+
+# ../../../docs/foreign_libraries.md#what-crosses
+func foreign_struct(argument: Integer, argument_type: Analysis.SpiteType, written_back: List<ForeignStruct>): Integer {
+    var made = front()
+    var passed_union = types.as_union(argument_type)
+    crash passed_union
+    var shaped = made.find_union_by_c_name(passed_union.c_name)
+    crash shaped
+    var values = List<Integer>()
+    var index = 0
+    while index < shaped.shape_fields.count() {
+        var field = shaped.shape_fields[index]
+        var field_type = made.shape_field_type(shaped, field.name)
+        crash field_type
+        var no_arguments = List<Integer>()
+        var field_value = dispatched(shaped, field.name, false, argument, no_arguments, field_type)
+        values.append(field_value)
+        index = index + 1
+    }
+    var address_type = known().typed_long()
+    var laid_out = emitter.call_operation("Foreign.struct", values, address_type)
+    laid_out.target = shaped.simple_name
+    laid_out.literal = made.shape_struct_code(shaped)
+    var handed = ForeignStruct(laid_out.result, argument, shaped)
+    written_back.append(handed)
+    return laid_out.result
+}
+
+# ../../../docs/foreign_libraries.md#what-crosses
+func foreign_trampoline(
+    argument: Integer,
+    argument_type: Analysis.SpiteType,
+    written: Syntax.Expressions.Expression,
+): Integer {
+    var made = front()
+    var signature = types.as_class_ref(argument_type)
+    crash signature
+    var printer = Syntax.SourcePrinter()
+    var argument_text = printer.source_expression(written)
+    var names = List<String>()
+    var index = 0
+    while index < signature.arguments.count() {
+        names.append("argument {index + 1}")
+        index = index + 1
+    }
+    var returned = made.returned_type(signature)
+    if not made.callback_types_cross(argument_text, signature.arguments, names, returned) {
+        return not_lowered(null, "a function handed to C whose types cannot cross")
+    }
+    var address_type = known().typed_long()
+    var operands = [argument]
+    var handed = emitter.call_operation("Foreign.trampoline", operands, address_type)
+    return handed.result
+}
+
+func union_store_value(described_union: Analysis.UnionInfo, name: String, object: Integer, value: Integer) {
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", object, tag_type)
+    var joined = emitter.new_block()
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        tags.append(member.c_name)
+        var target = emitter.new_block()
+        targets.append(target)
+        index = index + 1
+    }
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        store_member_value(member, name, object, value)
+        emitter.jump_plain(joined)
+        index = index + 1
+    }
+    emitter.enter_block(joined)
+}
+
+func store_member_value(member: Analysis.ClassInfo, name: String, object: Integer, value: Integer) {
+    var made = front()
+    var narrowed_type = member_type(member)
+    var narrowed = emitter.emit_call_one("Union.value", object, narrowed_type)
+    var setter = made.find_setter(member, name, lowered_class)
+    if setter {
+        crash setter.parameters[0]
+        var parameter_type = setter.parameters[0].type
+        var converted = convert(value, parameter_type)
+        var operands = [narrowed, converted]
+        call_reached(member, setter, operands)
+        return
+    }
+    var field = member.find_field(name)
+    if not field {
+        emitter.fail_lowering("an assignment to '{name}', which a member of a union does not hold")
+        return
+    }
+    var stored = convert(value, field.type)
+    emitter.store_field(narrowed, name, stored)
 }
 
 func class_member_named(c_name: String, member: Syntax.Expressions.MemberExpression, object: Integer): Integer {

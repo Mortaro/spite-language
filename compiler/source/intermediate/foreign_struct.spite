@@ -1,0 +1,10 @@
+# ../../../docs/foreign_libraries.md#what-crosses
+var handle = -1
+var object = -1
+var shaped: Analysis.UnionInfo? = null
+
+func ForeignStruct(starting_handle: Integer, starting_object: Integer, starting_shaped: Analysis.UnionInfo) {
+    handle = starting_handle
+    object = starting_object
+    shaped = starting_shaped
+}

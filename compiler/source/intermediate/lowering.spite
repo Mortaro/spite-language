@@ -7,6 +7,7 @@ var made_layouts = 0
 var foreign_written = false
 var made_reflections = 0
 var loop_written = false
+var made_accessed = 0
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -52,6 +53,11 @@ func lower(): Lowered {
             var information = instances.layout_classes[made_layouts]
             write_layout(instances, information)
             made_layouts = made_layouts + 1
+            settled = false
+        }
+        if settled and made_accessed < instances.accessed_names.count() {
+            write_accessed(instances, made_accessed)
+            made_accessed = made_accessed + 1
             settled = false
         }
         if settled and made.read_evaluate_print_loop and not loop_written {
@@ -601,6 +607,36 @@ func write_forwarder(instances: Instances, name: String, described: Analysis.Cla
     } else {
         emitter.returns(answered)
     }
+    finish_body(function, emitter)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func write_accessed(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var written = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash written
+    var made = instances.front()
+    var found = described.find_function(written)
+    crash found
+    var function = synthetic_function(name, "accessed", described)
+    var function_class = made.find_class_by_c_name("Spite_Function")
+    crash function_class
+    var function_type = instances.class_type(function_class)
+    var value = function.new_value(function_type, "parameter")
+    var parameter = Parameter("described", function_type, value)
+    function.parameters.append(parameter)
+    var nothing = instances.typed_nothing()
+    var described_function = synthetic_description("accessed", name, nothing)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    if instances.reached_functions.has("Spite_Function_get_accesses") {
+        var reflection = ReflectionLowering(expressions)
+        reflection.fill_accesses(described, found, value)
+    }
+    emitter.returns(-1)
     finish_body(function, emitter)
 }
 
