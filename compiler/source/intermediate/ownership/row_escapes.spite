@@ -92,9 +92,6 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
             if operation.kind == "store" and operation.operands.last() == value {
                 return "stored into field '{operation.field}' by {function.c_name}"
             }
-            if operation.kind == "store" and operation.operands.first() == value and stores_made_object(uses, operation) {
-                return "given a made object in field '{operation.field}' by {function.c_name}"
-            }
             var passes_on = operation.kind == "call" and operation.result >= 0 and (operation.callee == "Union.wrap" or operation.callee == "Union.value" or operation.callee == "Nullable.wrap" or operation.callee == "Nullable.value")
             if passes_on {
                 var inner = escapes(function, uses, operation.result, depth + 1)
@@ -109,16 +106,6 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
         index = index + 1
     }
     return ""
-}
-
-func stores_made_object(uses: Facts.Uses, store: Operation): Boolean {
-    var stored = store.operands.last()
-    crash stored
-    var made = uses.definition_of(stored)
-    if made {
-        return made.kind == "make"
-    }
-    return false
 }
 
 func callee_keeps(operation: Operation, value: Integer): Boolean {
