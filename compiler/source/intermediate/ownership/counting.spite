@@ -14,6 +14,9 @@ var dominator_children = Dictionary<Integer, List<Integer>>()
 var retained_count = 0
 var released_count = 0
 var held_by = Dictionary<Integer, List<Integer>>()
+var held_block = Dictionary<Integer, Integer>()
+var held_position = Dictionary<Integer, Integer>()
+var held_reach = Dictionary<Integer, List<Integer>>()
 
 func Counting(
     studied: Function,
@@ -196,7 +199,7 @@ func operation_users(operation: Operation, block_number: Integer, position: Inte
     var index = 0
     while index < operation.operands.count() {
         tracked_users(operation.operands[index], 0, found)
-        held_users(operation.operands[index], found)
+        held_users(operation.operands[index], found, block_number, position)
         index = index + 1
     }
     if operation.kind == "retain" {
@@ -222,7 +225,7 @@ func terminator_users(block_number: Integer): List<Integer> {
     var index = 0
     while index < terminator.operands.count() {
         tracked_users(terminator.operands[index], 0, found)
-        held_users(terminator.operands[index], found)
+        held_users(terminator.operands[index], found, block_number, 1000000000)
         index = index + 1
     }
     index = 0
@@ -231,7 +234,7 @@ func terminator_users(block_number: Integer): List<Integer> {
         var argument_index = 0
         while argument_index < target.arguments.count() {
             tracked_users(target.arguments[argument_index], 0, found)
-            held_users(target.arguments[argument_index], found)
+            held_users(target.arguments[argument_index], found, block_number, 1000000000)
             argument_index = argument_index + 1
         }
         index = index + 1
@@ -530,17 +533,21 @@ func find_held() {
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]
-        block.operations.each(note_held)
+        var index = 0
+        while index < block.operations.count() {
+            note_held(block.operations[index], block_index, index)
+            index = index + 1
+        }
         block_index = block_index + 1
     }
 }
 
-func note_held(operation: Operation) {
+func note_held(operation: Operation, block_number: Integer, position: Integer) {
     crash consumption
     assert operation.kind == "store" and consumption.into_row(operation)
     var stored = operation.operands.last()
     crash stored
-    assert tracked.has(stored)
+    assert tracked.has(stored) and not held_block.has(stored)
     var row = operation.operands.first()
     crash row
     var root = root_of(row, 0)
@@ -549,6 +556,8 @@ func note_held(operation: Operation) {
     }
     crash held_by[root]
     held_by[root].append(stored)
+    held_block[stored] = block_number
+    held_position[stored] = position
 }
 
 func root_of(value: Integer, depth: Integer): Integer {
@@ -566,7 +575,7 @@ func root_of(value: Integer, depth: Integer): Integer {
     return root_of(inner, depth + 1)
 }
 
-func held_users(value: Integer, found: List<Integer>) {
+func held_users(value: Integer, found: List<Integer>, block_number: Integer, position: Integer) {
     assert held_by.count() > 0
     var root = root_of(value, 0)
     assert held_by.has(root)
@@ -574,9 +583,44 @@ func held_users(value: Integer, found: List<Integer>) {
     var kept = held_by[root]
     var index = 0
     while index < kept.count() {
-        if not found.contains(kept[index]) {
-            found.append(kept[index])
+        var stored = kept[index]
+        if comes_after_store(stored, block_number, position) and not found.contains(stored) {
+            found.append(stored)
         }
         index = index + 1
     }
+}
+
+func comes_after_store(stored: Integer, block_number: Integer, position: Integer): Boolean {
+    crash held_block[stored]
+    crash held_position[stored]
+    var store_block = held_block[stored]
+    if store_block == block_number {
+        return position > held_position[stored]
+    }
+    var reached = blocks_reached_from(store_block)
+    return reached.contains(block_number)
+}
+
+func blocks_reached_from(start: Integer): List<Integer> {
+    crash flow
+    if held_reach.has(start) {
+        crash held_reach[start]
+        return held_reach[start]
+    }
+    var seen = List<Integer>()
+    var waiting = List<Integer>()
+    var first = flow.successors_of(start)
+    first.each(waiting.append)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not seen.contains(taken) {
+            seen.append(taken)
+            var next = flow.successors_of(taken)
+            next.each(waiting.append)
+        }
+    }
+    held_reach[start] = seen
+    return seen
 }

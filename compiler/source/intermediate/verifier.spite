@@ -1,0 +1,75 @@
+# ../../../design/proposals/desugared_high_ir.md#the-passes-in-order
+var problems = List<String>()
+
+func check(lowered: Lowered, pass_name: String) {
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() and problems.count() < 10 {
+        var function = functions[index]
+        if not function.blocks.is_empty() and not function.is_intrinsic() {
+            check_function(function, pass_name)
+        }
+        index = index + 1
+    }
+}
+
+func check_function(function: Function, pass_name: String) {
+    check_jumps(function, pass_name)
+    var uses = Facts.Uses(function)
+    var flow = Facts.Flow(function)
+    var value = 0
+    while value < function.values.count() {
+        check_value(function, uses, flow, value, pass_name)
+        value = value + 1
+    }
+}
+
+func check_jumps(function: Function, pass_name: String) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var targets = function.blocks[block_index].terminator.targets
+        var index = 0
+        while index < targets.count() {
+            var target = targets[index]
+            var wanted = function.block_at(target.block).parameters.count()
+            if wanted != target.arguments.count() {
+                problems.append(
+                    "{pass_name} made '{function.c_name}' jump from block {block_index} to block {target.block} with {target.arguments.count()} values, and the block takes {wanted}",
+                )
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func check_value(function: Function, uses: Facts.Uses, flow: Facts.Flow, value: Integer, pass_name: String) {
+    var reached = uses.uses_of(value)
+    assert not reached.is_empty()
+    var defined = uses.place_of(value)
+    if defined.block < 0 {
+        problems.append("{pass_name} made '{function.c_name}' use v{value}, which is never defined")
+        return
+    }
+    var index = 0
+    while index < reached.count() and problems.count() < 10 {
+        var used = reached[index]
+        if not dominates_use(flow, defined, used) {
+            problems.append(
+                "{pass_name} made '{function.c_name}' use v{value} in block {used.block} where its definition in block {defined.block} does not come first on every path",
+            )
+            return
+        }
+        index = index + 1
+    }
+}
+
+func dominates_use(flow: Facts.Flow, defined: Facts.Place, used: Facts.Place): Boolean {
+    if defined.block == used.block {
+        return defined.order() < used.order() or defined.at_entry()
+    }
+    if not flow.order.contains(used.block) or not flow.order.contains(defined.block) {
+        return true
+    }
+    return flow.dominates(defined.block, used.block)
+}

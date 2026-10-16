@@ -14,6 +14,9 @@ func Pipeline(starting_generator: Generation.Generator) {
 
 func run(): String {
     prepare()
+    if has_error() {
+        return ""
+    }
     var printer = Printer()
     var written = printer.print(lowered)
     hot_manifest = printer.hot_manifest
@@ -35,6 +38,10 @@ func prepare() {
     lowered.concrete_functions.each(settle_waiting_kind)
     var passes = Passes()
     passes.run(lowered)
+    if not passes.verifier.problems.is_empty() {
+        var written = passes.verifier.problems.join("\n")
+        error_message = "error: the high IR is not valid: {written}"
+    }
     settle_held_layouts()
     if lowered.hot_reload {
         settle_hot()

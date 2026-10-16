@@ -161,6 +161,10 @@ func place_object(
     var layout_name = operation.layout
     assert kinds.class_is_counted(layout_name)
     assert not escape.escapes(function, operation.result)
+    crash waiting
+    var made_value = function.value_at(operation.result)
+    var visited = Dictionary<String, Boolean>()
+    assert not waiting.drop_waits(made_value.spite_type, visited)
     var capacity = list_capacity(function, uses, flow, operation)
     assert capacity != -2
     operation.form = "frame"
