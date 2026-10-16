@@ -748,6 +748,10 @@ func member_release(member: String, object: String, tag: String): String {
         output.need("string box")
         return "if ({tag} == {identity}) \{ spite_string_box_release({object}); return; }"
     }
+    if member == "SpiteSymbol" {
+        output.need("string box")
+        return "if ({tag} == {identity}) \{ spite_string_box_release({object}); return; }"
+    }
     if layout.is_value {
         return ""
     }

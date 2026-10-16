@@ -85,10 +85,41 @@ func write_main(instances: Instances) {
     var expressions = ExpressionLowering(emitter, instances, launcher, described, -1)
     var no_arguments = List<Syntax.Expressions.Expression>()
     expressions.construct(launcher, no_arguments)
+    if instances.front().scheduler_used {
+        finish_concurrents(instances, emitter)
+    }
     emitter.returns(-1)
     finish_body(main, emitter)
     lowered.entry = main.c_name
     instances.reach_layout(launcher)
+}
+
+func finish_concurrents(instances: Instances, emitter: Emitter) {
+    var made = instances.front()
+    var scheduler = made.find_class_by_qualified("Scheduler")
+    crash scheduler
+    var finishing = made.find_or_instantiate_function(scheduler, "finish_concurrents")
+    crash finishing
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var maker = instances.singleton_maker(scheduler, no_arguments, "")
+    var scheduler_type = instances.class_type(scheduler)
+    var maybe_type = instances.nullable_of(scheduler_type)
+    var no_operands = List<Integer>()
+    var peeking = emitter.call_operation("Singleton.peek", no_operands, maybe_type)
+    peeking.target = maker
+    var boolean = instances.typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", peeking.result, boolean)
+    var present_block = emitter.new_block()
+    var done_block = emitter.new_block()
+    emitter.branch(present, present_block, done_block)
+    emitter.enter_block(present_block)
+    var found = emitter.emit_call_one("Nullable.value", peeking.result, scheduler_type)
+    instances.reach(scheduler, finishing)
+    var operands = [found]
+    emitter.emit_call(finishing.c_name, operands, finishing.return_type)
+    var no_jump = List<Integer>()
+    emitter.jump(done_block, no_jump)
+    emitter.enter_block(done_block)
 }
 
 func write_singleton(instances: Instances, position: Integer) {
