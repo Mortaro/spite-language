@@ -7,17 +7,27 @@ var arrangement = Arrangement.Arrangement()
 var concurrency = Concurrency.Concurrency()
 var folding = Folding()
 var reach = Reach()
+var verifier = Verifier()
 
 func run(lowered: Lowered) {
     inlining.run(lowered)
+    verifier.check(lowered, "inlining")
     proofs.run(lowered)
+    verifier.check(lowered, "proofs")
     ownership.run(lowered)
+    verifier.check(lowered, "ownership")
     placement.run(lowered)
+    verifier.check(lowered, "placement")
     arrangement.run(lowered)
+    verifier.check(lowered, "arrangement")
     concurrency.run(lowered)
+    verifier.check(lowered, "concurrency")
     folding.run(lowered)
+    verifier.check(lowered, "folding")
     reach.run(lowered)
+    verifier.check(lowered, "reach")
     tidy(lowered)
+    verifier.check(lowered, "tidy")
 }
 
 func drop_unreachable_blocks(function: Function) {
