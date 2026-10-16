@@ -64,7 +64,7 @@ func classified(value: Integer): String {
     if defining.kind == "call" and defining.callee == "Union.tag" {
         return "plain"
     }
-    if defining.kind == "call" and defining.callee == "Singleton.peek" {
+    if defining.kind == "call" and (defining.callee == "Singleton.peek" or defining.callee == "Object.allocator") {
         return "held"
     }
     if consumption.is_lent_call(defining) {

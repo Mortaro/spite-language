@@ -3,6 +3,7 @@ var lowered: Lowered? = null
 var kinds: Facts.ValueKinds? = null
 var effects: Facts.Effects? = null
 var taken_as_values = Dictionary<String, Boolean>()
+var bound_callers = Dictionary<String, Boolean>()
 var consumption: Consumption? = null
 var held_count = 0
 var slot_stores: SlotStores? = null
@@ -98,6 +99,9 @@ func note_values_taken(function: Function) {
             if names_function and not operation.literal.is_empty() {
                 taken_as_values[operation.literal] = true
             }
+            if operation.callee == "Function.bind" and not operation.target.is_empty() {
+                bound_callers[operation.target] = true
+            }
             index = index + 1
         }
         block_index = block_index + 1
@@ -116,6 +120,8 @@ func start(function: Function) {
         var parameter = function.parameters[index]
         parameter.ownership = "owned"
         if lent.contains(parameter.name) {
+            parameter.ownership = "lent"
+        } else if index == 0 and function.receiver < 0 and bound_callers.has(function.c_name) {
             parameter.ownership = "lent"
         } else if eligible and kinds.is_counted(parameter.spite_type) and not is_text(parameter.spite_type) {
             parameter.ownership = "held"

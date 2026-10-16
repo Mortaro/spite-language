@@ -6,6 +6,11 @@ var summaries = Dictionary<String, Summary>()
 var callers = Dictionary<String, List<String>>()
 var fresh_values = Dictionary<Integer, Boolean>()
 var one_operation = false
+var value_targets = List<Function>()
+var value_target_names = Dictionary<String, Boolean>()
+var drop_functions = Dictionary<String, String>()
+var types = Analysis.TypeShape()
+var naming = Printing.Naming()
 
 func Effects(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -23,6 +28,9 @@ func Effects(starting_lowered: Lowered) {
     }
     link_callers()
     settle()
+    naming.lowered = starting_lowered
+    note_value_targets()
+    settle_late_waits()
 }
 
 func own_summary(function: Function): Summary {
@@ -441,4 +449,277 @@ func calls_back_from_c(): Boolean {
         index = index + 1
     }
     return false
+}
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func note_value_targets() {
+    crash lowered
+    var functions = lowered.concrete_functions
+    functions.each(note_function_values)
+}
+
+func note_function_values(function: Function) {
+    if function.name == "drop" and not function.owner.is_empty() {
+        drop_functions[function.owner] = function.c_name
+    }
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        block.operations.each(note_value_target)
+        index = index + 1
+    }
+}
+
+func note_value_target(operation: Operation) {
+    crash lowered
+    var named = operation.callee == "Function.bind" or operation.kind == "constant"
+    assert named and not operation.literal.is_empty()
+    assert not value_target_names.has(operation.literal)
+    var target = lowered.function_named(operation.literal)
+    assert target
+    value_target_names[operation.literal] = true
+    value_targets.append(target)
+}
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func settle_late_waits() {
+    crash lowered
+    var changed = true
+    var rounds = 0
+    while changed and rounds < 64 {
+        changed = false
+        var functions = lowered.concrete_functions
+        var index = 0
+        while index < functions.count() {
+            if marked_waiting_late(functions[index]) {
+                changed = true
+            }
+            index = index + 1
+        }
+        rounds = rounds + 1
+    }
+}
+
+func marked_waiting_late(function: Function): Boolean {
+    if function.blocks.is_empty() or function.is_intrinsic() or not summaries.has(function.c_name) {
+        return false
+    }
+    crash summaries[function.c_name]
+    var summary = summaries[function.c_name]
+    if summary.waits or not waits_late(function) {
+        return false
+    }
+    summary.waits = true
+    spread_waits(function.c_name)
+    return true
+}
+
+func spread_waits(start: String) {
+    var waiting = List<String>()
+    var queued = Dictionary<String, Boolean>()
+    waiting.append(start)
+    queued[start] = true
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        queued.remove(taken)
+        pass_up(taken, waiting, queued)
+    }
+}
+
+func waits_late(function: Function): Boolean {
+    var fresh = Dictionary<Integer, Boolean>()
+    var stored = Dictionary<String, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.kind == "make" and operation.result >= 0 {
+                fresh[operation.result] = true
+            }
+            if waits_by_rule(function, operation, fresh, stored) {
+                return true
+            }
+            position = position + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func waits_by_rule(
+    function: Function,
+    operation: Operation,
+    fresh: Dictionary<Integer, Boolean>,
+    stored: Dictionary<String, Boolean>,
+): Boolean {
+    if operation.kind == "call value" {
+        return value_call_waits(function, operation)
+    }
+    if operation.kind == "release" {
+        var released = operation.operands.first()
+        crash released
+        var released_value = function.value_at(released)
+        var visited = Dictionary<String, Boolean>()
+        return drop_waits(released_value.spite_type, visited)
+    }
+    if operation.kind == "store" {
+        return store_waits(function, operation, fresh, stored)
+    }
+    return false
+}
+
+func store_waits(
+    function: Function,
+    operation: Operation,
+    fresh: Dictionary<Integer, Boolean>,
+    stored: Dictionary<String, Boolean>,
+): Boolean {
+    crash kinds
+    var object = operation.operands.first()
+    crash object
+    var key = "{object}.{operation.field}"
+    var made_here = fresh.has(object) or function.is_constructor and object == function.receiver
+    var first = not stored.has(key)
+    stored[key] = true
+    if made_here and first {
+        return false
+    }
+    var object_value = function.value_at(object)
+    var layout = kinds.layout_of(object_value.spite_type)
+    if not layout {
+        return false
+    }
+    var held = layout.field_named(operation.field)
+    if not held {
+        return false
+    }
+    var visited = Dictionary<String, Boolean>()
+    return drop_waits(held.spite_type, visited)
+}
+
+func drop_waits(spite_type: Analysis.SpiteType?, visited: Dictionary<String, Boolean>): Boolean {
+    if not spite_type {
+        return false
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return drop_waits(nullable.inner, visited)
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        return drop_waits(listed.element, visited)
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        return drop_waits(dictionary.element, visited)
+    }
+    crash lowered
+    var united = types.as_union(spite_type)
+    if united {
+        var united_layout = lowered.layout_named(united.c_name)
+        return layout_drop_waits(united_layout, visited)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref and not class_ref.has_signature {
+        var held_layout = lowered.layout_named(class_ref.c_name)
+        return layout_drop_waits(held_layout, visited)
+    }
+    return false
+}
+
+func layout_drop_waits(layout: Layout?, visited: Dictionary<String, Boolean>): Boolean {
+    if not layout or visited.has(layout.c_name) {
+        return false
+    }
+    visited[layout.c_name] = true
+    if drop_functions.has(layout.c_name) {
+        var dropped = drop_functions[layout.c_name]
+        crash dropped
+        if summaries.has(dropped) {
+            crash summaries[dropped]
+            if summaries[dropped].waits {
+                return true
+            }
+        }
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member_layout = lowered_layout(layout.members[index])
+        if layout_drop_waits(member_layout, visited) {
+            return true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        if drop_waits(layout.stored_fields[index].spite_type, visited) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func lowered_layout(c_name: String): Layout? {
+    crash lowered
+    return lowered.layout_named(c_name)
+}
+
+func value_call_waits(function: Function, operation: Operation): Boolean {
+    var called = operation.operands.first()
+    crash called
+    var called_value = function.value_at(called)
+    var signature: Analysis.Types.ClassRefType? = null
+    if called_value.spite_type {
+        signature = types.as_class_ref(called_value.spite_type)
+    }
+    var index = 0
+    while index < value_targets.count() {
+        var target = value_targets[index]
+        if summaries.has(target.c_name) and fits_signature(signature, target) {
+            crash summaries[target.c_name]
+            if summaries[target.c_name].waits {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func fits_signature(signature: Analysis.Types.ClassRefType?, target: Function): Boolean {
+    if not signature or not signature.has_signature {
+        return true
+    }
+    var skipped = 0
+    if target.receiver < 0 and target.c_name.contains("___call_") {
+        skipped = 1
+    }
+    if signature.arguments.count() != target.parameters.count() - skipped {
+        return false
+    }
+    var index = 0
+    while index < signature.arguments.count() {
+        var wanted = naming.label(signature.arguments[index])
+        var held_parameter = target.parameters[index + skipped]
+        crash held_parameter
+        var held = held_parameter.spite_type
+        if not held or naming.label(held) != wanted {
+            return false
+        }
+        index = index + 1
+    }
+    var wanted_answer = return_label(signature.returns)
+    var held_answer = return_label(target.answer)
+    return wanted_answer == held_answer
+}
+
+func return_label(spite_type: Analysis.SpiteType?): String {
+    if not spite_type or types.is_void(spite_type) {
+        return "Nothing"
+    }
+    return naming.label(spite_type)
 }
