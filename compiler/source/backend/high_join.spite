@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 var key = ""
 var entry_value = -1
 var taken_value = -1

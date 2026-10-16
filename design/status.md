@@ -9,8 +9,8 @@ when a page gains a rule that is not built yet, add it here.
 ## The high level of the backend (D560)
 
 Not a docs page, so not here by page: what is built and what is not is on
-[backend_high_level_ir.md](backend_high_level_ir.md), and the order of the work is
-[backend_high_level_ir_todo.md](backend_high_level_ir_todo.md).
+[the IR guide](../compiler/source/intermediate/README.md), and what is left of the work is there too
+(see its "Where it stands").
 
 - Built: the form (blocks with explicit edges, loops and list walks as one operation, abstract objects, a new value
   on every write, merged values at joins and loops), lossless operations, the walk of a program's own functions, and

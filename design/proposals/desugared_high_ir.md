@@ -1,5 +1,7 @@
 # The desugared high IR, and C written only from it (D587)
 
+The guide to the code, how to run it and where it stands is [compiler/source/intermediate/README.md](../../compiler/source/intermediate/README.md); this page is the normative specification.
+
 Mortaro, 2026-10-14: the high level is only useful to optimise when it is **desugared** (every operator is a call to
 its function) and **monomorphised** (every template, codegen value and specialisation is resolved, so every function
 and type in it is concrete). Then a pass can see what is the same and collapse it, and what can be optimised, without
@@ -46,7 +48,10 @@ and every jump passes the values for them), a list of operations, and one termin
 | `store` | a field written |
 | `make` | a new object of a concrete class, not yet constructed |
 | `retain`, `release` | a count up or down, inserted only by the ownership pass |
-| `site` | a check that halts with a report: overflow, bounds, narrowing, division, `crash` |
+
+**A check is not an operation kind.** A check that can fail (overflow, bounds, narrowing, division, presence) is the
+intrinsic `call` that can fail, carrying a `site` (an index into the program's sites); a `crash` that always halts is a
+`halt` terminator with its site.
 
 **A terminator** is `jump` (to a block, with its arguments), `branch` (on a Boolean, to two blocks), `switch` (on a
 tag), `return`, or `halt` (a `crash` that always halts).

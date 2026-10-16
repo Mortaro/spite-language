@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#what-the-walk-covers
+# ../intermediate/README.md#what-the-walk-covers
 var program: HighProgram? = null
 var recorded: HighFunction? = null
 var class_information: Analysis.ClassInfo? = null
@@ -322,7 +322,7 @@ func walk_while(statement: Syntax.Statements.WhileStatement) {
     overlay(at_condition)
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func close_loop(frame: HighLoopFrame, condition_block: HighBlock, after_body: HighValues, steps: Boolean) {
     var depth = loop_frames.count() - 1
     if steps {
@@ -608,7 +608,7 @@ func changes_a_container(member_name: String): Boolean {
     return not reads_only.contains(member_name)
 }
 
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 func items_of(holder: Integer): Integer {
     var list_number = points_at_of(holder)
     if list_number < 0 {
@@ -894,7 +894,7 @@ func is_comparison(operator: Syntax.Expressions.BinaryOperator): Boolean {
     return operator == 'less_equal' or operator == 'greater' or operator == 'greater_equal'
 }
 
-# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+# ../intermediate/README.md#functions-blocks-and-operations
 func walk_short_circuit(binary: Syntax.Expressions.BinaryExpression): Integer {
     crash binary.left
     crash binary.right
@@ -1064,7 +1064,7 @@ func write_field(
     write_value("field", object_number, field_name, declared, at, held, source, holder)
 }
 
-# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+# ../intermediate/README.md#the-facts-folded-from-the-operations
 func release_what_the_field_held(
     object_number: Integer,
     field_name: String,
@@ -1090,7 +1090,7 @@ func note_field_owner(object: HighObject) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 func points_at_of_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?): Integer {
     var held_class = class_of_type(declared)
     if not held_class {
@@ -1187,7 +1187,7 @@ func type_of_nothing(): Analysis.SpiteType {
     return Analysis.Types.VoidType()
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func note_join(join_block: HighBlock, before: HighValues, after_taken: HighValues, after_dropped: HighValues) {
     crash recorded
     var joined = before.copied()
@@ -1233,7 +1233,7 @@ func merged_value(sample: Integer, taken: Integer, dropped: Integer): Integer {
     return recorded.new_value(like.kind, like.owner, like.points_at, like.name, version + 1, like.spite_type)
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func outer_value(
     depth: Integer,
     key: String,
@@ -1275,7 +1275,7 @@ func value_like(depth: Integer, key: String, sample: Integer): Integer {
     return outer_value(depth, key, like.kind, like.owner, like.name, like.spite_type, like.points_at)
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func known_value(key: String): Integer {
     var depth = loop_frames.count() - 1
     while depth >= 0 {
@@ -1336,7 +1336,7 @@ func names_of(first: HighValues, second: HighValues, third: HighValues): List<St
     return names
 }
 
-# ../../../design/backend_high_level_ir.md#what-the-walk-covers
+# ../intermediate/README.md#what-the-walk-covers
 func resolve_type_reference(type_reference: Syntax.Types.Type): Analysis.SpiteType? {
     if shapes.as_generic_type(type_reference) {
         note_unknown("a codegen value used as a type", current_line)

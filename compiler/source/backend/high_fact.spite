@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+# ../intermediate/README.md#the-facts-folded-from-the-operations
 var reads = Dictionary<String, Boolean>()
 var writes = Dictionary<String, Boolean>()
 var calls = List<String>()
@@ -39,7 +39,7 @@ func note_unknown(reason: String) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+# ../intermediate/README.md#what-the-comparison-checks
 func facts_text(): String {
     return "reads {keys_text(reads)} writes {keys_text(writes)} calls {calls.join(" ")} loops {loops}"
 }
