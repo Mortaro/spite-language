@@ -9,6 +9,11 @@ var touching = Dictionary<String, Boolean>()
 var outside_reads = Dictionary<String, Boolean>()
 var outside_writes = Dictionary<String, Boolean>()
 var reached_layouts = Dictionary<String, Boolean>()
+var written_keys = Dictionary<String, Boolean>()
+var grown_keys = Dictionary<String, Boolean>()
+var functions_by_owner = Dictionary<String, List<Function>>()
+var stored_from_threads = Dictionary<String, Boolean>()
+var changing_types = Dictionary<String, Boolean>()
 var locked_count = 0
 
 func SingletonForms(starting_lowered: Lowered, starting_effects: Facts.Effects, starting_reach: Facts.ThreadReach) {
@@ -26,6 +31,7 @@ func decide() {
     assert lowered.makes_threads
     var functions = lowered.concrete_functions
     functions.each(note_accesses)
+    functions.each(note_program_facts)
     var layouts = lowered.layouts
     var index = 0
     while index < layouts.count() {
@@ -105,19 +111,62 @@ func changing(layout: Layout, field: Field): Boolean {
 }
 
 func written_after_construction(layout: Layout, field: String): Boolean {
-    crash lowered
+    var key = "{layout.c_name}.{field}"
+    return written_keys.has(key) or grown_keys.has(key)
+}
+
+func note_program_facts(function: Function) {
     crash effects
-    var functions = lowered.concrete_functions
+    crash reach
+    var summary = effects.of(function.c_name)
+    var written = summary.writes.keys()
     var index = 0
-    while index < functions.count() {
-        var function = functions[index]
-        var summary = effects.of(function.c_name)
-        if summary.writes.has("{layout.c_name}.{field}") or summary.grows.has("{layout.c_name}.{field}") {
-            return true
-        }
+    while index < written.count() {
+        var written_key = written[index]
+        written_keys[written_key] = true
         index = index + 1
     }
-    return false
+    var grown = summary.grows.keys()
+    index = 0
+    while index < grown.count() {
+        var grown_key = grown[index]
+        grown_keys[grown_key] = true
+        index = index + 1
+    }
+    if not function.is_constructor and not function.blocks.is_empty() {
+        if not functions_by_owner.has(function.owner) {
+            var started = List<Function>()
+            functions_by_owner[function.owner] = started
+        }
+        crash functions_by_owner[function.owner]
+        functions_by_owner[function.owner].append(function)
+    }
+    if reach.runs_on_threads(function.c_name) {
+        note_thread_stores(function)
+    }
+}
+
+func note_thread_stores(function: Function) {
+    crash kinds
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "store" {
+                var object = operation.operands.first()
+                crash object
+                var object_type = function.value_at(object).spite_type
+                var stored_layout = kinds.layout_of(object_type)
+                if stored_layout and stored_layout.c_name != function.owner {
+                    stored_from_threads[stored_layout.c_name] = true
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
 }
 
 func holds_changing(spite_type: Analysis.SpiteType?, depth: Integer): Boolean {
@@ -136,6 +185,10 @@ func holds_changing(spite_type: Analysis.SpiteType?, depth: Integer): Boolean {
     if not layout or layout.qualified == "List" or layout.qualified == "Dictionary" or layout.is_singleton {
         return true
     }
+    if changing_types.has(layout.c_name) {
+        return changing_types[layout.c_name] == true
+    }
+    changing_types[layout.c_name] = true
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
@@ -144,6 +197,7 @@ func holds_changing(spite_type: Analysis.SpiteType?, depth: Integer): Boolean {
         }
         index = index + 1
     }
+    changing_types[layout.c_name] = false
     return false
 }
 
@@ -175,18 +229,11 @@ func decide_layout(layout: Layout) {
 }
 
 func own_functions(layout: Layout): List<Function> {
-    crash lowered
-    var found = List<Function>()
-    var functions = lowered.concrete_functions
-    var index = 0
-    while index < functions.count() {
-        var function = functions[index]
-        if function.owner == layout.c_name and not function.is_constructor and not function.blocks.is_empty() {
-            found.append(function)
-        }
-        index = index + 1
+    if functions_by_owner.has(layout.c_name) {
+        crash functions_by_owner[layout.c_name]
+        return functions_by_owner[layout.c_name]
     }
-    return found
+    return List<Function>()
 }
 
 func touches_of(layout: Layout, function: Function): Integer {
@@ -392,42 +439,7 @@ func choose_lock(layout: Layout) {
 }
 
 func written_from_threads(layout: Layout): Boolean {
-    crash lowered
-    crash reach
-    var functions = lowered.concrete_functions
-    var index = 0
-    while index < functions.count() {
-        var function = functions[index]
-        if function.owner != layout.c_name and reach.runs_on_threads(function.c_name) and stores_into(layout, function) {
-            return true
-        }
-        index = index + 1
-    }
-    return false
-}
-
-func stores_into(layout: Layout, function: Function): Boolean {
-    crash kinds
-    var block_index = 0
-    while block_index < function.blocks.count() {
-        var block = function.blocks[block_index]
-        var index = 0
-        while index < block.operations.count() {
-            var operation = block.operations[index]
-            if operation.kind == "store" {
-                var object = operation.operands.first()
-                crash object
-                var object_type = function.value_at(object).spite_type
-                var stored_layout = kinds.layout_of(object_type)
-                if stored_layout and stored_layout.c_name == layout.c_name {
-                    return true
-                }
-            }
-            index = index + 1
-        }
-        block_index = block_index + 1
-    }
-    return false
+    return stored_from_threads.has(layout.c_name)
 }
 
 func is_reading(layout: Layout, function: Function): Boolean {
@@ -576,23 +588,8 @@ func holds_object(spite_type: Analysis.SpiteType?): Boolean {
 }
 
 func reassigned(layout: Layout, field: String): Boolean {
-    crash lowered
-    crash effects
     var key = "{layout.c_name}.{field}"
-    if outside_writes.has(key) {
-        return true
-    }
-    var functions = lowered.concrete_functions
-    var index = 0
-    while index < functions.count() {
-        var function = functions[index]
-        var summary = effects.of(function.c_name)
-        if summary.writes.has(key) {
-            return true
-        }
-        index = index + 1
-    }
-    return false
+    return outside_writes.has(key) or written_keys.has(key)
 }
 
 func mark_fused(function: Function, store: Operation) {

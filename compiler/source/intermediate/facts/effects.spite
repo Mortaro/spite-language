@@ -282,15 +282,80 @@ func note_caller(callee: String, caller: String) {
 }
 
 func settle() {
+    pass_in_order()
     var waiting = summaries.keys()
+    var queued = Dictionary<String, Boolean>()
+    var index = 0
+    while index < waiting.count() {
+        var pending = waiting[index]
+        queued[pending] = true
+        index = index + 1
+    }
     while not waiting.is_empty() {
         var taken = waiting.remove_last()
         crash taken
-        pass_up(taken, waiting)
+        queued.remove(taken)
+        pass_up(taken, waiting, queued)
     }
 }
 
-func pass_up(callee: String, waiting: List<String>) {
+func pass_in_order() {
+    var visited = Dictionary<String, Boolean>()
+    var names = summaries.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if not visited.has(name) {
+            visit_callees(name, visited)
+        }
+        index = index + 1
+    }
+}
+
+func visit_callees(start: String, visited: Dictionary<String, Boolean>) {
+    var stack = List<String>()
+    var next_callee = List<Integer>()
+    stack.append(start)
+    next_callee.append(0)
+    visited[start] = true
+    while not stack.is_empty() {
+        var top = stack.count() - 1
+        crash stack[top]
+        crash next_callee[top]
+        var name = stack[top]
+        var position = next_callee[top]
+        crash summaries[name]
+        var summary = summaries[name]
+        if position < summary.callees.count() {
+            next_callee[top] = position + 1
+            var callee = summary.callees[position]
+            if summaries.has(callee) and not visited.has(callee) {
+                visited[callee] = true
+                stack.append(callee)
+                next_callee.append(0)
+            }
+        } else {
+            take_callees(summary)
+            stack.remove_last()
+            next_callee.remove_last()
+        }
+    }
+}
+
+func take_callees(summary: Summary) {
+    var index = 0
+    while index < summary.callees.count() {
+        var callee = summary.callees[index]
+        if summaries.has(callee) {
+            crash summaries[callee]
+            var reached = summaries[callee]
+            summary.adds(reached)
+        }
+        index = index + 1
+    }
+}
+
+func pass_up(callee: String, waiting: List<String>, queued: Dictionary<String, Boolean>) {
     assert callers.has(callee)
     crash callers[callee]
     crash summaries[callee]
@@ -300,8 +365,9 @@ func pass_up(callee: String, waiting: List<String>) {
     while index < calling.count() {
         var caller = calling[index]
         crash summaries[caller]
-        if summaries[caller].adds(reached) and not waiting.contains(caller) {
+        if summaries[caller].adds(reached) and not queued.has(caller) {
             waiting.append(caller)
+            queued[caller] = true
         }
         index = index + 1
     }
@@ -339,12 +405,10 @@ func callers_of(callee: String): List<String> {
 }
 
 func operation_summary(function: Function, operation: Operation): Summary {
-    var made = Summary()
     if operation.kind == "call" {
-        var reached = of(operation.callee)
-        made.adds(reached)
-        return made
+        return of(operation.callee)
     }
+    var made = Summary()
     fresh_values = Dictionary<Integer, Boolean>()
     one_operation = true
     note_operation(made, function, operation)
