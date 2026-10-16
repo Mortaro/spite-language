@@ -787,6 +787,16 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
         }
         return class_member_named("Spite_Class", member, class_object)
     }
+    var class_class = made.find_class_by_c_name("Spite_Class")
+    if class_class and not static_class.find_field(member.name) and not static_class.find_function(member.name) {
+        var class_getter = made.find_getter(class_class, member.name, lowered_class)
+        var own_member = class_class.find_field(member.name) or class_getter
+        if own_member {
+            var held_type = known().class_type(static_class)
+            var held_object = class_object_of(held_type)
+            return class_member_named("Spite_Class", member, held_object)
+        }
+    }
     return not_lowered(
         null,
         "'{source_text(expression)}', a read of the class object of '{static_class.qualified_dotted}'",
