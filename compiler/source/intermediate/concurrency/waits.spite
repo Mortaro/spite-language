@@ -5,6 +5,7 @@ var kinds: Facts.ValueKinds? = null
 var overlap_groups = 0
 var started_count = 0
 var resumable_count = 0
+var sleeping = Dictionary<String, Boolean>()
 
 func Waits(starting_lowered: Lowered, starting_effects: Facts.Effects) {
     lowered = starting_lowered
@@ -157,6 +158,11 @@ func sleeps(callee: Function, caller: Function, depth: Integer): Boolean {
     if callee.owner != caller.owner or depth > 4 or callee.blocks.is_empty() {
         return false
     }
+    var key = "{callee.c_name}|{depth}"
+    if sleeping.has(key) {
+        return sleeping[key] == true
+    }
+    sleeping[key] = false
     var block_index = 0
     while block_index < callee.blocks.count() {
         var block = callee.blocks[block_index]
@@ -165,6 +171,7 @@ func sleeps(callee: Function, caller: Function, depth: Integer): Boolean {
             var operation = block.operations[index]
             var inner = lowered.function_named(operation.callee)
             if operation.kind == "call" and inner and sleeps(inner, caller, depth + 1) {
+                sleeping[key] = true
                 return true
             }
             index = index + 1
