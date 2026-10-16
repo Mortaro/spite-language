@@ -33,7 +33,25 @@ func Instances(starting_generator: Generation.Generator) {
     }
 }
 
+func listed_count(information: Analysis.ClassInfo): Integer {
+    var made = front()
+    var index = 0
+    while index < made.listed_function_classes.count() {
+        var listed = made.listed_function_classes[index]
+        if listed.c_name == information.c_name {
+            crash made.listed_function_counts[index]
+            return made.listed_function_counts[index]
+        }
+        index = index + 1
+    }
+    return -1
+}
+
 func declared_limit(information: Analysis.ClassInfo): Integer {
+    var listed = listed_count(information)
+    if listed >= 0 and not information.is_container {
+        return listed
+    }
     if information.is_container or not declared_before.has(information.c_name) {
         return information.declared_functions.count()
     }

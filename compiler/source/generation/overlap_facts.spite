@@ -1,5 +1,11 @@
 var outline = ReportOutline()
 var struct_fields = Dictionary<String, String>()
+var indexed_lines: List<String>? = null
+var queried_lines: List<String>? = null
+var queries_of_lines = 0
+var assigning_lines = Dictionary<String, Integer>()
+var assigned_not_fresh = Dictionary<String, Boolean>()
+var address_taken = Dictionary<String, Boolean>()
 var returns = Dictionary<String, String>()
 var first_parameters = Dictionary<String, String>()
 var bodies = Dictionary<String, List<String>>()
@@ -814,7 +820,102 @@ func content_key_of(argument: String, container_class: String, lines: List<Strin
     return "c:{container_class}|*"
 }
 
+# ../../../docs/proofs.md#an-object-made-for-its-owner-is-told-apart
+func has_name_index(lines: List<String>): Boolean {
+    if lines == indexed_lines {
+        return true
+    }
+    if lines == queried_lines {
+        queries_of_lines = queries_of_lines + 1
+        if queries_of_lines >= 3 {
+            build_name_index(lines)
+            return true
+        }
+        return false
+    }
+    queried_lines = lines
+    queries_of_lines = 1
+    return false
+}
+
+func build_name_index(lines: List<String>) {
+    indexed_lines = lines
+    assigning_lines = Dictionary<String, Integer>()
+    assigned_not_fresh = Dictionary<String, Boolean>()
+    address_taken = Dictionary<String, Boolean>()
+    lines.each(note_line_names)
+}
+
+func note_line_names(line: String) {
+    var seen = Dictionary<String, Boolean>()
+    var fresh = line.contains("___make_into(") or line.contains("___make(") or line.contains("___default()") or line.contains("___allocate()")
+    var length = line.length()
+    var position = 0
+    while position < length {
+        var code = line.code_at(position)
+        if code == 38 {
+            var end = position + 1
+            var scanning = true
+            while scanning and end < length {
+                var next_code = line.code_at(end)
+                if outline.is_name_code(next_code) {
+                    end = end + 1
+                } else {
+                    scanning = false
+                }
+            }
+            var prefix_end = position + 2
+            while prefix_end <= end {
+                address_taken[line.slice(position + 1, prefix_end)] = true
+                prefix_end = prefix_end + 1
+            }
+        }
+        if code == 61 and position > 0 and line.code_at(position - 1) == 32 and position + 1 < length and line.code_at(position + 1) == 32 {
+            var name_end = position - 1
+            var name_start = name_end
+            var walking = true
+            while walking and name_start > 0 {
+                var earlier_code = line.code_at(name_start - 1)
+                if outline.is_name_code(earlier_code) {
+                    name_start = name_start - 1
+                } else {
+                    walking = false
+                }
+            }
+            if name_start < name_end and line_start_allows(line, name_start) {
+                var named = line.slice(name_start, name_end)
+                if not seen.has(named) {
+                    seen[named] = true
+                    var before = 0
+                    if assigning_lines.has(named) {
+                        crash assigning_lines[named]
+                        before = assigning_lines[named]
+                    }
+                    assigning_lines[named] = before + 1
+                    if not fresh {
+                        assigned_not_fresh[named] = true
+                    }
+                }
+            }
+        }
+        position = position + 1
+    }
+}
+
+func line_start_allows(line: String, name_start: Integer): Boolean {
+    if name_start == 0 {
+        return true
+    }
+    if line.code_at(name_start - 1) == 32 {
+        return true
+    }
+    return line.slice(0, name_start).trim().is_empty()
+}
+
 func made_here(name: String, lines: List<String>): Boolean {
+    if has_name_index(lines) {
+        return assigning_lines.has(name) and not assigned_not_fresh.has(name)
+    }
     var made = false
     var index = 0
     while index < lines.count() {
@@ -832,6 +933,9 @@ func made_here(name: String, lines: List<String>): Boolean {
 }
 
 func assigns_name(line: String, name: String): Boolean {
+    if not line.contains(name) {
+        return false
+    }
     var trimmed = line.trim()
     return line.contains(" {name} = ") or trimmed.starts_with("{name} = ")
 }
@@ -1696,14 +1800,22 @@ func call_identity(text: String, lines: List<String>): String {
 }
 
 func assigned_once(name: String, lines: List<String>): Boolean {
+    if has_name_index(lines) {
+        if address_taken.has(name) or not assigning_lines.has(name) {
+            return false
+        }
+        crash assigning_lines[name]
+        return assigning_lines[name] == 1
+    }
     var assignments = 0
+    var address_of = "&{name}"
     var index = 0
     while index < lines.count() {
         var line = lines[index]
         if assigns_name(line, name) {
             assignments = assignments + 1
         }
-        if line.contains("&{name}") {
+        if line.contains(address_of) {
             return false
         }
         index = index + 1
