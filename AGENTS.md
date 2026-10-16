@@ -58,8 +58,16 @@ else disagrees with the specification, the specification wins; a docs page that 
 - [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
   claim in them is true of Spite today or marked as the direction.
 
-When you build something, delete its line from `TODO.md` in the same commit. A decision that is not built yet is
-still described on its page as the language; `TODO.md` is the one place that says it is not built, in one line.
+**`TODO.md` is always up to date** (Mortaro, 2026-10-15). It is how Mortaro sees what is missing, so every commit
+that changes what is missing changes it in the same commit:
+
+- a decision recorded and not built yet adds its line (with its decision number), and so does a wish of Mortaro's;
+- building something deletes its line, and building part of it rewrites the line to say only what is left;
+- a bug that fails silently (D244) and is not fixed now adds a line under "Bugs that fail silently";
+- a decision that supersedes another rewrites or deletes the old one's line.
+
+A decision that is not built yet is still described on its page as the language; `TODO.md` is the one place that
+says it is not built, in one line.
 
 ## Writing
 
@@ -159,8 +167,10 @@ what cannot be undone cheaply; an agent decides anything that can be changed lat
 records it as "decided by Claude under D509", and lists it under "To confirm" in `mortaros_missing_decisions.md`.
 A proposal not yet decided is marked "(proposed by Claude, unconfirmed)".
 
+A decision not built in the same commit also gets its line in [`TODO.md`](TODO.md).
+
 `mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the specification and the
-docs (the spec page, the teaching and a decision-log row), clear it. Agent-owned state belongs in an agent-owned file.
+docs (the spec page, the teaching, a decision-log row and, until it is built, a `TODO.md` line), clear it. Agent-owned state belongs in an agent-owned file.
 
 ## Builds and test runs cost hours and quota: batch them
 
