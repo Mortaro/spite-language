@@ -55,9 +55,17 @@ func find_field(name: String): FieldInfo? {
 
 func find_function(name: String): FunctionInfo? {
     note_function_positions()
-    assert function_positions[name]
+    if not function_positions.has(name) {
+        return declared_functions.find_by_name(name)
+    }
+    crash function_positions[name]
     var position = function_positions[name]
-    return declared_functions[position]
+    var found = declared_functions[position]
+    if found and found.name == name {
+        return found
+    }
+    forget_function_positions()
+    return declared_functions.find_by_name(name)
 }
 
 func note_function_positions() {
