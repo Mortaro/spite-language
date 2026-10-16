@@ -78,43 +78,48 @@ var _initial_state: List<UnsignedInteger> = [
 ]
 
 func hash(bytes: Buffer): Buffer {
-    return _digest(bytes)
+    var state = List<UnsignedInteger>()
+    state.reserve(72)
+    var digest = Buffer(128)
+    _digest(bytes, state, digest)
+    return digest
 }
 
 func hmac(key: Buffer, message: Buffer): Buffer {
-    var block = Buffer(64)
-    var key_count = key.count()
-    if key_count > 64 {
-        var hashed_key = _digest(key)
-        block.append_bytes(hashed_key, 0, 32)
-    } else {
-        block.append_bytes(key, 0, key_count)
-    }
-    while block.count() < 64 {
-        block.append(0)
+    var state = List<UnsignedInteger>()
+    state.reserve(72)
+    var digest = Buffer(128)
+    var pad_source = key
+    var pad_count = key.count()
+    if pad_count > 64 {
+        _digest(key, state, digest)
+        pad_source = digest.copy()
+        pad_count = 32
     }
     var message_count = message.count()
     var inner_input = Buffer(message_count + 64)
-    var outer_input = Buffer(96)
+    var outer_pad = Buffer(64)
     var index = 0
     while index < 64 {
-        var key_byte: Integer = _byte(block, index)
+        var key_byte: Integer = 0
+        if index < pad_count {
+            var padded = pad_source[index]
+            crash padded
+            key_byte = padded
+        }
         var inner_byte: Byte = key_byte.bits_exclusive_or(54)
         var outer_byte: Byte = key_byte.bits_exclusive_or(92)
         inner_input.append(inner_byte)
-        outer_input.append(outer_byte)
+        outer_pad.append(outer_byte)
         index = index + 1
     }
     inner_input.append_bytes(message, 0, message_count)
-    var inner = _digest(inner_input)
-    outer_input.append_bytes(inner, 0, 32)
-    return _digest(outer_input)
-}
-
-func _byte(bytes: Buffer, index: Integer): Byte {
-    var value = bytes[index]
-    crash value
-    return value
+    _digest(inner_input, state, digest)
+    inner_input.clear()
+    inner_input.append_bytes(outer_pad, 0, 64)
+    inner_input.append_bytes(digest, 0, 32)
+    _digest(inner_input, state, digest)
+    return digest
 }
 
 func _word(words: List<UnsignedInteger>, index: Integer): UnsignedInteger {
@@ -123,9 +128,9 @@ func _word(words: List<UnsignedInteger>, index: Integer): UnsignedInteger {
     return value
 }
 
-func _digest(source: Buffer): Buffer {
+func _digest(source: Buffer, state: List<UnsignedInteger>, digest: Buffer) {
     var source_length: Long = source.count()
-    var state = List<UnsignedInteger>()
+    state.clear()
     var index = 0
     while index < 8 {
         crash _initial_state[index]
@@ -142,35 +147,35 @@ func _digest(source: Buffer): Buffer {
         offset = offset + 64
     }
     var rest = source.count() - offset
-    var tail = Buffer(128)
-    tail.append_bytes(source, offset, rest)
-    tail.append(128)
+    digest.clear()
+    digest.append_bytes(source, offset, rest)
+    digest.append(128)
     var tail_length = 64
     if rest >= 56 {
         tail_length = 128
     }
-    while tail.count() < tail_length - 8 {
-        tail.append(0)
+    while digest.count() < tail_length - 8 {
+        digest.append(0)
     }
     var bits = source_length * 8
     var shift = 0
     while shift < 8 {
         var length_byte: Byte = bits.shifted_right(56 - shift * 8).bits_and(255)
-        tail.append(length_byte)
+        digest.append(length_byte)
         shift = shift + 1
     }
-    _compress(state, tail, 0)
+    _compress(state, digest, 0)
     if tail_length == 128 {
-        _compress(state, tail, 64)
+        _compress(state, digest, 64)
     }
-    var digest = Buffer(32)
+    digest.clear()
     var word_index = 0
     while word_index < 8 {
-        var word = _word(state, word_index)
+        var word = state[word_index]
+        crash word
         _append_big_endian(digest, word)
         word_index = word_index + 1
     }
-    return digest
 }
 
 func _append_big_endian(target: Buffer, word: UnsignedInteger) {
@@ -187,36 +192,50 @@ func _append_big_endian(target: Buffer, word: UnsignedInteger) {
 func _compress(state: List<UnsignedInteger>, block: Buffer, start: Integer) {
     var index = 0
     while index < 16 {
-        var first: UnsignedInteger = _byte(block, start + index * 4)
-        var second: UnsignedInteger = _byte(block, start + index * 4 + 1)
-        var third: UnsignedInteger = _byte(block, start + index * 4 + 2)
-        var fourth: UnsignedInteger = _byte(block, start + index * 4 + 3)
-        var high = first.shifted_left(24)
-        var upper = second.shifted_left(16)
-        var lower = third.shifted_left(8)
-        var word = high.bits_or(upper).bits_or(lower).bits_or(fourth)
+        var raw = block.read_unsigned_integer_little_endian_at(start + index * 4)
+        crash raw
+        var top = raw.shifted_left(24)
+        var upper = raw.bits_and(65280).shifted_left(8)
+        var lower = raw.shifted_right(8).bits_and(65280)
+        var bottom = raw.shifted_right(24)
+        var word = top.bits_or(upper).bits_or(lower).bits_or(bottom)
         state[8 + index] = word
         index = index + 1
     }
-    while index < 64 {
-        var early = _word(state, 8 + index - 15)
-        var late = _word(state, 8 + index - 2)
-        var small_early = _small_sigma(early, 7, 18, 3)
-        var small_late = _small_sigma(late, 17, 19, 10)
-        var sixteen_back = _word(state, 8 + index - 16)
-        var seven_back = _word(state, 8 + index - 7)
+    var at = 8
+    while at + 16 < state.count() {
+        var early = state[at + 1]
+        var late = state[at + 14]
+        var sixteen_back = state[at]
+        var seven_back = state[at + 9]
+        var early_right_seven = early.shifted_right(7)
+        var early_left_seven = early.shifted_left(25)
+        var early_right_eighteen = early.shifted_right(18)
+        var early_left_eighteen = early.shifted_left(14)
+        var early_shifted = early.shifted_right(3)
+        var early_one = early_right_seven.bits_or(early_left_seven)
+        var early_two = early_right_eighteen.bits_or(early_left_eighteen)
+        var small_early = early_one.bits_exclusive_or(early_two).bits_exclusive_or(early_shifted)
+        var late_right_seventeen = late.shifted_right(17)
+        var late_left_seventeen = late.shifted_left(15)
+        var late_right_nineteen = late.shifted_right(19)
+        var late_left_nineteen = late.shifted_left(13)
+        var late_shifted = late.shifted_right(10)
+        var late_one = late_right_seventeen.bits_or(late_left_seventeen)
+        var late_two = late_right_nineteen.bits_or(late_left_nineteen)
+        var small_late = late_one.bits_exclusive_or(late_two).bits_exclusive_or(late_shifted)
         var word = sixteen_back.wrapping_sum(small_early).wrapping_sum(seven_back).wrapping_sum(small_late)
-        state[8 + index] = word
-        index = index + 1
+        state[at + 16] = word
+        at = at + 1
     }
-    var working_a = _word(state, 0)
-    var working_b = _word(state, 1)
-    var working_c = _word(state, 2)
-    var working_d = _word(state, 3)
-    var working_e = _word(state, 4)
-    var working_f = _word(state, 5)
-    var working_g = _word(state, 6)
-    var working_h = _word(state, 7)
+    var working_a: UnsignedInteger = _word(state, 0)
+    var working_b: UnsignedInteger = _word(state, 1)
+    var working_c: UnsignedInteger = _word(state, 2)
+    var working_d: UnsignedInteger = _word(state, 3)
+    var working_e: UnsignedInteger = _word(state, 4)
+    var working_f: UnsignedInteger = _word(state, 5)
+    var working_g: UnsignedInteger = _word(state, 6)
+    var working_h: UnsignedInteger = _word(state, 7)
     var round = 0
     while round < 64 {
         var big_e = _big_sigma(working_e, 6, 11, 25)
@@ -226,7 +245,8 @@ func _compress(state: List<UnsignedInteger>, block: Buffer, start: Integer) {
         var choice = chosen.bits_exclusive_or(others)
         crash _round_constants[round]
         var constant = _round_constants[round]
-        var scheduled = _word(state, 8 + round)
+        var scheduled = state[8 + round]
+        crash scheduled
         var mixed_sum = working_h.wrapping_sum(big_e).wrapping_sum(choice)
         var first_sum = mixed_sum.wrapping_sum(constant).wrapping_sum(scheduled)
         var big_a = _big_sigma(working_a, 2, 13, 22)
@@ -270,7 +290,8 @@ func _big_sigma(value: UnsignedInteger, first: Integer, second: Integer, third: 
 }
 
 func _add_to(state: List<UnsignedInteger>, at: Integer, value: UnsignedInteger) {
-    var held = _word(state, at)
+    var held = state[at]
+    crash held
     var sum = held.wrapping_sum(value)
     state[at] = sum
 }

@@ -126,6 +126,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Optimisations and proofs
 
+- The library above the memory floor (Sha256, Deflate, Argon2) is 1.2 to 1.8 times slower and counts more allocations than its raw-memory form (`--optimized`: Sha256 128 to 158 ms, Zlib 37 to 56, Argon2 193 to 283), for three reasons the compiler can remove: a library function takes its list or buffer argument counted (`List_Long___retain` per call: the held-argument copy covers only a program's own functions); a local `Buffer(n)` or reserved `List` that never leaves its function is not placed in the frame (raw `heap.allocate` blocks were uncounted, each Buffer or List is 2 allocations), which D602's small-buffer placement would cover; and `list[base + counter]` (a table base plus a loop counter, a hash-chain index) is checked on every access, since the counted-loop proof takes only the counter plus a literal window of up to 63
 - Naive programs reach hand-written speed (D506, D507, D508, D550)
 - Independent loops written as a `while`, and reductions, run at once (D506)
 - Layout chosen by the compiler: structure of arrays, hot and cold splitting, field order, cache-line alignment (D402, D485)

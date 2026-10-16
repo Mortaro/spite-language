@@ -102,11 +102,10 @@ var _input_length = 0
 var _position = 0
 var _failed = false
 var _result = Buffer(0)
-var _literal_table = 0
-var _distance_table = 32768
-var _length_table = 65536
-var _table_lengths = 65664
-var _decompress_scratch_count = 67500
+var _table_lengths = 0
+var _length_table = 600
+var _literal_table = 728
+var _distance_table = 728
 var _literal_mask: Long = 0
 var _distance_mask: Long = 0
 var _length_mask: Long = 0
@@ -114,9 +113,7 @@ var _length_mask: Long = 0
 func compress(bytes: Buffer): Buffer {
     _source = bytes
     _source_length = bytes.count()
-    _allocate_scratch(_compress_scratch_count)
-    _fill(_head, _hash_size, -1)
-    _fill(_previous, _window, -1)
+    _allocate_scratch(_compress_scratch_count, _hash_size + _window)
     _output = Buffer(_source_length / 2 + 64)
     _bit_buffer = 0
     _bit_count = 0
@@ -148,7 +145,7 @@ func decompress(bytes: Buffer): Buffer? {
     _bit_count = 0
     _failed = false
     _result = Buffer(_input_length * 2 + 64)
-    _allocate_scratch(_decompress_scratch_count)
+    _allocate_scratch(_literal_table, 0)
     _inflate_blocks()
     var result = _result
     _result = Buffer(0)
@@ -156,10 +153,14 @@ func decompress(bytes: Buffer): Buffer? {
     return result
 }
 
-func _allocate_scratch(entry_count: Integer) {
+func _allocate_scratch(entry_count: Integer, empty_count: Integer) {
     _scratch.clear()
     _scratch.reserve(entry_count)
     var index = 0
+    while index < empty_count {
+        _scratch.append(-1)
+        index = index + 1
+    }
     while index < entry_count {
         _scratch.append(0)
         index = index + 1
@@ -210,7 +211,9 @@ func _step(position: Integer): Integer {
             limit = 258
         }
         var hash = _hash_at(position)
-        var candidate = _entry(_scratch, _head + hash)
+        var first_candidate = _scratch[_head + hash]
+        crash first_candidate
+        var candidate: Integer = first_candidate
         var tries = 0
         while candidate >= 0 and position - candidate <= _window and tries < _chain_limit and best_length < limit {
             var matched = _match_length(candidate, position, limit)
@@ -219,7 +222,9 @@ func _step(position: Integer): Integer {
                 best_distance = position - candidate
             }
             var slot = candidate.bits_and(_window - 1)
-            candidate = _entry(_scratch, _previous + slot)
+            var next_candidate = _scratch[_previous + slot]
+            crash next_candidate
+            candidate = next_candidate
             tries = tries + 1
         }
         _insert(position, hash)
@@ -229,15 +234,23 @@ func _step(position: Integer): Integer {
         _insert_range(position + 1, position + best_length)
         return position + best_length
     }
-    var literal: Integer = _byte(_source, position)
+    var literal_raw = _source[position]
+    crash literal_raw
+    var literal: Integer = literal_raw
     _add_symbol(literal, 0)
     return position + 1
 }
 
 func _hash_at(position: Integer): Integer {
-    var first: Integer = _byte(_source, position)
-    var second: Integer = _byte(_source, position + 1)
-    var third: Integer = _byte(_source, position + 2)
+    var first_raw = _source[position]
+    crash first_raw
+    var second_raw = _source[position + 1]
+    crash second_raw
+    var third_raw = _source[position + 2]
+    crash third_raw
+    var first: Integer = first_raw
+    var second: Integer = second_raw
+    var third: Integer = third_raw
     var middle = second.shifted_left(5)
     var mixed = first.shifted_left(10).bits_exclusive_or(middle).bits_exclusive_or(third)
     return mixed.bits_and(_hash_size - 1)
@@ -245,7 +258,8 @@ func _hash_at(position: Integer): Integer {
 
 func _insert(position: Integer, hash: Integer) {
     var slot = position.bits_and(_window - 1)
-    var older = _entry(_scratch, _head + hash)
+    var older = _scratch[_head + hash]
+    crash older
     _scratch[_previous + slot] = older
     _scratch[_head + hash] = position
 }
@@ -260,9 +274,31 @@ func _insert_range(from: Integer, to: Integer) {
 }
 
 func _match_length(candidate: Integer, position: Integer, limit: Integer): Integer {
+    var source = _source
     var matched = 0
-    while matched < limit and _byte(_source, candidate + matched) == _byte(_source, position + matched) {
-        matched = matched + 1
+    var searching = true
+    while searching and matched + 8 <= limit {
+        var earlier_word = source.read_long_little_endian_at(candidate + matched)
+        crash earlier_word
+        var later_word = source.read_long_little_endian_at(position + matched)
+        crash later_word
+        if earlier_word == later_word {
+            matched = matched + 8
+        } else {
+            searching = false
+        }
+    }
+    searching = true
+    while searching and matched < limit {
+        var earlier = source[candidate + matched]
+        crash earlier
+        var later = source[position + matched]
+        crash later
+        if earlier == later {
+            matched = matched + 1
+        } else {
+            searching = false
+        }
     }
     return matched
 }
@@ -270,7 +306,9 @@ func _match_length(candidate: Integer, position: Integer, limit: Integer): Integ
 func _add_symbol(symbol: Integer, extra: Integer) {
     _symbols.append(symbol)
     _extras.append(extra)
-    _increment(_literal_frequencies, symbol)
+    var counted = _scratch[_literal_frequencies + symbol]
+    crash counted
+    _scratch[_literal_frequencies + symbol] = counted + 1
 }
 
 func _add_match(match_length: Integer, distance: Integer) {
@@ -281,7 +319,9 @@ func _add_match(match_length: Integer, distance: Integer) {
     var distance_base = _entry(_distance_bases, distance_code)
     _symbols.append(distance_code)
     _extras.append(distance - distance_base)
-    _increment(_distance_frequencies, distance_code)
+    var counted = _scratch[_distance_frequencies + distance_code]
+    crash counted
+    _scratch[_distance_frequencies + distance_code] = counted + 1
 }
 
 func _code_for(bases: List<Integer>, value: Integer): Integer {
@@ -320,7 +360,9 @@ func _write_symbols() {
     var total = _symbols.count()
     var index = 0
     while index < total {
-        var symbol = _entry(symbols, index)
+        var symbol_raw = symbols[index]
+        crash symbol_raw
+        var symbol: Integer = symbol_raw
         _write_symbol_code(_literal_lengths, _literal_codes, symbol)
         index = index + 1
         if symbol > 256 {
@@ -339,8 +381,10 @@ func _write_symbols() {
 }
 
 func _write_symbol_code(lengths: Integer, codes: Integer, symbol: Integer) {
-    var code = _entry(_scratch, codes + symbol)
-    var bits = _entry(_scratch, lengths + symbol)
+    var code = _scratch[codes + symbol]
+    crash code
+    var bits = _scratch[lengths + symbol]
+    crash bits
     _write_code(code, bits)
 }
 
@@ -687,7 +731,9 @@ func _refill() {
     while _bit_count < 56 {
         var next: Long = 0
         if _position < _input_length {
-            next = _byte(_source, _position)
+            var next_byte = _source[_position]
+            crash next_byte
+            next = next_byte
         }
         var placed = next.shifted_left(_bit_count)
         _bit_buffer = _bit_buffer.bits_or(placed)
@@ -709,7 +755,9 @@ func _read_bits(bits: Integer): Integer {
 func _decode_symbol(table: Integer, mask: Long): Integer {
     _refill()
     var index: Integer = _bit_buffer.bits_and(mask)
-    var entry = _entry(_scratch, table + index)
+    var entry_raw = _scratch[table + index]
+    crash entry_raw
+    var entry: Integer = entry_raw
     var bits = entry.bits_and(15)
     if bits == 0 {
         _failed = true
@@ -818,7 +866,8 @@ func _copy_match(symbol: Integer) {
     } else {
         var copied = 0
         while copied < match_length {
-            var value = _byte(_result, from + copied)
+            var value = _result[from + copied]
+            crash value
             _result.append(value)
             copied = copied + 1
         }
@@ -842,6 +891,8 @@ func _build_fixed_tables() {
         index = index + 1
     }
     _literal_mask = _build_table(_literal_table, 0, 288)
+    var literal_end: Integer = _literal_mask + 1
+    _distance_table = _literal_table + literal_end
     _distance_mask = _build_table(_distance_table, 288, 32)
 }
 
@@ -890,6 +941,10 @@ func _read_dynamic_tables() {
     var end_bits = _entry(_scratch, _table_lengths + 256 + 256)
     _fail_when(end_bits == 0)
     _literal_mask = _build_table(_literal_table, 256, literal_count)
+    _fail_when(_literal_mask < 0)
+    assert not _failed
+    var literal_end: Integer = _literal_mask + 1
+    _distance_table = _literal_table + literal_end
     _distance_mask = _build_table(_distance_table, 256 + literal_count, distance_count)
     _fail_when(_literal_mask < 0 or _distance_mask < 0)
 }
@@ -928,7 +983,13 @@ func _build_table(table: Integer, first: Integer, symbol_count: Integer): Long {
     var size = one.shifted_left(maximum)
     var slot = 0
     while slot < size {
-        _scratch[table + slot] = 0
+        var at = table + slot
+        var known = _scratch.count()
+        if at < known {
+            _scratch[at] = 0
+        } else {
+            _scratch.append(0)
+        }
         slot = slot + 1
     }
     symbol = 0
