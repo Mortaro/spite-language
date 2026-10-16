@@ -105,7 +105,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Compiler and backend
 
-- Every line of C written from the high-level IR: arithmetic, calls, references, `assert`/`crash`, texts, lists, dictionaries, layouts, dispatch and `main` (D560, D586, D587)
+- Every line of C written from the high-level IR: arithmetic, calls, references, `assert`/`crash`, texts, lists, dictionaries, layouts, dispatch and `main` (D560, D586, D587, D599: no IR operation for what is a function in the end)
 - The high IR desugared and monomorphised, every decision of the generator a pass over it, and the switch-over made whole (D587)
 - The passes that read or rewrite the C text moved onto the IR (D586, D587)
 - The low level of the IR (D560)
