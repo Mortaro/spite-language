@@ -446,6 +446,17 @@ func counted_field(field: Field): String {
     return naming.counted_name(field.spite_type)
 }
 
+func drop_waits(layout: Layout): Boolean {
+    if layout.hot or not layout.information or not layout.information.drop_function {
+        return false
+    }
+    var dropper = lowered.function_named(layout.information.drop_function.c_name)
+    if not dropper {
+        return false
+    }
+    return dropper.resumable or not dropper.waiting_kind.is_empty()
+}
+
 func drop_call(layout: Layout): String {
     if not layout.information or not layout.information.drop_function {
         return ""
@@ -480,7 +491,14 @@ func print_counted(layout: Layout) {
     var lines = List<String>()
     lines.append("void {name}___free({name}* self) \{")
     var dropping = drop_call(layout)
-    if not dropping.is_empty() {
+    var split = not dropping.is_empty() and drop_waits(layout)
+    if split {
+        output.prototypes.append("void {name}___free_after_drop({name}* self);")
+        lines.append(dropping)
+        lines.append("{name}___free_after_drop(self);")
+        lines.append("}")
+        lines.append("void {name}___free_after_drop({name}* self) \{")
+    } else if not dropping.is_empty() {
         lines.append(dropping)
     }
     var released = field_releases(layout, "self")

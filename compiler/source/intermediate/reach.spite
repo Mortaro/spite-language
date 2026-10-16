@@ -140,8 +140,30 @@ func reach_copy_layout(c_name: String, visited: List<String>) {
     }
 }
 
+func reach_pool() {
+    crash lowered
+    var wanted = ["run_bands", "submit", "join"]
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        index = index + 1
+        var owner = lowered.layout_named(candidate.owner)
+        var pooled = false
+        if owner {
+            pooled = owner.qualified == "ThreadPool"
+        }
+        var needed = wanted.contains(candidate.name) or not candidate.singleton_of.is_empty()
+        if pooled and needed and not functions_reached.has(candidate.c_name) and not waiting.contains(candidate.c_name) {
+            waiting.append(candidate.c_name)
+        }
+    }
+}
+
 func reach_operation(operation: Operation) {
     crash lowered
+    if operation.kind == "call" and (operation.callee == "Bands.run" or operation.callee == "Rows.run") {
+        reach_pool()
+    }
     if operation.kind == "make" {
         reach_layout(operation.layout)
     }

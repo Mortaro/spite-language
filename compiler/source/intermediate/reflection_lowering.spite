@@ -121,6 +121,11 @@ func fill_functions(described: Analysis.ClassInfo, object: Integer) {
     var fresh_type = lowering().known().class_type(described)
     var fresh = lowering().default_object(described, fresh_type)
     var listed = functions_of(described, fresh)
+    if described.is_singleton and not described.is_stateless_singleton {
+        var kept = [fresh]
+        var keeping = lowering().emitter.call_operation("Singleton.keep", kept, null)
+        keeping.target = described.c_name
+    }
     lowering().emitter.store_field(object, "_functions", listed)
 }
 

@@ -57,6 +57,24 @@ func singleton_instance(body: Body, tracked: Layout, filled: String, appending: 
     )
 }
 
+func print_singleton_keep(body: Body, operation: Operation) {
+    var kept_type = body.operand_type(operation, 0)
+    var layout = naming.layout_of(kept_type)
+    if not layout or not layout.is_singleton or layout.arrangement == "static" {
+        body.refuse("it keeps a stand-in that is not a stateful singleton")
+        return
+    }
+    var kept = body.operand(operation, 0)
+    var slot = "spite_stand_in_{body.function.c_name}_{body.operand_number(operation, 0)}"
+    var name = layout.c_name
+    output.need("singletons")
+    output.support(
+        "static {name}* {slot} = 0;\nstatic void {slot}_teardown(void) \{\n{name}* object = {slot};\n{slot} = 0;\n{name}___discard(object);\n}",
+    )
+    body.emit("{slot} = {kept};")
+    body.emit("spite_singleton_created({slot}_teardown);")
+}
+
 func print_singleton_peek(body: Body, operation: Operation) {
     var maker = lowered.function_named(operation.target)
     if not maker or maker.singleton_of.is_empty() {
@@ -158,6 +176,7 @@ func print_singleton_lock(body: Body, operation: Operation, word: String) {
         "enter_skipping": body.enter_skipping(owner)
         "leave_skipping": body.leave_skipping(owner)
         "peek": print_singleton_peek(body, operation)
+        "keep": print_singleton_keep(body, operation)
         _: body.refuse("it calls 'Singleton.{word}', which is no intrinsic")
     }
 }
@@ -170,13 +189,14 @@ func print_attribute(body: Body, operation: Operation, word: String) {
     }
 }
 
-func link_piece(pieces: List<String>, index: Integer): String {
-    if index >= pieces.count() {
-        return ""
+func link_piece(body: Body, pieces: List<String>, index: Integer): String {
+    var named = ""
+    if index < pieces.count() {
+        named = pieces[index].trim()
     }
-    var named = pieces[index].trim()
-    if named.is_empty() or not lowered.function_named(named) {
-        return ""
+    if not named.is_empty() and not lowered.function_named(named) {
+        body.refuse("it links the reflection function '{named}', which the program does not hold")
+        named = ""
     }
     return named
 }
@@ -190,9 +210,9 @@ func attribute_hold(body: Body, operation: Operation) {
     var layout = naming.layout_of(held_type)
     assert not counted.is_empty() and layout and not layout.is_value and not naming.is_tagged(held_type) and not shape.as_union(held_type)
     var pieces = operation.target.split(",")
-    var attributes = link_piece(pieces, 0)
-    var functions = link_piece(pieces, 1)
-    var described_class = link_piece(pieces, 2)
+    var attributes = link_piece(body, pieces, 0)
+    var functions = link_piece(body, pieces, 1)
+    var described_class = link_piece(body, pieces, 2)
     body.emit("({attribute})->spite_held = (void*){counted}___retain({held});")
     body.emit("({attribute})->spite_release_held = (void (*)(void*)){counted}___release;")
     body.emit("({attribute})->spite_held_bytes = (int64_t)sizeof({layout.c_name});")

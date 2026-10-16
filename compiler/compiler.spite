@@ -454,6 +454,10 @@ func write_from_intermediate(generator: Generation.Generator) {
     pipeline.optimized = is_on("optimized")
     var written = pipeline.run()
     if pipeline.has_error() {
+        var refused_ir_folder = option("high_ir")
+        if not refused_ir_folder.is_empty() {
+            wrote_lowered_ir(pipeline.lowered, refused_ir_folder)
+        }
         console.error(pipeline.error_message)
         program.exit(1)
         return
@@ -827,8 +831,12 @@ func wrote_high_ir(generator: Generation.Generator, output_directory: String): B
     create_folder(output_directory)
     var pipeline = Intermediate.Pipeline(generator)
     pipeline.prepare()
-    var lowered = pipeline.lowered
+    return wrote_lowered_ir(pipeline.lowered, output_directory)
+}
+
+func wrote_lowered_ir(lowered: Intermediate.Lowered, output_directory: String): Boolean {
     var text = Intermediate.Text()
+    create_folder(output_directory)
     var index = 0
     while index < lowered.layouts.count() {
         var layout = lowered.layouts[index]
