@@ -2576,9 +2576,125 @@ func class_tag(tested: Analysis.ClassInfo): Integer {
 }
 
 func lower_binary(binary: Syntax.Expressions.BinaryExpression): Integer {
+    var made = front()
+    var tolerated = 0
+    if binary.operator == 'equal' or binary.operator == 'not_equal' {
+        tolerated = made.tolerate_chains(binary)
+    }
+    var answer = lower_binary_plain(binary)
+    made.release_chains(tolerated)
+    return answer
+}
+
+# ../../../specs/failure.md#nothing-fails-silently-the-rule
+func reads_through_nullable(expression: Syntax.Expressions.Expression): Boolean {
+    var made = front()
+    var link = shapes.as_member(expression)
+    if not link {
+        return false
+    }
+    crash link.object
+    var path = made.operand_text(link.object)
+    if not path.is_empty() and not emitter.scope.is_path_narrowed(path) {
+        var static_type = made.lookup_static_type(link.object, emitter.scope, lowered_class)
+        if static_type and types.as_nullable(static_type) {
+            return true
+        }
+    }
+    return reads_through_nullable(link.object)
+}
+
+func lower_chain(member: Syntax.Expressions.MemberExpression): Integer {
+    crash member.object
+    var object_value = -1
+    var inner_link = shapes.as_member(member.object)
+    if inner_link and reads_through_nullable(member.object) {
+        object_value = lower_chain(inner_link)
+    } else {
+        object_value = lower(member.object)
+    }
+    var object_type = type_of(object_value)
+    var nullable = types.as_nullable(object_type)
+    if not nullable {
+        return member_of_value(member, object_value)
+    }
+    var boolean = known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", object_value, boolean)
+    var inside = emitter.new_block()
+    var absent = emitter.new_block()
+    var joined = emitter.new_block()
+    emitter.branch(present, inside, absent)
+    emitter.enter_block(inside)
+    var held = emitter.emit_call_one("Nullable.value", object_value, nullable.inner)
+    var read = member_of_value(member, held)
+    var read_type = type_of(read)
+    var maybe_type = read_type
+    if not types.as_nullable(read_type) {
+        maybe_type = known().nullable_of(read_type)
+    }
+    var wrapped = convert(read, maybe_type)
+    var answered = emitter.new_value(maybe_type, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var wrapped_passed = [wrapped]
+    emitter.jump(joined, wrapped_passed)
+    emitter.enter_block(absent)
+    var nothing = emitter.constant(maybe_type, "null")
+    var nothing_passed = [nothing]
+    emitter.jump(joined, nothing_passed)
+    emitter.enter_block(joined)
+    return answered
+}
+
+func chain_comparison(binary: Syntax.Expressions.BinaryExpression): Integer {
+    crash binary.left
+    crash binary.right
+    var left_chain = reads_through_nullable(binary.left)
+    var right_chain = reads_through_nullable(binary.right)
+    if not left_chain and not right_chain {
+        return -1
+    }
+    var left_literal = shapes.as_enum_literal(binary.left) or shapes.is_null_literal(binary.left)
+    if left_literal {
+        var mirrored = Syntax.Expressions.BinaryExpression(binary.operator, binary.right, binary.left)
+        return chain_comparison(mirrored)
+    }
+    var left = chain_operand(binary.left, left_chain, -1)
+    var right = chain_operand(binary.right, right_chain, left)
+    var whole: Syntax.Expressions.Expression = binary
+    var left_type = type_of(left)
+    var right_type = type_of(right)
+    if types.as_nullable(left_type) {
+        return nullable_equality(binary.operator, left, right)
+    }
+    if types.as_nullable(right_type) {
+        return nullable_equality(binary.operator, right, left)
+    }
+    return compare_values(binary.operator, left, right, whole)
+}
+
+func chain_operand(expression: Syntax.Expressions.Expression, chain: Boolean, toward: Integer): Integer {
+    if chain {
+        var member = shapes.as_member(expression)
+        crash member
+        return lower_chain(member)
+    }
+    if toward >= 0 {
+        var wanted = type_of(toward)
+        return lower_toward(expression, wanted)
+    }
+    return lower(expression)
+}
+
+func lower_binary_plain(binary: Syntax.Expressions.BinaryExpression): Integer {
     crash binary.left
     crash binary.right
     var operator = binary.operator
+    if operator == 'equal' or operator == 'not_equal' {
+        var chained = chain_comparison(binary)
+        if chained >= 0 or emitter.lowering_failed() {
+            return chained
+        }
+    }
     if operator == 'logical_and' or operator == 'logical_or' or operator == 'equal' or operator == 'not_equal' {
         var tested = lower_condition_shortcut(binary)
         if tested >= 0 or emitter.lowering_failed() {

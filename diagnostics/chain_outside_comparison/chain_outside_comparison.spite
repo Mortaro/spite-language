@@ -1,0 +1,7 @@
+var console = Console()
+var made: Piece? = null
+
+func ChainOutsideComparison() {
+    var kind = made.kind
+    console.print(kind)
+}
