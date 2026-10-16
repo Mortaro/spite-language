@@ -303,5 +303,13 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
 - **D578, which files count as "scripting".** The shell scripts, the git hooks (git runs them as shell, so they must
   stay shell or call a Spite program) and `bin/spite.cmd`: do the hooks stay as one-line shell files that run a
   Spite program, or is the rule only about the repository's own tools?
+- **D566, the programs that test an internal class.** About 80 conformance programs, diagnostics and benchmarks name
+  `Concurrent`, `Parallel`, `Lock`, `Atomic`, `ThreadLocal` or `Memory.Heap` because testing that class (or the lock a
+  `Parallel` makes the compiler add) is their point. Once those classes are internal, naming them outside `library/` is
+  an error. Which way? (a) Rewrite them to the plain forms, so they test what the compiler does with plain code (calls
+  in a row, bands, the cost of a singleton two threads reach) and the internal classes are tested only through it; (b)
+  let programs inside the repository's `conformance/`, `diagnostics/` and `benchmarks/` name `Spite.Internal`, which a
+  user's program still cannot; (c) a mix: (a) wherever a plain form exists, (b) for the rest until it does. My
+  recommendation is (c).
 
 None.
