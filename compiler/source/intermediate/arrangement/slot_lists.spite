@@ -288,6 +288,9 @@ func inner_use_allowed(
     outer: String,
     depth: Integer,
 ): Boolean {
+    if operation.kind == "load" and operation.operands.first() == read {
+        return not resized_between(function, flow, start, place, outer)
+    }
     if operation.kind != "call" {
         return false
     }
