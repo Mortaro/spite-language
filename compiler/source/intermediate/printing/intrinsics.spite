@@ -1409,6 +1409,11 @@ func symbol_equals(body: Body, operation: Operation) {
         body.assign(operation.result, "({first_tag} == {second_tag})")
         return
     }
+    var named = body.string_constants[second_number]
+    if not first_tag.is_empty() and second_tag.is_empty() and named {
+        body.assign(operation.result, "false")
+        return
+    }
     string_equals(body, operation)
 }
 

@@ -34,7 +34,7 @@ func decide(reach: Facts.ThreadReach) {
     index = 0
     while index < layouts.count() {
         var layout = layouts[index]
-        layout.atomic_counts = everything or atomic.has(layout.c_name)
+        layout.atomic_counts = everything or atomic.has(layout.c_name) or layout.c_name == "ThreadPoolJob"
         index = index + 1
     }
 }
