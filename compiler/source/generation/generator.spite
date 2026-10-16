@@ -25372,7 +25372,9 @@ func proven_buffer_access(
     var top_key = byte_key(list_text, position_ast, width - 1)
     assert bottom or scope.is_path_narrowed(top_key)
     var order = _buffer_order_of(list_text, scope)
-    assert counted or not order.is_empty()
+    if order.is_empty() {
+        order = "({object_result.code})->byte_order_"
+    }
     if counted {
         var position = counted_position(position_ast, scope, class_information)
         var base = "(intptr_t)({counted_base})"
@@ -44486,7 +44488,7 @@ func generate_counted_loop(
     builder.add_user("int32_t {bound} = {count_result.code};")
     var key = "{listed}[{counter.name}]"
     var items = hoist_items(member.object, scope, class_information)
-    var order = hoist_order(listed, scope)
+    var order = hoist_order(listed, member.object, scope, class_information)
     var truth = "{counter_result.code} < {bound}"
     if reach > 0 {
         truth = "{counter_result.code} < {bound} - {reach}"
@@ -44539,7 +44541,12 @@ func generate_counted_loop(
     builder.add_user("}")
 }
 
-func hoist_order(listed: String, scope: Scope): String {
+func hoist_order(
+    listed: String,
+    list_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
     var listed_type = scope.written_type(listed)
     if not listed_type {
         return ""
@@ -44551,8 +44558,9 @@ func hoist_order(listed: String, scope: Scope): String {
     if not static_order.is_empty() {
         return ""
     }
+    var list_result = generate_expression(list_ast, scope, class_information)
     var order = next_temporary()
-    builder.add_user("int32_t {order} = {listed}->byte_order_;")
+    builder.add_user("int32_t {order} = ({list_result.code})->byte_order_;")
     return order
 }
 
