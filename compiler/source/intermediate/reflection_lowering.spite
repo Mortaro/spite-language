@@ -567,11 +567,64 @@ func reflect_attribute(name_value: Integer, value: Integer, value_type: Analysis
     var attribute = lowering().construct_values(attribute_class, values)
     var held = held_value(value, value_type)
     lowering().emitter.store_field(attribute, "_value", held)
+    var plain_held = lowering().without_nullable(value_type)
+    if types.as_union(plain_held) {
+        hold_union(attribute, value, value_type)
+        return attribute
+    }
     var links = held_links(value_type)
     var operands = [attribute, value]
     var holding = lowering().emitter.call_operation("Attribute.hold", operands, null)
     holding.target = links
     return attribute
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func hold_union(attribute: Integer, value: Integer, value_type: Analysis.SpiteType) {
+    var made = lowering().front()
+    var emitter = lowering().emitter
+    var nullable = types.as_nullable(value_type)
+    var plain_type = lowering().without_nullable(value_type)
+    var union_type = types.as_union(plain_type)
+    crash union_type
+    var information = made.find_union_by_c_name(union_type.c_name)
+    crash information
+    var boolean = lowering().known().typed_boolean()
+    var finished = emitter.new_block()
+    var inner = value
+    if nullable {
+        var present = emitter.emit_call_one("Nullable.has", value, boolean)
+        var inside = emitter.new_block()
+        emitter.branch(present, inside, finished)
+        emitter.enter_block(inside)
+        inner = emitter.emit_call_one("Nullable.value", value, nullable.inner)
+    }
+    var tag_type = lowering().known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", inner, tag_type)
+    var index = 0
+    while index < information.members.count() {
+        var member = information.members[index]
+        var walkable = not member.is_value_class and not member.is_generic_template and member.c_name != "SpiteString"
+        if walkable and not made.boxed_value_types.has(member.c_name) {
+            var wanted = lowering().class_tag(member)
+            var matched = emitter.emit_call_two("Symbol.equals", tag, wanted, boolean)
+            var hit = emitter.new_block()
+            var next = emitter.new_block()
+            emitter.branch(matched, hit, next)
+            emitter.enter_block(hit)
+            var narrowed_type = lowering().member_type(member)
+            var narrowed = emitter.emit_call_one("Union.value", inner, narrowed_type)
+            var member_links = held_links(narrowed_type)
+            var operands = [attribute, narrowed]
+            var holding = emitter.call_operation("Attribute.hold", operands, null)
+            holding.target = member_links
+            emitter.jump_plain(finished)
+            emitter.enter_block(next)
+        }
+        index = index + 1
+    }
+    emitter.jump_plain(finished)
+    emitter.enter_block(finished)
 }
 
 func held_value(value: Integer, value_type: Analysis.SpiteType): Integer {
