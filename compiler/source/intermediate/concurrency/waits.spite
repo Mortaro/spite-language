@@ -485,6 +485,8 @@ func mark_resumable(entries: List<String>) {
                 function.resumable = true
                 resumable_count = resumable_count + 1
                 summary.callees.each(waiting.append)
+                var through_values = effects.value_waiters_of(function)
+                through_values.each(waiting.append)
             }
         }
     }

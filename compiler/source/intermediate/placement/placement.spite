@@ -7,7 +7,7 @@ var results: ResultSlots? = null
 var framed_objects = 0
 var framed_lists = 0
 var framed_buffers = 0
-var dropped_defaults = Dictionary<Operation, Boolean>()
+var dropped_count = 0
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -62,7 +62,7 @@ func place_function(function: Function) {
         }
         block_index = block_index + 1
     }
-    assert framed.count() > 0 or dropped_defaults.count() > 0
+    assert framed.count() > 0 or dropped_count > 0
     mark_frame_releases(function, framed)
 }
 
@@ -174,7 +174,8 @@ func drop_list_defaults(function: Function, uses: Facts.Uses, list: Integer) {
         var place = reached[index]
         var user = operation_at_or_none(function, place)
         if user and user.kind == "store" and user.operands.first() == list and (user.field == "items" or user.field == "capacity") {
-            dropped_defaults[user] = true
+            user.form = "dropped_default"
+            dropped_count = dropped_count + 1
         }
         index = index + 1
     }
@@ -389,7 +390,7 @@ func mark_frame_releases(function: Function, framed: Dictionary<Integer, Boolean
         var index = 0
         while index < block.operations.count() {
             var operation = block.operations[index]
-            var dropped = dropped_defaults.has(operation)
+            var dropped = operation.form == "dropped_default"
             var counts_framed = operation.kind == "retain" or operation.kind == "release"
             var operand = operation.operands.first()
             if counts_framed and operand and framed.has(operand) {
