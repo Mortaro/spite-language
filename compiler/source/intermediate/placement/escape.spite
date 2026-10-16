@@ -107,15 +107,32 @@ func escapes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value:
     if operation.kind == "store" {
         return operation.operands.last() == value
     }
+    if operation.kind == "call value" {
+        return value_kept_by_call_value(operation, value)
+    }
     if operation.kind != "call" {
         return true
     }
     return call_keeps(function, uses, operation, value, depth)
 }
 
+func value_kept_by_call_value(operation: Operation, value: Integer): Boolean {
+    var index = 1
+    while index < operation.operands.count() {
+        if operation.operands[index] == value {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func call_keeps(function: Function, uses: Facts.Uses, operation: Operation, value: Integer, depth: Integer): Boolean {
     crash intrinsics
     crash consumption
+    if operation.callee == "Function.bind" {
+        return operation.operands.first() != value
+    }
     if intrinsics.is_dotted(operation.callee) {
         return derived_escapes(function, uses, operation, depth)
     }
