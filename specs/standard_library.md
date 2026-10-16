@@ -397,7 +397,7 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   unless every byte is in the buffer, and a negative `count` halts. `append_bytes(other, start, count)` copies a run
   of another buffer (or the same one) to the end and halts unless `start >= 0`, `count >= 0` and `start + count <=
   other.count()`. A new buffer takes the `byte_order` of the one it came from.
-- **Text.** `to_utf8_text(): String?` is the text the bytes spell, `null` when they are not valid UTF-8 (a stray
+- **Text.** `text(position, count): String?` is the text of the `count` bytes at `position` (`null` when they are not valid UTF-8, a halt outside the buffer), and `to_utf8_text(): String?` is the text all the bytes spell, `null` when they are not valid UTF-8 (a stray
   continuation byte, a cut sequence, an overlong form, a surrogate or a value past U+10FFFF); `text.to_bytes()`
   answers a `Buffer` of the text's UTF-8.
 - **Values are a serializer's job, numbers the buffer's.** `BinaryWriter<T>` and `BinaryReader<T>` turn a whole

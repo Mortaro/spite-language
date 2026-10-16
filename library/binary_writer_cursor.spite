@@ -42,12 +42,16 @@ func write_count(count: Integer) {
 }
 
 func write_text(text: String) {
-    var run = text.to_bytes()
-    var counted = run.count()
-    write_count(counted)
+    var length = text.length()
+    write_count(length)
     var used = _bytes.count()
-    _bytes.reserve(used + counted)
-    _bytes.append_bytes(run, 0, counted)
+    _bytes.reserve(used + length)
+    var index = 0
+    while index < length {
+        var code = text.code_at(index)
+        _bytes.append(code)
+        index = index + 1
+    }
 }
 
 func write_index() {

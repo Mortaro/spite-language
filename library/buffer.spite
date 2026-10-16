@@ -386,13 +386,33 @@ func to_utf8_text(): String? {
     return items.text(item_count)
 }
 
+func text(at: Integer, wanted: Integer): String? {
+    assert at >= 0 and wanted >= 0 and at <= item_count - wanted
+    var end = at + wanted
+    var index = at
+    while index < end {
+        var sequence_length = _utf8_length_before(index, end)
+        assert sequence_length != 0
+        index = index + sequence_length
+    }
+    if wanted == 0 {
+        return ""
+    }
+    var start: Memory.Address = items + at
+    return start.text(wanted)
+}
+
 func _utf8_length_at(index: Integer): Integer {
+    return _utf8_length_before(index, item_count)
+}
+
+func _utf8_length_before(index: Integer, limit: Integer): Integer {
     var lead: Integer = items.read_byte(index)
     var length = _utf8_length_of(lead)
     if length <= 1 {
         return length
     }
-    if index + length > item_count {
+    if index + length > limit {
         return 0
     }
     var second: Integer = items.read_byte(index + 1)

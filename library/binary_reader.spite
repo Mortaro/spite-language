@@ -2,6 +2,7 @@ generic $value_type
 
 var position = 0
 var format = BinaryFormat<$value_type>()
+var cursor = BinaryCursor()
 
 func read(bytes: Buffer): $value_type? {
     var read_value = read_from(bytes, 0)
@@ -12,8 +13,9 @@ func read(bytes: Buffer): $value_type? {
 func read_from(bytes: Buffer, start: Integer): $value_type? {
     crash start >= 0
     crash start <= bytes.count()
-    var cursor = BinaryCursor(bytes)
+    cursor.source = bytes
     cursor.position = start
+    cursor.failed = false
     var read_value = format.read(cursor)
     assert not cursor.failed
     position = cursor.position
