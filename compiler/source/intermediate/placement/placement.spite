@@ -8,6 +8,7 @@ var framed_objects = 0
 var framed_lists = 0
 var framed_buffers = 0
 var dropped_count = 0
+var waiting: Facts.Effects? = null
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -18,6 +19,8 @@ func run(starting_lowered: Lowered) {
     var made_escape = Escape(starting_lowered)
     escape = made_escape
     var made_results = ResultSlots(starting_lowered, made_escape)
+    var made_waiting = Facts.Effects(starting_lowered)
+    waiting = made_waiting
     results = made_results
     var functions = starting_lowered.concrete_functions
     var index = 0
@@ -102,6 +105,10 @@ func copied_layout(function: Function, operation: Operation): Layout? {
     var layout = kinds.layout_of(copied_type)
     assert layout and layout.kind == "class" and results.holds_only_plain(layout.c_name)
     assert not escape.escapes(function, operation.result)
+    crash waiting
+    var made_value = function.value_at(operation.result)
+    var visited = Dictionary<String, Boolean>()
+    assert not waiting.drop_waits(made_value.spite_type, visited)
     return layout
 }
 

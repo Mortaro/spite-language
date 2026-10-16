@@ -38,7 +38,6 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
     if depth > 8 {
         return true
     }
-    var keeping = ["append", "prepend", "insert", "set_at", "push", "write_value"]
     var reached = uses.uses_of(value)
     var index = 0
     while index < reached.count() {
@@ -59,14 +58,30 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
             if passes_on and escapes(function, uses, operation.result, depth + 1) {
                 return true
             }
-            if operation.kind == "call" {
-                var callee = lowered.function_named(operation.callee)
-                if callee and keeping.contains(callee.name) {
-                    return true
-                }
+            if operation.kind == "call" and callee_keeps(operation, value) {
+                return true
             }
         }
         index = index + 1
+    }
+    return false
+}
+
+func callee_keeps(operation: Operation, value: Integer): Boolean {
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    var position = 1
+    while position < operation.operands.count() {
+        var parameter_index = position - 1
+        if operation.operands[position] == value and parameter_index < callee.parameters.count() {
+            if callee.parameters[parameter_index].ownership == "owned" {
+                return true
+            }
+        }
+        position = position + 1
     }
     return false
 }

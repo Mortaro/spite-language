@@ -5,14 +5,13 @@ var kinds: Facts.ValueKinds? = null
 var consumption: Consumption? = null
 var drop_effects = Facts.Summary()
 var borrowed_reads = 0
+var current_function: Function? = null
 var counted_reads = 0
 var retains = 0
 var releases = 0
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
-    var row_escapes = RowEscapes()
-    row_escapes.run(starting_lowered)
     var made_effects = Facts.Effects(starting_lowered)
     effects = made_effects
     var made_kinds = Facts.ValueKinds(starting_lowered)
@@ -22,6 +21,11 @@ func run(starting_lowered: Lowered) {
     made_consumption.settle_lent_returns()
     var conventions = ParameterConventions(starting_lowered, made_effects)
     conventions.decide()
+    var row_escapes = RowEscapes()
+    row_escapes.run(starting_lowered)
+    if row_escapes.escaped_count > 0 {
+        conventions.decide()
+    }
     learn_drops(starting_lowered, made_effects)
     prepare_lent_copies(starting_lowered)
     var copies = Copies(starting_lowered, made_effects)
@@ -60,6 +64,7 @@ func count_function(function: Function) {
     crash kinds
     crash consumption
     consumption.current = function
+    current_function = function
     split_critical_edges(function)
     var flow = Facts.Flow(function)
     var uses = Facts.Uses(function)
@@ -85,10 +90,43 @@ func settle_borrows(function: Function, borrows: Borrows, uses: Facts.Uses) {
         if origin == "borrowed" or origin == "lending" {
             settle_value(function, borrows, uses, index, inserted)
         }
+        if origin == "lent" and consumed_by_operation(uses, index, 0) {
+            borrows.origins[index] = "owned"
+            counted_reads = counted_reads + 1
+            inserted[index] = true
+        }
         index = index + 1
     }
     assert inserted.count() > 0
     insert_retains(function, inserted)
+}
+
+func consumed_by_operation(uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+    crash consumption
+    crash current_function
+    if depth > 8 {
+        return false
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.position >= 0 {
+            var block = current_function.block_at(place.block)
+            var operation = block.operations[place.position]
+            crash operation
+            var passes_on = consumption.is_projection(operation) or consumption.is_wrap(operation)
+            if passes_on and operation.result >= 0 {
+                if consumed_by_operation(uses, operation.result, depth + 1) {
+                    return true
+                }
+            } else if consumption.consumes(operation, value) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func settle_value(

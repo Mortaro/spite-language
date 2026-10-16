@@ -487,6 +487,8 @@ func mark_resumable(entries: List<String>) {
                 summary.callees.each(waiting.append)
                 var through_values = effects.value_waiters_of(function)
                 through_values.each(waiting.append)
+                var through_drops = effects.drop_waiters_of(function)
+                through_drops.each(waiting.append)
             }
         }
     }
