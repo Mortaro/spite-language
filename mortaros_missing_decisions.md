@@ -15,6 +15,11 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D598's limits:** a chain through a `T?` counts as missing only inside `==` and `!=` (`made.kind == "make"` is
+  `false`, `made.kind != "make"` is `true` when `made` is null); `<`, `<=`, `>` and `>=` still refuse a `T?`, and a
+  bare `made.kind` outside a comparison still needs narrowing. Easy to widen.
+- **`Buffer.text(position, count): String?`**, added while building Buffer: reads that range as UTF-8, `null` when
+  it is not valid UTF-8 or runs past the end.
 - **D590's details** (your four points are decided; these were chosen while writing the spec): `MappedFile` and
   `ForeignBytes` use the same `_at` names and take a `byte_order` (`ForeignBytes` has no position); `byte` reads only as
   `read_byte()`, the list forms cover the rest; `remaining()`, `read_bytes(count)` and `read_bytes_at(position,

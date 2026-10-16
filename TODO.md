@@ -6,6 +6,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Language rules
 
+- A member chain read through a `T?` inside `==` or `!=` is a `T?`, so `return made.kind == "make"` compiles; and `and` narrows its right side in every expression, `return` included (D598)
 - A `switch` case of two statements or more is a compile error; about 530 cases in the compiler and `library/` are rewritten first (D576)
 - Three or more classes in a folder sharing a name prefix are an error; the compiler's own `backend/high_*.spite` break it (D588)
 - Environments are a reopenable, walkable enum (D180, D373)

@@ -169,7 +169,9 @@ for the rest of that block and any block nested inside it. It is the same rule [
 `assert value and other_condition`, applied along a member chain instead of across an `and`.
 Across an `and`, every side narrows, for `assert`, `crash` and `if` alike, since each side is known true when the
 whole is: `crash names[position] and ages[position]` proves both elements, as two `crash` lines would
-(`conformance/stage6/and_narrowing`).
+(`conformance/stage6/and_narrowing`). Inside any `and`, in a `return` or any other expression too, the right side
+sees the left side's narrowing, since it is only computed when the left side is true: `return made and
+made.kind == "make"` reads `made.kind` on a plain `made`.
 
 - It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
   `class.namespace.namespace` says nothing about `other_class.namespace`.
@@ -349,8 +351,18 @@ and `remove_last()`: nothing to take from an empty list is a normal outcome. `te
 
 **Comparing needs no narrowing.** `==` and `!=` accept a `T?` on the left:
 null is equal only to null, so `crash Spite.Class.namespace == "Spite"` is a whole test, and two missing values are
-equal. Either side may be the `T?`. Only the comparison
-is exempt: reading a member through a `T?` still needs it narrowed first. A `Spite.Namespace` compares with
+equal. Either side may be the `T?`.
+
+**A chain read inside a comparison needs no narrowing either.** On either side of `==` or `!=`, a member chain
+that reads through a `T?` (`made.kind`, `player.weapon.name`) is itself a `T?`, missing when any link of it is
+missing, so `made.kind == "make"` is `false` when `made` is null and `made.kind != "make"` is `true`, exactly as
+for a `T?` compared directly. It holds wherever the comparison is written: in an `if`, an `assert`, a `crash`, a
+`return` or any other expression, so `return made.kind == "make"` needs no `made and` in front. The compiler
+writes the presence test of each link while compiling, once per link, and the value read is the chain's own, with
+nothing computed twice. Outside a comparison, reading a member through a `T?` still needs it narrowed first:
+`made.kind` on its own, an argument, an assignment or arithmetic. `<`, `<=`, `>` and `>=` take no `T?` at all.
+
+A `Spite.Namespace` compares with
 text through `equals(String)` in `library/spite/namespace.spite`, against its `name_with_namespaces`; two
 namespaces still compare by identity, because a class's `equals` is used for a right side of that same class
 only when `equals` takes that class.
