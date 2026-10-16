@@ -6,8 +6,8 @@
 
 #define SpiteMemory_Address_write_byte(self, offset, value) memcpy(((char*)(intptr_t)(self) + (offset)), &(uint8_t){ (value) }, sizeof(uint8_t))
 
-SpiteString Base64__encoded(Base64* self, List_Byte* bytes_, SpiteString alphabet_, bool padded_) {
-    int32_t count_ = List_Byte_count(bytes_);
+SpiteString Base64__encoded(Base64* self, Buffer* bytes_, SpiteString alphabet_, bool padded_) {
+    int32_t count_ = Buffer_count(bytes_);
     int64_t room_ = SpiteInteger_to_long(({ int32_t spite_temp_1 = (({ int32_t spite_temp_2 = count_; int32_t spite_temp_3 = 2; int32_t spite_temp_4; if (__builtin_expect(__builtin_add_overflow(spite_temp_2, spite_temp_3, &spite_temp_4), 0)) spite_overflowed("count + 2", "an Integer", "+", (int64_t)spite_temp_2, (int64_t)spite_temp_3, spite_site_1()); spite_temp_4; }) / 3); int32_t spite_temp_5 = 4; int32_t spite_temp_6; if (__builtin_expect(__builtin_mul_overflow(spite_temp_1, spite_temp_5, &spite_temp_6), 0)) spite_overflowed("(count + 2) / 3 * 4", "an Integer", "*", (int64_t)spite_temp_1, (int64_t)spite_temp_5, spite_site_1()); spite_temp_6; }));
     int64_t spite_temp_7[32];
     int64_t spite_temp_8 = (room_ + SpiteInteger_to_long(1));
@@ -55,7 +55,7 @@ SpiteString Base64__encoded(Base64* self, List_Byte* bytes_, SpiteString alphabe
     SpiteString spite_temp_21 = SpiteString___retain(text_);
     SpiteString___release(text_);
     SpiteString___release(alphabet_);
-    List_Byte___release(bytes_);
+    Buffer___release(bytes_);
     return spite_temp_21;
 }
 
