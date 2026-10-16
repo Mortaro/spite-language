@@ -1,6 +1,6 @@
 singleton
 
-var guard = Lock()
+var guard = Spite.Internal.Lock()
 var stopping = false
 var count: Long = 0
 

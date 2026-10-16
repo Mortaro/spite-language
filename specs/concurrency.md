@@ -130,12 +130,12 @@ there is no second pool to create or pass around.
 **A value per thread, and a lock.** Three small
 classes, each system's folder supplying the calls, and each carried only by a program that makes one:
 
-- **`Lock()`** (`library/lock.spite`): `while_locked(work: Spite.Function<Nothing>)` runs the function holding the
+- **`Spite.Internal.Lock()`** (`library/spite/internal/lock.spite`, each system's variant in `library/<system>/spite/internal/`), internal to the library and refused in a program's source; a program uses a singleton a `Parallel` reaches instead: `while_locked(work: Spite.Function<Nothing>)` runs the function holding the
   lock, so the unlock cannot be forgotten; `lock()` and `unlock()` stay for a section that is not one function.
   `SRWLOCK` on Windows, `pthread_mutex_t` elsewhere; `drop()` frees it. Not reentrant.
-- **`ThreadSlot()`** (`library/thread_slot.spite`): one `Long` per thread, `0` until written (`TlsAlloc` or
+- **`Spite.Internal.ThreadSlot()`** (`library/spite/internal/thread_slot.spite`), internal like `Lock`: one `Long` per thread, `0` until written (`TlsAlloc` or
   `pthread_key_create`). `read()`, `write(value)`; `drop()` gives the key back.
-- **`ThreadLocal<T>()`** (`library/thread_local.spite`): a value of any type per thread. Its `ThreadSlot` holds
+- **`Spite.Internal.ThreadLocal<T>()`** (`library/spite/internal/thread_local.spite`), internal like `Lock`: a value of any type per thread. Its `ThreadSlot` holds
   each thread's position in an array of `T` the `ThreadLocal` owns, so values stay reference counted
   and are all released when the `ThreadLocal` is dropped, whichever threads set them and whether or not those
   threads still run. `get(): T?` is `null` on a thread that has not called `set(value)`. `get()` takes no lock: the

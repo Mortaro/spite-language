@@ -1,7 +1,7 @@
 singleton
 
-var _depth = ThreadSlot()
-var _lock = Lock()
+var _depth = Spite.Internal.ThreadSlot()
+var _lock = Spite.Internal.Lock()
 
 func enter() {
     var depth = _depth.read()

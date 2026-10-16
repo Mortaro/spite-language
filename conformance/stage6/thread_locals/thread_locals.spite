@@ -1,7 +1,7 @@
 var console = Console()
 var pool = ThreadPool()
-var names = ThreadLocal<String>()
-var counter_lock = Lock()
+var names = Spite.Internal.ThreadLocal<String>()
+var counter_lock = Spite.Internal.Lock()
 var counted = 0
 
 func ThreadLocals() {
@@ -26,7 +26,7 @@ func ThreadLocals() {
     crash still
     console.print("the main thread still reads", still)
     console.print("counted under the lock:", counted)
-    var fresh = ThreadLocal<Integer>()
+    var fresh = Spite.Internal.ThreadLocal<Integer>()
     var unset = fresh.get()
     if unset {
         console.print("a new ThreadLocal already has", unset)

@@ -1,0 +1,1 @@
+diagnostics/user_lock_bare/user_lock_bare.spite:4: error: Lock is internal to Spite and cannot be used outside the standard library: read bytes with List<Byte> or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler (in UserLockBare.UserLockBare)

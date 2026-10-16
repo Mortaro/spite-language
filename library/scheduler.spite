@@ -9,9 +9,9 @@ var answering_in_wait = false
 var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
 var paused = false
-var _loops = ThreadLocal<SchedulerLoop>()
+var _loops = Spite.Internal.ThreadLocal<SchedulerLoop>()
 var _every_loop = List<SchedulerLoop>()
-var _loops_lock = Lock()
+var _loops_lock = Spite.Internal.Lock()
 
 func loop(): SchedulerLoop {
     var found = _loops.get()

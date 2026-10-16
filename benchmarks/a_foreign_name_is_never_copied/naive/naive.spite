@@ -1,5 +1,5 @@
 var console = Console()
-var guard = Lock()
+var guard = Spite.Internal.Lock()
 var count = 0
 
 func Naive() {

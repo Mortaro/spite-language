@@ -1056,9 +1056,8 @@ own.
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
 it, and it starts its worker threads then, once.
 A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
-the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise;
-its `get()` never locks, and only a thread's `set` does
-([concurrency.md](concurrency.md#a-value-per-thread-and-a-lock)).
+the rest. The library's `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise
+([concurrency.md](concurrency.md#work-of-its-own-and-a-short-section)).
 
 **When.** Always. **What you notice.** Nothing until the first `Parallel`, which pays for starting the workers.
 [concurrency.md](concurrency.md#the-thread-pool).
@@ -1938,31 +1937,14 @@ shows it: `static SpiteString spite_symbol_4 = { (int64_t)0x00000065756c6176ULL,
 **What it does.** The first call into a foreign library opens it and looks up every function the program calls in
 it, all at once. The library's file name and each function's name, and the name of the Spite function that calls it
 (which a missing function's error message shows), are known while compiling, so each is a `String` pointing at text
-written into the program, never copied onto the heap first. Opening `kernel32.dll` for a `Lock` and a `ThreadSlot`
+written into the program, never copied onto the heap first. Opening `kernel32.dll` for the library's lock and thread slot
 used to copy nine names of more than 15 bytes, like `AcquireSRWLockExclusive` and `ThreadSlot.create_key`, and
 free each one a moment later; it copies none now.
 
 **When.** Every foreign library a program opens, in every build.
 
-**Example.** Locking opens the system's thread library on its first call, and its names cost nothing:
-
-```gdscript title=foreign_names/foreign_names.spite entry
-var console = Console()
-var guard = Lock()
-
-func ForeignNames() {
-    guard.lock()
-    console.print("locked")
-    guard.unlock()
-}
-```
-```output
-locked
-```
-
 **What you notice.** Fewer allocations under `--debug-memory`, where a library is opened after the allocation
-table started counting: on Windows this program makes 5 allocations rather than 10 (the `Lock`, its handle, the
-library and the program's two objects). On Linux every library the standard one opens is the C library, which the
+table started counting. On Linux every library the standard one opens is the C library, which the
 allocation table itself opens before it counts, so there the counts are as they were. The C shows each name as
 `((SpiteString)SPITE_STATIC_STRING("AcquireSRWLockExclusive", 23))`.
 

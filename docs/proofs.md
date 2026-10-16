@@ -1313,7 +1313,7 @@ These apply only in a program that uses threads: one that makes a `Parallel`, ru
 - **Falls back.** A reached singleton takes one of the forms below, the lock last.
 - **See.** [optimizations.md: Thread safety for singletons, the cheapest safe
   form](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form),
-  [concurrency.md: A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock);
+  [concurrency.md: Work of its own, and a short section](concurrency.md#work-of-its-own-and-a-short-section);
   `conformance/stage6/singleton_forms`.
 
 ### No other thread touches a singleton
@@ -1498,8 +1498,8 @@ counter, one load per call, not a proof: [optimizations.md](optimizations.md#whi
   `Lock` attribute's `while_locked(...)`; a `Weak` a `Parallel` reaches is an error.
 - **Buys.** A data race is a compile error.
 - **Falls back.** Refused, naming what the other thread could reach.
-- **See.** [concurrency.md: A value per thread, and a
-  lock](concurrency.md#a-value-per-thread-and-a-lock), [`parallel_each_`: a member on every
+- **See.** [concurrency.md: Work of its own, and a short
+  section](concurrency.md#work-of-its-own-and-a-short-section), [`parallel_each_`: a member on every
   element](concurrency.md#parallel_each_-a-member-on-every-element); `diagnostics/parallel_reach`,
   `diagnostics/parallel_function_reach`, `diagnostics/parallel_handover`, `diagnostics/parallel_shared_value_writes`,
   `diagnostics/weak_across_threads`.
