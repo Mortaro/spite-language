@@ -894,6 +894,7 @@ func items_attributes(
         var binding = emitter.call_operation("Attribute.bind_item", bound, null)
         binding.target = ""
         binding.literal = ""
+        binding.spite_type = element
         var parseable = types.as_string(element) or types.as_scalar(element) or types.as_enum(element)
         if parseable {
             binding.target = lowering().known().accessed_maker(

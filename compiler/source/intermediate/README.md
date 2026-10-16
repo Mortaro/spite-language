@@ -92,7 +92,7 @@ number of the receiver's value (or `-1`); `parameters[i].value` is the parameter
 with a body, the intrinsic's name for one without, and `supplied` for a library function whose body the compiler
 writes. The other fields mark what a pass found: `specialised_from`, `not_lowered` (the reason the body could not be
 lowered, which the printer refuses by name), `singleton_of`, `locking`, `resumable`, `waits`, `waiting_kind`,
-`lends_answer`, `slotted`, `folded_into`, `filled_by`.
+`lends_answer`, `slotted`, `folded_into`, `filled_by`. `made_for` names what a function the lowering wrote for the passes is for; `started` marks `<callee>___started(receiver, site)`, written for every function of the program's own classes that takes no arguments and answers nothing, in a program that sleeps and starts waits: it builds a `Concurrent` over the receiver's function and hands it to `WaitsInFlight<Nothing>._keep(handle, site)`, and the concurrency pass rewrites a call marked `started` into a call of it.
 
 **Operation kinds.** There are eight, and every pass handles all of them.
 
@@ -137,7 +137,7 @@ index the table does not hold.
 
 ### Reading `--high-ir`
 
-`--high-ir=<folder>` writes one `<class>.ir` per layout (`text.spite` is the writer). A short real example, the
+`--high-ir=<folder>` writes one `<c name>.ir` per layout (`text.spite` is the writer). A short real example, the
 program below run with `spite counter --high-ir=out`:
 
 ```
@@ -158,7 +158,7 @@ func add(amount: Integer) {
 }
 ```
 
-gives `counter.ir` (shortened):
+gives `Counter.ir` (shortened):
 
 ```
 class Counter (Counter), arranged as object

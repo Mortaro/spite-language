@@ -840,7 +840,7 @@ func wrote_lowered_ir(lowered: Intermediate.Lowered, output_directory: String): 
     var index = 0
     while index < lowered.layouts.count() {
         var layout = lowered.layouts[index]
-        var path = "{output_directory}/{final_class_file_name(layout.qualified)}.ir"
+        var path = "{output_directory}/{layout.c_name}.ir"
         var written = text.layout_text(lowered, layout)
         if not File(path).write(written) {
             console.error("error: could not write '{path}'")
