@@ -8,6 +8,7 @@ var machines = Machines()
 var hot = Hot()
 var machine = false
 var resume_count = 0
+var release_temporaries = 0
 var placements = Dictionary<Integer, Integer>()
 var current_block = Block(0)
 var shape = Analysis.TypeShape()
@@ -1173,6 +1174,13 @@ func print_known_call(operation: Operation, callee: Function) {
         intrinsics.print(this, operation)
         return
     }
+    if machine and callee.name == "clear" and operation.operands.count() == 1 {
+        var released = print_waiting_clear(operation)
+        if released {
+            print_plain_call(operation, callee.c_name)
+            return
+        }
+    }
     if waits_in_machine(callee) {
         print_wait_call(operation, callee)
         return
@@ -2020,22 +2028,179 @@ func print_release(operation: Operation) {
 }
 
 func print_waiting_release(counted: Analysis.SpiteType?, name: String, held: String): Boolean {
-    var layout = naming.layout_of(counted)
-    if not layout or not layout.information or not layout.information.drop_function or not drops_waiting(layout) {
+    var visited = List<String>()
+    if not reaches_waiting_drop(counted, visited) {
         return false
     }
-    var dropper = lowered.function_named(layout.information.drop_function.c_name)
+    var finished = suspend_release(held, counted)
+    if not finished {
+        lines.append("{name}___release({held});")
+    }
+    return true
+}
+
+func reaches_waiting_drop(spite_type: Analysis.SpiteType?, visited: List<String>): Boolean {
+    if not spite_type {
+        return false
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return reaches_waiting_drop(nullable.inner, visited)
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        return reaches_waiting_drop(listed.element, visited)
+    }
+    var dictionary = shape.as_dictionary(spite_type)
+    if dictionary {
+        return reaches_waiting_drop(dictionary.element, visited)
+    }
+    var layout = naming.layout_of(spite_type)
+    if not layout or layout.is_value or visited.contains(layout.c_name) {
+        return false
+    }
+    visited.append(layout.c_name)
+    if own_waiting_drop(layout) {
+        return true
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member = lowered.layout_named(layout.members[index])
+        if member and member.information {
+            var member_type: Analysis.SpiteType = Analysis.Types.ClassRefType(member.c_name)
+            if reaches_waiting_drop(member_type, visited) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        if reaches_waiting_drop(layout.stored_fields[index].spite_type, visited) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func layout_dropper(layout: Layout): Function? {
+    assert layout.information and layout.information.drop_function
+    return lowered.function_named(layout.information.drop_function.c_name)
+}
+
+func own_waiting_drop(layout: Layout): Boolean {
+    if not drops_waiting(layout) {
+        return false
+    }
+    var dropper = layout_dropper(layout)
     crash dropper
-    if not waits_in_machine(dropper) {
+    return waits_in_machine(dropper)
+}
+
+func release_temporary(written: String): String {
+    release_temporaries = release_temporaries + 1
+    var name = "spite_release_{release_temporaries}"
+    declare("{written} {name};")
+    return name
+}
+
+func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return suspend_release(held, nullable.inner)
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+        release_items(held, listed.element)
+        lines.append("}")
         return false
     }
-    var counting = "SPITE_COUNT"
-    if lowered.makes_threads and not layout.atomic_counts {
-        counting = "SPITE_PLAIN_COUNT"
+    if shape.as_dictionary(spite_type) {
+        refuse("it releases a dictionary whose values wait when dropped, which the printer does not suspend in yet")
+        return true
     }
-    lines.append("if (({held}) != 0 && {counting}_DOWN(({held})->header.ref_count) <= 0) \{")
-    print_wait_through(-1, dropper, held)
-    lines.append("{name}___free_after_drop({held});")
+    var layout = naming.layout_of(spite_type)
+    if not layout or layout.hot or layout.kind != "class" {
+        refuse(
+            "it releases a value that reaches a waiting drop through a union or a hot class, which the printer does not suspend in yet",
+        )
+        return true
+    }
+    var name = layout.c_name
+    if own_waiting_drop(layout) {
+        var dropper = layout_dropper(layout)
+        crash dropper
+        var counting = "SPITE_COUNT"
+        if lowered.makes_threads and not layout.atomic_counts {
+            counting = "SPITE_PLAIN_COUNT"
+        }
+        lines.append("if (({held}) != 0 && {counting}_DOWN(({held})->header.ref_count) <= 0) \{")
+        print_wait_through(-1, dropper, held)
+        release_waiting_fields(layout, held)
+        lines.append("{name}___free_after_drop({held});")
+        lines.append("}")
+        return true
+    }
+    lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+    release_waiting_fields(layout, held)
+    lines.append("}")
+    return false
+}
+
+func release_waiting_fields(layout: Layout, held: String) {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        index = index + 1
+        var visited = List<String>()
+        if reaches_waiting_drop(field.spite_type, visited) {
+            crash field.spite_type
+            var written = naming.c_type(field.spite_type)
+            var temporary = release_temporary(written)
+            var member = "{naming.fields_of(layout, held)}->{field.name}_"
+            lines.append("{temporary} = {member}; {member} = 0;")
+            var counted = naming.counted_name(field.spite_type)
+            var finished = suspend_release(temporary, field.spite_type)
+            if not finished {
+                lines.append("{counted}___release({temporary});")
+            }
+        }
+    }
+}
+
+func release_items(held: String, element: Analysis.SpiteType) {
+    var written = naming.c_type(element)
+    var counter = release_temporary("int32_t")
+    var item = release_temporary(written)
+    var counted = naming.counted_name(element)
+    lines.append("{counter} = 0;")
+    lines.append("while ({counter} < ({held})->item_count_) \{")
+    lines.append(
+        "{item} = (({written}*)(intptr_t)({held})->items_)[{counter}]; (({written}*)(intptr_t)({held})->items_)[{counter}] = 0;",
+    )
+    var finished = suspend_release(item, element)
+    if not finished {
+        lines.append("{counted}___release({item});")
+    }
+    lines.append("{counter} = {counter} + 1;")
+    lines.append("}")
+}
+
+func print_waiting_clear(operation: Operation): Boolean {
+    var cleared_type = operand_type(operation, 0)
+    var listed = shape.as_list(cleared_type)
+    if not listed {
+        return false
+    }
+    var visited = List<String>()
+    if not reaches_waiting_drop(listed.element, visited) {
+        return false
+    }
+    var cleared = operand(operation, 0)
+    lines.append("if (({cleared}) != 0) \{")
+    release_items(cleared, listed.element)
     lines.append("}")
     return true
 }
