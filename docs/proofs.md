@@ -587,8 +587,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** A function can or cannot reach a wait (a sleep, a read of a console, file or socket, a scheduler
   join).
-- **Rule.** Waiting spreads from those library functions through calls by name, function values and dispatch
-  through a union or `type`, to a fixed point. `$T.functions['update_each'].is_resumable` folds to the answer; an answer that
+- **Rule.** Waiting spreads from those library functions through calls by name, function values (to every function
+  taken as a value with the same arguments and answer) and dispatch through a union or `type`, to a fixed point.
+  Letting go of a `Concurrent` joins it, so a function that lets one go waits: a local or an attribute assigned again,
+  an object or a list holding one dropped at the end of its scope, a list cleared. `$T.functions['update_each'].is_resumable` folds to the answer; an answer that
   would change once the asking function is compiled is an error. Joining a `Parallel` is not a wait, nor is
   `finished`.
 - **Buys.** An engine runs a system on a `Concurrent` only where it waits.

@@ -6,6 +6,9 @@ var overlap_groups = 0
 var started_count = 0
 var resumable_count = 0
 var sleeping = Dictionary<String, Boolean>()
+var worked = Dictionary<String, Boolean>()
+var stale_cache = Dictionary<String, Boolean>()
+var shape = Analysis.TypeShape()
 
 func Waits(starting_lowered: Lowered, starting_effects: Facts.Effects) {
     lowered = starting_lowered
@@ -123,8 +126,9 @@ func start_frame_waits(function: Function) {
     var index = 0
     while index < headers.count() {
         var body = flow.body_of(headers[index])
-        if sleeps_in(function, body) {
+        if sleeps_in(function, body) and not writes_stale(function) {
             start_calls(function, body)
+            start_named_work(function, body, 0)
         }
         index = index + 1
     }
@@ -218,19 +222,249 @@ func startable(function: Function, operation: Operation): Boolean {
     if not summary.waits or summary.calls_values {
         return false
     }
-    return not carries_back(summary)
+    var seen = Dictionary<String, Boolean>()
+    return not carries_back_through(callee.c_name, seen)
 }
 
-func carries_back(summary: Facts.Summary): Boolean {
-    var written = summary.writes.keys()
+# ../../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func start_named_work(function: Function, body: List<Integer>, depth: Integer) {
+    crash lowered
+    assert depth < 4
     var index = 0
-    while index < written.count() {
-        if summary.reads.has(written[index]) {
+    while index < body.count() {
+        var block = function.block_at(body[index])
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            var callee = lowered.function_named(operation.callee)
+            if operation.kind == "call" and callee and works_for(function, callee) {
+                start_function_work(callee, depth)
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func works_for(function: Function, callee: Function): Boolean {
+    return callee.owner == function.owner and callee.c_name != function.c_name and not callee.is_intrinsic() and not callee.blocks.is_empty()
+}
+
+func start_function_work(callee: Function, depth: Integer) {
+    assert not worked.has(callee.c_name)
+    worked[callee.c_name] = true
+    assert not writes_stale(callee)
+    var every = callee.blocks.map_numbers()
+    start_calls(callee, every)
+    start_named_work(callee, every, depth + 1)
+}
+
+func carries_back_through(name: String, seen: Dictionary<String, Boolean>): Boolean {
+    crash lowered
+    crash effects
+    if seen.has(name) {
+        return false
+    }
+    seen[name] = true
+    var function = lowered.function_named(name)
+    if not function or function.is_intrinsic() or function.blocks.is_empty() {
+        return false
+    }
+    var summary = effects.of(name)
+    if not summary.waits {
+        return false
+    }
+    if writes_stale(function) {
+        return true
+    }
+    var index = 0
+    while index < summary.callees.count() {
+        if carries_back_through(summary.callees[index], seen) {
             return true
         }
         index = index + 1
     }
-    return summary.unknown and written.count() > 0
+    return false
+}
+
+func writes_stale(function: Function): Boolean {
+    if stale_cache.has(function.c_name) {
+        return stale_cache[function.c_name] == true
+    }
+    var found = finds_stale(function)
+    stale_cache[function.c_name] = found
+    return found
+}
+
+func finds_stale(function: Function): Boolean {
+    if function.blocks.is_empty() {
+        return false
+    }
+    var positions = Dictionary<Integer, Integer>()
+    var definitions = Dictionary<Integer, Operation>()
+    var loaded = Dictionary<Integer, String>()
+    var waits_at = List<Integer>()
+    var stored = List<Operation>()
+    var stored_at = List<Integer>()
+    var at = 0
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result >= 0 {
+                positions[operation.result] = at
+                definitions[operation.result] = operation
+            }
+            var key = plain_key(function, operation)
+            if operation.kind == "load" and not key.is_empty() {
+                loaded[operation.result] = key
+            }
+            if operation.kind == "store" and not key.is_empty() {
+                stored.append(operation)
+                stored_at.append(at)
+            }
+            if waits_here(operation) {
+                waits_at.append(at)
+            }
+            at = at + 1
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    if waits_at.is_empty() or stored.is_empty() {
+        return false
+    }
+    var incoming = incoming_values(function)
+    var count = 0
+    while count < stored.count() and count < stored_at.count() {
+        var operation = stored[count]
+        var written_at = stored_at[count]
+        var key = plain_key(function, operation)
+        var origin = operation.operands.last()
+        crash origin
+        var reached = reaching_loads(origin, definitions, incoming, loaded)
+        var load_index = 0
+        while load_index < reached.count() {
+            var read_value = reached[load_index]
+            crash loaded[read_value]
+            crash positions[read_value]
+            if loaded[read_value] == key and wait_between(waits_at, positions[read_value], written_at) {
+                return true
+            }
+            load_index = load_index + 1
+        }
+        count = count + 1
+    }
+    return false
+}
+
+func wait_between(waits_at: List<Integer>, earlier: Integer, later: Integer): Boolean {
+    var index = 0
+    while index < waits_at.count() {
+        if waits_at[index] > earlier and waits_at[index] < later {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func waits_here(operation: Operation): Boolean {
+    crash effects
+    if operation.kind != "call" {
+        return false
+    }
+    var summary = effects.of(operation.callee)
+    return summary.waits
+}
+
+func plain_key(function: Function, operation: Operation): String {
+    crash kinds
+    if operation.kind != "load" and operation.kind != "store" {
+        return ""
+    }
+    var object = operation.operands.first()
+    crash object
+    var object_value = function.value_at(object)
+    var layout = kinds.layout_of(object_value.spite_type)
+    if not layout {
+        return ""
+    }
+    var held = layout.field_named(operation.field)
+    if not held or not is_plain(held.spite_type) {
+        return ""
+    }
+    return "{layout.c_name}.{operation.field}"
+}
+
+func is_plain(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return is_plain(nullable.inner)
+    }
+    return shape.as_scalar(spite_type) or shape.as_enum(spite_type) or shape.as_string(spite_type) or shape.is_symbol(spite_type)
+}
+
+func incoming_values(function: Function): Dictionary<Integer, List<Integer>> {
+    var found = Dictionary<Integer, List<Integer>>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var targets = function.blocks[block_index].terminator.targets
+        var index = 0
+        while index < targets.count() {
+            var target = targets[index]
+            var parameters = function.block_at(target.block).parameters
+            var position = 0
+            while position < target.arguments.count() and position < parameters.count() {
+                var parameter = parameters[position]
+                if not found.has(parameter) {
+                    found[parameter] = List<Integer>()
+                }
+                crash found[parameter]
+                found[parameter].append(target.arguments[position])
+                position = position + 1
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func reaching_loads(
+    start: Integer,
+    definitions: Dictionary<Integer, Operation>,
+    incoming: Dictionary<Integer, List<Integer>>,
+    loaded: Dictionary<Integer, String>,
+): List<Integer> {
+    var reached = List<Integer>()
+    var seen = Dictionary<Integer, Boolean>()
+    var waiting = List<Integer>()
+    waiting.append(start)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not seen.has(taken) {
+            seen[taken] = true
+            if loaded.has(taken) {
+                reached.append(taken)
+            }
+            if definitions.has(taken) {
+                crash definitions[taken]
+                definitions[taken].operands.each(waiting.append)
+            }
+            if incoming.has(taken) {
+                crash incoming[taken]
+                incoming[taken].each(waiting.append)
+            }
+        }
+    }
+    return reached
 }
 
 # ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines

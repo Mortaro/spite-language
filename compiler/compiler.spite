@@ -825,8 +825,9 @@ func wrote_high_level_report(generator: Generation.Generator, report_path: Strin
 # ../design/proposals/desugared_high_ir.md#reading-the-high-ir
 func wrote_high_ir(generator: Generation.Generator, output_directory: String): Boolean {
     create_folder(output_directory)
-    var lowering = Intermediate.Lowering(generator)
-    var lowered = lowering.lower()
+    var pipeline = Intermediate.Pipeline(generator)
+    pipeline.prepare()
+    var lowered = pipeline.lowered
     var text = Intermediate.Text()
     var index = 0
     while index < lowered.layouts.count() {
