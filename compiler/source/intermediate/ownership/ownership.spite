@@ -90,7 +90,7 @@ func settle_borrows(function: Function, borrows: Borrows, uses: Facts.Uses) {
         if origin == "borrowed" or origin == "lending" {
             settle_value(function, borrows, uses, index, inserted)
         }
-        if origin == "lent" and consumed_by_operation(uses, index, 0) {
+        if origin == "lent" and not function.is_parameter(index) and consumed_by_operation(uses, index, 0) {
             borrows.origins[index] = "owned"
             counted_reads = counted_reads + 1
             inserted[index] = true

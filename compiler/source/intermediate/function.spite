@@ -57,6 +57,17 @@ func value_at(number: Integer): Value {
     return found
 }
 
+func is_parameter(value: Integer): Boolean {
+    var index = 0
+    while index < parameters.count() {
+        if parameters[index].value == value {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func is_intrinsic(): Boolean {
     return not intrinsic.is_empty()
 }
