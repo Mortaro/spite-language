@@ -653,7 +653,140 @@ func write_accessed(instances: Instances, position: Integer) {
         write_text_call(instances, position)
         return
     }
+    if kind == "enum_from_text" {
+        write_enum_reader(instances, position)
+        return
+    }
+    if kind == "copy" {
+        write_copy(instances, position)
+        return
+    }
+    if kind == "item_assign" or kind == "item_store" {
+        write_item_function(instances, position)
+        return
+    }
     write_described(instances, position)
+}
+
+func write_item_function(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var kind = instances.accessed_kinds[position]
+    crash name
+    crash described
+    crash kind
+    var function = synthetic_function(name, kind, described)
+    var element = described.codegen_types[0]
+    var boolean = instances.typed_boolean()
+    var nothing = instances.typed_nothing()
+    var answer = nothing
+    if kind == "item_assign" {
+        answer = boolean
+    }
+    function.answer = answer
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var integer_type = instances.typed_integer()
+    var index = function.new_value(integer_type, "parameter")
+    function.value_at(index).name = "index"
+    var index_parameter = Parameter("index", integer_type, index)
+    function.parameters.append(index_parameter)
+    var last_type = element
+    var last_name = "value"
+    if kind == "item_assign" {
+        last_type = instances.typed_string()
+        last_name = "text"
+    }
+    var last = function.new_value(last_type, "parameter")
+    function.value_at(last).name = last_name
+    var last_parameter = Parameter(last_name, last_type, last)
+    function.parameters.append(last_parameter)
+    var described_function = synthetic_description(kind, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    if kind == "item_assign" {
+        reflection.item_assign_body(described, element, function.receiver, index, last)
+    } else {
+        reflection.item_store_body(described, function.receiver, index, last)
+    }
+    finish_body(function, emitter)
+}
+
+func write_enum_reader(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var enum_name = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash enum_name
+    var made = instances.front()
+    var enum_type: Analysis.SpiteType? = null
+    var index = 0
+    while index < made.enums.count() {
+        var candidate = made.enums[index]
+        if candidate.c_name == enum_name {
+            enum_type = Analysis.Types.EnumType(candidate.c_name, candidate.values)
+        }
+        index = index + 1
+    }
+    crash enum_type
+    var enumerated = types.as_enum(enum_type)
+    crash enumerated
+    var text_type = instances.typed_string()
+    var maybe_enum = instances.nullable_of(enum_type)
+    var function = synthetic_function(name, "from_text", described)
+    function.answer = maybe_enum
+    var text = function.new_value(text_type, "parameter")
+    function.value_at(text).name = "text"
+    var text_parameter = Parameter("text", text_type, text)
+    function.parameters.append(text_parameter)
+    var described_function = synthetic_description("from_text", name, maybe_enum)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("text")
+    var value_index = 0
+    while value_index < enumerated.values.count() {
+        var value = enumerated.values[value_index]
+        var spelled = expressions.text_constant(value)
+        var same = expressions.compare_values('equal', text, spelled, whole)
+        var hit = emitter.new_block()
+        var next = emitter.new_block()
+        emitter.branch(same, hit, next)
+        emitter.enter_block(hit)
+        var constant = emitter.constant(enum_type, value)
+        var wrapped = emitter.emit_call_one("Nullable.wrap", constant, maybe_enum)
+        emitter.wrapped_values[wrapped] = true
+        emitter.returns(wrapped)
+        emitter.enter_block(next)
+        value_index = value_index + 1
+    }
+    var absent = emitter.constant(maybe_enum, "null")
+    emitter.returns(absent)
+    finish_body(function, emitter)
+}
+
+func write_copy(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    crash name
+    crash described
+    var function = synthetic_function(name, "copy", described)
+    var owner_type = instances.class_type(described)
+    function.answer = owner_type
+    function.receiver = function.new_value(owner_type, "receiver")
+    var described_function = synthetic_description("copy", name, owner_type)
+    var emitter = start_body(function, described, described_function, instances)
+    var made_object = emitter.make_object(described.c_name, owner_type)
+    var index = 0
+    while index < described.fields.count() {
+        var field = described.fields[index]
+        var held = emitter.load_field(function.receiver, field.name, field.type)
+        emitter.store_field(made_object, field.name, held)
+        index = index + 1
+    }
+    emitter.returns(made_object)
+    finish_body(function, emitter)
 }
 
 func write_container_attributes(instances: Instances, position: Integer) {

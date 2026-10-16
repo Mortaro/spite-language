@@ -410,7 +410,7 @@ func into_nullable(
 func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
     var scalar_type = types.as_scalar(inner)
     if types.as_enum(inner) {
-        return emitter.emit_call_one("Enum.from_text", value, wanted)
+        return enum_read(value, inner)
     }
     if not scalar_type {
         return not_lowered(wanted, "text read as a value of this kind")
@@ -1917,8 +1917,7 @@ func class_call(
 
 func missing_function(target: Analysis.ClassInfo, name: String, object: Integer): Integer {
     if name == "copy" {
-        var copied_type = type_of(object)
-        return emitter.emit_call_one("Object.copy", object, copied_type)
+        return shallow_copy(object)
     }
     if name == "deep_copy" {
         return deep_copied(object)
@@ -2865,14 +2864,36 @@ func compare_values(
     }
     var direct = direct_comparison(operator, decimal)
     if not direct.is_empty() {
+        if owner == "String" {
+            return string_comparison(direct, operands)
+        }
         return emitter.emit_call("{owner}.{direct}", operands, boolean)
     }
     var positive = negated_comparison(operator)
     if positive.is_empty() {
         return not_lowered(null, "the operator in '{source_text(whole)}'")
     }
-    var asked = emitter.emit_call("{owner}.{positive}", operands, boolean)
+    var asked = -1
+    if owner == "String" {
+        asked = string_comparison(positive, operands)
+    } else {
+        asked = emitter.emit_call("{owner}.{positive}", operands, boolean)
+    }
     return emitter.emit_call_one("Boolean.not", asked, boolean)
+}
+
+func string_comparison(name: String, operands: List<Integer>): Integer {
+    var made = front()
+    var string_class = made.find_class_by_c_name("SpiteString")
+    crash string_class
+    var comparing = string_class.find_function(name)
+    crash comparing
+    return call_reached(string_class, comparing, operands)
+}
+
+func same_text(subject: Integer, written: Integer): Integer {
+    var operands = [subject, written]
+    return string_comparison("equals", operands)
 }
 
 func direct_comparison(operator: Syntax.Expressions.BinaryOperator, decimal: Boolean): String {
@@ -3904,8 +3925,7 @@ func enum_from_text(name: String, object: Integer): Integer {
         return not_lowered(null, "'{name}()' on text")
     }
     var enum_type: Analysis.SpiteType = read_enum
-    var maybe_enum = known().nullable_of(enum_type)
-    return emitter.emit_call_one("Enum.from_text", object, maybe_enum)
+    return enum_read(object, enum_type)
 }
 
 func class_object_named(code: String, class_type: Analysis.SpiteType): Integer {
@@ -4557,4 +4577,33 @@ func receiver_less_call(information: Analysis.ClassInfo, declared: Analysis.Func
         return false
     }
     return made.is_inline_supplied(declared)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func enum_read(text: Integer, enum_type: Analysis.SpiteType): Integer {
+    var enumerated = types.as_enum(enum_type)
+    crash enumerated
+    var name = "{enumerated.c_name}___from_text"
+    known().accessed_maker(name, lowered_class, enumerated.c_name, "enum_from_text")
+    var maybe_enum = known().nullable_of(enum_type)
+    var operands = [text]
+    return emitter.emit_call(name, operands, maybe_enum)
+}
+
+# ../../../docs/memory.md#self-referential-classes-and-unions-just-work
+func shallow_copy(object: Integer): Integer {
+    var copied_type = type_of(object)
+    var made = front()
+    var owner = made.class_of_type(copied_type)
+    if not owner or owner.is_value_class {
+        return not_lowered(null, "a copy of something that is not an object of a class")
+    }
+    if owner.is_singleton {
+        return object
+    }
+    var name = "{owner.c_name}___copy"
+    known().accessed_maker(name, owner, "", "copy")
+    known().reach_layout(owner)
+    var operands = [object]
+    return emitter.emit_call(name, operands, copied_type)
 }

@@ -886,8 +886,30 @@ func items_attributes(
     }
     var name_symbol = emitter.emit_call_one("Symbol.of_text", name_text, symbol_type)
     var attribute = reflect_attribute(name_symbol, item, element)
-    var placed = [attribute, items, index]
-    emitter.call_operation("Attribute.place_item", placed, null)
+    if keys < 0 {
+        var list_class = made.list_class_of(element)
+        var bound = [attribute, items, index]
+        var binding = emitter.call_operation("Attribute.bind_item", bound, null)
+        binding.target = ""
+        binding.literal = ""
+        var parseable = types.as_string(element) or types.as_scalar(element) or types.as_enum(element)
+        if parseable {
+            binding.target = lowering().known().accessed_maker(
+                "{list_class.c_name}___item_assign",
+                list_class,
+                "",
+                "item_assign",
+            )
+        }
+        if types.as_class_ref(element) {
+            binding.literal = lowering().known().accessed_maker(
+                "{list_class.c_name}___item_store",
+                list_class,
+                "",
+                "item_store",
+            )
+        }
+    }
     lowering().call_two_function(appender, result, attribute)
     var one = emitter.constant(integer_type, "1")
     var next = lowering().number_operation('add', index, one, integer_type, whole)
@@ -957,22 +979,7 @@ func text_call_body(
         crash reader.function
         var item = lowering().call_reached(reader.owner, reader.function, item_operands)
         var argument = item
-        var scalar = types.as_scalar(parameter_type)
-        var enumerated = types.as_enum(parameter_type)
-        if scalar {
-            var word = known.scalar_word(scalar.kind)
-            var parser = made.written_string_function("to_{word}")
-            var string_class = made.find_class_by_c_name("SpiteString")
-            crash parser
-            crash string_class
-            var parse_operands = [item]
-            var parsed = lowering().call_reached(string_class, parser, parse_operands)
-            argument = unwrapped_or_fail(parsed, parameter_type, fail)
-        } else if enumerated {
-            var maybe_enum = known.nullable_of(parameter_type)
-            var parsed = emitter.emit_call_one("Enum.from_text", item, maybe_enum)
-            argument = unwrapped_or_fail(parsed, parameter_type, fail)
-        }
+        argument = parsed_argument(item, parameter_type, fail)
         passed.append(argument)
         index = index + 1
     }
@@ -1001,4 +1008,88 @@ func unwrapped_or_fail(parsed: Integer, inner: Analysis.SpiteType, fail: Integer
     emitter.branch(present, kept, fail)
     emitter.enter_block(kept)
     return emitter.emit_call_one("Nullable.value", parsed, inner)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func parsed_argument(item: Integer, parameter_type: Analysis.SpiteType, fail: Integer): Integer {
+    var made = lowering().front()
+    var emitter = lowering().emitter
+    var known = lowering().known()
+    var scalar = types.as_scalar(parameter_type)
+    var enumerated = types.as_enum(parameter_type)
+    if scalar and scalar.kind == 'boolean_kind' {
+        var text_type = known.typed_string()
+        var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("text")
+        var yes_text = emitter.constant(text_type, "true")
+        var is_yes = lowering().compare_values('equal', item, yes_text, whole)
+        var joined = emitter.new_block()
+        var answered = emitter.new_value(parameter_type, "parameter")
+        emitter.built_function().block_at(joined).parameters.append(answered)
+        var yes_block = emitter.new_block()
+        var other_block = emitter.new_block()
+        emitter.branch(is_yes, yes_block, other_block)
+        emitter.enter_block(yes_block)
+        var truth = emitter.constant(parameter_type, "true")
+        var truth_passed = [truth]
+        emitter.jump(joined, truth_passed)
+        emitter.enter_block(other_block)
+        var no_text = emitter.constant(text_type, "false")
+        var is_no = lowering().compare_values('equal', item, no_text, whole)
+        var no_block = emitter.new_block()
+        emitter.branch(is_no, no_block, fail)
+        emitter.enter_block(no_block)
+        var falsehood = emitter.constant(parameter_type, "false")
+        var falsehood_passed = [falsehood]
+        emitter.jump(joined, falsehood_passed)
+        emitter.enter_block(joined)
+        return answered
+    }
+    if scalar {
+        var word = known.scalar_word(scalar.kind)
+        var parser = made.written_string_function("to_{word}")
+        var string_class = made.find_class_by_c_name("SpiteString")
+        crash parser
+        crash string_class
+        var parse_operands = [item]
+        var parsed = lowering().call_reached(string_class, parser, parse_operands)
+        return unwrapped_or_fail(parsed, parameter_type, fail)
+    }
+    if enumerated {
+        var parsed = lowering().enum_read(item, parameter_type)
+        return unwrapped_or_fail(parsed, parameter_type, fail)
+    }
+    return item
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func item_assign_body(
+    list_class: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
+    receiver: Integer,
+    index: Integer,
+    text: Integer,
+) {
+    var emitter = lowering().emitter
+    var boolean = lowering().known().typed_boolean()
+    var fail = emitter.new_block()
+    var value = parsed_argument(text, element, fail)
+    var setter = list_class.find_function("set_at")
+    crash setter
+    var operands = [receiver, index, value]
+    lowering().call_reached(list_class, setter, operands)
+    var yes = emitter.constant(boolean, "true")
+    emitter.returns(yes)
+    emitter.enter_block(fail)
+    var no = emitter.constant(boolean, "false")
+    emitter.returns(no)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func item_store_body(list_class: Analysis.ClassInfo, receiver: Integer, index: Integer, value: Integer) {
+    var emitter = lowering().emitter
+    var setter = list_class.find_function("set_at")
+    crash setter
+    var operands = [receiver, index, value]
+    lowering().call_reached(list_class, setter, operands)
+    emitter.returns(-1)
 }
