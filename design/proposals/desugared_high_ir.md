@@ -61,6 +61,7 @@ tag), `return`, or `halt` (a `crash` that always halts).
 | `a and b`, `a or b` | branches |
 | `"{x} items"` | `call String.join(...)` over the parts, each part through its `to_string` |
 | `x.field` with a getter, a setter | `call get_field`, `call set_field` |
+| `a[x]`, `a[x] = v` | `call get_at(a, x)`, `call set_at(a, x, v)` (the class's own functions; a pass decides whether a call becomes a direct read) |
 | `list.each_bump()`, `each`, `filter`, `sum`, a fused chain | the loop over the list's items, with the calls it makes |
 | `switch` | `switch` on the tag, or branches |
 | `assert c` | a branch to a block that returns the default |
@@ -76,6 +77,12 @@ foreign calls, and the few runtime calls (`spite_overflowed` and the other repor
 and a type and no body; the printer writes its C, and a pass may decide its **form** (an overflow check dropped
 because a range proof holds, a bounds check dropped because the index is proven inside). The form is a field of the
 operation, set by a pass, never a different operation.
+
+**Nothing that is a function in the end becomes an operation of its own (D599).** What the source can say as a call
+of an existing function is lowered as that call, and the passes decide what it becomes: a read of a list item is
+`get_at`, a write `set_at`, never an intrinsic that reaches into the list's fields. A new intrinsic is only for what
+has no Spite function under it: the floor above, and what the printer must know about C. Reflection and the REPL
+follow the same rule: an attribute that stands for a list item reads and writes it through `get_at` and `set_at`.
 
 ## The passes, in order
 
