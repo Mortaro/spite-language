@@ -78,7 +78,8 @@ func judged(callee_name: String): Boolean {
     if not callee.waiting_kind.is_empty() {
         return false
     }
-    if callee.blocks.is_empty() or callee.blocks.count() > 6 or not kinds.is_library_layout(callee.owner) {
+    var copying = callee.made_for == "copy" and callee.blocks.count() == 1
+    if callee.blocks.is_empty() or not copying and (callee.blocks.count() > 6 or not kinds.is_library_layout(callee.owner)) {
         return false
     }
     if reaches_itself(callee_name) {
@@ -101,7 +102,7 @@ func judged(callee_name: String): Boolean {
         counted = counted + block.operations.count()
         block_index = block_index + 1
     }
-    return counted <= 16
+    return counted <= 16 or copying
 }
 
 func plain_operations(block: Block, callee_name: String): Boolean {
