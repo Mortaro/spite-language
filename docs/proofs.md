@@ -231,7 +231,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   from declared types, the class a constructor makes, the class a called function returns (a local made by a call,
   `var here = loop()`, has that class too), a `[]` read's element class and an attribute's declared class; `List`, `Dictionary` and `String` reach only their own functions. Growing
   a list keeps an index proof. A `return`'s own calls undo nothing. Locals and parameters are never changed by a
-  call.
+  call. A value read and used again in one pass of a loop is judged by what lies between the read and the use in
+  that pass only, never by the rest of the loop body.
 - **Buys.** No re-check after a call that provably cannot change the value.
 - **Falls back.** A call on a value whose class cannot be told (a `type`, a type parameter) is followed into every
   function of that name; a call through a function value undoes every proof about attributes and lists; a `clear` or

@@ -159,6 +159,24 @@ func reach_copy_layout(c_name: String, visited: List<String>) {
     }
 }
 
+func reach_check_point() {
+    crash lowered
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        index = index + 1
+        var owner = lowered.layout_named(candidate.owner)
+        var scheduled = false
+        if owner {
+            scheduled = owner.qualified == "Scheduler"
+        }
+        var needed = candidate.name == "check_point" or not candidate.singleton_of.is_empty()
+        if scheduled and needed and not functions_reached.has(candidate.c_name) and not waiting.contains(candidate.c_name) {
+            waiting.append(candidate.c_name)
+        }
+    }
+}
+
 func reach_pool() {
     crash lowered
     var wanted = ["run_bands", "submit", "join"]
@@ -182,6 +200,9 @@ func reach_operation(operation: Operation) {
     crash lowered
     if operation.kind == "call" and (operation.callee == "Bands.run" or operation.callee == "Rows.run") {
         reach_pool()
+    }
+    if operation.kind == "call" and operation.callee == "Loop.check_point" {
+        reach_check_point()
     }
     if operation.kind == "make" {
         reach_layout(operation.layout)

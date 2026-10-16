@@ -387,7 +387,7 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
     if terminator.kind == "return" and not function.lends_answer {
         var returned = terminator.operands.first()
         if returned {
-            hand_on(returned, live, moved, before_terminator)
+            hand_on(returned, live, moved, before_terminator, true)
         }
     }
     var index = 0
@@ -395,7 +395,7 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
         var target = terminator.targets[index]
         var argument_index = 0
         while argument_index < target.arguments.count() {
-            hand_on(target.arguments[argument_index], live, moved, before_terminator)
+            hand_on(target.arguments[argument_index], live, moved, before_terminator, false)
             argument_index = argument_index + 1
         }
         index = index + 1
@@ -414,10 +414,23 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
     users.each(live.add)
 }
 
-func hand_on(value: Integer, live: LiveSet, moved: List<Integer>, placed: List<Operation>) {
+func hand_on(
+    value: Integer,
+    live: LiveSet,
+    moved: List<Integer>,
+    placed: List<Operation>,
+    counts_lent_parameter: Boolean,
+) {
     crash borrows
+    crash function
     var origin = borrows.origin_of(value)
-    assert origin != "plain" and origin != "lent"
+    if origin == "lent" and counts_lent_parameter and function.is_parameter(value) {
+        var lent_retain = counted("retain", value)
+        placed.append(lent_retain)
+        retained_count = retained_count + 1
+        return
+    }
+    assert origin != "plain" and origin != "lent" and origin != "static"
     if tracked.has(value) and not live.has(value) and not moved.contains(value) {
         moved.append(value)
         return
@@ -477,7 +490,7 @@ func place_operation(
         var operand = operation.operands[index]
         if consumption.consumes_position(operation, index) and not passes_through {
             var retained_before = before.count()
-            hand_on(operand, live, moved, before)
+            hand_on(operand, live, moved, before, true)
             if before.count() > retained_before {
                 retained_any = true
             }
