@@ -2377,6 +2377,18 @@ engine's stress tick takes 17.2 ms instead of 20.2 as one C file (21.5 instead o
 of everything a program can see and what it prints are the same. Compiling takes longer for a program with many
 candidate calls, since each is followed through its callers.
 
+### A borrowed item is counted only where it is kept
+
+**What it does.** An item read from a list and then handed to a call that keeps it (`kept.append(point)`) is counted
+once, at the call, instead of once when it is read and again when the name ends. The item is still read without a count,
+so a loop that only keeps some of the items it walks counts those and nothing else.
+
+**When.** The item has no use between its read and the call that a call or a write to memory could disturb: the call
+that keeps it does not count as a disturbance, because the count is made before it runs. A read used after such a call
+is counted when read, as before.
+
+**What you notice.** Fewer counts, and `--debug-memory` shows the same allocations and frees.
+
 ### An item a name holds from its list is not counted
 
 **The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).
