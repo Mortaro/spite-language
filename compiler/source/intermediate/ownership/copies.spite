@@ -100,7 +100,7 @@ func shares(function: Function, operation: Operation): Boolean {
     if operation.kind != "call" or operation.result < 0 or operation.operands.count() != 1 {
         return false
     }
-    if intrinsics.meaning(operation.callee) != "deep_copy" {
+    if intrinsics.meaning(operation.callee) != "deep_copy" and not made_for_deep_copy(operation.callee) {
         return false
     }
     var original = operation.operands.first()
@@ -112,6 +112,15 @@ func shares(function: Function, operation: Operation): Boolean {
     Facts.Rewrites().replace_value(function, operation.result, original)
     shared_count = shared_count + 1
     return true
+}
+
+func made_for_deep_copy(callee_name: String): Boolean {
+    crash lowered
+    var callee = lowered.function_named(callee_name)
+    if not callee {
+        return false
+    }
+    return callee.made_for == "deep_copy"
 }
 
 func unchanging(spite_type: Analysis.SpiteType?, depth: Integer): Boolean {

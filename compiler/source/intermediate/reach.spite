@@ -70,12 +70,24 @@ func reach_copies(function: Function, block: Block) {
     while index < block.operations.count() {
         var operation = block.operations[index]
         index = index + 1
-        if operation.kind == "call" and operation.callee == "Object.deep_copy" and operation.operands.count() == 1 {
+        if operation.kind == "call" and is_deep_copy(operation) and operation.operands.count() == 1 {
             var visited = List<String>()
             var copied = function.value_at(operation.operands[0])
             reach_copy_of(copied.spite_type, visited)
         }
     }
+}
+
+func is_deep_copy(operation: Operation): Boolean {
+    crash lowered
+    if operation.callee == "Object.deep_copy" {
+        return true
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return callee.made_for == "deep_copy"
 }
 
 func reach_copy_of(spite_type: Analysis.SpiteType?, visited: List<String>) {
