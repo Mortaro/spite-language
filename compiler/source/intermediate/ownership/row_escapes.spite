@@ -2,6 +2,8 @@
 var lowered: Lowered? = null
 var escaped_count = 0
 var keeping = Dictionary<String, Boolean>()
+var results_kept = Dictionary<String, Boolean>()
+var studying_results = Dictionary<String, Boolean>()
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -82,8 +84,8 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
         var place = reached[index]
         if place.at_terminator() {
             var ending = function.block_at(place.block).terminator
-            if ending.kind == "return" {
-                return "returned by {function.c_name}"
+            if ending.kind == "return" and result_kept(function.c_name) {
+                return "returned by {function.c_name}, and a caller keeps it"
             }
         } else if place.position >= 0 {
             var block = function.block_at(place.block)
@@ -138,4 +140,65 @@ func keeps_parameter(callee: Function, parameter_index: Integer): Boolean {
     }
     var key = "{callee.c_name}|{parameter_index}"
     return keeping.has(key)
+}
+
+func result_kept(c_name: String): Boolean {
+    crash lowered
+    if results_kept.has(c_name) {
+        return results_kept[c_name] == true
+    }
+    if studying_results.has(c_name) {
+        return true
+    }
+    studying_results[c_name] = true
+    var kept = false
+    var called = false
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() and not kept {
+        var caller = functions[index]
+        if not caller.blocks.is_empty() and not caller.is_intrinsic() {
+            var seen = calls_of(caller, c_name)
+            if seen.count() > 0 {
+                called = true
+                kept = any_kept(caller, seen)
+            }
+        }
+        index = index + 1
+    }
+    studying_results.remove(c_name)
+    var answer = kept or not called
+    results_kept[c_name] = answer
+    return answer
+}
+
+func calls_of(caller: Function, c_name: String): List<Integer> {
+    var found = List<Integer>()
+    var block_index = 0
+    while block_index < caller.blocks.count() {
+        var block = caller.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == c_name and operation.result >= 0 {
+                found.append(operation.result)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func any_kept(caller: Function, results: List<Integer>): Boolean {
+    var uses = Facts.Uses(caller)
+    var index = 0
+    while index < results.count() {
+        var reason = escapes(caller, uses, results[index], 0)
+        if not reason.is_empty() {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
