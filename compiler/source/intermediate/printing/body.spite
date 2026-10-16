@@ -1200,6 +1200,7 @@ func print_digits_in_place(operation: Operation) {
         return
     }
     var number_type = operand_type(operation, 0)
+    crash number_type
     var scalar = shape.as_scalar(number_type)
     if not scalar or scalar.kind == 'float_kind' or scalar.kind == 'double_kind' or scalar.kind == 'boolean_kind' {
         refuse("it writes digits in place for a value that is not a whole number")
@@ -2178,6 +2179,7 @@ func release_temporary(written: String): String {
 }
 
 func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
+    crash spite_type
     var nullable = shape.as_nullable(spite_type)
     if nullable {
         return suspend_release(held, nullable.inner)
@@ -2289,6 +2291,7 @@ func release_items(held: String, element: Analysis.SpiteType) {
 
 func print_waiting_clear(operation: Operation): Boolean {
     var cleared_type = operand_type(operation, 0)
+    crash cleared_type
     var listed = shape.as_list(cleared_type)
     if not listed {
         return false

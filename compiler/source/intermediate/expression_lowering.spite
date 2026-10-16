@@ -348,6 +348,9 @@ func convert(value: Integer, wanted: Analysis.SpiteType): Integer {
     if types.is_symbol(given) and types.as_string(wanted) {
         return emitter.emit_call_one("Symbol.text", value, wanted)
     }
+    if types.as_string(given) and types.is_symbol(wanted) {
+        return emitter.emit_call_one("Symbol.of_text", value, wanted)
+    }
     var given_nullable = types.as_nullable(given)
     if given_nullable and not types.as_nullable(wanted) {
         var present = checked_present(value, given_nullable.inner)
@@ -391,8 +394,9 @@ func into_nullable(
     inner: Analysis.SpiteType,
     wanted: Analysis.SpiteType,
 ): Integer {
-    if types.as_nullable(given) {
-        return not_lowered(wanted, "a conversion between two nullable types")
+    var given_nullable = types.as_nullable(given)
+    if given_nullable {
+        return between_nullables(value, given_nullable.inner, inner, wanted)
     }
     var parsed = false
     if types.as_scalar(inner) or types.as_enum(inner) {
@@ -405,6 +409,35 @@ func into_nullable(
     var wrapped = emitter.emit_call_one("Nullable.wrap", inner_value, wanted)
     emitter.wrapped_values[wrapped] = true
     return wrapped
+}
+
+func between_nullables(
+    value: Integer,
+    given_inner: Analysis.SpiteType,
+    inner: Analysis.SpiteType,
+    wanted: Analysis.SpiteType,
+): Integer {
+    var boolean = known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", value, boolean)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(wanted, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var present_block = emitter.new_block()
+    var absent_block = emitter.new_block()
+    emitter.branch(present, present_block, absent_block)
+    emitter.enter_block(present_block)
+    var held = emitter.emit_call_one("Nullable.value", value, given_inner)
+    var converted = convert(held, inner)
+    var wrapped = emitter.emit_call_one("Nullable.wrap", converted, wanted)
+    emitter.wrapped_values[wrapped] = true
+    var wrapped_passed = [wrapped]
+    emitter.jump(joined, wrapped_passed)
+    emitter.enter_block(absent_block)
+    var absent = emitter.constant(wanted, "null")
+    var absent_passed = [absent]
+    emitter.jump(joined, absent_passed)
+    emitter.enter_block(joined)
+    return answered
 }
 
 func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
@@ -777,6 +810,10 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
     }
     if member.name == "instances" and not reflection_class and not static_class.is_generic_template {
         return live_instances(static_class)
+    }
+    if member.name == "class" and not static_class.find_field("class") and not static_class.find_function("class") {
+        var described_type = known().class_type(static_class)
+        return class_object_of(described_type)
     }
     var class_reflected = member.name == "attributes" or member.name == "functions" or member.name == "instances"
     if class_reflected {
@@ -2603,25 +2640,48 @@ func reads_through_nullable(expression: Syntax.Expressions.Expression): Boolean 
     if not link {
         return false
     }
-    crash link.object
-    var path = made.operand_text(link.object)
+    var linked = object_of(link)
+    var path = made.operand_text(linked)
     if not path.is_empty() and not emitter.scope.is_path_narrowed(path) {
-        var static_type = made.lookup_static_type(link.object, emitter.scope, lowered_class)
+        var static_type = made.lookup_static_type(linked, emitter.scope, lowered_class)
+        if not static_type and not shapes.as_identifier(linked) {
+            static_type = made.probed_type(linked, emitter.scope, lowered_class)
+        }
         if static_type and types.as_nullable(static_type) {
             return true
         }
     }
-    return reads_through_nullable(link.object)
+    return reads_through_nullable(linked)
+}
+
+func argument_at(arguments: List<Syntax.Expressions.Expression>, index: Integer): Syntax.Expressions.Expression {
+    crash arguments[index]
+    return arguments[index]
+}
+
+func object_of(member: Syntax.Expressions.MemberExpression): Syntax.Expressions.Expression {
+    crash member.object
+    return member.object
+}
+
+func left_of(binary: Syntax.Expressions.BinaryExpression): Syntax.Expressions.Expression {
+    crash binary.left
+    return binary.left
+}
+
+func right_of(binary: Syntax.Expressions.BinaryExpression): Syntax.Expressions.Expression {
+    crash binary.right
+    return binary.right
 }
 
 func lower_chain(member: Syntax.Expressions.MemberExpression): Integer {
-    crash member.object
+    var chained = object_of(member)
     var object_value = -1
-    var inner_link = shapes.as_member(member.object)
-    if inner_link and reads_through_nullable(member.object) {
+    var inner_link = shapes.as_member(chained)
+    if inner_link and reads_through_nullable(chained) {
         object_value = lower_chain(inner_link)
     } else {
-        object_value = lower(member.object)
+        object_value = lower(chained)
     }
     var object_type = type_of(object_value)
     var nullable = types.as_nullable(object_type)
@@ -2656,20 +2716,20 @@ func lower_chain(member: Syntax.Expressions.MemberExpression): Integer {
 }
 
 func chain_comparison(binary: Syntax.Expressions.BinaryExpression): Integer {
-    crash binary.left
-    crash binary.right
-    var left_chain = reads_through_nullable(binary.left)
-    var right_chain = reads_through_nullable(binary.right)
+    var left_side = left_of(binary)
+    var right_side = right_of(binary)
+    var left_chain = reads_through_nullable(left_side)
+    var right_chain = reads_through_nullable(right_side)
     if not left_chain and not right_chain {
         return -1
     }
-    var left_literal = shapes.as_enum_literal(binary.left) or shapes.is_null_literal(binary.left)
+    var left_literal = shapes.as_enum_literal(left_side) or shapes.is_null_literal(left_side)
     if left_literal {
-        var mirrored = Syntax.Expressions.BinaryExpression(binary.operator, binary.right, binary.left)
+        var mirrored = Syntax.Expressions.BinaryExpression(binary.operator, right_side, left_side)
         return chain_comparison(mirrored)
     }
-    var left = chain_operand(binary.left, left_chain, -1)
-    var right = chain_operand(binary.right, right_chain, left)
+    var left = chain_operand(left_side, left_chain, -1)
+    var right = chain_operand(right_side, right_chain, left)
     var whole: Syntax.Expressions.Expression = binary
     var left_type = type_of(left)
     var right_type = type_of(right)
@@ -3356,8 +3416,9 @@ func foreign_call(name: String, object: Integer, arguments: List<Syntax.Expressi
     var written_back = List<ForeignStruct>()
     var index = 0
     while index < arguments.count() {
-        var argument = lower(arguments[index])
-        var crossing = foreign_argument(argument, arguments[index], written_back, library)
+        var source = argument_at(arguments, index)
+        var argument = lower(source)
+        var crossing = foreign_argument(argument, source, written_back, library)
         operands.append(crossing)
         index = index + 1
     }
@@ -3946,6 +4007,7 @@ func narrowed_operand(
         if not other_number {
             reason = "is not one"
         } else {
+            crash other_number
             var other_scalar = types.as_scalar(other_number)
             crash other_scalar
             if other.c_name != member.c_name and made.is_wider_kind(other_scalar.kind, left_scalar.kind) {
