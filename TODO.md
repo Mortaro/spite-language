@@ -23,7 +23,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Standard library
 
-- `Buffer` replaces `List<Byte>` everywhere bytes are taken or answered, with `byte_order`, `position` and the `_at` names (D590)
 - TLS, so HTTPS and `wss` (D294, D394, D395)
 - TLS written in Spite, after an outside security review (D395)
 - HTTP: request bodies sent chunked, and a server that reads several clients' requests at once (D294)
