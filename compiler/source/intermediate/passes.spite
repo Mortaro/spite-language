@@ -15,6 +15,7 @@ func run(lowered: Lowered) {
     proofs.run(lowered)
     verifier.check(lowered, "proofs")
     ownership.run(lowered)
+    ownership.problems.each(verifier.problems.append)
     verifier.check(lowered, "ownership")
     placement.run(lowered)
     verifier.check(lowered, "placement")

@@ -155,7 +155,10 @@ func derived_escapes(function: Function, uses: Facts.Uses, operation: Operation,
     }
     var wrapping = ["Nullable.wrap", "Union.wrap"]
     if wrapping.contains(operation.callee) {
-        return true
+        if operation.result < 0 {
+            return true
+        }
+        return escapes_through(function, uses, operation.result, depth + 1)
     }
     var aliasing = ["Symbol.text"]
     if aliasing.contains(operation.callee) and operation.result >= 0 {

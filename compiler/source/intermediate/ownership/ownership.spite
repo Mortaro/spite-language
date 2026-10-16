@@ -8,6 +8,7 @@ var borrowed_reads = 0
 var current_function: Function? = null
 var counted_reads = 0
 var retains = 0
+var problems = List<String>()
 var releases = 0
 
 func run(starting_lowered: Lowered) {
@@ -90,6 +91,9 @@ func settle_borrows(function: Function, borrows: Borrows, uses: Facts.Uses) {
         if origin == "borrowed" or origin == "lending" {
             settle_value(function, borrows, uses, index, inserted)
         }
+        if origin == "lent" {
+            refuse_lent_join(function, borrows, uses, index)
+        }
         if origin == "lent" and not function.is_parameter(index) and consumed_by_operation(uses, index, 0) {
             borrows.origins[index] = "owned"
             counted_reads = counted_reads + 1
@@ -99,6 +103,45 @@ func settle_borrows(function: Function, borrows: Borrows, uses: Facts.Uses) {
     }
     assert inserted.count() > 0
     insert_retains(function, inserted)
+}
+
+func refuse_lent_join(function: Function, borrows: Borrows, uses: Facts.Uses, value: Integer) {
+    if problems.count() >= 10 {
+        return
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() {
+            var terminator = function.block_at(place.block).terminator
+            var returns = terminator.kind == "return" and not function.lends_answer and not function.is_parameter(value)
+            if returns or joins_owned(function, borrows, terminator, value) {
+                problems.append("ownership left the lent value v{value} reaching a join or the return of '{function.c_name}' uncounted")
+                return
+            }
+        }
+        index = index + 1
+    }
+}
+
+func joins_owned(function: Function, borrows: Borrows, terminator: Terminator, value: Integer): Boolean {
+    var index = 0
+    while index < terminator.targets.count() {
+        var target = terminator.targets[index]
+        var parameters = function.block_at(target.block).parameters
+        var position = 0
+        while position < target.arguments.count() {
+            if target.arguments[position] == value and position < parameters.count() {
+                if borrows.origin_of(parameters[position]) != "lent" {
+                    return true
+                }
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func consumed_by_operation(uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
