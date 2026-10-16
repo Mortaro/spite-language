@@ -414,7 +414,13 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
     users.each(live.add)
 }
 
-func hand_on(value: Integer, live: LiveSet, moved: List<Integer>, placed: List<Operation>, counts_lent_parameter: Boolean) {
+func hand_on(
+    value: Integer,
+    live: LiveSet,
+    moved: List<Integer>,
+    placed: List<Operation>,
+    counts_lent_parameter: Boolean,
+) {
     crash borrows
     crash function
     var origin = borrows.origin_of(value)
