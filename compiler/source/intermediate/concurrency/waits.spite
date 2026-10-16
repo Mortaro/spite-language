@@ -308,6 +308,9 @@ func finds_stale(function: Function): Boolean {
     var waits_at = List<Integer>()
     var stored = List<Operation>()
     var stored_at = List<Integer>()
+    var readers = Dictionary<Integer, String>()
+    var changes = List<Operation>()
+    var changes_at = List<Integer>()
     var at = 0
     var block_index = 0
     while block_index < function.blocks.count() {
@@ -323,6 +326,16 @@ func finds_stale(function: Function): Boolean {
             if operation.kind == "load" and not key.is_empty() {
                 loaded[operation.result] = key
             }
+            if operation.kind == "load" and not key.is_empty() {
+                readers[operation.result] = key
+            }
+            if operation.kind == "call" and operation.result >= 0 and reads_a_container(operation) {
+                readers[operation.result] = "container"
+            }
+            if operation.kind == "call" and changes_a_container(operation) {
+                changes.append(operation)
+                changes_at.append(at)
+            }
             if operation.kind == "store" and not key.is_empty() {
                 stored.append(operation)
                 stored_at.append(at)
@@ -335,10 +348,13 @@ func finds_stale(function: Function): Boolean {
         }
         block_index = block_index + 1
     }
-    if waits_at.is_empty() or stored.is_empty() {
+    if waits_at.is_empty() {
         return false
     }
     var incoming = incoming_values(function)
+    if changes_after_read(changes, changes_at, readers, waits_at, positions, definitions, incoming) {
+        return true
+    }
     var count = 0
     while count < stored.count() and count < stored_at.count() {
         var operation = stored[count]
@@ -647,4 +663,99 @@ func start_through_twin(function: Function, block_number: Integer, operation: Op
     arguments.append(receiver)
     arguments.append(site.result)
     operation.operands = arguments
+}
+
+func changes_after_read(
+    changes: List<Operation>,
+    changes_at: List<Integer>,
+    readers: Dictionary<Integer, String>,
+    waits_at: List<Integer>,
+    positions: Dictionary<Integer, Integer>,
+    definitions: Dictionary<Integer, Operation>,
+    incoming: Dictionary<Integer, List<Integer>>,
+): Boolean {
+    var count = 0
+    while count < changes.count() and count < changes_at.count() {
+        var change = changes[count]
+        var changed_at = changes_at[count]
+        var position = 1
+        while position < change.operands.count() {
+            var argument = change.operands[position]
+            var reached = reaching_loads(argument, definitions, incoming, readers)
+            var index = 0
+            while index < reached.count() {
+                var read_value = reached[index]
+                crash positions[read_value]
+                if wait_between(waits_at, positions[read_value], changed_at) {
+                    return true
+                }
+                index = index + 1
+            }
+            position = position + 1
+        }
+        count = count + 1
+    }
+    return false
+}
+
+func changes_a_container(operation: Operation): Boolean {
+    crash lowered
+    crash effects
+    if operation.kind != "call" or operation.operands.count() <= 1 {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() {
+        return false
+    }
+    var summary = effects.of(callee.c_name)
+    var keys = summary.writes.keys()
+    summary.grows.keys().each(keys.append)
+    var index = 0
+    while index < keys.count() {
+        var dot = keys[index].index_of(".")
+        if dot > 0 {
+            var owner = keys[index].slice(0, dot)
+            if holds_items(owner) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func holds_items(layout_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(layout_name)
+    if not layout {
+        return false
+    }
+    return layout.qualified == "List" or layout.qualified == "Dictionary"
+}
+
+func reads_a_container(operation: Operation): Boolean {
+    crash lowered
+    crash effects
+    if operation.kind != "call" or operation.operands.is_empty() {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() {
+        return false
+    }
+    var summary = effects.of(callee.c_name)
+    var keys = summary.reads.keys()
+    var index = 0
+    while index < keys.count() {
+        var dot = keys[index].index_of(".")
+        if dot > 0 {
+            var owner = keys[index].slice(0, dot)
+            if holds_items(owner) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
