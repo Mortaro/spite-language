@@ -237,6 +237,7 @@ func walk_written_slot(indexed: Syntax.Expressions.IndexExpression, declared: An
     crash indexed.object
     crash indexed.index
     var holder = walk_value(indexed.object)
+    crash indexed.index
     var at_index = walk_value(indexed.index)
     var owner = items_of(holder)
     write_value("slot", owner, "items", declared, current_line, owner, written, holder)
@@ -412,6 +413,7 @@ func walk_assert(statement: Syntax.Statements.AssertStatement) {
         halting.can_end = true
         halting.takes(tested)
         halting.condition_text = statement.condition_text
+        crash statement.value
         if shapes.is_false_literal(statement.value) {
             end_the_block("crash")
         }
@@ -664,6 +666,7 @@ func walk_slot_read(indexed: Syntax.Expressions.IndexExpression): Integer {
     crash indexed.object
     crash indexed.index
     var holder = walk_value(indexed.object)
+    crash indexed.index
     var at_index = walk_value(indexed.index)
     var owner = items_of(holder)
     var element = element_type_of(holder)
@@ -690,6 +693,7 @@ func walk_call(call: Syntax.Expressions.CallExpression): Integer {
         arguments.append(read)
         position = position + 1
     }
+    crash call.callee
     var identifier = shapes.as_identifier(call.callee)
     if identifier {
         return walk_own_call(identifier.name, arguments)
@@ -863,6 +867,7 @@ func walk_computation(binary: Syntax.Expressions.BinaryExpression): Integer {
         return walk_short_circuit(binary)
     }
     var left = walk_value(binary.left)
+    crash binary.right
     var right = walk_value(binary.right)
     var operation = add_operation("computation", current_line)
     operation.operator = binary.operator
@@ -906,6 +911,7 @@ func walk_short_circuit(binary: Syntax.Expressions.BinaryExpression): Integer {
         add_edge("dropped", right_block)
     }
     block = right_block
+    crash binary.right
     var right = walk_value(binary.right)
     add_edge("fallthrough", join_block)
     var after_right = copied_values()
@@ -1452,6 +1458,7 @@ func resolve_dictionary_type(named: Syntax.Types.NamedType): Analysis.SpiteType?
         return null
     }
     var key = resolve_type_argument(named.arguments[0])
+    crash named.arguments[1]
     var value = resolve_type_argument(named.arguments[1])
     assert key and value
     var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(value, key)

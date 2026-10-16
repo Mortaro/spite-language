@@ -3,6 +3,7 @@ var emitter = Emitter()
 var resolver: Instances? = null
 var lowered_class = Analysis.ClassInfo("", "", "", "", 0)
 var held_bindings = List<Generation.ReflectedBinding>()
+var widened = Dictionary<Integer, Integer>()
 var function_information: Analysis.FunctionInfo? = null
 var receiver = -1
 var shapes = Analysis.AstShape()
@@ -184,14 +185,17 @@ func folded_constant(result: Generation.ExpressionResult): Integer {
         }
     }
     if result.code.starts_with("(\{") {
+        crash result.spite_type
         var enum_list = folded_enum_list(result.code, result.spite_type)
         if enum_list != -2 {
             return enum_list
         }
     }
     if result.code.starts_with("spite_namespace_object_") and result.code.ends_with("()") {
+        crash result.spite_type
         return namespace_object_named(result.code, result.spite_type)
     }
+    crash result.spite_type
     var folded_enum = types.as_enum(result.spite_type)
     if folded_enum {
         var enum_value = enum_value_named(folded_enum, result.code)
@@ -473,6 +477,10 @@ func between_numbers(
     to: Analysis.Types.NumericKind,
     wanted: Analysis.SpiteType,
 ): Integer {
+    if widened.has(value) and known().scalar_name(to) == "Double" {
+        crash widened[value]
+        return widened[value]
+    }
     var literal = emitter.literal_of(value)
     if literal and literal_fits(literal, from, to) {
         return emitter.constant(wanted, literal)
@@ -671,6 +679,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if namespaced != -2 {
         return namespaced
     }
+    crash member.object
     var symbol = shapes.as_identifier(member.object)
     if symbol and symbol.name == made.bound_symbol_name and not made.bound_symbol_name.is_empty() {
         return bound_symbol_member(member)
@@ -697,6 +706,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
     if reflected >= 0 or emitter.lowering_failed() {
         return reflected
     }
+    crash member.object
     if made.worth_reflecting(member.object, emitter.scope) {
         var whole: Syntax.Expressions.Expression = member
         var folded_read = made.folded_reflection(whole, emitter.scope, lowered_class)
@@ -704,6 +714,7 @@ func lower_member(member: Syntax.Expressions.MemberExpression): Integer {
             return folded_constant(folded_read)
         }
     }
+    crash member.object
     var object = lower(member.object)
     var read = member_of_value(member, object)
     return path_narrowed(read, member)
@@ -900,7 +911,9 @@ func lower_index(indexed: Syntax.Expressions.IndexExpression): Integer {
     if made.is_bound_attributes_index(indexed) {
         return bound_attribute()
     }
+    crash indexed.object
     var object = lower(indexed.object)
+    crash indexed.index
     var got = index_of_value(object, indexed.index)
     var expression: Syntax.Expressions.Expression = indexed
     return path_narrowed(got, expression)
@@ -931,10 +944,18 @@ func index_of_value(object: Integer, index: Syntax.Expressions.Expression): Inte
     var read = call_with_arguments(owner, reader, object, arguments)
     var listed = types.as_list(object_type)
     if listed and read >= 0 {
-        var element_type = known().nullable_of(listed.element)
+        var element_type = nullable_answer(listed.element)
         emitter.retype(read, element_type)
     }
     return read
+}
+
+func nullable_answer(element: Analysis.SpiteType): Analysis.SpiteType {
+    var answer = element
+    if not types.as_nullable(element) {
+        answer = known().nullable_of(element)
+    }
+    return answer
 }
 
 func call_reached(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, operands: List<Integer>): Integer {
@@ -1107,6 +1128,7 @@ func typed_dictionary(
         crash entry.key
         crash entry.value
         var key = lower_toward(entry.key, dictionary.key)
+        crash entry.value
         var stored = lower_toward(entry.value, dictionary.element)
         var operands = [made_dictionary, key, stored]
         call_reached(dictionary_class, setter, operands)
@@ -1131,6 +1153,7 @@ func generic_construction(call: Syntax.Expressions.GenericCallExpression): Integ
         var element = made.resolve_generic_argument(call.type_arguments[0], namespace)
         return list_of_element(element)
     }
+    crash call.callee
     var template = made.try_resolve_static_path(call.callee, namespace)
     if not template {
         return not_lowered(null, "a generic class this lowering cannot find")
@@ -1365,6 +1388,7 @@ func lower_call(call: Syntax.Expressions.CallExpression): Integer {
         var arguments_type: Analysis.SpiteType = Analysis.Types.ArgumentsType()
         return emitter.constant(arguments_type, "program")
     }
+    crash call.callee
     var member = shapes.as_member(call.callee)
     if member {
         return member_call(member, call)
@@ -1389,15 +1413,74 @@ func program_loaded(call: Syntax.Expressions.CallExpression): Integer {
     if not entry {
         return not_lowered(null, "a program with no entry class")
     }
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    var program = construct(entry, no_arguments)
-    if made.remote_loop_port > 0 or made.hot_reload {
-        return not_lowered(null, "a program served to a remote REPL or reloaded while it runs")
+    var entry_type = known().class_type(entry)
+    var program = default_object(entry, entry_type)
+    var served = -1
+    if made.remote_loop_port > 0 {
+        served = served_loop(entry, program)
+    }
+    if entry.constructor {
+        var constructed = [program]
+        call_reached(entry, entry.constructor, constructed)
     }
     if made.console_loop {
         console_loop(entry, program)
     }
+    if served >= 0 {
+        wait_for_loop(served)
+    }
     return -1
+}
+
+func served_loop(entry: Analysis.ClassInfo, program: Integer): Integer {
+    var made = front()
+    var loop_class = made.find_class_by_qualified("ReadEvaluatePrintLoop")
+    if not loop_class {
+        return not_lowered(null, "a remote REPL with no ReadEvaluatePrintLoop class")
+    }
+    var wanted = ["serve", "listen_in_background", "wait_for_exit", "pause_at"]
+    var index = 0
+    while index < wanted.count() {
+        var found = made.find_or_instantiate_function(loop_class, wanted[index])
+        if found {
+            known().reach(loop_class, found)
+        }
+        index = index + 1
+    }
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var loop = construct(loop_class, no_arguments)
+    var attribute = program_attribute(entry, program)
+    var operands = [loop, attribute]
+    var serving = emitter.call_operation("Loop.serve", operands, null)
+    serving.literal = made.remote_loop_port.to_string()
+    return loop
+}
+
+func wait_for_loop(loop: Integer) {
+    var made = front()
+    var loop_class = made.find_class_by_qualified("ReadEvaluatePrintLoop")
+    crash loop_class
+    var waiting = made.find_or_instantiate_function(loop_class, "wait_for_exit")
+    if not waiting {
+        not_lowered(null, "a remote REPL with no wait_for_exit")
+        return
+    }
+    var operands = [loop]
+    call_reached(loop_class, waiting, operands)
+}
+
+func program_attribute(entry: Analysis.ClassInfo, program: Integer): Integer {
+    var made = front()
+    var symbol_type = known().typed_symbol()
+    var program_name = emitter.constant(symbol_type, "program")
+    var entry_type = known().class_type(entry)
+    var reflect_name = "spite_reflect_{made.reflected_label(entry_type)}"
+    known().reflection_maker(reflect_name, "reflect", entry, "")
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attribute_type = known().class_type(attribute_class)
+    var reflect_operands = [program_name, program]
+    return emitter.emit_call(reflect_name, reflect_operands, attribute_type)
 }
 
 func console_loop(entry: Analysis.ClassInfo, program: Integer) {
@@ -1418,16 +1501,7 @@ func console_loop(entry: Analysis.ClassInfo, program: Integer) {
     var exit = emitter.new_block()
     emitter.jump_plain(header)
     emitter.enter_block(header)
-    var symbol_type = known().typed_symbol()
-    var program_name = emitter.constant(symbol_type, "program")
-    var entry_type = known().class_type(entry)
-    var reflect_name = "spite_reflect_{made.reflected_label(entry_type)}"
-    known().reflection_maker(reflect_name, "reflect", entry, "")
-    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
-    crash attribute_class
-    var attribute_type = known().class_type(attribute_class)
-    var reflect_operands = [program_name, program]
-    var attribute = emitter.emit_call(reflect_name, reflect_operands, attribute_type)
+    var attribute = program_attribute(entry, program)
     var step_operands = [loop, attribute]
     var going = call_reached(loop_class, step, step_operands)
     emitter.branch(going, header, exit)
@@ -1481,6 +1555,7 @@ func value_call(held: Integer, arguments: List<Syntax.Expressions.Expression>): 
             values.append(gathered)
             index = arguments.count()
         } else {
+            crash arguments[index]
             var passed = lower_toward(arguments[index], parameter_type)
             values.append(passed)
             index = index + 1
@@ -1603,6 +1678,7 @@ func member_call(member: Syntax.Expressions.MemberExpression, call: Syntax.Expre
         }
     }
     if made.maths.is_member(member.name) and not made.maths.is_constant(member.name) {
+        crash member.object
         var folded_maths = made.folded_maths_call(member.name, member.object, call.arguments, lowered_class)
         if folded_maths {
             return folded_constant(folded_maths)
@@ -1668,6 +1744,7 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     if fused != -2 {
         return fused
     }
+    crash member.object
     var object = lower(member.object)
     return call_on_value(name, object, arguments)
 }
@@ -1691,6 +1768,7 @@ func fused_chain(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
         return -2
     }
     steps.reverse()
+    crash member.object
     var last_callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, member.name)
     var last_call = Syntax.Expressions.CallExpression(last_callee, arguments)
     steps.append(last_call)
@@ -1837,7 +1915,56 @@ func deep_copied(object: Integer): Integer {
             return call_reached(owner, own_copy, operands)
         }
     }
+    var visited = List<String>()
+    reach_own_copies(copied_type, visited)
     return emitter.emit_call_one("Object.deep_copy", object, copied_type)
+}
+
+func reach_own_copies(copied_type: Analysis.SpiteType, visited: List<String>) {
+    var made = front()
+    var label = known().type_text(copied_type)
+    assert not visited.contains(label)
+    visited.append(label)
+    var nullable = types.as_nullable(copied_type)
+    if nullable {
+        reach_own_copies(nullable.inner, visited)
+        return
+    }
+    var united = types.as_union(copied_type)
+    if united {
+        var described_union = made.find_union_by_c_name(united.c_name)
+        crash described_union
+        var member_index = 0
+        while member_index < described_union.members.count() {
+            var member = described_union.members[member_index]
+            var member_kind = member_type(member)
+            reach_own_copies(member_kind, visited)
+            member_index = member_index + 1
+        }
+        return
+    }
+    var listed = types.as_list(copied_type)
+    if listed {
+        reach_own_copies(listed.element, visited)
+        return
+    }
+    var dictionary = types.as_dictionary(copied_type)
+    if dictionary {
+        reach_own_copies(dictionary.element, visited)
+        return
+    }
+    var owner = made.class_of_type(copied_type)
+    assert owner and not owner.is_value_class
+    var own_copy = owner.find_function("deep_copy")
+    if own_copy {
+        known().reach(owner, own_copy)
+    }
+    var index = 0
+    while index < owner.fields.count() {
+        var field = owner.fields[index]
+        reach_own_copies(field.type, visited)
+        index = index + 1
+    }
 }
 
 func string_call(name: String, object: Integer, arguments: List<Syntax.Expressions.Expression>): Integer {
@@ -2123,6 +2250,7 @@ func lower_unary(unary: Syntax.Expressions.UnaryExpression): Integer {
         var answer_type = known().typed_boolean()
         return emitter.emit_call_one("Boolean.not", operand, answer_type)
     }
+    crash unary.operand
     var negated_literal = shapes.as_integer_literal(unary.operand)
     if negated_literal {
         return negative_literal(negated_literal)
@@ -2258,10 +2386,12 @@ func joined_condition(binary: Syntax.Expressions.BinaryExpression, conjunction: 
     emitter.push_scope()
     if conjunction {
         apply(left.when_true, left.true_types)
+        crash binary.left
         front().narrow_proven_indices(binary.left, emitter.scope, lowered_class)
     } else {
         apply(left.when_false, left.false_types)
     }
+    crash binary.right
     var right = lower_condition(binary.right)
     emitter.pop_scope()
     var passed = [right.value]
@@ -2342,6 +2472,7 @@ func class_test(binary: Syntax.Expressions.BinaryExpression): Condition? {
     var made = front()
     var tested = made.tested_class_of(binary.right, lowered_class)
     assert tested
+    crash binary.left
     var static_left = made.try_resolve_static_path(binary.left, lowered_class.qualified_dotted)
     assert not static_left
     var subject = lower(binary.left)
@@ -2349,12 +2480,14 @@ func class_test(binary: Syntax.Expressions.BinaryExpression): Condition? {
     var made_condition = Condition(answered)
     var narrowed = made.instance_type_of(tested)
     if binary.operator == 'equal' {
+        crash binary.left
         made_condition.narrows_when_true(binary.left, narrowed)
         return made_condition
     }
     var answer_type = known().typed_boolean()
     var negated = emitter.emit_call_one("Boolean.not", answered, answer_type)
     var negated_condition = Condition(negated)
+    crash binary.left
     negated_condition.narrows_when_false(binary.left, narrowed)
     return negated_condition
 }
@@ -2407,15 +2540,20 @@ func lower_binary(binary: Syntax.Expressions.BinaryExpression): Integer {
     if operator == 'equal' or operator == 'not_equal' {
         var only_right = made.maybe_null_only_on_the_right(binary, emitter.scope, lowered_class)
         if only_right {
+            crash binary.left
+            crash binary.right
             var mirrored = Syntax.Expressions.BinaryExpression(operator, binary.right, binary.left)
             return lower_binary(mirrored)
         }
     }
+    crash binary.left
     var left_enum = shapes.as_enum_literal(binary.left)
+    crash binary.right
     var right_enum = shapes.as_enum_literal(binary.right)
     if left_enum and not right_enum {
         var swapped_right = lower(binary.right)
         var swapped_type = type_of(swapped_right)
+        crash binary.left
         var swapped_left = lower_toward(binary.left, swapped_type)
         var whole: Syntax.Expressions.Expression = binary
         return compare_values(operator, swapped_left, swapped_right, whole)
@@ -2430,6 +2568,7 @@ func lower_binary(binary: Syntax.Expressions.BinaryExpression): Integer {
         }
         return arithmetic_from(first, leftmost, pieces, binary)
     }
+    crash binary.left
     var left = lower(binary.left)
     return binary_after_left(binary, left)
 }
@@ -2554,6 +2693,51 @@ func right_operand(left_type: Analysis.SpiteType, right_expression: Syntax.Expre
     return convert(right, left_type)
 }
 
+func works_in_double(left: Integer, right: Integer): Boolean {
+    var left_literal = emitter.literal_of(left)
+    var right_literal = emitter.literal_of(right)
+    if left_literal and right_literal {
+        return true
+    }
+    return widened.has(left) or widened.has(right)
+}
+
+func as_double(value: Integer): Integer {
+    var made = front()
+    var double_type = made.double_type()
+    if widened.has(value) {
+        crash widened[value]
+        return widened[value]
+    }
+    var literal = emitter.literal_of(value)
+    if literal {
+        return emitter.constant(double_type, literal)
+    }
+    return emitter.emit_call_one("Float.to_double", value, double_type)
+}
+
+func double_operation(
+    operator: Syntax.Expressions.BinaryOperator,
+    left: Integer,
+    right: Integer,
+    whole: Syntax.Expressions.Expression,
+): Integer {
+    var made = front()
+    var double_type = made.double_type()
+    var left_double = as_double(left)
+    var right_double = as_double(right)
+    var answered = number_operation(operator, left_double, right_double, double_type, whole)
+    var answered_type = type_of(answered)
+    var answered_scalar = types.as_scalar(answered_type)
+    if not answered_scalar or known().scalar_name(answered_scalar.kind) != "Double" {
+        return answered
+    }
+    var float_type = known().typed_float()
+    var narrowed = emitter.emit_call_one("Double.to_float", answered, float_type)
+    widened[narrowed] = answered
+    return narrowed
+}
+
 func number_operation(
     operator: Syntax.Expressions.BinaryOperator,
     left: Integer,
@@ -2567,6 +2751,9 @@ func number_operation(
     }
     var kind = scalar_type.kind
     var name = known().scalar_name(kind)
+    if name == "Float" and works_in_double(left, right) {
+        return double_operation(operator, left, right, whole)
+    }
     var operands = [left, right]
     var written = source_text(whole)
     if operator == 'add' or operator == 'subtract' or operator == 'multiply' {
@@ -3038,6 +3225,11 @@ func reflection_read(member: Syntax.Expressions.MemberExpression, object: Intege
     if listed != -2 {
         return listed
     }
+    var united = types.as_union(object_type)
+    var union_reflected = member.name == "class" or member.name == "attributes" or member.name == "functions"
+    if united and union_reflected {
+        return union_reflection(object, united.c_name, member.name)
+    }
     var probe = Generation.ExpressionResult("spite_reflected", object_type)
     var result = made.generate_reflection_read(member.name, probe, member.object)
     if not result or not result.spite_type {
@@ -3045,6 +3237,81 @@ func reflection_read(member: Syntax.Expressions.MemberExpression, object: Intege
     }
     reach_class_layout()
     return emitter.emit_call_one("Reflection.{member.name}", object, result.spite_type)
+}
+
+func union_reflection(object: Integer, union_name: String, name: String): Integer {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    if not described_union {
+        return not_lowered(null, "the '{name}' of a union with no description")
+    }
+    var answer = made.spite_class_type()
+    if name == "attributes" or name == "functions" {
+        var element_name = "Spite_Attribute"
+        if name == "functions" {
+            element_name = "Spite_Function"
+        }
+        var element_class = made.find_class_by_c_name(element_name)
+        if not element_class {
+            return not_lowered(null, "the '{name}' of a union with no {element_name} class")
+        }
+        var element = known().class_type(element_class)
+        answer = made.list_type_of(element)
+    }
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", object, tag_type)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(answer, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        tags.append(member.c_name)
+        var member_block = emitter.new_block()
+        targets.append(member_block)
+        index = index + 1
+    }
+    var own_block = emitter.new_block()
+    tags.append("_")
+    targets.append(own_block)
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        var member_kind = member_type(member)
+        var narrowed = emitter.emit_call_one("Union.value", object, member_kind)
+        var read = reflected_list(name, narrowed, member_kind)
+        if read == -2 {
+            read = empty_reflection(answer)
+        }
+        var member_passed = [read]
+        emitter.jump(joined, member_passed)
+        index = index + 1
+    }
+    emitter.enter_block(own_block)
+    var own_read = -1
+    if name == "class" {
+        var union_type = made.union_type_of(described_union)
+        own_read = class_object_of(union_type)
+    } else {
+        own_read = empty_reflection(answer)
+    }
+    var own_passed = [own_read]
+    emitter.jump(joined, own_passed)
+    emitter.enter_block(joined)
+    return answered
+}
+
+func empty_reflection(answer: Analysis.SpiteType): Integer {
+    var listed = types.as_list(answer)
+    if not listed {
+        return not_lowered(answer, "a reflection read with no list to answer")
+    }
+    return new_list(listed.element)
 }
 
 func class_object_of(spite_type: Analysis.SpiteType): Integer {
@@ -3525,6 +3792,7 @@ func foreign_callback(target: Analysis.ClassInfo, arguments: List<Syntax.Express
     if not where_context or not owner {
         return not_lowered(null, "a ForeignCallback this lowering cannot read")
     }
+    crash arguments[0]
     var function_name = made.callback_function_name(arguments[0])
     var function = owner.find_function(function_name)
     if not function {
@@ -3758,6 +4026,7 @@ func folded_dictionary_entry(indexed: Syntax.Expressions.IndexExpression): Integ
     var first_value = lower(first.value)
     var first_type = type_of(first_value)
     var answer = known().nullable_of(first_type)
+    crash indexed.index
     var wanted = Syntax.SourcePrinter().source_expression(indexed.index)
     var index = 0
     while index < literal.fields.count() {

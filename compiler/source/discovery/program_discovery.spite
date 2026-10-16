@@ -1507,6 +1507,7 @@ func read_environment(environment: Syntax.SourceFile, build_names: List<String>)
         return declared
     }
     var first_reading = readings.first()
+    crash first_reading
     var check = spelling_check(declared, first_reading)
     readings.insert(0, check)
     var constructor = environment_constructor(environment)

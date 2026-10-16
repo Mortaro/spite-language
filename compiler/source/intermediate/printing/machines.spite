@@ -337,7 +337,7 @@ func runtime_bodies(): String {
     var index = 0
     while index < output.bound_functions.count() {
         var root = lowered.function_named(output.bound_functions[index])
-        if root and root.resumable and root.receiver >= 0 {
+        if root and root.resumable and root.receiver >= 0 and root.parameters.is_empty() {
             var owner_type = receiver_type(root)
             lines.append(
                 "if (spite_work->spite_typed_call == (void*){root.c_name}) \{ SpiteFrame* spite_started = (SpiteFrame*){root.c_name}___begin(({owner_type})spite_work->spite_owner); spite_started->work = spite_work; Spite_Function___retain(spite_work); return spite_started; }",

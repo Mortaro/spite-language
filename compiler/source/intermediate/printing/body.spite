@@ -72,7 +72,7 @@ func print(printed: Function) {
 # ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
 func waits_as_primitive(printed: Function): Boolean {
     var kind = printed.waiting_kind
-    return not kind.is_empty() and kind != "join" and machines.scheduler_present()
+    return not kind.is_empty() and kind != "join" and lowered.makes_concurrents and machines.scheduler_present()
 }
 
 func print_waiting_lowered() {
@@ -950,7 +950,10 @@ func is_folded_decimal(literal: String): Boolean {
     var wrapped = literal.starts_with("(") and literal.ends_with(")")
     var hexadecimal = literal.contains("0x") and literal.contains("p")
     var named = literal.contains("__builtin_nan") or literal.contains("__builtin_inf")
-    return wrapped and (hexadecimal or named) and not literal.contains(";")
+    var literal_length = literal.length()
+    var inside = literal.slice(1, literal_length - 1).replace("f", "")
+    var plain = literal_length > 2 and is_decimal_literal(inside)
+    return wrapped and (hexadecimal or named or plain) and not literal.contains(";")
 }
 
 func is_decimal_literal(literal: String): Boolean {
@@ -1666,6 +1669,23 @@ func placement_head(placed: Integer, layout: Layout): String {
     var held = "(void*){allocator_layout.c_name}___retain({allocator})"
     var address = "{allocating}({allocator}, (int64_t)sizeof({layout.c_name}))"
     return "{held}, {given}, {address}"
+}
+
+func field_read_of(number: Integer): String {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number and operation.kind == "load" {
+                return field_place(operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return ""
 }
 
 func made_in_frame(number: Integer): Boolean {
