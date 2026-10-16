@@ -47,6 +47,9 @@ func reach_function(c_name: String) {
     if not function.folded_into.is_empty() {
         waiting.append(function.folded_into)
     }
+    if not function.filled_by.is_empty() {
+        waiting.append(function.filled_by)
+    }
     var index = 0
     while index < function.values.count() {
         reach_type(function.values[index].spite_type, 0)
