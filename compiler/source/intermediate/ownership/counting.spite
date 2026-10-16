@@ -13,6 +13,7 @@ var terminator_pseudo_uses = Dictionary<Integer, List<Integer>>()
 var dominator_children = Dictionary<Integer, List<Integer>>()
 var retained_count = 0
 var released_count = 0
+var held_by = Dictionary<Integer, List<Integer>>()
 
 func Counting(
     studied: Function,
@@ -33,6 +34,7 @@ func Counting(
 func count() {
     crash function
     choose_tracked()
+    find_held()
     find_children()
     var index = 0
     while index < function.values.count() {
@@ -194,6 +196,7 @@ func operation_users(operation: Operation, block_number: Integer, position: Inte
     var index = 0
     while index < operation.operands.count() {
         tracked_users(operation.operands[index], 0, found)
+        held_users(operation.operands[index], found)
         index = index + 1
     }
     if operation.kind == "retain" {
@@ -219,6 +222,7 @@ func terminator_users(block_number: Integer): List<Integer> {
     var index = 0
     while index < terminator.operands.count() {
         tracked_users(terminator.operands[index], 0, found)
+        held_users(terminator.operands[index], found)
         index = index + 1
     }
     index = 0
@@ -227,6 +231,7 @@ func terminator_users(block_number: Integer): List<Integer> {
         var argument_index = 0
         while argument_index < target.arguments.count() {
             tracked_users(target.arguments[argument_index], 0, found)
+            held_users(target.arguments[argument_index], found)
             argument_index = argument_index + 1
         }
         index = index + 1
@@ -514,6 +519,63 @@ func edge_releases(block_number: Integer, live: LiveSet, dead: List<Integer>) {
         var name = names[index]
         if not live.has(name) and not dead.contains(name) {
             dead.append(name)
+        }
+        index = index + 1
+    }
+}
+
+func find_held() {
+    crash function
+    crash consumption
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        block.operations.each(note_held)
+        block_index = block_index + 1
+    }
+}
+
+func note_held(operation: Operation) {
+    crash consumption
+    assert operation.kind == "store" and consumption.into_row(operation)
+    var stored = operation.operands.last()
+    crash stored
+    assert tracked.has(stored)
+    var row = operation.operands.first()
+    crash row
+    var root = root_of(row, 0)
+    if not held_by.has(root) {
+        held_by[root] = List<Integer>()
+    }
+    crash held_by[root]
+    held_by[root].append(stored)
+}
+
+func root_of(value: Integer, depth: Integer): Integer {
+    crash uses
+    crash consumption
+    var defining = uses.definition_of(value)
+    if not defining or depth > 8 {
+        return value
+    }
+    var passes_on = consumption.is_projection(defining) or consumption.is_wrap(defining)
+    var inner = defining.operands.first()
+    if not passes_on or not inner {
+        return value
+    }
+    return root_of(inner, depth + 1)
+}
+
+func held_users(value: Integer, found: List<Integer>) {
+    assert held_by.count() > 0
+    var root = root_of(value, 0)
+    assert held_by.has(root)
+    crash held_by[root]
+    var kept = held_by[root]
+    var index = 0
+    while index < kept.count() {
+        if not found.contains(kept[index]) {
+            found.append(kept[index])
         }
         index = index + 1
     }
