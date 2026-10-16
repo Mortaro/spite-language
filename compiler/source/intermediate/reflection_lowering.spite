@@ -106,6 +106,18 @@ func describe_class(object: Integer, described: Analysis.ClassInfo) {
         lowering().emitter.store_field(object, "_unbound_functions", held_unbound)
         return
     }
+    var filler = lowering().known().accessed_maker(
+        "{described.c_name}___describe_functions",
+        described,
+        "",
+        "functions",
+    )
+    var filled = [object]
+    lowering().emitter.emit_call(filler, filled, null)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func fill_functions(described: Analysis.ClassInfo, object: Integer) {
     var fresh_type = lowering().known().class_type(described)
     var fresh = lowering().default_object(described, fresh_type)
     var listed = functions_of(described, fresh)
@@ -283,7 +295,12 @@ func function_of(
     binding.literal = bound_name
     binding.target = bound_name
     if not made.is_inline_supplied(function) and not made.is_library_class(described) and not made.hot_reload {
-        var filler = lowering().known().accessed_maker("{function.c_name}___accessed", described, function.name)
+        var filler = lowering().known().accessed_maker(
+            "{function.c_name}___accessed",
+            described,
+            function.name,
+            "accessed",
+        )
         var filled = [made_function]
         lowering().emitter.emit_call(filler, filled, null)
     }

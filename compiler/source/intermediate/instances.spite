@@ -18,6 +18,7 @@ var reflection_texts = List<String>()
 var accessed_names = List<String>()
 var accessed_classes = List<Analysis.ClassInfo>()
 var accessed_texts = List<String>()
+var accessed_kinds = List<String>()
 var row_classes = Dictionary<String, Boolean>()
 
 func Instances(starting_generator: Generation.Generator) {
@@ -310,11 +311,12 @@ func field_declaration(information: Analysis.ClassInfo, name: String): Syntax.St
 }
 
 # ../../../docs/reflection.md#spiteaccess
-func accessed_maker(name: String, information: Analysis.ClassInfo, text: String): String {
+func accessed_maker(name: String, information: Analysis.ClassInfo, text: String, kind: String): String {
     if not accessed_names.contains(name) {
         accessed_names.append(name)
         accessed_classes.append(information)
         accessed_texts.append(text)
+        accessed_kinds.append(kind)
     }
     return name
 }

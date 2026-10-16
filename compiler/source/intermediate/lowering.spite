@@ -615,25 +615,48 @@ func write_accessed(instances: Instances, position: Integer) {
     var name = instances.accessed_names[position]
     var described = instances.accessed_classes[position]
     var written = instances.accessed_texts[position]
+    var kind = instances.accessed_kinds[position]
     crash name
     crash described
     crash written
+    crash kind
     var made = instances.front()
-    var found = described.find_function(written)
-    crash found
-    var function = synthetic_function(name, "accessed", described)
-    var function_class = made.find_class_by_c_name("Spite_Function")
-    crash function_class
-    var function_type = instances.class_type(function_class)
+    var function = synthetic_function(name, kind, described)
+    var parameter_class = made.find_class_by_c_name("Spite_Function")
+    if kind == "functions" {
+        parameter_class = made.find_class_by_c_name("Spite_Class")
+    }
+    crash parameter_class
+    var function_type = instances.class_type(parameter_class)
     var value = function.new_value(function_type, "parameter")
     var parameter = Parameter("described", function_type, value)
     function.parameters.append(parameter)
     var nothing = instances.typed_nothing()
-    var described_function = synthetic_description("accessed", name, nothing)
+    var described_function = synthetic_description(kind, name, nothing)
     var emitter = start_body(function, described, described_function, instances)
     var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
-    if instances.reached_functions.has("Spite_Function_get_accesses") {
-        var reflection = ReflectionLowering(expressions)
+    var reflection = ReflectionLowering(expressions)
+    if kind == "functions" {
+        var readers = [
+            "Spite_Class_get_functions"
+            "Spite_Class_has_function"
+            "Spite_Class_function_waits"
+            "Spite_Class_argument_count"
+        ]
+        var read = false
+        var reader_index = 0
+        while reader_index < readers.count() {
+            if instances.reached_functions.has(readers[reader_index]) {
+                read = true
+            }
+            reader_index = reader_index + 1
+        }
+        if read {
+            reflection.fill_functions(described, value)
+        }
+    } else if instances.reached_functions.has("Spite_Function_get_accesses") {
+        var found = described.find_function(written)
+        crash found
         reflection.fill_accesses(described, found, value)
     }
     emitter.returns(-1)

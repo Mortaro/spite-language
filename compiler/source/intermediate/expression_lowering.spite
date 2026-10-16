@@ -2493,10 +2493,22 @@ func class_test(binary: Syntax.Expressions.BinaryExpression): Condition? {
     crash binary.right
     var made = front()
     var tested = made.tested_class_of(binary.right, lowered_class)
-    assert tested
     crash binary.left
     var static_left = made.try_resolve_static_path(binary.left, lowered_class.qualified_dotted)
-    assert not static_left
+    if tested and not static_left {
+        return class_test_of(binary, tested)
+    }
+    crash binary.right
+    var read_class = made.static_class_read(binary.right, emitter.scope, lowered_class)
+    if read_class {
+        return class_test_of(binary, read_class)
+    }
+    return null
+}
+
+func class_test_of(binary: Syntax.Expressions.BinaryExpression, tested: Analysis.ClassInfo): Condition {
+    var made = front()
+    crash binary.left
     var subject = lower(binary.left)
     var answered = class_membership(subject, tested)
     var made_condition = Condition(answered)
@@ -2519,6 +2531,16 @@ func class_membership(subject: Integer, tested: Analysis.ClassInfo): Integer {
     var tag_type = known().typed_symbol()
     var boolean = known().typed_boolean()
     var nullable = types.as_nullable(subject_type)
+    var held_type = subject_type
+    if nullable {
+        held_type = nullable.inner
+    }
+    var held_class = types.as_class_ref(held_type)
+    if held_class and held_class.c_name == "Spite_Class" and not held_class.has_signature and tested.c_name != "Spite_Class" {
+        var named_type = front().instance_type_of(tested)
+        var named_object = class_object_of(named_type)
+        return emitter.emit_call_two("Reference.equals", subject, named_object, boolean)
+    }
     if not nullable {
         var plain_tag = emitter.emit_call_one("Union.tag", subject, tag_type)
         var plain_wanted = class_tag(tested)
@@ -3695,7 +3717,7 @@ func shape_operator(
         emitter.enter_block(targets[index])
         var narrowed_type = member_type(member)
         var narrowed_left = emitter.emit_call_one("Union.value", left, narrowed_type)
-        var narrowed_right = narrowed_operand(right, right_type, narrowed_type)
+        var narrowed_right = narrowed_operand(right, right_type, narrowed_type, member, operator)
         var result = member_operation(operator, member, narrowed_left, narrowed_right, whole)
         var converted = convert(result, answer)
         var passed = [converted]
@@ -3706,13 +3728,78 @@ func shape_operator(
     return answered
 }
 
-func narrowed_operand(right: Integer, right_type: Analysis.SpiteType, narrowed_type: Analysis.SpiteType): Integer {
+func narrowed_operand(
+    right: Integer,
+    right_type: Analysis.SpiteType,
+    narrowed_type: Analysis.SpiteType,
+    member: Analysis.ClassInfo,
+    operator: Syntax.Expressions.BinaryOperator,
+): Integer {
     if not types.as_union(right_type) {
         return convert(right, narrowed_type)
     }
-    var unlike = emitter.site("unlike", "two values of a type that are not of one class")
-    var operands = [right]
-    return emitter.checked_call("Union.value", operands, narrowed_type, unlike)
+    var made = front()
+    var left_number = made.operated_number_type(member)
+    var right_union = types.as_union(right_type)
+    crash right_union
+    var described_right = made.find_union_by_c_name(right_union.c_name)
+    if not left_number or not described_right or described_right.members.is_empty() {
+        var unlike = emitter.site("unlike", "two values of a type that are not of one class")
+        var operands = [right]
+        return emitter.checked_call("Union.value", operands, narrowed_type, unlike)
+    }
+    var left_scalar = types.as_scalar(left_number)
+    crash left_scalar
+    var tag_type = known().typed_symbol()
+    var tag = emitter.emit_call_one("Union.tag", right, tag_type)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(narrowed_type, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var tags = List<String>()
+    var targets = List<Integer>()
+    var index = 0
+    while index < described_right.members.count() {
+        var other = described_right.members[index]
+        tags.append(other.c_name)
+        var other_block = emitter.new_block()
+        targets.append(other_block)
+        index = index + 1
+    }
+    emitter.switch_on(tag, tags, targets)
+    index = 0
+    while index < described_right.members.count() {
+        var other = described_right.members[index]
+        crash targets[index]
+        emitter.enter_block(targets[index])
+        var other_number = made.operated_number_type(other)
+        var reason = ""
+        if not other_number {
+            reason = "is not one"
+        } else {
+            var other_scalar = types.as_scalar(other_number)
+            crash other_scalar
+            if other.c_name != member.c_name and made.is_wider_kind(other_scalar.kind, left_scalar.kind) {
+                reason = "would be cut to fit"
+            }
+        }
+        if reason.is_empty() {
+            crash other_number
+            var member_operands = [right]
+            var taken = emitter.emit_call("Union.value", member_operands, other_number)
+            var fitted = convert(taken, narrowed_type)
+            var passed = [fitted]
+            emitter.jump(joined, passed)
+        } else {
+            var symbol = made.binary_operator_symbol(operator)
+            var shown = "'{symbol}' works in {made.operand_shown(member)}, the class of its left side, and its right side is {made.operand_shown(other)}, which {reason}"
+            var misfit = emitter.site("unlike", shown)
+            var nothing_shown = List<Integer>()
+            emitter.halt(misfit, nothing_shown)
+        }
+        index = index + 1
+    }
+    emitter.enter_block(joined)
+    return answered
 }
 
 func unrolled_walk(
