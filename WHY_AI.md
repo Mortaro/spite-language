@@ -37,6 +37,15 @@ designed so a moron's code still comes out correct and fast. That is the case fo
   is that each list gets the layout its loops want (columns where the loops read a few fields), and the compiler
   reports where it could not.
 
+## Cheaper models can write it
+
+- A cheaper model is a more naive writer, and Spite is designed for naive writers: the compiler refuses the
+  mistakes a naive program makes, names the fix, and makes the plain version fast. So the code a small, cheap
+  model writes comes out as correct and as fast as a large model's, and writing the program costs less.
+- The goal is that a cheap model can build complicated programs in Spite. Spite is built that way too: once work is
+  planned clearly, cheaper agents build it and a stronger model reviews it. Where a cheap agent fails because the
+  language, an error message or a docs page was unclear, that is fixed in the language, not worked around.
+
 ## Fewer ways to be wrong
 
 - One way to do each thing: one loop (`while`), no `for`, `break` or `continue`, no overloading, no lambdas, no

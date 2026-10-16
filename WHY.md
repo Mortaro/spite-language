@@ -244,6 +244,13 @@ because it seems to work. Here nothing is accepted on that basis.
 So the AI is not trusted; it is constrained. The more the language refuses, the less it matters who, or what, is
 writing it, and that is the property Spite is built to have.
 
+**It makes code cheaper to write.** An agent is a moron too: a cheaper model is a more naive one. When the compiler
+refuses the mistakes and makes the plain version fast, a cheap model's code comes out as correct and as fast as an
+expensive model's, so the work costs less. The direction is that Spite is built that way too: once a piece of work
+is planned clearly, cheaper agents build it, and the strongest model only reviews it against the project's
+standard. A cheap agent that cannot build something complicated in Spite is a finding, not a failure of the
+agent: the language, its errors or its docs are not simple enough yet, and get fixed until it can.
+
 ## C today, its own backend as the direction
 
 Spite compiles to C and builds it with the C compiler you bring (`cc`, `clang` or `gcc`), so it runs wherever C
