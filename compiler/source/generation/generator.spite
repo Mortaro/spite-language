@@ -43226,7 +43226,7 @@ func offset_read_proven(index_expression: Syntax.Expressions.IndexExpression, sc
     crash index_expression.index
     crash index_expression.object
     var sum = shape.as_binary(index_expression.index)
-    if not sum or sum.operator != 'add' or not sum.left or not sum.right {
+    if not sum or sum.operator != 'add' {
         return false
     }
     var sum_left = binary_left(sum)
@@ -43250,7 +43250,11 @@ func offset_counted(
         return false
     }
     var bound = narrowed_counter_bound(counter.name, 0, scope)
-    if bound.is_empty() or not never_below_zero(base_ast, scope) {
+    if bound.is_empty() {
+        return false
+    }
+    var not_negative_key = "~0[{base.name}]"
+    if not never_below_zero(base_ast, scope) and not scope.is_path_narrowed(not_negative_key) {
         return false
     }
     var key = offset_guard_key(list_text, base.name, bound)
