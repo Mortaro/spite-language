@@ -91,7 +91,7 @@ func import_section_size(): Integer {
     return library_name_offset() + library_length + 1
 }
 
-func append_imports(bytes: List<Byte>) {
+func append_imports(bytes: Buffer) {
     var lookup_table = imports_address() + descriptor_size()
     var library_address = imports_address() + library_name_offset()
     var slot_table = imports_address() + address_table_offset()
@@ -112,8 +112,8 @@ func append_imports(bytes: List<Byte>) {
     bytes.append(0)
 }
 
-func append_import_tables(bytes: List<Byte>) {
-    var slots = List<Byte>()
+func append_import_tables(bytes: Buffer) {
+    var slots = Buffer()
     var index = 0
     while index < imported_names.count() {
         var entry = imports_address() + name_entry_offset(index)
@@ -126,7 +126,7 @@ func append_import_tables(bytes: List<Byte>) {
     bytes.append_bytes(slots, 0, slot_count)
 }
 
-func append_name(bytes: List<Byte>, name: String) {
+func append_name(bytes: Buffer, name: String) {
     var padding = name_entry_size(name) - name.length() - 3
     bytes.append_unsigned_short(0)
     append_text(bytes, name)
@@ -134,7 +134,7 @@ func append_name(bytes: List<Byte>, name: String) {
     append_zeros(bytes, padding)
 }
 
-func append_text(bytes: List<Byte>, text: String) {
+func append_text(bytes: Buffer, text: String) {
     var index = 0
     while index < text.length() {
         var code = text.code_at(index)
@@ -143,7 +143,7 @@ func append_text(bytes: List<Byte>, text: String) {
     }
 }
 
-func append_zeros(bytes: List<Byte>, count: Integer) {
+func append_zeros(bytes: Buffer, count: Integer) {
     var written = 0
     while written < count {
         bytes.append(0)
@@ -152,14 +152,14 @@ func append_zeros(bytes: List<Byte>, count: Integer) {
 }
 
 # ../../../design/backend_windows_executable_format.md#the-dos-header
-func append_dos_header(bytes: List<Byte>) {
+func append_dos_header(bytes: Buffer) {
     bytes.append_unsigned_short(23117)
     append_zeros(bytes, 58)
     bytes.append_unsigned_integer(64)
 }
 
 # ../../../design/backend_windows_executable_format.md#the-file-header
-func append_file_header(bytes: List<Byte>) {
+func append_file_header(bytes: Buffer) {
     bytes.append_unsigned_integer(17744)
     bytes.append_unsigned_short(34404)
     bytes.append_unsigned_short(2)
@@ -171,7 +171,7 @@ func append_file_header(bytes: List<Byte>) {
 }
 
 # ../../../design/backend_windows_executable_format.md#the-optional-header
-func append_optional_header(bytes: List<Byte>, code_size: Integer, imports_size: Integer) {
+func append_optional_header(bytes: Buffer, code_size: Integer, imports_size: Integer) {
     var code_raw = raw_size(code_size)
     var imports_raw = raw_size(imports_size)
     var code_start = section_size()
@@ -217,7 +217,7 @@ func append_optional_header(bytes: List<Byte>, code_size: Integer, imports_size:
 }
 
 # ../../../design/backend_windows_executable_format.md#the-section-headers
-func append_section_headers(bytes: List<Byte>, code_size: Integer, imports_size: Integer) {
+func append_section_headers(bytes: Buffer, code_size: Integer, imports_size: Integer) {
     var code_raw = raw_size(code_size)
     var imports_raw = raw_size(imports_size)
     var text_address = section_size()
@@ -231,7 +231,7 @@ func append_section_headers(bytes: List<Byte>, code_size: Integer, imports_size:
 }
 
 func append_section_header(
-    bytes: List<Byte>,
+    bytes: Buffer,
     name: String,
     virtual_size: Integer,
     address: Integer,
@@ -263,13 +263,13 @@ func raw_size(size: Integer): Integer {
 }
 
 # ../../../design/backend_windows_executable_format.md#what-the-writer-is-given
-func write(path: String, code: List<Byte>) {
+func write(path: String, code: Buffer) {
     var code_size = code.count()
     crash not code.is_empty()
     crash code_size <= section_size()
     var imports_size = import_section_size()
     crash imports_size <= section_size()
-    var bytes = List<Byte>()
+    var bytes = Buffer()
     append_dos_header(bytes)
     append_file_header(bytes)
     append_optional_header(bytes, code_size, imports_size)

@@ -6,7 +6,7 @@ var gzip = Gzip()
 func Encodings() {
     var samples = ["", "f", "fo", "foo", "foob", "fooba", "foobar"]
     samples.each(show_base64)
-    var binary = List<Byte>()
+    var binary = Buffer()
     binary.append(251)
     binary.append(255)
     binary.append(191)
@@ -23,12 +23,12 @@ func Encodings() {
     }
     var url_unpadded = base64.decode_url("-_-_Zg")
     crash url_unpadded
-    var url_bytes = url_unpadded.join(",")
+    var url_bytes = joined(url_unpadded)
     console.print("base64url '-_-_Zg' is {url_bytes}")
     read_zlib("eJzLSM3JyVfIQCcBaAMIsQ==")
     read_zlib("eJwDAAAAAAE=")
     read_gzip("H4sIAAAAAAACCstIzcnJBwCGphA2BQAAAA==")
-    var repeated = List<Byte>()
+    var repeated = Buffer()
     while repeated.count() < 100000 {
         var value: Byte = repeated.count() % 7 + 97
         repeated.append(value)
@@ -57,6 +57,22 @@ func Encodings() {
     }
 }
 
+func joined(bytes: Buffer): String {
+    var text = ""
+    var index = 0
+    while index < bytes.count() {
+        var held = bytes[index]
+        crash held
+        var value: Integer = held
+        if index > 0 {
+            text = "{text},"
+        }
+        text = "{text}{value}"
+        index = index + 1
+    }
+    return text
+}
+
 func show_base64(sample: String) {
     var bytes = sample.to_bytes()
     var encoded = base64.encode(bytes)
@@ -72,7 +88,7 @@ func read_zlib(text: String) {
     crash packed
     var unpacked = zlib.decompress(packed)
     crash unpacked
-    var read = unpacked.join(",")
+    var read = joined(unpacked)
     console.print("zlib: {read}")
 }
 
@@ -81,6 +97,6 @@ func read_gzip(text: String) {
     crash packed
     var unpacked = gzip.decompress(packed)
     crash unpacked
-    var read = unpacked.join(",")
+    var read = joined(unpacked)
     console.print("gzip: {read}")
 }

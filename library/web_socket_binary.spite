@@ -1,9 +1,9 @@
-var _bytes = List<Byte>()
+var _bytes = Buffer()
 
-func WebSocketBinary(starting_bytes: List<Byte>) {
+func WebSocketBinary(starting_bytes: Buffer) {
     _bytes = starting_bytes
 }
 
-func get_bytes(): List<Byte> {
+func get_bytes(): Buffer {
     return _bytes
 }

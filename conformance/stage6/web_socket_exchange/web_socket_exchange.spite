@@ -53,7 +53,13 @@ func answer_binary(socket: WebSocket, binary: WebSocketBinary) {
     var counted = binary.bytes.count()
     log.append("server: {counted} bytes")
     var reversed = binary.bytes.copy()
-    reversed.reverse()
+    var index = 0
+    while index < counted {
+        var held = reversed[counted - index - 1]
+        crash held
+        reversed[index] = held
+        index = index + 1
+    }
     socket.send_bytes(reversed)
 }
 
@@ -85,7 +91,7 @@ func talk() {
     var large = counting_bytes(70000)
     socket.send_bytes(large)
     show(socket)
-    var empty = List<Byte>()
+    var empty = Buffer()
     socket.send_bytes(empty)
     show(socket)
     var question = "are you there".to_bytes()
@@ -120,16 +126,16 @@ func show_bytes(binary: WebSocketBinary) {
     if counted == 0 {
         console.print("client: 0 bytes")
     } else {
-        var first = binary.bytes.first()
-        var last = binary.bytes.last()
+        var first = binary.bytes[0]
+        var last = binary.bytes[counted - 1]
         crash first
         crash last
         console.print("client: {counted} bytes, first {first}, last {last}")
     }
 }
 
-func counting_bytes(count: Integer): List<Byte> {
-    var bytes = List<Byte>()
+func counting_bytes(count: Integer): Buffer {
+    var bytes = Buffer()
     var index = 0
     while index < count {
         var value: Byte = index % 256
@@ -160,7 +166,7 @@ func talk_raw() {
     write_frame(socket, 137, true, "p")
     write_frame(socket, 128, true, "mented")
     write_frame(socket, 129, false, "no mask")
-    var received = List<Byte>()
+    var received = Buffer()
     while not socket.closed {
         var got = socket.read_bytes()
         if got {
@@ -176,14 +182,14 @@ func write_text(socket: Socket, text: String) {
     write_list(socket, text_bytes)
 }
 
-func write_list(socket: Socket, list: List<Byte>) {
+func write_list(socket: Socket, list: Buffer) {
     crash socket.write_bytes(list)
 }
 
 func write_frame(socket: Socket, first: Integer, masked: Boolean, payload: String) {
     var text_bytes = payload.to_bytes()
     var counted = text_bytes.count()
-    var frame = List<Byte>()
+    var frame = Buffer()
     var opening: Byte = first
     frame.append(opening)
     var second: Byte = counted
@@ -200,13 +206,15 @@ func write_frame(socket: Socket, first: Integer, masked: Boolean, payload: Strin
     }
     var index = 0
     while index < counted {
-        frame.append(text_bytes[index])
+        var held = text_bytes[index]
+        crash held
+        frame.append(held)
         index = index + 1
     }
     write_list(socket, frame)
 }
 
-func describe_frames(received: List<Byte>) {
+func describe_frames(received: Buffer) {
     var at = 0
     var total = received.count()
     while at + 2 <= total {
@@ -214,7 +222,7 @@ func describe_frames(received: List<Byte>) {
         crash received[at + 1]
         var first: Integer = received[at]
         var length: Integer = received[at + 1]
-        var payload = List<Byte>()
+        var payload = Buffer()
         var index = at + 2
         while index < at + 2 + length {
             crash received[index]

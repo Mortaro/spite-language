@@ -28,7 +28,7 @@ var checking = false
 var needed_checks = List<String>()
 var singletons = Dictionary<String, Boolean>()
 var slot_fields = Dictionary<String, Boolean>()
-var container_prefixes = ["List_", "Vector_", "Items_", "Dictionary_", "TypedMemory_", "InlineMemory_"]
+var container_prefixes = ["Buffer", "List_", "Vector_", "Items_", "Dictionary_", "TypedMemory_", "InlineMemory_"]
 var keywords = [
     "if"
     "while"

@@ -13,7 +13,7 @@ func WebSocketFailures() {
     var nothing = not message
     console.print("a client of a plain HTTP server: connected", connected, "and receives nothing", nothing)
     old_version()
-    var invalid = List<Byte>()
+    var invalid = Buffer()
     invalid.append(104)
     invalid.append(255)
     exchange("/invalid-text", 129, invalid)
@@ -21,7 +21,7 @@ func WebSocketFailures() {
     exchange("/oversized", 130, oversized)
     var nothing_started = counting_bytes(3)
     exchange("/stray-continuation", 128, nothing_started)
-    var bad_code = List<Byte>()
+    var bad_code = Buffer()
     bad_code.append(3)
     bad_code.append(231)
     exchange("/bad-close-code", 136, bad_code)
@@ -88,7 +88,7 @@ func old_version() {
     socket.close()
 }
 
-func exchange(path: String, first: Integer, payload: List<Byte>) {
+func exchange(path: String, first: Integer, payload: Buffer) {
     var socket = open_raw(path)
     write_frame(socket, first, payload)
     var received = read_until_closed(socket)
@@ -117,8 +117,8 @@ func open_raw(path: String): Socket {
     return socket
 }
 
-func counting_bytes(count: Integer): List<Byte> {
-    var counted = List<Byte>()
+func counting_bytes(count: Integer): Buffer {
+    var counted = Buffer()
     var index = 0
     while index < count {
         var value: Byte = index
@@ -133,13 +133,13 @@ func write_text(socket: Socket, text: String) {
     write_list(socket, text_bytes)
 }
 
-func write_list(socket: Socket, list: List<Byte>) {
+func write_list(socket: Socket, list: Buffer) {
     crash socket.write_bytes(list)
 }
 
-func write_frame(socket: Socket, first: Integer, payload: List<Byte>) {
+func write_frame(socket: Socket, first: Integer, payload: Buffer) {
     var counted = payload.count()
-    var frame = List<Byte>()
+    var frame = Buffer()
     var opening: Byte = first
     frame.append(opening)
     var second: Byte = counted + 128
@@ -151,14 +151,16 @@ func write_frame(socket: Socket, first: Integer, payload: List<Byte>) {
     frame.append(zero)
     var index = 0
     while index < counted {
-        frame.append(payload[index])
+        var held = payload[index]
+        crash held
+        frame.append(held)
         index = index + 1
     }
     write_list(socket, frame)
 }
 
-func read_until_closed(socket: Socket): List<Byte> {
-    var received = List<Byte>()
+func read_until_closed(socket: Socket): Buffer {
+    var received = Buffer()
     while not socket.closed {
         var got = socket.read_bytes()
         if got {
@@ -169,11 +171,13 @@ func read_until_closed(socket: Socket): List<Byte> {
     return received
 }
 
-func describe(received: List<Byte>): String {
+func describe(received: Buffer): String {
     var shown = "got"
     var index = 0
     while index < received.count() {
-        var value: Integer = received[index]
+        var held = received[index]
+        crash held
+        var value: Integer = held
         shown = "{shown} {value}"
         index = index + 1
     }

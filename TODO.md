@@ -27,7 +27,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - `Buffer(size)`: a buffer made with a size the compiler treats as a suggestion (less room when proven, plain variables for a small one), and numbers' storage written `var _memory = Buffer(n)` instead of `Memory.Bytes(n)` (D602)
 - Byte order named in each read and write (`read_integer_little_endian_at`, `read_integer_big_endian_at`), written once as a template over `Buffer.ByteOrder`; `Buffer` loses `byte_order` (D603, D604)
 - Reading and writing bits on a `Buffer`, to pack flags into fewer bytes (D603)
-- `Buffer` replaces `List<Byte>` everywhere bytes are taken or answered, with `byte_order`, `position` and the `_at` names (D590)
 - TLS, so HTTPS and `wss` (D294, D394, D395)
 - TLS written in Spite, after an outside security review (D395)
 - HTTP: request bodies sent chunked, and a server that reads several clients' requests at once (D294)

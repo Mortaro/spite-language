@@ -16,7 +16,7 @@ func JsonUnwritable() {
     var button = button_reader.read("\{}")
     crash button
     var owner_bytes = BinaryReader<Owner>()
-    var no_bytes = List<Byte>()
+    var no_bytes = Buffer()
     var read_owner = owner_bytes.read(no_bytes)
     crash read_owner
     var button_writer = BinaryWriter<Button>()

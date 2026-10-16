@@ -20,7 +20,7 @@ func Datagrams() {
     console.print("sent: {sent}")
     var arrived = server.receive()
     crash arrived
-    var arrived_bytes = arrived.join(",")
+    var arrived_bytes = joined(arrived)
     var from_host = server.sender_host()
     console.print("server got {arrived_bytes} from {from_host}")
     var pong_text = "pong!"
@@ -34,7 +34,7 @@ func Datagrams() {
     crash answer
     var answer_count = answer.count()
     console.print("replied: {replied}, client got {answer_count} bytes")
-    var empty = List<Byte>()
+    var empty = Buffer()
     client.send_to("localhost", 47811, empty)
     var empty_arrived = server.receive()
     crash empty_arrived
@@ -48,4 +48,20 @@ func Datagrams() {
     if not after_close {
         console.print("a closed socket receives nothing")
     }
+}
+
+func joined(bytes: Buffer): String {
+    var text = ""
+    var index = 0
+    while index < bytes.count() {
+        var held = bytes[index]
+        crash held
+        var value: Integer = held
+        if index > 0 {
+            text = "{text},"
+        }
+        text = "{text}{value}"
+        index = index + 1
+    }
+    return text
 }

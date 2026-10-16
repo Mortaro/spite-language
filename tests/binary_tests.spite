@@ -74,7 +74,7 @@ func test_every_number_width_round_trips() {
 }
 
 func test_values_follow_each_other_in_one_buffer() {
-    var bytes = List<Byte>()
+    var bytes = Buffer()
     var ada = Sailor("Ada")
     var bo = Sailor("Bo")
     var ada_writer = BinaryWriter<Sailor>()
@@ -98,16 +98,20 @@ func test_reads_after_a_header_of_numbers() {
     var writer = BinaryWriter<Sailor>()
     var record = writer.write(bo)
     var record_count = record.count()
-    var bytes = List<Byte>()
-    bytes.append_integer_big_endian(record_count)
-    bytes.append_bytes(record, 0, record_count)
-    var length = bytes.read_integer_big_endian(0)
+    var big_endian = Buffer('big_endian')
+    big_endian.append_integer(record_count)
+    var header = Buffer()
+    header.append_integer(record_count)
+    header.append_bytes(record, 0, record_count)
+    var length = header.read_integer_at(0)
     crash length == record_count
+    var big_length = big_endian.read_integer_at(0)
+    crash big_length == record_count
     var reader = BinaryReader<Sailor>()
-    var read = reader.read_from(bytes, 4)
+    var read = reader.read_from(header, 4)
     crash read
     crash read.name == "Bo"
-    crash reader.position == bytes.count()
+    crash reader.position == header.count()
 }
 
 func test_values_that_are_not_classes() {
@@ -147,11 +151,11 @@ func test_bad_bytes_read_nothing() {
     var ship = full_ship()
     var writer = BinaryWriter<Ship>()
     var bytes = writer.write(ship)
-    bytes.remove_at(10)
+    bytes.truncate(10)
     var reader = BinaryReader<Ship>()
     var cut = reader.read(bytes)
     crash not cut
-    var flag = List<Byte>()
+    var flag = Buffer()
     flag.append(0)
     flag.append(0)
     flag.append(0)
@@ -170,7 +174,7 @@ func test_bad_bytes_read_nothing() {
     var flag_reader = BinaryReader<Ship>()
     var bad_flag = flag_reader.read(flag)
     crash not bad_flag
-    var empty = List<Byte>()
+    var empty = Buffer()
     var empty_reader = BinaryReader<Ship>()
     var nothing = empty_reader.read(empty)
     crash not nothing
@@ -187,7 +191,7 @@ func test_a_bad_enum_index_reads_nothing() {
 }
 
 func test_a_count_larger_than_the_bytes_left_reads_nothing() {
-    var huge = List<Byte>()
+    var huge = Buffer()
     huge.append(255)
     huge.append(255)
     huge.append(255)
@@ -198,8 +202,20 @@ func test_a_count_larger_than_the_bytes_left_reads_nothing() {
     crash not read
 }
 
-func shown_bytes(bytes: List<Byte>): String {
-    return bytes.join(" ")
+func shown_bytes(bytes: Buffer): String {
+    var text = ""
+    var index = 0
+    while index < bytes.count() {
+        var held = bytes[index]
+        crash held
+        var value: Integer = held
+        if index > 0 {
+            text = "{text} "
+        }
+        text = "{text}{value}"
+        index = index + 1
+    }
+    return text
 }
 
 func full_ship(): Ship {

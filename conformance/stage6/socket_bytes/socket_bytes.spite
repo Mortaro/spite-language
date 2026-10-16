@@ -63,12 +63,15 @@ func accept_eventually(): Socket {
 }
 
 func send(socket: Socket, first: Byte, second: Byte, third: Byte) {
-    var message = [first, second, third]
+    var message = Buffer()
+    message.append(first)
+    message.append(second)
+    message.append(third)
     var sent = socket.write_bytes_now(message)
     console.print("sent without waiting:", sent)
 }
 
-func receive(socket: Socket, wanted: Integer): List<Byte> {
+func receive(socket: Socket, wanted: Integer): Buffer {
     var received = socket.read_bytes_now()
     while received.count() < wanted and not socket.closed {
         program.sleep(1)

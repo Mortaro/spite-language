@@ -1,8 +1,8 @@
 singleton
 
-func bytes(count: Integer): List<Byte> {
+func bytes(count: Integer): Buffer {
     crash count >= 0
-    var filled = List<Byte>()
+    var filled = Buffer()
     filled.reserve(count)
     if count > 0 {
         _fill(filled.items, count)

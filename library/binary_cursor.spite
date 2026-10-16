@@ -1,0 +1,186 @@
+var source: Buffer? = null
+var position = 0
+var failed = false
+var walked = 0
+var found = 0
+var found_name = ""
+
+func count(): Integer {
+    return _buffer().count()
+}
+
+func take(wanted: Integer): Boolean {
+    if failed or wanted > _buffer().count() - position {
+        fail()
+        return false
+    }
+    position = position + wanted
+    return true
+}
+
+func fail() {
+    failed = true
+    position = _buffer().count()
+}
+
+func read_byte(): Integer {
+    if _holds(1) {
+        return _read_byte()
+    }
+    return 0
+}
+
+func read_short(): Integer {
+    if _holds(2) {
+        return _read_short()
+    }
+    return 0
+}
+
+func read_unsigned_short(): Integer {
+    if _holds(2) {
+        return _read_unsigned_short()
+    }
+    return 0
+}
+
+func read_integer(): Integer {
+    if _holds(4) {
+        return _read_integer()
+    }
+    return 0
+}
+
+func read_long(): Long {
+    if _holds(8) {
+        return _read_long()
+    }
+    return 0
+}
+
+func read_float(): Float {
+    if _holds(4) {
+        return _read_float()
+    }
+    return 0.0
+}
+
+func read_double(): Double {
+    if _holds(8) {
+        return _read_double()
+    }
+    return 0.0
+}
+
+func read_count(): Integer {
+    var result: Long = 0
+    var scale: Long = 1
+    var more = true
+    while more and not failed {
+        var byte = read_byte()
+        result = result + scale * (byte % 128)
+        scale = scale * 128
+        more = byte >= 128
+        if result > _buffer().count() - position or scale > 34359738368 {
+            fail()
+        }
+    }
+    return result
+}
+
+func read_text(): String {
+    var length = read_count()
+    if not take(length) {
+        return ""
+    }
+    var text = _buffer().text(position - length, length)
+    if text {
+        return text
+    }
+    fail()
+    return ""
+}
+
+func read_index() {
+    var index = 0
+    if walked <= 256 {
+        index = read_byte()
+    } else if walked <= 65536 {
+        index = read_unsigned_short()
+    } else {
+        index = read_integer()
+    }
+    if index < 0 or index >= walked {
+        fail()
+    }
+    found = index
+}
+
+func _holds(wanted: Integer): Boolean {
+    if take(wanted) {
+        position = position - wanted
+        return true
+    }
+    return false
+}
+
+func _read_byte(): Integer {
+    var at = position
+    var read = _buffer().read_byte_at(at)
+    crash read
+    position = at + 1
+    return read
+}
+
+func _read_short(): Integer {
+    var at = position
+    var read = _buffer().read_short_at(at)
+    crash read
+    position = at + 2
+    return read
+}
+
+func _read_unsigned_short(): Integer {
+    var at = position
+    var read = _buffer().read_unsigned_short_at(at)
+    crash read
+    position = at + 2
+    return read
+}
+
+func _read_integer(): Integer {
+    var at = position
+    var read = _buffer().read_integer_at(at)
+    crash read
+    position = at + 4
+    return read
+}
+
+func _read_long(): Long {
+    var at = position
+    var read = _buffer().read_long_at(at)
+    crash read
+    position = at + 8
+    return read
+}
+
+func _read_float(): Float {
+    var at = position
+    var read = _buffer().read_float_at(at)
+    crash read
+    position = at + 4
+    return read
+}
+
+func _read_double(): Double {
+    var at = position
+    var read = _buffer().read_double_at(at)
+    crash read
+    position = at + 8
+    return read
+}
+
+func _buffer(): Buffer {
+    crash source
+    return source
+}

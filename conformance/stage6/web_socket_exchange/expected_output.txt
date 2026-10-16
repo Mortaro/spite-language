@@ -1,9 +1,9 @@
 plain request: 400 Bad Request
 client: text 'echo: hello'
 client: text 'echo: héllo ✓'
-client: 5 bytes, first 4, last 0
-client: 300 bytes, first 43, last 0
-client: 70000 bytes, first 111, last 0
+client: 5 bytes, first 4, last 4
+client: 300 bytes, first 43, last 43
+client: 70000 bytes, first 111, last 111
 client: 0 bytes
 client: text 'echo: after the ping'
 client: pong 'are you there'

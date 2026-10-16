@@ -796,7 +796,9 @@ pointer.
 `return` answers, outside `and`/`or` and outside a function that waits, and the function called only
 reads its list (`count()`, `is_empty()`, `[index]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, or passing it to a
 function of its own class that only reads it too), the list and its items are in the caller's frame: no allocation for
-the list or its items, and its elements (the boxes of text above) are released after the call. A function that stores,
+the list or its items, and its elements (the boxes of text above) are released after the call. An empty variadic list (a call that passes
+none of the variadic values, a constructor's included, such as `Buffer()`) costs no allocation either, when the
+function only reads it. A function that stores,
 returns, grows or passes on its list anywhere else gets a list on the heap as before, and so does a function of a
 `--hot-reload` build's own classes, which can be swapped.
 

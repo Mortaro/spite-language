@@ -1,10 +1,10 @@
 singleton
 
-func compress(bytes: List<Byte>): List<Byte> {
+func compress(bytes: Buffer): Buffer {
     var deflate = Deflate()
     var body = deflate.compress(bytes)
     var body_count = body.item_count
-    var output = List<Byte>()
+    var output = Buffer()
     output.reserve(body_count + 6)
     output.append(120)
     output.append(156)
@@ -15,7 +15,7 @@ func compress(bytes: List<Byte>): List<Byte> {
     return output
 }
 
-func decompress(bytes: List<Byte>): List<Byte>? {
+func decompress(bytes: Buffer): Buffer? {
     var total = bytes.item_count
     assert total >= 6
     var method: Integer = bytes.items.read_byte(0)
@@ -24,7 +24,7 @@ func decompress(bytes: List<Byte>): List<Byte>? {
     assert method.shifted_right(4) <= 7
     assert (method * 256 + flags) % 31 == 0
     assert flags.bits_and(32) == 0
-    var body = List<Byte>()
+    var body = Buffer()
     body.reserve(total - 6)
     var body_start: Memory.Address = bytes.items + 2
     body_start.copy_to(body.items, total - 6)
@@ -38,7 +38,7 @@ func decompress(bytes: List<Byte>): List<Byte>? {
     return output
 }
 
-func _adler32(bytes: List<Byte>): UnsignedInteger {
+func _adler32(bytes: Buffer): UnsignedInteger {
     var low: UnsignedInteger = 1
     var high: UnsignedInteger = 0
     var total = bytes.item_count
@@ -59,7 +59,7 @@ func _adler32(bytes: List<Byte>): UnsignedInteger {
     return high.shifted_left(16).bits_or(low)
 }
 
-func _read_big_endian(bytes: List<Byte>, at: Integer): UnsignedInteger {
+func _read_big_endian(bytes: Buffer, at: Integer): UnsignedInteger {
     var value: UnsignedInteger = 0
     var index = 0
     while index < 4 {
@@ -70,7 +70,7 @@ func _read_big_endian(bytes: List<Byte>, at: Integer): UnsignedInteger {
     return value
 }
 
-func _append_big_endian(output: List<Byte>, value: UnsignedInteger) {
+func _append_big_endian(output: Buffer, value: UnsignedInteger) {
     var shift = 24
     while shift >= 0 {
         var part: Byte = value.shifted_right(shift).bits_and(255)

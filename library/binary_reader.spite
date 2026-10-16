@@ -2,27 +2,22 @@ generic $value_type
 
 var position = 0
 var format = BinaryFormat<$value_type>()
-var input = BinaryInput()
+var cursor = BinaryCursor()
 
-func read(bytes: List<Byte>): $value_type? {
+func read(bytes: Buffer): $value_type? {
     var read_value = read_from(bytes, 0)
     assert position == bytes.count()
     return read_value
 }
 
-func read_from(bytes: List<Byte>, start: Integer): $value_type? {
+func read_from(bytes: Buffer, start: Integer): $value_type? {
     crash start >= 0
-    input.address = bytes.items
-    input.count = bytes.count()
-    return read_input(start)
-}
-
-func read_input(start: Integer): $value_type? {
-    assert start < input.count
-    input.position = start
-    input.failed = false
-    var read_value = format.read(input)
-    assert not input.failed
-    position = input.position
+    crash start <= bytes.count()
+    cursor.source = bytes
+    cursor.position = start
+    cursor.failed = false
+    var read_value = format.read(cursor)
+    assert not cursor.failed
+    position = cursor.position
     return read_value
 }

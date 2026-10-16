@@ -82,56 +82,62 @@ func modified(): Instant? {
     return Instant(whole + part)
 }
 
-func read_bytes(): List<Byte>? {
+func read_bytes(): Buffer? {
     var handle = open_file("rb")
-    assert handle != 0
-    seek(handle, 0, 2)
-    var length = tell(handle)
-    seek(handle, 0, 0)
-    var bytes = _read_list(handle, length)
-    close_file(handle)
-    assert length == bytes.count()
-    return bytes
+    if handle != 0 {
+        seek(handle, 0, 2)
+        var length = tell(handle)
+        seek(handle, 0, 0)
+        var bytes = _read_into_buffer(handle, length)
+        close_file(handle)
+        assert length == bytes.count()
+        return bytes
+    }
+    return null
 }
 
-func read_bytes_at(position: Long, count: Integer): List<Byte>? {
+func read_bytes_at(position: Long, count: Integer): Buffer? {
     crash position >= 0 and count >= 0
     var handle = open_file("rb")
-    assert handle != 0
-    seek(handle, 0, 2)
-    var available = tell(handle) - position
-    if available > count {
-        available = count
+    if handle != 0 {
+        seek(handle, 0, 2)
+        var available = tell(handle) - position
+        if available > count {
+            available = count
+        }
+        seek(handle, position, 0)
+        var bytes = _read_into_buffer(handle, available)
+        close_file(handle)
+        return bytes
     }
-    seek(handle, position, 0)
-    var bytes = _read_list(handle, available)
-    close_file(handle)
-    return bytes
+    return null
 }
 
-func write_bytes(bytes: List<Byte>): Boolean {
+func write_bytes(bytes: Buffer): Boolean {
     var handle = open_file("wb")
     if handle == 0 {
         return false
     }
-    var written = _write_list(bytes, handle)
+    var written = _write_buffer(bytes, handle)
     close_file(handle)
     return written == bytes.count()
 }
 
-func append_bytes(bytes: List<Byte>): Long? {
+func append_bytes(bytes: Buffer): Long? {
     var handle = open_file("ab")
-    assert handle != 0
-    seek(handle, 0, 2)
-    var start = tell(handle)
-    var written = _write_list(bytes, handle)
-    close_file(handle)
-    assert written == bytes.count()
-    return start
+    if handle != 0 {
+        seek(handle, 0, 2)
+        var start = tell(handle)
+        var written = _write_buffer(bytes, handle)
+        close_file(handle)
+        assert written == bytes.count()
+        return start
+    }
+    return null
 }
 
-func _read_list(handle: Long, wanted: Long): List<Byte> {
-    var bytes = List<Byte>()
+func _read_into_buffer(handle: Long, wanted: Long): Buffer {
+    var bytes = Buffer()
     if wanted > 0 {
         var counted: Integer = wanted
         bytes.reserve(counted)
@@ -141,7 +147,7 @@ func _read_list(handle: Long, wanted: Long): List<Byte> {
     return bytes
 }
 
-func _write_list(bytes: List<Byte>, handle: Long): Long {
+func _write_buffer(bytes: Buffer, handle: Long): Long {
     var counted = bytes.count()
     if counted == 0 {
         return 0

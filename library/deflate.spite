@@ -93,13 +93,13 @@ var _run_extras: Memory.Address = 0
 var _run_count = 0
 var _symbols = List<Integer>()
 var _extras = List<Integer>()
-var _output = List<Byte>()
+var _output = Buffer()
 
 var _input: Memory.Address = 0
 var _input_length = 0
 var _position = 0
 var _failed = false
-var _result = List<Byte>()
+var _result = Buffer()
 var _tables: Memory.Address = 0
 var _literal_table: Memory.Address = 0
 var _distance_table: Memory.Address = 0
@@ -109,7 +109,7 @@ var _literal_mask: Long = 0
 var _distance_mask: Long = 0
 var _length_mask: Long = 0
 
-func compress(bytes: List<Byte>): List<Byte> {
+func compress(bytes: Buffer): Buffer {
     _source = bytes.items
     _source_length = bytes.item_count
     _scratch = heap.allocate(280000)
@@ -129,7 +129,7 @@ func compress(bytes: List<Byte>): List<Byte> {
     _run_extras = _runs + 1300
     _fill(_head, _hash_size, -1)
     _fill(_previous, _window, -1)
-    _output = List<Byte>()
+    _output = Buffer()
     _output.reserve(_source_length / 2 + 64)
     _bit_buffer = 0
     _bit_count = 0
@@ -152,18 +152,18 @@ func compress(bytes: List<Byte>): List<Byte> {
     _symbols = List<Integer>()
     _extras = List<Integer>()
     var result = _output
-    _output = List<Byte>()
+    _output = Buffer()
     return result
 }
 
-func decompress(bytes: List<Byte>): List<Byte>? {
+func decompress(bytes: Buffer): Buffer? {
     _input = bytes.items
     _input_length = bytes.item_count
     _position = 0
     _bit_buffer = 0
     _bit_count = 0
     _failed = false
-    _result = List<Byte>()
+    _result = Buffer()
     _result.reserve(_input_length * 2 + 64)
     _tables = heap.allocate(270000)
     _literal_table = _tables
@@ -175,7 +175,7 @@ func decompress(bytes: List<Byte>): List<Byte>? {
     _tables = 0
     _input = 0
     var result = _result
-    _result = List<Byte>()
+    _result = Buffer()
     assert not _failed
     return result
 }
