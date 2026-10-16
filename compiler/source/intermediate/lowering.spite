@@ -623,7 +623,7 @@ func write_accessed(instances: Instances, position: Integer) {
     var made = instances.front()
     var function = synthetic_function(name, kind, described)
     var parameter_class = made.find_class_by_c_name("Spite_Function")
-    if kind == "functions" {
+    if kind == "functions" or kind == "attributes" {
         parameter_class = made.find_class_by_c_name("Spite_Class")
     }
     crash parameter_class
@@ -636,7 +636,11 @@ func write_accessed(instances: Instances, position: Integer) {
     var emitter = start_body(function, described, described_function, instances)
     var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
     var reflection = ReflectionLowering(expressions)
-    if kind == "functions" {
+    if kind == "attributes" {
+        if instances.reached_functions.has("Spite_Class_get_attributes") {
+            reflection.fill_attributes(described, value)
+        }
+    } else if kind == "functions" {
         var readers = [
             "Spite_Class_get_functions"
             "Spite_Class_has_function"

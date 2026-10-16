@@ -94,8 +94,14 @@ func describe_class(object: Integer, described: Analysis.ClassInfo) {
         store_namespace(object, "_namespace", described.namespace_dotted)
     }
     if made.class_level_attributes_used and made.describes_members(described) {
-        var declarations = attribute_declarations(described)
-        lowering().emitter.store_field(object, "_attributes", declarations)
+        var attributes_filler = lowering().known().accessed_maker(
+            "{described.c_name}___describe_attributes",
+            described,
+            "",
+            "attributes",
+        )
+        var attributes_filled = [object]
+        lowering().emitter.emit_call(attributes_filler, attributes_filled, null)
     }
     assert made.class_level_functions_used and made.describes_members(described)
     if described.c_name == made.entry_class_c_name {
@@ -114,6 +120,12 @@ func describe_class(object: Integer, described: Analysis.ClassInfo) {
     )
     var filled = [object]
     lowering().emitter.emit_call(filler, filled, null)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func fill_attributes(described: Analysis.ClassInfo, object: Integer) {
+    var declarations = attribute_declarations(described)
+    lowering().emitter.store_field(object, "_attributes", declarations)
 }
 
 # ../../../docs/reflection.md#spiteaccess
