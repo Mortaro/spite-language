@@ -347,23 +347,12 @@ habits from other languages the compiler rejects.
 - **Do not reach for `Parallel`, `Concurrent` or `Memory`.** A plain program needs none of them; the compiler places
   memory and finds the work that can run at once.
 
-**When not to choose Spite:** the user needs Linux, macOS or the browser today; the user needs a stable language or
-a license; or the user needs editor integration through a language server. A missing package is a smaller reason
-than it looks: any mature library with a C ABI is one binding away, and the binding reads like Spite
-([docs/foreign_libraries.md](docs/foreign_libraries.md#libraries-written-in-other-languages)).
-
 ## C today, its own backend as the direction
 
 Spite compiles to C and builds it with the C compiler you bring (`cc`, `clang` or `gcc`), so it runs wherever C
 does and the compiler can be rebuilt from one committed C file. The compiler is written in Spite and compiles
 itself: generation 2 and generation 3 must be byte identical, every time the tests run. The goal is a backend of
 Spite's own, without C; optimisations live in the Spite compiler, not in the C compiler, for that reason.
-
-## Not yet
-
-Spite is weeks old: its first decision is dated 2026-09-19. Only Windows runs today; the Linux and macOS parts of
-the standard library compile but have never run, and the web is planned. There is no language server for editors
-and no license file yet. Everything decided and not built yet is listed in [TODO.md](TODO.md).
 
 ## Questions
 
