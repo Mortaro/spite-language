@@ -2206,6 +2206,14 @@ func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
     if own_waiting_drop(layout) {
         var dropper = layout_dropper(layout)
         crash dropper
+        var joiner = drop_joiner(dropper)
+        if joiner {
+            lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+            print_wait_through(-1, joiner, held)
+            release_waiting_fields(layout, held)
+            lines.append("}")
+            return false
+        }
         var counting = "SPITE_COUNT"
         if lowered.makes_threads and not layout.atomic_counts {
             counting = "SPITE_PLAIN_COUNT"
@@ -2221,6 +2229,25 @@ func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
     release_waiting_fields(layout, held)
     lines.append("}")
     return false
+}
+
+func drop_joiner(dropper: Function): Function? {
+    var found: Function? = null
+    if not dropper.blocks.is_empty() and dropper.receiver >= 0 {
+        var entry = dropper.blocks[0]
+        var index = 0
+        while index < entry.operations.count() and not found {
+            var operation = entry.operations[index]
+            index = index + 1
+            if operation.kind == "call" and operation.operands.count() == 1 and operation.operands[0] == dropper.receiver {
+                var called = lowered.function_named(operation.callee)
+                if called and waits_in_machine(called) {
+                    found = called
+                }
+            }
+        }
+    }
+    return found
 }
 
 func release_waiting_fields(layout: Layout, held: String) {

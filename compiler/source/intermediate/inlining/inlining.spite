@@ -85,7 +85,7 @@ func judged(callee_name: String): Boolean {
     if reaches_itself(callee_name) {
         return false
     }
-    if shows_deeper(callee_name, 0) {
+    if reaches_a_wait(callee_name, 0) {
         return false
     }
     var lending = ["get_at", "first", "last"]
@@ -161,7 +161,7 @@ func note_callees(function: Function, waiting: List<String>) {
     }
 }
 
-func shows_deeper(name: String, depth: Integer): Boolean {
+func reaches_a_wait(name: String, depth: Integer): Boolean {
     crash lowered
     if depth > 4 {
         return true
@@ -176,16 +176,10 @@ func shows_deeper(name: String, depth: Integer): Boolean {
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]
-        if block.terminator.kind == "halt" {
-            return true
-        }
         var index = 0
         while index < block.operations.count() {
             var operation = block.operations[index]
-            if operation.site >= 0 or operation.kind == "call value" {
-                return true
-            }
-            if operation.kind == "call" and shows_deeper(operation.callee, depth + 1) {
+            if operation.kind == "call" and reaches_a_wait(operation.callee, depth + 1) {
                 return true
             }
             index = index + 1
