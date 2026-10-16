@@ -14879,7 +14879,7 @@ func collect_list_parameters(
     var index = 0
     while index < owner.declared_functions.count() {
         var function = owner.declared_functions[index]
-        if function.has_body and not function.is_constructor {
+        if function.has_body {
             names.append(function.name)
             var list_names = list_parameter_names(function)
             parameter_lists.append(list_names)
@@ -15793,7 +15793,11 @@ func generate_constructor_call(
         argument_lender_class = target_class
         argument_lender_function = target_class.constructor
     }
+    if target_class.constructor {
+        argument_callee = target_class.constructor.c_name
+    }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
+    argument_callee = ""
     if hands_over_value {
         task_value_arguments = task_value_arguments - 1
     }
