@@ -9,6 +9,7 @@ var framed_lists = 0
 var framed_buffers = 0
 var dropped_count = 0
 var tracked_classes = Dictionary<String, Boolean>()
+var loop_objects: LoopObjects? = null
 var waiting: Facts.Effects? = null
 
 func run(starting_lowered: Lowered) {
@@ -24,6 +25,8 @@ func run(starting_lowered: Lowered) {
     var made_waiting = Facts.Effects(starting_lowered)
     waiting = made_waiting
     results = made_results
+    var made_loop_objects = LoopObjects(starting_lowered, made_results, made_escape)
+    loop_objects = made_loop_objects
     var functions = starting_lowered.concrete_functions
     var index = 0
     while index < functions.count() {
@@ -40,6 +43,8 @@ func run(starting_lowered: Lowered) {
 func place_function(function: Function) {
     crash lowered
     crash results
+    crash loop_objects
+    loop_objects.rewrite(function)
     results.place_results(function)
     var uses = Facts.Uses(function)
     var flow = Facts.Flow(function)
@@ -51,6 +56,7 @@ func place_function(function: Function) {
         framed[slot_value] = true
         placed_index = placed_index + 1
     }
+    note_carried(framed)
     frame_copies(function, framed)
     var block_index = 0
     while block_index < function.blocks.count() {
@@ -468,5 +474,16 @@ func note_tracked_in(function: Function) {
             index = index + 1
         }
         block_index = block_index + 1
+    }
+}
+
+func note_carried(framed: Dictionary<Integer, Boolean>) {
+    crash loop_objects
+    var values = loop_objects.carried.keys()
+    var index = 0
+    while index < values.count() {
+        var carried_value = values[index]
+        framed[carried_value] = true
+        index = index + 1
     }
 }
