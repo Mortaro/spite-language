@@ -332,7 +332,7 @@ func finds_stale(function: Function): Boolean {
             if operation.kind == "call" and operation.result >= 0 and container_call(operation, ["count", "get_at", "first", "last", "index_of", "contains", "is_empty"]) {
                 readers[operation.result] = "container"
             }
-            if operation.kind == "call" and container_call(operation, ["remove_at", "set_at", "insert", "remove_swapping", "swap", "truncate", "remove_first", "remove_last"]) {
+            if operation.kind == "call" and changes_a_container(operation) {
                 changes.append(operation)
                 changes_at.append(at)
             }
@@ -709,4 +709,40 @@ func changes_after_read(
         count = count + 1
     }
     return false
+}
+
+func changes_a_container(operation: Operation): Boolean {
+    crash lowered
+    crash effects
+    if operation.kind != "call" or operation.operands.count() <= 1 {
+        return false
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() {
+        return false
+    }
+    var summary = effects.of(callee.c_name)
+    var keys = summary.writes.keys()
+    summary.grows.keys().each(keys.append)
+    var index = 0
+    while index < keys.count() {
+        var dot = keys[index].index_of(".")
+        if dot > 0 {
+            var owner = keys[index].slice(0, dot)
+            if holds_items(owner) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func holds_items(layout_name: String): Boolean {
+    crash lowered
+    var layout = lowered.layout_named(layout_name)
+    if not layout {
+        return false
+    }
+    return layout.qualified == "List" or layout.qualified == "Dictionary"
 }
