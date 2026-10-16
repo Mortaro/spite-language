@@ -185,8 +185,107 @@ func print_attribute(body: Body, operation: Operation, word: String) {
     switch word {
         "hold": attribute_hold(body, operation)
         "place": attribute_place(body, operation)
+        "place_item": attribute_place_item(body, operation)
         _: body.refuse("it calls 'Attribute.{word}', which is no intrinsic")
     }
+}
+
+func attribute_place_item(body: Body, operation: Operation) {
+    var attribute = body.operand(operation, 0)
+    var listed = body.operand(operation, 1)
+    var position = body.operand(operation, 2)
+    var list_type = body.operand_type(operation, 1)
+    var list_shape = shape.as_list(list_type)
+    var layout = naming.layout_of(list_type)
+    if not list_shape or not layout {
+        body.refuse("it places an attribute in something that is not a list")
+        return
+    }
+    var element = list_shape.element
+    var written = naming.c_type(element)
+    body.emit(
+        "({attribute})->spite_stored_address = (int64_t)(intptr_t)&((({written}*)(intptr_t)({listed})->items_)[{position}]); ({attribute})->spite_stored_bytes = (int64_t)sizeof({written});",
+    )
+    body.emit("({attribute})->spite_owner = (void*)({listed}); ({attribute})->spite_release_owner = 0;")
+    var assign = item_assign_thunk(layout, element, written)
+    var store = item_store_thunk(layout, element, written)
+    if not assign.is_empty() {
+        body.emit("({attribute})->spite_assign = {assign};")
+    }
+    if not store.is_empty() {
+        body.emit("({attribute})->spite_store = {store};")
+    }
+}
+
+func string_parser(kind: Analysis.Types.NumericKind): String {
+    var wanted = "to_{naming.scalar_label(kind).lower_case()}"
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        index = index + 1
+        var owner = lowered.layout_named(candidate.owner)
+        if owner and owner.qualified == "String" and candidate.name == wanted {
+            return candidate.c_name
+        }
+    }
+    return ""
+}
+
+func item_release_line(element: Analysis.SpiteType, cell: String): String {
+    var counted = naming.counted_name(element)
+    if counted.is_empty() {
+        return ""
+    }
+    return "{counted}___release(*{cell});"
+}
+
+func item_assign_thunk(layout: Layout, element: Analysis.SpiteType, written: String): String {
+    var parser = ""
+    var scalar = shape.as_scalar(element)
+    if scalar and scalar.kind != 'boolean_kind' {
+        parser = string_parser(scalar.kind)
+    }
+    var parsed = parsed_lines(element, "text", "assigned", parser)
+    if parsed.is_empty() {
+        return ""
+    }
+    var thunk = "{layout.c_name}___assign_item"
+    if output.forwarders.contains(thunk) {
+        return thunk
+    }
+    output.forwarders.append(thunk)
+    output.need("string same")
+    var released = item_release_line(element, "cell")
+    print_thunk(
+        layout,
+        thunk,
+        "SpiteString text",
+        "(void)owner;\n{written}* cell = ({written}*)slot;\n{written} assigned;\n{parsed}\n{released}\n*cell = assigned;\nreturn true;",
+        "{layout.qualified}'s assignment of an item",
+    )
+    return thunk
+}
+
+func item_store_thunk(layout: Layout, element: Analysis.SpiteType, written: String): String {
+    var stored_layout = naming.layout_of(element)
+    if not stored_layout or stored_layout.is_value or stored_layout.kind != "class" {
+        return ""
+    }
+    var thunk = "{layout.c_name}___store_item"
+    if output.forwarders.contains(thunk) {
+        return thunk
+    }
+    output.forwarders.append(thunk)
+    var identity = naming.class_id_of(stored_layout)
+    var released = item_release_line(element, "cell")
+    print_thunk(
+        layout,
+        thunk,
+        "void* object",
+        "(void)owner;\n{written}* cell = ({written}*)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{written} assigned = {stored_layout.c_name}___retain(({written})object);\n{released}\n*cell = assigned;\nreturn true;",
+        "{layout.qualified}'s store of an item",
+    )
+    return thunk
 }
 
 func link_piece(body: Body, pieces: List<String>, index: Integer): String {
@@ -226,11 +325,14 @@ func attribute_hold(body: Body, operation: Operation) {
         body.emit("({attribute})->spite_held_class = (void* (*)(void)){described_class};")
     }
     var listed = shape.as_list(held_type)
-    assert listed
-    var element = naming.c_type(listed.element)
-    body.emit(
-        "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }",
-    )
+    if listed {
+        var element = naming.c_type(listed.element)
+        body.emit(
+            "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }",
+        )
+    } else if not shape.as_dictionary(held_type) {
+        body.refuse("it holds a value that is neither a list nor a dictionary in an attribute")
+    }
 }
 
 func attribute_place(body: Body, operation: Operation) {
@@ -1149,7 +1251,21 @@ func print_list(body: Body, operation: Operation, word: String) {
     )
 }
 
+func function_text_call(body: Body, operation: Operation) {
+    var bound = body.operand(operation, 0)
+    var texter = lowered.function_named(operation.target)
+    if not texter {
+        body.refuse("it gives a function value the text call '{operation.target}', which the program does not hold")
+        return
+    }
+    body.emit("({bound})->spite_text_call = (void*){texter.c_name};")
+}
+
 func print_function_value(body: Body, operation: Operation, word: String) {
+    if word == "text_call" {
+        function_text_call(body, operation)
+        return
+    }
     if word != "bind" {
         body.refuse("it calls 'Function.{word}', which is no intrinsic")
         return
@@ -1288,6 +1404,7 @@ func print_symbol(body: Body, operation: Operation, word: String) {
         "text": symbol_text(body, operation)
         "equals": symbol_equals(body, operation)
         "from_text": symbol_from_text(body, operation)
+        "of_text": symbol_text(body, operation)
         _: body.refuse("it calls 'Symbol.{word}', which is no intrinsic")
     }
 }
