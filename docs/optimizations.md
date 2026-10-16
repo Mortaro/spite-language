@@ -385,6 +385,8 @@ it copies once, with room to grow, so the other holder still sees the text it ha
 the variable itself. Not for attributes (a call among the pieces could replace the attribute mid-append), and not
 when a piece mentions the variable again (`"{text}{text}"`); those compile as an ordinary join.
 
+A text literal is never counted, so a variable that starts as a literal (`var text = ""`) and is handed on to the loop's next pass takes no count either.
+
 **Example.** Text stays immutable as observed: `kept` still holds the text it was given.
 
 ```gdscript title=text_append/text_append.spite entry
@@ -3669,6 +3671,9 @@ and a list do. Four places use it:
   passing it to a function that keeps it, to a `Parallel` or a `Concurrent` (their constructors keep it), as a
   function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
   in a text's hole other than as `{name.attribute}`.
+- **A function value.** `apply(scorer.score, value)` builds one `Spite.Function` holding the object and its function; when the
+  callee only calls it (`change(value)`) and keeps it nowhere, the function value itself lives in the frame
+  instead of on the heap (its list of arguments is still made).
 - **A result, into the caller's slot.** A function whose every `return` gives a fresh object (`return
   Vector3(...)`, a local that lives in the frame, or another such call; a generic class's constructor whose
   codegen values are inferred counts, both where its arguments' types are known in the caller and in a `return`
