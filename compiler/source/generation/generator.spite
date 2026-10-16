@@ -14452,15 +14452,16 @@ func generate_argument_list(
     lent_argument_sources = List<String>()
     held_argument_positions = List<String>()
     framed_argument_positions = List<String>()
+    var callee = argument_callee
+    argument_callee = ""
     var variadic = variadic_list(expected_types)
     if variadic {
-        return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
+        return generate_spread_arguments(arguments_ast, expected_types, variadic, callee, scope, class_information)
     }
     if arguments_ast.count() != expected_types.count() {
         report("this call passes {arguments_ast.count()} argument(s), but {expected_types.count()} are expected")
         return result
     }
-    var callee = argument_callee
     var positions_after = List<Integer>()
     var marks_after = List<Integer>()
     var counters_after = List<Integer>()
@@ -14793,6 +14794,7 @@ func generate_spread_arguments(
     arguments_ast: List<Syntax.Expressions.Expression>,
     expected_types: List<Analysis.SpiteType>,
     variadic: Analysis.SpiteType,
+    callee: String,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): List<String> {
@@ -14821,7 +14823,7 @@ func generate_spread_arguments(
         )
         return result
     }
-    if framing_variadic(fixed_count) {
+    if framing_variadic(callee, fixed_count) {
         var framed_code = framed_variadic(elements, variadic, scope, class_information)
         result.append(framed_code)
         return result
@@ -14832,15 +14834,15 @@ func generate_spread_arguments(
     return result
 }
 
-func framing_variadic(variadic_index: Integer): Boolean {
-    if not frame_variadic_allowed or conditional_depth != 0 or resumable_mode or argument_callee.is_empty() {
+func framing_variadic(callee: String, variadic_index: Integer): Boolean {
+    if not frame_variadic_allowed or conditional_depth != 0 or resumable_mode or callee.is_empty() {
         return false
     }
-    var key = "{argument_callee}#{variadic_index}"
+    var key = "{callee}#{variadic_index}"
     if read_list_answers.has(key) {
         return read_list_answers[key] == true
     }
-    var answer = callee_only_reads(argument_callee, variadic_index)
+    var answer = callee_only_reads(callee, variadic_index)
     read_list_answers[key] = answer
     return answer
 }
