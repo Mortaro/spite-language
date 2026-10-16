@@ -90,6 +90,9 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
             if operation.kind == "store" and operation.operands.last() == value {
                 return true
             }
+            if operation.kind == "store" and operation.operands.first() == value and stores_made_object(uses, operation) {
+                return true
+            }
             var passes_on = operation.kind == "call" and operation.result >= 0 and (operation.callee == "Union.wrap" or operation.callee == "Union.value" or operation.callee == "Nullable.wrap" or operation.callee == "Nullable.value")
             if passes_on and escapes(function, uses, operation.result, depth + 1) {
                 return true
@@ -99,6 +102,16 @@ func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Intege
             }
         }
         index = index + 1
+    }
+    return false
+}
+
+func stores_made_object(uses: Facts.Uses, store: Operation): Boolean {
+    var stored = store.operands.last()
+    crash stored
+    var made = uses.definition_of(stored)
+    if made {
+        return made.kind == "make"
     }
     return false
 }
