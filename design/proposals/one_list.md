@@ -1,7 +1,7 @@
 # One `List`: can the compiler really pick the layout? (a study for D222)
 
 **Status:** a feasibility study, not a decision and not a build. Everything below that reads as a rule is proposed
-by Claude, unconfirmed. [D222](../decisions.md) asks for one list class, `List`, whose layout the compiler
+by Claude, unconfirmed. [D222](../../DECISIONS.md) asks for one list class, `List`, whose layout the compiler
 chooses (an array in the frame when the size never changes, items inline when possible, SIMD for plain values,
 `each` in parallel when it pays) and says to build it only if the optimisations are really reachable. Mortaro
 added two ideas while the study ran, and both are answered here: keeping a reference into the list's storage as a
@@ -46,7 +46,7 @@ until the compiler can prove ownership at `append` and report every refusal ([be
 
 ## 1. What makes each layout invisible
 
-Every class is passed by reference ([D149](../decisions.md)): a `List` of objects holds the objects themselves,
+Every class is passed by reference ([D149](../../DECISIONS.md)): a `List` of objects holds the objects themselves,
 shared with every other name that holds them. So a layout is an optimisation only when the program cannot tell.
 
 ### Objects inline

@@ -2,7 +2,7 @@
 
 **Read [`mortaros_notes.md`](mortaros_notes.md) first, every time.** It is Mortaro's inbox. For each note: record the
 decision (the rule in the spec page for that part of the language, the teaching in its docs page, and a row in
-[`design/decisions.md`](design/decisions.md)) or act on it, then delete the note, so the inbox only ever holds
+[`DECISIONS.md`](DECISIONS.md)) or act on it, then delete the note, so the inbox only ever holds
 what nobody has handled yet. Questions only Mortaro can answer go to
 [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
 
@@ -28,6 +28,8 @@ else disagrees with the specification, the specification wins; a docs page that 
 
 - [`TODO.md`](TODO.md) is the to-do list: one line per thing decided (or wished for by Mortaro) and not built,
   grouped by area, with its decision numbers, and the bugs that fail silently under D244.
+- [`DECISIONS.md`](DECISIONS.md) is the append-only decision log: every decision, with its date, who made it and
+  why.
 - `docs/` is documentation for people learning Spite, and nothing else. It holds no notes to AI writers, no
   implementation status ("not built", "planned", "being replaced"), no decision numbers or open-question
   bookkeeping, and no mention of third-party packages. Each page teaches the language as decided and ends with a
@@ -37,7 +39,6 @@ else disagrees with the specification, the specification wins; a docs page that 
   named after it, holding every rule, edge case and exact error text of that part of the language. It is
   normative and user-facing like `docs/`, with the same limits: no status, no decision numbers, no notes to agents.
 - `design/` is for the people and agents who build Spite:
-  - [`design/decisions.md`](design/decisions.md): the append-only decision log, every decision with when and why;
   - [`design/backlog.md`](design/backlog.md): everything decided and not built, as work: size, dependencies and
     parallel streams;
   - [`design/open_questions.md`](design/open_questions.md): decided work that has no page yet, and open questions;
@@ -151,7 +152,7 @@ that part of the language; `proofs.md` summarises and links.
 The specification is the record of the language, and the decision log is the record of why. Every language decision
 goes, when it is made, into the spec page that states its rule (`specs/<page>.md`), into the teaching of the docs
 page of the same name where that changes, **and** into the decision log,
-[`design/decisions.md`](design/decisions.md), as a new row: a decision that exists only in a conversation will be
+[`DECISIONS.md`](DECISIONS.md), as a new row: a decision that exists only in a conversation will be
 re-litigated. The spec states the rule without its decision number. A rule belongs to exactly one page; a decision
 that fits no page yet goes into [`design/open_questions.md`](design/open_questions.md) until its page exists. Mortaro decides
 what cannot be undone cheaply; an agent decides anything that can be changed later without losing work (D509),
@@ -180,13 +181,13 @@ and a half, on Mortaro's one machine (Mortaro, 2026-10-15: a day was lost to bui
 
 ## Shared files, when more than one agent is running
 
-`design/decisions.md`, `TODO.md` and `mortaros_notes.md` are written by every session. The old manual, the old
+`DECISIONS.md`, `TODO.md` and `mortaros_notes.md` are written by every session. The old manual, the old
 plan and the notes have been lost to a whole-file overwrite once already.
 
 - Targeted edits only, matching on surrounding text, never on line numbers: these files move under you. The
   same goes for every page of `docs/`, which many sessions change at once.
 - Re-read a file immediately before writing it. Do not reuse a copy read minutes ago.
-- `design/decisions.md` is append-only. Never renumber or reorder rows; supersede with a new row instead.
+- `DECISIONS.md` is append-only. Never renumber or reorder rows; supersede with a new row instead.
 - Never restore these three files, or a page of `docs/`, from a backup. Exclude them from any mirroring or
   restore you run.
 - Check `ListAgents` before a large edit. If another session is live, agree who owns which files first.
@@ -202,10 +203,19 @@ plan and the notes have been lost to a whole-file overwrite once already.
   failing. A program for something not built yet carries no title.
 - `specs/`: the language, normative: one page per docs page with that part's rules in full.
 - `TODO.md`: what is decided and not built yet, one line each.
-- `design/`: decisions, open questions, proposals and known issues (above).
-- `compiler/COMPILER_PLAN.md`: the compiler's own plan, design notes and progress log.
+- `DECISIONS.md`: every decision, with its date and why.
+- `design/`: open questions, proposals and known issues (above).
+- `compiler/`: the compiler, written in Spite; `compiler/compiler.spite` is its entry class and
+  `compiler/seed/spite_compiler.c` the C it writes for itself ([design/self_hosting.md](design/self_hosting.md)).
 - `conformance/`, `examples/`, `tests/`, `diagnostics/`: what `bash check.sh` runs: programs with their exact
   expected output and balanced memory, the test package, and programs that must fail with exact errors.
+  A program is `conformance/<stage>/<name>/<name>.spite` with `expected_output.txt`, or
+  `diagnostics/<name>/<name>.spite` with `expected_errors.txt`; either may carry `flags.txt` (the command line
+  after the file, such as `--name=server`), and a conformance program `input.txt` (what it reads from the
+  console). Add one with every feature or fixed error.
+- A program in `docs/` or `specs/` is a fenced block headed `spite title=<folder>/<file>.spite`, optionally with
+  `entry`, `error`, `vars=name:value`, `build=name:value` and `arguments=word,word`, followed by an `output` or
+  `diagnostic` block. `CHECK_JOBS=N` sets how many programs `check.sh` runs at once.
 - `backend/`: what the own backend builds, one program per milestone, each loading what it proves out of
   `compiler/source/backend/` and answering it on the system whose executable it writes.
 - `benchmarks/`: one folder per case, each a program in naive Spite, naive C and expert C with the whole C the

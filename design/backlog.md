@@ -1,7 +1,7 @@
 # Backlog
 
 Everything decided and not yet built, in one place, so the work can be ordered and split between sessions. The
-rule lives on its docs page, the reason in [decisions.md](decisions.md), and the gap, one line, in
+rule lives on its docs page, the reason in [decisions.md](../DECISIONS.md), and the gap, one line, in
 [TODO.md](../TODO.md); this page only says what to build, how big it is, what it waits on and who can build it at
 the same time. When an item lands, delete it here and its line in TODO.md in the same commit.
 

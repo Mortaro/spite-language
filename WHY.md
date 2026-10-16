@@ -273,7 +273,7 @@ compiler, C included, takes about 11 seconds, and of a 209 206-line program abou
 
 **Is it production-ready?** No. The language changes daily (over 340 recorded decisions since 2026-09-19), and
 syntax still changes when a decision calls for it. The compiler is real and compiles itself, but treat Spite as an
-experiment. [design/decisions.md](design/decisions.md)
+experiment. [DECISIONS.md](DECISIONS.md)
 
 **Which platforms?** Windows today. Linux and macOS compile in the test suite but have never run; the web is
 planned. [docs/targets.md](docs/targets.md)

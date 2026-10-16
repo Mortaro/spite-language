@@ -2,7 +2,7 @@
 
 What is decided, or wished for, and not built yet: one line per missing thing, with the decisions behind it in
 parentheses. Build it, then delete its line in the same commit. The rule is on its page in `specs/`, the reason in
-[design/decisions.md](design/decisions.md), and the work's size and order in [design/backlog.md](design/backlog.md).
+[DECISIONS.md](DECISIONS.md), and the work's size and order in [design/backlog.md](design/backlog.md).
 
 ## Language rules
 

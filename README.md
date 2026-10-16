@@ -213,15 +213,14 @@ bash check.sh
   Every titled Spite code block in `docs/` is compiled and checked as part of `bash check.sh`.
 - [`specs/`](specs/README.md): the language specification, normative: one page per docs page, with every rule,
   edge case and exact error text. When anything else disagrees with the specification, the specification wins.
-- [`design/`](design/): for the people building Spite: the [decision log](design/decisions.md), [open questions](design/open_questions.md), proposals,
+- [`DECISIONS.md`](DECISIONS.md): every language decision, with its date, who made it and why.
+- [`design/`](design/): for the people building Spite: [open questions](design/open_questions.md), proposals,
   [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).
 - [`skills/spite/`](skills/spite/SKILL.md): the skill an AI loads before writing Spite, with the whole language on
   one dense page ([reference.md](skills/spite/reference.md)).
 - [`WHY.md`](WHY.md), [`WHY_AI.md`](WHY_AI.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
   language models.
 - [`TODO.md`](TODO.md): what is decided and not built yet, one line each.
-- [`compiler/COMPILER_PLAN.md`](compiler/COMPILER_PLAN.md): the compiler's own plan and progress log: what it
-  implements today, and what it does not.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
 
 ## How to contribute

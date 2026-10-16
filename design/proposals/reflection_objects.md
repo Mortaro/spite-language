@@ -1,6 +1,6 @@
 # Metaprogramming is reflection on ordinary objects (a proposal for D316)
 
-**Status:** a design proposal, not a build. Mortaro set the direction ([D316](../decisions.md)): templates stay
+**Status:** a design proposal, not a build. Mortaro set the direction ([D316](../../DECISIONS.md)): templates stay
 only where they change a function's name; everything else that reads a program's structure goes through
 `Spite.Class`, `Spite.Namespace`, `Spite.Function` and `Spite.Attribute` as ordinary instances, the way Ruby does,
 and a user at the REPL reaches them the same way a program does. Mortaro reviewed the first version on 2026-09-30

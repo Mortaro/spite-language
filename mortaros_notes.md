@@ -1,6 +1,6 @@
 # Mortaro's inbox
 
-Empty. Add notes here; an agent moves them into the docs (the page and `design/decisions.md`) and clears this file.
+Empty. Add notes here; an agent moves them into the docs (the page and `DECISIONS.md`) and clears this file.
 
 a lot of compiler/compiler.spite is just code over reading arguments. that means either our Environment/Build are not feature complete, or we are failing at looking for behavior that duplicates standard library. a lot of the behavior there also like looking for the program and formating paths should be part of our standard library, so when a moron reads it it quickly can understand the intention.
 

@@ -124,9 +124,9 @@ operations ([the rule](#self-hosting--partial)).
 
 The normative rules for this part of the language, in full: what the sections above teach, with the edge
 cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
-manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+manual when [D193](../DECISIONS.md) dissolved it into these pages (its section numbers became links), so each
 rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
-fix. A `D` number is a row of the [decision log](decisions.md).
+fix. A `D` number is a row of the [decision log](../DECISIONS.md).
 
 ### Self hosting  **[partial]**
 
@@ -145,5 +145,5 @@ fix. A `D` number is a row of the [decision log](decisions.md).
   compiler emits itself and the members `prelude.spite` supplies; D178's primitives on `Memory.Address` are the
   part each backend is meant to keep. Moving the other supplied members into Spite is **not finished**.
 - The language is larger than the part the compiler implements today; each page says what is decided but not
-  built, `compiler/COMPILER_PLAN.md` is the compiler's progress log, and `conformance/` is the part that
+  built, [TODO.md](../TODO.md) lists what is not built yet, and `conformance/` is the part that
   demonstrably works.
