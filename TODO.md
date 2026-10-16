@@ -198,3 +198,4 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - A write to a copy that dies unread compiles
 - The union `switch` message "every member is covered, so a member added later cannot be forgotten" says the opposite of what it means
 - A program in `docs/` or `specs/` whose `title=` is removed stops being compiled and run, and nothing reports it
+- A row of `Vector` items, which have no count of their own, that truly escapes (stored or kept by a caller) must copy its items or be refused by name; today only the escapes the compiler sees are handled
