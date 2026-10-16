@@ -308,6 +308,9 @@ func finds_stale(function: Function): Boolean {
     var waits_at = List<Integer>()
     var stored = List<Operation>()
     var stored_at = List<Integer>()
+    var readers = Dictionary<Integer, String>()
+    var changes = List<Operation>()
+    var changes_at = List<Integer>()
     var at = 0
     var block_index = 0
     while block_index < function.blocks.count() {
@@ -323,6 +326,16 @@ func finds_stale(function: Function): Boolean {
             if operation.kind == "load" and not key.is_empty() {
                 loaded[operation.result] = key
             }
+            if operation.kind == "load" and not key.is_empty() {
+                readers[operation.result] = key
+            }
+            if operation.kind == "call" and operation.result >= 0 and container_call(operation, ["count", "get_at", "first", "last", "index_of", "contains", "is_empty"]) {
+                readers[operation.result] = "container"
+            }
+            if operation.kind == "call" and container_call(operation, ["remove_at", "set_at", "insert", "remove_swapping", "swap", "truncate", "remove_first", "remove_last"]) {
+                changes.append(operation)
+                changes_at.append(at)
+            }
             if operation.kind == "store" and not key.is_empty() {
                 stored.append(operation)
                 stored_at.append(at)
@@ -335,10 +348,13 @@ func finds_stale(function: Function): Boolean {
         }
         block_index = block_index + 1
     }
-    if waits_at.is_empty() or stored.is_empty() {
+    if waits_at.is_empty() {
         return false
     }
     var incoming = incoming_values(function)
+    if changes_after_read(changes, changes_at, readers, waits_at, positions, definitions, incoming) {
+        return true
+    }
     var count = 0
     while count < stored.count() and count < stored_at.count() {
         var operation = stored[count]
@@ -647,4 +663,50 @@ func start_through_twin(function: Function, block_number: Integer, operation: Op
     arguments.append(receiver)
     arguments.append(site.result)
     operation.operands = arguments
+}
+
+func container_call(operation: Operation, names: List<String>): Boolean {
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if not callee or not names.contains(callee.name) {
+        return false
+    }
+    var layout = lowered.layout_named(callee.owner)
+    if not layout {
+        return false
+    }
+    return layout.qualified == "List" or layout.qualified == "Dictionary"
+}
+
+func changes_after_read(
+    changes: List<Operation>,
+    changes_at: List<Integer>,
+    readers: Dictionary<Integer, String>,
+    waits_at: List<Integer>,
+    positions: Dictionary<Integer, Integer>,
+    definitions: Dictionary<Integer, Operation>,
+    incoming: Dictionary<Integer, List<Integer>>,
+): Boolean {
+    var count = 0
+    while count < changes.count() and count < changes_at.count() {
+        var change = changes[count]
+        var changed_at = changes_at[count]
+        var position = 1
+        while position < change.operands.count() {
+            var argument = change.operands[position]
+            var reached = reaching_loads(argument, definitions, incoming, readers)
+            var index = 0
+            while index < reached.count() {
+                var read_value = reached[index]
+                crash positions[read_value]
+                if wait_between(waits_at, positions[read_value], changed_at) {
+                    return true
+                }
+                index = index + 1
+            }
+            position = position + 1
+        }
+        count = count + 1
+    }
+    return false
 }
