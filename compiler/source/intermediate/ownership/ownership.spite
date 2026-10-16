@@ -11,6 +11,8 @@ var releases = 0
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
+    var row_escapes = RowEscapes()
+    row_escapes.run(starting_lowered)
     var made_effects = Facts.Effects(starting_lowered)
     effects = made_effects
     var made_kinds = Facts.ValueKinds(starting_lowered)

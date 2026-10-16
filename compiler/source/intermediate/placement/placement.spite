@@ -160,31 +160,28 @@ func place_object(
     if capacity >= 0 {
         operation.literal = capacity
         framed_lists = framed_lists + 1
-        drop_list_defaults(function, uses, operation.result)
+        drop_list_defaults(function, operation.result)
     } else {
         framed_objects = framed_objects + 1
     }
     framed[operation.result] = true
 }
 
-func drop_list_defaults(function: Function, uses: Facts.Uses, list: Integer) {
-    var reached = uses.uses_of(list)
-    var index = 0
-    while index < reached.count() {
-        var place = reached[index]
-        var user = operation_at_or_none(function, place)
-        if user and user.kind == "store" and user.operands.first() == list and (user.field == "items" or user.field == "capacity") {
-            user.form = "dropped_default"
-            dropped_count = dropped_count + 1
+func drop_list_defaults(function: Function, list: Integer) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var user = block.operations[index]
+            if user.kind == "store" and user.operands.first() == list and (user.field == "items" or user.field == "capacity") {
+                user.form = "dropped_default"
+                dropped_count = dropped_count + 1
+            }
+            index = index + 1
         }
-        index = index + 1
+        block_index = block_index + 1
     }
-}
-
-func operation_at_or_none(function: Function, place: Facts.Place): Operation? {
-    assert place.position >= 0
-    var block = function.block_at(place.block)
-    return block.operations[place.position]
 }
 
 # ../../../../docs/optimizations.md#a-local-list-of-known-size-lives-in-the-frame

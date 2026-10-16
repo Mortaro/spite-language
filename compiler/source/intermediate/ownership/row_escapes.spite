@@ -1,0 +1,72 @@
+# ../../../../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame
+var lowered: Lowered? = null
+var escaped_count = 0
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var functions = starting_lowered.concrete_functions
+    functions.each(study)
+}
+
+func study(function: Function) {
+    assert not function.blocks.is_empty() and not function.is_intrinsic()
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            note_made(function, uses, block.operations[index])
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_made(function: Function, uses: Facts.Uses, operation: Operation) {
+    crash lowered
+    assert operation.kind == "make" and operation.result >= 0
+    var layout = lowered.layout_named(operation.layout)
+    assert layout and layout.kind == "row"
+    assert escapes(function, uses, operation.result, 0)
+    layout.kind = "class"
+    escaped_count = escaped_count + 1
+}
+
+func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+    crash lowered
+    if depth > 8 {
+        return true
+    }
+    var keeping = ["append", "prepend", "insert", "set_at", "push", "write_value"]
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() {
+            var ending = function.block_at(place.block).terminator
+            if ending.kind == "return" {
+                return true
+            }
+        } else if place.position >= 0 {
+            var block = function.block_at(place.block)
+            var operation = block.operations[place.position]
+            crash operation
+            if operation.kind == "store" and operation.operands.last() == value {
+                return true
+            }
+            var passes_on = operation.kind == "call" and operation.result >= 0 and (operation.callee == "Union.wrap" or operation.callee == "Union.value" or operation.callee == "Nullable.wrap" or operation.callee == "Nullable.value")
+            if passes_on and escapes(function, uses, operation.result, depth + 1) {
+                return true
+            }
+            if operation.kind == "call" {
+                var callee = lowered.function_named(operation.callee)
+                if callee and keeping.contains(callee.name) {
+                    return true
+                }
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
