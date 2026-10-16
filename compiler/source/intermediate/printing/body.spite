@@ -388,7 +388,16 @@ func print_singleton_maker() {
         "}"
     ]
     if not function.filled_by.is_empty() {
-        getter_lines = filled_getter_lines(getter, answered, ending, found, cached, shown, maker, handed)
+        getter_lines = filled_getter_lines(
+            getter,
+            answered,
+            "{cycle_breaking_lines(layout)}{ending}",
+            found,
+            cached,
+            shown,
+            maker,
+            handed,
+        )
     }
     output.prototypes.append("{answered} {getter}(void);")
     output.prototypes.append("{answered} {getter}_peek(void);")
@@ -412,11 +421,15 @@ func filled_getter_lines(
     cached: String,
     shown: String,
     maker: String,
-    handed: String,
+    starting_handed: String,
 ): List<String> {
+    var handed = starting_handed
     var filling = lowered.function_named(function.filled_by)
     if not filling {
         refuse("it makes '{getter}' and fills it with '{function.filled_by}', which the program does not hold")
+    }
+    if filling and not filling.parameters.is_empty() and filling.parameters[0].ownership != "owned" {
+        handed = "made"
     }
     return [
         "static {answered} {getter}_cache = 0;"
@@ -2281,4 +2294,24 @@ func scalar_report(kind: Analysis.Types.NumericKind, written: String): String {
         return "fprintf(stderr, \"%llu\", (unsigned long long){written});"
     }
     return "fprintf(stderr, \"%lld\", (long long){written});"
+}
+
+# ../../../../docs/memory.md#self-referential-classes-and-unions-just-work
+func cycle_breaking_lines(layout: Layout): String {
+    var text = ""
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        index = index + 1
+        var counted = ""
+        if field.spite_type {
+            counted = naming.counted_name(field.spite_type)
+        }
+        var held = lowered.layout_named(counted)
+        if counted != "SpiteString" and held and not held.is_value and held.kind != "union" and held.kind != "tagged union" {
+            var member = "{naming.fields_of(layout, "object")}->{field.name}_"
+            text = "{text}{counted}___release({member}); {member} = 0;\n"
+        }
+    }
+    return text
 }

@@ -429,6 +429,9 @@ func text_read_as(value: Integer, inner: Analysis.SpiteType, wanted: Analysis.Sp
 }
 
 func into_union(value: Integer, given: Analysis.SpiteType, wanted: Analysis.SpiteType): Integer {
+    if types.is_symbol(given) and union_holds_symbols(wanted) {
+        return emitter.emit_call_one("Union.wrap", value, wanted)
+    }
     if types.is_symbol(given) {
         var text_type = known().typed_string()
         var text = emitter.emit_call_one("Symbol.text", value, text_type)
@@ -450,6 +453,25 @@ func into_union(value: Integer, given: Analysis.SpiteType, wanted: Analysis.Spit
         return emitter.emit_call_one("Union.wrap", value, wanted)
     }
     return not_lowered(wanted, "a value of a kind a union does not hold")
+}
+
+func union_holds_symbols(wanted: Analysis.SpiteType): Boolean {
+    var united = types.as_union(wanted)
+    crash united
+    var described_union = front().find_union_by_c_name(united.c_name)
+    if not described_union or described_union.is_shape {
+        return false
+    }
+    var index = 0
+    while index < described_union.members.count() {
+        var member = described_union.members[index]
+        index = index + 1
+        if member.c_name == "SpiteSymbol" {
+            known().reach_layout(member)
+            return true
+        }
+    }
+    return false
 }
 
 func into_text(value: Integer, given: Analysis.SpiteType): Integer {

@@ -357,8 +357,20 @@ func note_pool_roots(function: Function) {
                 note_pool(pool, "run_bands")
                 note_pool(pool, "submit")
                 note_pool(pool, "join")
+                note_pool_makers(pool)
             }
             position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func note_pool_makers(pool: Analysis.ClassInfo) {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var made = lowered.concrete_functions[index]
+        if made.singleton_of == pool.c_name and not placed_allocators.contains(made.c_name) {
+            placed_allocators.append(made.c_name)
         }
         index = index + 1
     }

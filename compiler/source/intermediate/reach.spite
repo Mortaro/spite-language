@@ -59,7 +59,83 @@ func reach_function(c_name: String) {
     while index < function.blocks.count() {
         var block = function.blocks[index]
         block.operations.each(reach_operation)
+        reach_copies(function, block)
         reach_tags(block)
+        index = index + 1
+    }
+}
+
+func reach_copies(function: Function, block: Block) {
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        index = index + 1
+        if operation.kind == "call" and operation.callee == "Object.deep_copy" and operation.operands.count() == 1 {
+            var visited = List<String>()
+            var copied = function.value_at(operation.operands[0])
+            reach_copy_of(copied.spite_type, visited)
+        }
+    }
+}
+
+func reach_copy_of(spite_type: Analysis.SpiteType?, visited: List<String>) {
+    crash lowered
+    assert spite_type
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        reach_copy_of(nullable.inner, visited)
+        return
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        reach_copy_of(listed.element, visited)
+        return
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        reach_copy_of(dictionary.element, visited)
+        return
+    }
+    var c_name = ""
+    var united = types.as_union(spite_type)
+    var class_ref = types.as_class_ref(spite_type)
+    if united {
+        c_name = united.c_name
+    } else if class_ref {
+        c_name = class_ref.c_name
+    } else {
+        return
+    }
+    if not visited.contains(c_name) {
+        visited.append(c_name)
+        reach_copy_layout(c_name, visited)
+    }
+}
+
+func reach_copy_layout(c_name: String, visited: List<String>) {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    assert layout
+    if layout.information {
+        var declared = layout.information.find_function("deep_copy")
+        if declared and lowered.function_named(declared.c_name) and not functions_reached.has(declared.c_name) and not waiting.contains(declared.c_name) {
+            waiting.append(declared.c_name)
+        }
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member = lowered.layout_named(layout.members[index])
+        if member and member.value_type {
+            reach_copy_of(member.value_type, visited)
+        } else if member {
+            var member_type: Analysis.SpiteType = Analysis.Types.ClassRefType(member.c_name)
+            reach_copy_of(member_type, visited)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        reach_copy_of(layout.stored_fields[index].spite_type, visited)
         index = index + 1
     }
 }
@@ -85,6 +161,15 @@ func reach_operation(operation: Operation) {
     while index < named.count() {
         var name = named[index]
         if not name.is_empty() and lowered.function_named(name) {
+            waiting.append(name)
+        }
+        index = index + 1
+    }
+    var linked = operation.target.split(",")
+    index = 0
+    while index < linked.count() {
+        var name = linked[index].trim()
+        if not name.is_empty() and linked.count() > 1 and lowered.function_named(name) {
             waiting.append(name)
         }
         index = index + 1

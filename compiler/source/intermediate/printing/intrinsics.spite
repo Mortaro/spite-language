@@ -405,7 +405,12 @@ func print_reflection(body: Body, operation: Operation, word: String) {
         return
     }
     if word != "class_object" {
-        body.refuse("it reads '{word}' by reflection, which the printer does not write yet")
+        var read_from = body.operand_type(operation, 0)
+        var read_name = "a value with no type"
+        if read_from {
+            read_name = naming.c_type(read_from)
+        }
+        body.refuse("it reads '{word}' of '{read_name}' by reflection, which the printer does not write yet")
         return
     }
     var getter = class_getter(operation.target)
@@ -1961,7 +1966,9 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
     var tagged = naming.is_tagged(held_type)
     var layout = naming.layout_of(made)
     var scalar = shape.as_scalar(made)
-    if shape.as_string(made) or shape.is_symbol(made) {
+    if shape.is_symbol(made) and tagged {
+        layout = lowered.layout_named("SpiteSymbol")
+    } else if shape.as_string(made) or shape.is_symbol(made) {
         layout = lowered.layout_named("SpiteString")
     } else if scalar {
         layout = lowered.layout_named("Spite{naming.scalar_label(scalar.kind)}")
@@ -2031,6 +2038,16 @@ func tagged_wrap(body: Body, operation: Operation, given: Analysis.SpiteType) {
     }
     if shape.as_union(given) {
         body.assign(operation.result, "spite_tagged_from_pointer((void*)({wrapped}))")
+        return
+    }
+    if shape.is_symbol(given) {
+        var symbol_layout = lowered.layout_named("SpiteSymbol")
+        if not symbol_layout {
+            body.refuse("a symbol is put in a tagged union, and the program has no Symbol layout to tag it with")
+            return
+        }
+        var symbol_box = string_box(body, operation, wrapped)
+        body.assign(operation.result, "spite_tagged_object({naming.class_id_of(symbol_layout)}, {symbol_box})")
         return
     }
     if shape.as_string(given) or shape.is_symbol(given) {

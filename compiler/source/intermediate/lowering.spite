@@ -448,6 +448,31 @@ func write_namespace_object(instances: Instances, name: String, dotted: String) 
     var object = reflection.namespace_object(dotted)
     emitter.returns(object)
     finish_body(maker, emitter)
+    write_namespace_object_fill(instances, maker, namespace_class, dotted)
+}
+
+func write_namespace_object_fill(
+    instances: Instances,
+    maker: Function,
+    namespace_class: Analysis.ClassInfo,
+    dotted: String,
+) {
+    var fill_name = "{maker.c_name}___fill"
+    maker.filled_by = fill_name
+    var filler = synthetic_function(fill_name, "namespace_object_fill", namespace_class)
+    var namespace_type = instances.class_type(namespace_class)
+    var filled = filler.new_value(namespace_type, "parameter")
+    filler.value_at(filled).name = "made"
+    var parameter = Parameter("made", namespace_type, filled)
+    filler.parameters.append(parameter)
+    var nothing_type = instances.typed_nothing()
+    var described_function = synthetic_description("namespace_object_fill", fill_name, nothing_type)
+    var emitter = start_body(filler, namespace_class, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, namespace_class, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    reflection.describe_namespace(filled, dotted)
+    emitter.returns(-1)
+    finish_body(filler, emitter)
 }
 
 func synthetic_body(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {

@@ -387,7 +387,14 @@ func namespace_object(dotted: String): Integer {
     var short_name = symbol(last)
     var long_name = symbol(dotted)
     var values = [short_name, long_name]
-    var object = lowering().construct_values(namespace_class, values)
+    return lowering().construct_values(namespace_class, values)
+}
+
+func describe_namespace(object: Integer, dotted: String) {
+    var made = lowering().front()
+    var namespace_class = made.find_class_by_c_name("Spite_Namespace")
+    crash namespace_class
+    var segments = dotted.split(".")
     if made.source_paths_used {
         var paths = made.namespace_source_paths(dotted)
         if not paths.is_empty() {
@@ -402,7 +409,6 @@ func namespace_object(dotted: String): Integer {
     if made.namespace_tree_used {
         store_namespace_tree(object, dotted, namespace_class)
     }
-    return object
 }
 
 func store_namespace_tree(object: Integer, dotted: String, namespace_class: Analysis.ClassInfo) {
