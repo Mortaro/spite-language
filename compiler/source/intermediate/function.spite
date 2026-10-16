@@ -22,6 +22,7 @@ var slotted = false
 var waiting_kind = ""
 var shown = ""
 var filled_by = ""
+var made_for = ""
 
 func Function(starting_c_name: String, starting_name: String, starting_owner: String) {
     c_name = starting_c_name
