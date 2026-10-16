@@ -873,7 +873,8 @@ func items_attributes(
     var item_operands = [items, index]
     crash reader.owner
     crash reader.function
-    var item = lowering().call_reached(reader.owner, reader.function, item_operands)
+    var read_item = lowering().call_reached(reader.owner, reader.function, item_operands)
+    var item = lowering().present_item(read_item, element)
     var name_text = lowering().convert(index, text_type)
     if keys >= 0 {
         crash key_type
@@ -881,7 +882,8 @@ func items_attributes(
         crash key_reader.owner
         crash key_reader.function
         var key_operands = [keys, index]
-        var key = lowering().call_reached(key_reader.owner, key_reader.function, key_operands)
+        var read_key = lowering().call_reached(key_reader.owner, key_reader.function, key_operands)
+        var key = lowering().present_item(read_key, key_type)
         name_text = lowering().convert(key, text_type)
     }
     var name_symbol = emitter.emit_call_one("Symbol.of_text", name_text, symbol_type)
@@ -989,7 +991,8 @@ func text_call_body(
         var item_operands = [arguments, position]
         crash reader.owner
         crash reader.function
-        var item = lowering().call_reached(reader.owner, reader.function, item_operands)
+        var read_item = lowering().call_reached(reader.owner, reader.function, item_operands)
+        var item = lowering().present_item(read_item, text_type)
         var argument = item
         argument = parsed_argument(item, parameter_type, fail)
         passed.append(argument)

@@ -1,0 +1,1 @@
+diagnostics/chain_outside_comparison/chain_outside_comparison.spite:5: error: this value may be null (it is a Piece?), so 'kind' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in ChainOutsideComparison.ChainOutsideComparison)

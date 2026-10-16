@@ -890,12 +890,33 @@ func print_table(operation: Operation, made: Analysis.SpiteType) {
         refuse("a constant table of a list with no element type")
         return
     }
-    var name = output.table_name(layout.c_name, operation.literal)
+    var literal = operation.literal
+    var enumerated = shape.as_enum(element)
+    if enumerated {
+        literal = enum_table_text(enumerated.c_name, operation.literal)
+    }
+    var name = output.table_name(layout.c_name, literal)
     if name.is_empty() {
         var written = naming.c_type(element)
-        name = output.add_table(layout.c_name, operation.literal, written)
+        name = output.add_table(layout.c_name, literal, written)
     }
     assign(operation.result, "(&{name})")
+}
+
+func enum_table_text(enum_name: String, literal: String): String {
+    var length = literal.length()
+    var inner = literal.slice(1, length - 1)
+    var written = List<String>()
+    if not inner.trim().is_empty() {
+        var pieces = inner.split(",")
+        var index = 0
+        while index < pieces.count() {
+            var piece = pieces[index].trim().replace("'", "")
+            written.append("{enum_name}_{piece}")
+            index = index + 1
+        }
+    }
+    return "[{written.join(", ")}]"
 }
 
 func constant_text(made: Analysis.SpiteType, literal: String): String {
@@ -1686,6 +1707,16 @@ func print_plain_store(operation: Operation) {
         return
     }
     var written = naming.c_type(stored_type)
+    var waiting = List<String>()
+    if machine and reaches_waiting_drop(stored_type, waiting) {
+        var replaced = release_temporary(written)
+        lines.append("{replaced} = {place}; {place} = {stored};")
+        var finished = suspend_release(replaced, stored_type)
+        if not finished {
+            lines.append("{counted}___release({replaced});")
+        }
+        return
+    }
     lines.append("\{ {written} spite_replaced = {place}; {place} = {stored}; {counted}___release(spite_replaced); }")
 }
 

@@ -226,6 +226,7 @@ var task_value_arguments = 0
 var function_waits_table_used = false
 var listed_typed_calls = List<String>()
 var function_accesses_used = false
+var tolerated_chains = List<Syntax.Expressions.MemberExpression>()
 var accessed_call_names = List<String>()
 var accessed_call_owners = List<Analysis.ClassInfo>()
 var accessed_call_functions = List<Analysis.FunctionInfo>()
@@ -11336,11 +11337,60 @@ func generate_binary(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    var tolerated = 0
+    if binary.operator == 'equal' or binary.operator == 'not_equal' {
+        tolerated = tolerate_chains(binary)
+    }
     var result = generate_unfolded_binary(binary, scope, class_information)
+    release_chains(tolerated)
     if item_values_on and (binary.operator == 'equal' or binary.operator == 'not_equal') {
         item_fold(binary, result, scope, class_information)
     }
     return result
+}
+
+# ../../../specs/failure.md#nothing-fails-silently-the-rule
+func tolerate_chains(binary: Syntax.Expressions.BinaryExpression): Integer {
+    crash binary.left
+    crash binary.right
+    var added = 0
+    var sides = [binary.left, binary.right]
+    var side_index = 0
+    while side_index < sides.count() {
+        var walked: Syntax.Expressions.Expression? = sides[side_index]
+        var following = true
+        while following {
+            var link = shape.as_member(walked)
+            if link {
+                tolerated_chains.append(link)
+                added = added + 1
+                walked = link.object
+            } else {
+                following = false
+            }
+        }
+        side_index = side_index + 1
+    }
+    return added
+}
+
+func release_chains(count: Integer) {
+    var remaining = count
+    while remaining > 0 {
+        tolerated_chains.remove_last()
+        remaining = remaining - 1
+    }
+}
+
+func is_tolerated_chain(member: Syntax.Expressions.MemberExpression): Boolean {
+    var index = 0
+    while index < tolerated_chains.count() {
+        if tolerated_chains[index] == member {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func studies_item_values(): Boolean {
@@ -12071,6 +12121,7 @@ func binary_after_left(
         if binary.operator == 'logical_and' {
             crash binary.left
             narrow_proven_indices(binary.left, right_scope, class_information)
+            narrow_by_left_presence(binary.left, right_scope, class_information)
         }
         var right_position = builder.user_count()
         var right_marks = wait_mark_counters.count()
@@ -27800,6 +27851,12 @@ func generate_member_read(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    if is_tolerated_chain(member) {
+        var chain_read = tolerated_member_read(member, scope, class_information)
+        if chain_read {
+            return chain_read
+        }
+    }
     var result = generate_member_read_raw(member, scope, class_information)
     var path = operand_text(member)
     if not path.is_empty() {
@@ -27819,6 +27876,52 @@ func generate_member_read(
         }
     }
     return result
+}
+
+# ../../../specs/failure.md#nothing-fails-silently-the-rule
+func tolerated_member_read(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var object_path = operand_text(member.object)
+    assert not object_path.is_empty()
+    assert not scope.is_path_narrowed(object_path)
+    var guard = try_nullable_guard(member.object, scope, class_information)
+    assert guard
+    var narrowed_scope = Scope(scope)
+    narrow_by_guard(narrowed_scope, guard, "the comparison")
+    var read = generate_member_read_raw(member, narrowed_scope, class_information)
+    var read_type = read.type
+    var maybe_type = read_type
+    if not type_shape.as_nullable(read_type) {
+        maybe_type = nullable_type_of(read_type)
+    }
+    var present_value = chain_present(read, maybe_type)
+    var absent_value = chain_absent(maybe_type)
+    return ExpressionResult("({guard.guard_code} ? {present_value} : {absent_value})", maybe_type)
+}
+
+func chain_absent(maybe_type: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(maybe_type)
+    crash nullable
+    var held = nullable.inner
+    if type_is_reference(held) {
+        return null_code(held)
+    }
+    return "(({c_type_name(maybe_type)})\{ .has_value = false })"
+}
+
+func chain_present(read: ExpressionResult, maybe_type: Analysis.SpiteType): String {
+    var read_type = read.type
+    if type_shape.as_nullable(read_type) {
+        return read.code
+    }
+    if type_is_reference(read_type) {
+        return read.code
+    }
+    return "(({c_type_name(maybe_type)})\{ .has_value = true, .value = {read.code} })"
 }
 
 func type_size_read(
@@ -28891,6 +28994,19 @@ func add_key_dependency(
     var field = class_information.find_field(word)
     assert field
     dependencies.append("{class_information.qualified_dotted}#{word}")
+}
+
+# ../../../specs/failure.md#nothing-fails-silently-the-rule
+func narrow_by_left_presence(
+    left: Syntax.Expressions.Expression,
+    right_scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var is_path = shape.as_identifier(left) or shape.as_member(left)
+    assert is_path
+    var guard = try_nullable_guard(left, right_scope, class_information)
+    assert guard
+    narrow_by_guard(right_scope, guard, "the 'and'")
 }
 
 func narrow_by_guard(scope: Scope, guard: NullableGuard, check: String) {

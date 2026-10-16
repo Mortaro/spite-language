@@ -1,0 +1,20 @@
+var console = Console()
+var made: Piece? = null
+
+func AndInExpression() {
+    var before = both()
+    var first = Piece("make")
+    made = first
+    var after = both()
+    var other = other_kind()
+    console.print(before, after, other)
+}
+
+func both(): Boolean {
+    return made and made.kind == "make"
+}
+
+func other_kind(): Boolean {
+    var found = made and made.kind == "wait"
+    return found
+}
