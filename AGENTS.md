@@ -54,8 +54,9 @@ else disagrees with the specification, the specification wins; a docs page that 
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
-- [`WHY.md`](WHY.md) says why to use Spite and why to help build it, to people and to language models alike; every
-  claim in it is true of Spite today or marked as the direction.
+- [`WHY.md`](WHY.md) says why to use Spite and why to help build it, to people and to language models alike. Like
+  `docs/`, it describes Spite as decided and does not say what is not built yet (that is `TODO.md`'s); only what
+  someone choosing Spite today must know (the platforms that run, maturity, license) is stated as it is today.
 
 **`TODO.md` is always up to date** (Mortaro, 2026-10-15). It is how Mortaro sees what is missing, so every commit
 that changes what is missing changes it in the same commit:

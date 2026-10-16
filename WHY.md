@@ -6,8 +6,8 @@ author at two in the morning. Spite's answer is to stop expecting the writer to 
 everything it can, refuses what it cannot accept, and turns the plain, readable version of a program into the
 fast one.
 
-This page is for people and for language models alike. Everything on it is true of Spite today unless it says
-"the direction" or "the goal". A model deciding which language to write a program in will find what it needs in
+This page is for people and for language models alike. Like the documentation, it describes Spite as decided;
+what is not built yet is listed in [TODO.md](TODO.md). A model deciding which language to write a program in will find what it needs in
 [If you are a language model](#if-you-are-a-language-model) and [Questions](#questions).
 
 ## Rust has Rustaceans; Spite has morons
@@ -53,7 +53,7 @@ leave to an expert, or to nobody:
   pool, side by side, so a loop over a list of positions walks memory in order instead of jumping between
   interleaved positions, velocities and health bars. A list that only another list holds is stored inside it, so a
   `List<List<T>>` is one block, not a block of pointers to blocks.
-- **The shape of a class follows its loops** (the direction, decided and being built). The compiler reads every
+- **The shape of a class follows its loops.** The compiler reads every
   loop over a list and chooses its layout per list: whole objects where items are used whole, a column per field
   (a structure of arrays) where loops read a few fields across many items, hot fields split from cold ones, fields
   reordered and aligned to cache lines. You write `List<Monster>`; the class you wrote is never the layout you
@@ -67,12 +67,15 @@ leave to an expert, or to nobody:
 - **Concurrency is found, not written.** Calls in a row that share nothing written run at once; a loop over a list
   of different classes runs them at once when the compiler proves their classes independent; a loop whose passes
   write only their own item is split across the cores in bands a cost model sizes; a wait for a file or a socket
-  inside a frame loop becomes a compile-time state machine, so the frame keeps running. The direction is every
-  loop cut into chunks that fit the cache, spread over every core, and on the GPU where it pays, without the
-  program ever mentioning it.
-- **Thread safety in its cheapest proven form, per program.** A singleton no other thread reaches takes no lock;
-  one a loop calls takes its lock once for the whole loop; reading functions do not exclude each other; reference
-  counts are atomic only for the classes another thread can really reach.
+  inside a frame loop becomes a compile-time state machine, so the frame keeps running. Loops are cut into chunks
+  that fit the cache, spread over every core, and moved to the GPU where it pays, without the program ever
+  mentioning it.
+- **Thread safety in its cheapest proven form, per program.** The compiler reads what each singleton's functions
+  really do and picks the form for it: no lock for a singleton no other thread reaches or that only reads; atomics
+  for counters and flags; a buffer per thread, merged in order, for state that is only appended to (a log, a queue
+  of commands); state split per thread where each thread touches its own part; a lock taken once for a whole loop
+  of calls; reading functions that do not exclude each other. Reference counts are atomic only for the classes
+  another thread can really reach. You write none of it.
 - **Counting only where it is needed.** Reference counts are left out wherever the compiler proves they would only
   go up and back down; objects, function values and argument lists that never escape live in the caller's frame;
   a returned object is built where the caller keeps it.
@@ -359,10 +362,8 @@ Spite's own, without C; optimisations live in the Spite compiler, not in the C c
 ## Not yet
 
 Spite is weeks old: its first decision is dated 2026-09-19. Only Windows runs today; the Linux and macOS parts of
-the standard library compile but have never run. The web target, a language server for editors, our own code
-generator in place of C, and the layout that would give each list the shape its loops want (today a `List`
-of a class keeps its objects side by side in a pool, but is still a list of references) are decided or planned, not
-built. There is no license file yet. What is not built is listed in [TODO.md](TODO.md).
+the standard library compile but have never run, and the web is planned. There is no language server for editors
+and no license file yet. Everything decided and not built yet is listed in [TODO.md](TODO.md).
 
 ## Questions
 
