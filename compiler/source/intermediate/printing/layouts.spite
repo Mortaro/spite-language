@@ -148,12 +148,6 @@ func print_class(layout: Layout) {
     if output.framed_layouts.contains(name) {
         print_framed(layout)
     }
-    if output.copied_layouts.contains(name) {
-        print_copy(layout)
-    }
-    if output.copied_in.contains(name) {
-        print_copy_in(layout)
-    }
 }
 
 func print_struct(layout: Layout) {
@@ -238,13 +232,7 @@ func hidden_releases(c_name: String): List<String> {
 }
 
 func print_static_singleton(layout: Layout) {
-    var name = layout.c_name
     print_uncounted(layout)
-    if output.copied_layouts.contains(name) {
-        output.prototypes.append("{name}* {name}_copy({name}* self);")
-        output.support("{name}* {name}_copy({name}* self) \{ return self; }")
-        output.name_piece("{name}_copy")
-    }
 }
 
 func print_uncounted(layout: Layout) {
@@ -571,11 +559,6 @@ func print_singleton(layout: Layout) {
     output.support(discard_text)
     output.runtime_place("{name}___destroy")
     output.runtime_place("{name}___discard")
-    if output.copied_layouts.contains(name) {
-        output.prototypes.append("{name}* {name}_copy({name}* self);")
-        output.support("{name}* {name}_copy({name}* self) \{ return self; }")
-        output.name_piece("{name}_copy")
-    }
 }
 
 func print_framed(layout: Layout) {
@@ -619,66 +602,6 @@ func print_framed(layout: Layout) {
     output.runtime_place("{name}___framed")
     output.runtime_place("{name}___unframe")
     output.runtime_place("{name}___unframe_fields")
-}
-
-func print_copy(layout: Layout) {
-    var name = layout.c_name
-    var lines = List<String>()
-    lines.append("{name}* {name}_copy({name}* self) \{")
-    lines.append("{name}* spite_copy = {name}___allocate();")
-    var index = 0
-    while index < layout.stored_fields.count() {
-        var field = layout.stored_fields[index]
-        var copied = copied_field(layout, field)
-        lines.append(copied)
-        index = index + 1
-    }
-    lines.append("return spite_copy;")
-    lines.append("}")
-    if layout.hot {
-        lines.remove_at(0)
-        lines.remove_last()
-        var copy_body = lines.join("\n")
-        var receiving = ["{name}* self"]
-        hot.slot_support("{name}_copy", "{name}*", receiving, copy_body, "{layout.qualified}'s copy", name)
-        return
-    }
-    output.prototypes.append("{name}* {name}_copy({name}* self);")
-    var lines_text = lines.join("\n")
-    output.support(lines_text)
-    output.runtime_place("{name}_copy")
-}
-
-func print_copy_in(layout: Layout) {
-    var name = layout.c_name
-    var signature = "{name}* {name}_copy_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address, {name}* self)"
-    var lines = [
-        "{signature} \{"
-        "{name}* spite_copy = {name}___allocate_in(spite_allocator, spite_give_back, spite_address);"
-    ]
-    var index = 0
-    while index < layout.stored_fields.count() {
-        var field = layout.stored_fields[index]
-        var copied = copied_field(layout, field)
-        lines.append(copied)
-        index = index + 1
-    }
-    lines.append("return spite_copy;")
-    lines.append("}")
-    output.prototypes.append("{signature};")
-    var lines_text = lines.join("\n")
-    output.support(lines_text)
-    output.runtime_place("{name}_copy_in")
-}
-
-func copied_field(layout: Layout, field: Field): String {
-    var counted = counted_field(field)
-    var made = naming.fields_of(layout, "spite_copy")
-    var source = naming.fields_of(layout, "self")
-    if counted.is_empty() {
-        return "{made}->{field.name}_ = {source}->{field.name}_;"
-    }
-    return "{made}->{field.name}_ = {counted}___retain({source}->{field.name}_);"
 }
 
 func print_union(layout: Layout) {

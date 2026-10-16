@@ -1058,10 +1058,6 @@ func print_call(operation: Operation) {
         intrinsics.print(this, operation)
         return
     }
-    if is_copy_call(operation.callee) {
-        print_plain_call(operation, operation.callee)
-        return
-    }
     refuse("it calls '{operation.callee}', which the program does not hold")
 }
 
@@ -1170,22 +1166,6 @@ func resumable_value_targets(called_shape: Analysis.Types.ClassRefType, returned
         }
     }
     return found
-}
-
-func is_copy_call(callee: String): Boolean {
-    if not callee.ends_with("_copy") {
-        return false
-    }
-    var callee_length = callee.length()
-    var copied = callee.slice(0, callee_length - 5)
-    var layout = lowered.layout_named(copied)
-    if not layout {
-        return false
-    }
-    if not output.copied_layouts.contains(copied) {
-        output.copied_layouts.append(copied)
-    }
-    return true
 }
 
 func print_known_call(operation: Operation, callee: Function) {
