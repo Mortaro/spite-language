@@ -3662,6 +3662,7 @@ func shape_default(described_union: Analysis.UnionInfo, spite_type: Analysis.Spi
     known().reach_layout(literal_class)
     var made_object = emitter.make_object(literal_class.c_name, literal_type)
     store_defaults(literal_class, made_object)
+    mark_row(made_object)
     known().reach_type(literal_type)
     return emitter.emit_call_one("Union.wrap", made_object, spite_type)
 }
