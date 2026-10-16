@@ -763,3 +763,82 @@ func note_value_waiters(function: Function, operation: Operation, found: List<St
         index = index + 1
     }
 }
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func drop_waiters_of(function: Function): List<String> {
+    var found = List<String>()
+    var visited = Dictionary<String, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.kind == "release" {
+                var released = operation.operands.first()
+                crash released
+                var released_value = function.value_at(released)
+                collect_drops(released_value.spite_type, visited, found)
+            }
+            position = position + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func collect_drops(spite_type: Analysis.SpiteType?, visited: Dictionary<String, Boolean>, found: List<String>) {
+    assert spite_type
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        collect_drops(nullable.inner, visited, found)
+        return
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        collect_drops(listed.element, visited, found)
+        return
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        collect_drops(dictionary.element, visited, found)
+        return
+    }
+    crash lowered
+    var united = types.as_union(spite_type)
+    var layout: Layout? = null
+    if united {
+        layout = lowered.layout_named(united.c_name)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref and not class_ref.has_signature {
+        layout = lowered.layout_named(class_ref.c_name)
+    }
+    collect_layout_drops(layout, visited, found)
+}
+
+func collect_layout_drops(layout: Layout?, visited: Dictionary<String, Boolean>, found: List<String>) {
+    assert layout and not visited.has(layout.c_name)
+    visited[layout.c_name] = true
+    if drop_functions.has(layout.c_name) {
+        var dropped = drop_functions[layout.c_name]
+        crash dropped
+        if summaries.has(dropped) {
+            crash summaries[dropped]
+            if summaries[dropped].waits {
+                found.append(dropped)
+            }
+        }
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member_layout = lowered_layout(layout.members[index])
+        collect_layout_drops(member_layout, visited, found)
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        collect_drops(layout.stored_fields[index].spite_type, visited, found)
+        index = index + 1
+    }
+}

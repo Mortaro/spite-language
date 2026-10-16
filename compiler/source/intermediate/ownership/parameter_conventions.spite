@@ -121,6 +121,8 @@ func start(function: Function) {
         parameter.ownership = "owned"
         if lent.contains(parameter.name) {
             parameter.ownership = "lent"
+        } else if index == 0 and fills_described(function) {
+            parameter.ownership = "lent"
         } else if index == 0 and function.receiver < 0 and bound_callers.has(function.c_name) {
             parameter.ownership = "lent"
         } else if eligible and kinds.is_counted(parameter.spite_type) and not is_text(parameter.spite_type) {
@@ -208,4 +210,8 @@ func consumes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value
         return false
     }
     return consumption.consumes(operation, value)
+}
+
+func fills_described(function: Function): Boolean {
+    return function.c_name.ends_with("___accessed") or function.c_name.ends_with("___describe_functions") or function.c_name.ends_with("___describe_attributes")
 }
