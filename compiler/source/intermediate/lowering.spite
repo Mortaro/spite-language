@@ -297,7 +297,7 @@ func lower_supplied(
     }
     if not declared.supplied_body.is_empty() or not types.is_void(answer) {
         function.intrinsic = "supplied"
-        reach_supplied_makers(instances, declared.supplied_body)
+        reach_supplied_makers(instances, declared.supplied_body, function)
         return
     }
     var emitter = start_body(function, information, declared, instances)
@@ -1132,7 +1132,7 @@ func write_class_maker(instances: Instances, name: String, described: Analysis.C
     finish_body(function, emitter)
 }
 
-func reach_supplied_makers(instances: Instances, body: String) {
+func reach_supplied_makers(instances: Instances, body: String, function: Function) {
     var made = instances.front()
     var pieces = body.split("___make(")
     var index = 0
@@ -1148,6 +1148,7 @@ func reach_supplied_makers(instances: Instances, body: String) {
         if described and not described.is_value_class {
             instances.reach_layout(described)
             instances.reflection_maker("{c_name}___make", "class_maker", described, "")
+            function.reaches.append("{c_name}___make")
         }
         index = index + 1
     }

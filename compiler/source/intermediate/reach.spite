@@ -50,6 +50,7 @@ func reach_function(c_name: String) {
     if not function.filled_by.is_empty() {
         waiting.append(function.filled_by)
     }
+    function.reaches.each(note_supplied_maker)
     var index = 0
     while index < function.values.count() {
         reach_type(function.values[index].spite_type, 0)
@@ -63,6 +64,12 @@ func reach_function(c_name: String) {
         reach_tags(block)
         index = index + 1
     }
+}
+
+func note_supplied_maker(c_name: String) {
+    crash lowered
+    assert lowered.function_named(c_name) and not functions_reached.has(c_name) and not waiting.contains(c_name)
+    waiting.append(c_name)
 }
 
 func reach_copies(function: Function, block: Block) {
