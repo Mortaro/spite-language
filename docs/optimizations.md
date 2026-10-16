@@ -3671,8 +3671,9 @@ and a list do. Four places use it:
   passing it to a function that keeps it, to a `Parallel` or a `Concurrent` (their constructors keep it), as a
   function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
   in a text's hole other than as `{name.attribute}`.
-- **A wrapped object.** An object put into a union or a nullable (a row for a system's `each`, a `T?`) stays in the frame
-  when the wrapped value goes only to calls that keep nothing; storing, returning or handing it to a keeper still moves it to the heap.
+- **A wrapped row.** A row (a system's row for `each`, whose free releases nothing) put into a union stays in the frame
+  when the wrapped value goes only to calls that keep nothing; storing, returning or handing it to a keeper still moves it to the heap,
+  and so does any other object put into a union or a nullable.
 - **Items of a row.** An object stored into a row (a system's row, whose items are borrowed and uncounted) that itself
   stays in the frame is framed too, as long as nothing else lets it go.
 - **A function value.** `apply(scorer.score, value)` builds one `Spite.Function` holding the object and its function; when the

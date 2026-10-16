@@ -161,6 +161,7 @@ func call_keeps(function: Function, uses: Facts.Uses, operation: Operation, valu
 
 func derived_escapes(function: Function, uses: Facts.Uses, operation: Operation, depth: Integer): Boolean {
     crash intrinsics
+    crash consumption
     var meaning = intrinsics.operation_part(operation.callee)
     var owner = intrinsics.type_part(operation.callee)
     if owner == "Address" and (meaning == "sum" or meaning == "subtract") and operation.result >= 0 {
@@ -168,7 +169,8 @@ func derived_escapes(function: Function, uses: Facts.Uses, operation: Operation,
     }
     var wrapping = ["Nullable.wrap", "Union.wrap"]
     if wrapping.contains(operation.callee) {
-        if operation.result < 0 {
+        var wrapped = operation.operands.first()
+        if operation.result < 0 or not wrapped or not consumption.is_row_value(function, wrapped) {
             return true
         }
         return escapes_through(function, uses, operation.result, depth + 1)

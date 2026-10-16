@@ -106,7 +106,8 @@ func settle_borrows(function: Function, borrows: Borrows, uses: Facts.Uses) {
 }
 
 func refuse_lent_join(function: Function, borrows: Borrows, uses: Facts.Uses, value: Integer) {
-    assert problems.count() < 10
+    crash consumption
+    assert problems.count() < 10 and not consumption.lends_return(function)
     var reached = uses.uses_of(value)
     var index = 0
     while index < reached.count() {
