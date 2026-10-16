@@ -374,17 +374,21 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   `truncate(count)`, `clear()` (which keeps the block) and `copy(): Buffer` mean what they mean on a `List`
   ([collections.md](collections.md#listt-additions)), and a buffer is walked with the same templates and passed
   functions a list of `Byte` is, so code that treats bytes as a list of them keeps working.
-- **Byte order is part of each read and write, not of the buffer.** A number is read and written little-endian,
-  the order of every machine Spite compiles for and of Spite's own binary format, and every number of two bytes or
-  more also has a big-endian form, which puts the most significant byte first (PNG, network order): the same name
-  with `_big_endian` after the number, `read_integer_big_endian()`, `read_integer_big_endian_at(position)`,
-  `append_integer_big_endian(value)`, `write_integer_big_endian_at(position, value)`. One buffer may hold both
-  orders, each read where its format says, and the order of every read is known while compiling.
+- **Byte order is part of each read and write, not of the buffer, and always named.** Every number of two bytes or
+  more is read and written through a function that names its order after the number: `_little_endian` (the order of
+  every machine Spite compiles for, and of Spite's own binary format) or `_big_endian` (the most significant byte
+  first: PNG, network order). So `read_integer_little_endian()`, `read_integer_big_endian_at(position)`,
+  `append_short_little_endian(value)`, `write_long_big_endian_at(position, value)`; a `byte` and a `tiny` have one
+  byte and no order. No order is unnamed, so a call says what it reads. The library writes each operation once, a
+  template over the enum `Buffer.ByteOrder` (`'little_endian'`, `'big_endian'`) whose value is a word of the
+  function's name. One buffer may hold both orders, and the order of every read is known while compiling.
 - **Position.** `position: Integer` starts at `0` and is where the next read at the position starts. Setting it
   below `0` or above `count()` halts, since the position is the program's own; `remaining(): Integer` is `count() -
   position`. `truncate` or `clear` below the position moves it to the new `count()`.
 - **Numbers.** `<number>` and its width: `byte` and `tiny` 1, `short` and `unsigned_short` 2, `integer`,
-  `unsigned_integer` and `float` 4, `long`, `unsigned_long` and `double` 8.
+  `unsigned_integer` and `float` 4, `long`, `unsigned_long` and `double` 8. Below, `<number>` stands for the number
+  with its order for every number of two bytes or more (`integer_little_endian`, `double_big_endian`), and for the
+  number alone for `byte` and `tiny`.
   - `read_<number>(): <number>?` reads the number whose bytes start at `position` and moves `position` past them;
     it answers `null`, and leaves `position` where it was, unless all of them are in the buffer.
   - `read_<number>_at(position): <number>?` reads the number whose bytes start at `position` and moves nothing;
