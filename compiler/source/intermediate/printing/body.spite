@@ -1204,10 +1204,12 @@ func print_digits_in_place(operation: Operation) {
     var number = operand(operation, 0)
     var buffer = "spite_digits_{operation.result}"
     declare("char {buffer}[24];")
-    assign(
-        operation.result,
-        "(SpiteString)SPITE_STATIC_STRING({buffer}, spite_long_digits({buffer}, (int64_t)({number})))",
-    )
+    var writer = "spite_long_digits({buffer}, (int64_t)({number}))"
+    if naming.is_unsigned(scalar.kind) {
+        output.need("unsigned digits")
+        writer = "spite_unsigned_digits({buffer}, (uint64_t)({number}))"
+    }
+    assign(operation.result, "(SpiteString)SPITE_STATIC_STRING({buffer}, {writer})")
 }
 
 func print_known_call(operation: Operation, callee: Function) {

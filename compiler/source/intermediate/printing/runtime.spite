@@ -212,6 +212,11 @@ func helpers(): List<String> {
             "static inline int32_t spite_string_order(SpiteString left, SpiteString right) \{\nint64_t left_length = spite_string_length(left);\nint64_t right_length = spite_string_length(right);\nint64_t shortest = left_length < right_length ? left_length : right_length;\nint compared = shortest > 0 ? memcmp(spite_string_bytes(&left), spite_string_bytes(&right), (size_t)shortest) : 0;\nif (compared != 0) return compared < 0 ? -1 : 1;\nreturn left_length < right_length ? -1 : (left_length > right_length ? 1 : 0);\n}",
         )
     }
+    if output.needs("unsigned digits") {
+        pieces.append(
+            "static int64_t spite_unsigned_digits(char* digits, uint64_t value) \{\nchar reversed[24];\nint64_t count = 0;\ndo \{ reversed[count] = (char)('0' + value % 10); count = count + 1; value = value / 10; } while (value != 0);\nint64_t length = 0;\nwhile (count > 0) \{ count = count - 1; digits[length] = reversed[count]; length = length + 1; }\nreturn length;\n}",
+        )
+    }
     if output.needs("value box") {
         pieces.append(
             "static void spite_value_box_release(void* self) \{\nif (SPITE_COUNT_DOWN(((SpiteHeader*)self)->ref_count) > 0) return;\nSPITE_FREE(self);\n}",
