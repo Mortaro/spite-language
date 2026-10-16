@@ -112,6 +112,11 @@ func step() {
   ([compiler.md](compiler.md#read-what-was-not-optimised)). A fallback is the plain form, never a wrong answer;
   the report names what stopped the proof, so you can change that one thing.
 
+Use what the standard library already has. Timing a loop with the clock where `Benchmark` exists, or adding to
+`Matrix4` what `Matrix4` already does, is an error that names the library form: the compiler learns each of these
+mistakes as it sees them made, and a program written the library's way is one the compiler can make fast with
+confidence.
+
 `Concurrent`, `Parallel` and the `Memory` classes are documented in [Concurrency](concurrency.md) and
 [Memory](memory.md). They exist for the standard library and for code that measures the compiler against a
 hand-written form. A plain program does not need them, and should not reach for them to go faster: if the plain

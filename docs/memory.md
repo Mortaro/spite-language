@@ -992,97 +992,34 @@ stack 4
 constant 5 true
 ```
 
-### Choosing an allocator: `.memory.allocator`
+### The compiler chooses the allocator
 
-Every object is made on `Memory.Heap` unless its program says otherwise, and it says so on the line right after
-the object is made:
+Every object is made where the compiler decides: in the frame when it never leaves its function, in a pool, in an
+arena when many die together, and on `Memory.Heap` otherwise ([Placement](#placement-the-compiler-decides-where-memory-lives)).
+A program does not choose, and `.memory` is read-only: it only tells you about a value. Writing
+`spark.memory.allocator = arena` is an error, because there is nothing to assign. If you want objects kept
+together, keep them in one list and let the compiler lay it out.
 
-```gdscript
-var spark = Particle("spark", 1.5)
-spark.memory.allocator = arena
-```
-
-The compiler reads the two lines as one intent: `spark` is made in `arena` from the start. Nothing is allocated
-on the heap first and moved, and nothing is looked up while the program runs: the constructor is handed the
-arena's memory instead of the heap's. The standard library's allocator besides the heap is
-**`Memory.Arena(block_bytes)`**, which hands out memory from blocks of that size, one after another, never gives
-any of it back one piece at a time, and frees every block at once when the arena itself goes. An object made in
-an arena holds the arena, so the arena cannot go while anything made in it is alive.
-
-- **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
-  next. To move an object that was already used, copy it and set the copy's allocator, as `kept` does below.
-- **Only an object.** A number or a `String` is placed by the compiler, not by an allocator.
-- **A list holds references**: giving a `List` an allocator places the list there, and its buffer of
-  references too, while each element lives wherever it was made. A `Vector` holds its items inline
-  ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object and
-  its block of items.
-- **It costs nothing where it is not used**: only a class some line gives an allocator
-  grows, by sixteen bytes per object.
+The standard library's allocators are `Memory.Heap` and **`Memory.Arena(block_bytes)`**, which hands out memory
+from blocks of that size, one after another, never gives any of it back one piece at a time, and frees every block
+at once when the arena itself goes. An object made in an arena holds the arena, so the arena cannot go while
+anything made in it is alive.
 
 The exact rules and the errors are in [the rules](../specs/memory.md#allocators-memoryallocator).
 
-```gdscript title=arena_particles/particle.spite
-var name = ""
-var life = 0.0
-
-func Particle(new_name: String, new_life: Float) {
-    name = new_name
-    life = new_life
-}
-```
-```gdscript title=arena_particles/arena_particles.spite entry
-var console = Console()
-var heap = Memory.Heap()
-
-func ArenaParticles() {
-    var arena = Memory.Arena(4096)
-    var before = heap.live_allocations()
-    var spark = Particle("spark", 1.5)
-    spark.memory.allocator = arena
-    var ember = Particle("ember", 2.0)
-    ember.memory.allocator = arena
-    var during = heap.live_allocations()
-    console.print(spark.name, ember.name, "heap allocations:", during - before)
-    var ash = Particle("ash", 0.5)
-    var kept = ash.copy()
-    kept.memory.allocator = arena
-    kept.life = 3.0
-    console.print(ash.life, kept.life)
-}
-```
-```output
-spark ember heap allocations: 1
-0.5 3
-```
-
-The one heap allocation is the arena's first block; both particles are inside it.
-
 ### An object reads its own allocator
 
-`value.memory.allocator` answers where an object was made: `Memory.Heap` unless a line said otherwise.
+`value.memory.allocator` answers where an object was made: `Memory.Heap` unless the compiler chose another.
 Inside a class, the object a function runs on reads its own as `memory.allocator`, and that is how a `List`
 keeps its buffer in the list's arena: `library/list.spite` grows its buffer with
 `memory.allocator.allocate(bytes)` and gives the old one back with `memory.allocator.free(address)`. The answer
 is one of the program's allocators, so `== Memory.Arena` asks which, as for a
 [union](values_and_types.md#unions).
 
-```gdscript title=arena_scores/arena_scores.spite entry
+```gdscript title=heap_scores/heap_scores.spite entry
 var console = Console()
-var heap = Memory.Heap()
 
-func ArenaScores() {
-    var arena = Memory.Arena(4096)
-    var before = heap.live_allocations()
-    var scores = List<Integer>()
-    scores.memory.allocator = arena
-    var score = 0
-    while score < 100 {
-        scores.append(score)
-        score = score + 1
-    }
-    var during = heap.live_allocations()
-    var in_arena = scores.memory.allocator == Memory.Arena
-    console.print("heap allocations:", during - before, "in the arena:", in_arena)
+func HeapScores() {
     var plain = List<Integer>()
     plain.append(1)
     var on_heap = plain.memory.allocator == Memory.Heap
@@ -1090,12 +1027,8 @@ func ArenaScores() {
 }
 ```
 ```output
-heap allocations: 1 in the arena: true
 plain list on the heap: true
 ```
-
-The list grew six times, and every buffer came from the arena's one block. An arena never gives memory back
-one piece at a time, so the smaller buffers a list grew out of stay in the arena until the arena goes.
 
 ---
 

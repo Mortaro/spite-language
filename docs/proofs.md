@@ -1563,9 +1563,6 @@ and stated in full in its specification, and none has a fallback beyond the erro
 - **Singletons that make each other in a circle** are an error; a circle only a constructor's body closes is not
   followed, and halts naming it at run time ([classes_and_files.md: Singletons](classes_and_files.md#singletons);
   `diagnostics/singleton_circle`, `conformance/stage6/singleton_circle`).
-- **An allocator is set only on a fresh object**, on the line after it is made, so it is made there and never twice
-  ([optimizations.md](optimizations.md#an-allocator-set-after-construction-is-where-the-object-is-made);
-  `diagnostics/allocator_after_use`).
 - **Build settings are constants**: a flag's value has its field's type, an unknown flag or an `Environment` setting
   given to the compiler is an error, and an `if` around a `load` is decided from `Build` fields and literals ([programs.md: Compile-time settings](programs.md#compile-time-settings-build); `diagnostics/flag_value`,
   `diagnostics/load_unknown_condition`).

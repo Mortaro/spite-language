@@ -121,6 +121,26 @@ func said(text: String, loud: Boolean): String {
 3 apples!
 ```
 
+### An `if` inside an `if` is one `and`
+
+An `if` with nothing in its body but another `if`, and no `else` on either, is one condition said twice, and the
+compiler refuses it:
+
+```gdscript
+func stamp_of(path: String): String {
+    var file = File(path)
+    var modified = file.modified()
+    var size = file.size()
+    if modified and size {
+        return "{modified}-{size}"
+    }
+    return "missing"
+}
+```
+
+Write `if modified and size`, not `if modified { if size { ... } }`. The rules are in
+[the specification](../specs/control_flow.md#an-if-that-only-holds-an-if).
+
 ## `while` is the only loop
 
 There is no `for`, so that people favor metaprogramming over hand-written loops. Writing `for` is a

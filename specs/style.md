@@ -251,6 +251,16 @@ func Game() {
   case, while a link costs a few tokens only where there is something to say. Absence becomes free and
   trustworthy.
 
+### A number is named before it is used
+
+**A number written in an expression is a compile error: give it a name first.** `return cycles * 146097 + days`
+is `var days_per_cycle = 146097` and then `return cycles * days_per_cycle + days`. The name says what the number
+means, and the compiler folds a constant name exactly as it folded the number. The message names the number and
+the form: "146097 is a magic number: give it a name first, 'var <what it is> = 146097', and write the name here".
+Exempt: 0, 1 and -1 (and `0.0`, `1.0`), and the initializer of the `var` or attribute that gives the number its
+name. The rule covers integer and float literals in every expression: arithmetic, comparisons, call arguments,
+indexes and returns.
+
 ### Naming and abbreviations: compile errors, not auto-fixed
 
 A naming or abbreviation problem cannot be silently rewritten (renaming a symbol can change what a program

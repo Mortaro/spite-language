@@ -157,8 +157,10 @@ and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a
 while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
 value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute),
 and a number held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
-attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else; the
-same object is where an allocator is set ([below](#allocators-memoryallocator)).
+attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else. **Nothing
+assigns it or anything in it**: `scratch.memory.allocator = arena` is a compile error, "'.memory' only tells where
+a value lives: the compiler chooses where it is made, so there is nothing to assign". It answers which allocator
+made the value ([below](#allocators-memoryallocator)).
 
 ### The floor: `Memory.Address`, `Memory.Heap` and `TypedMemory<T>`
 
@@ -266,38 +268,21 @@ costs nothing at run time; a frame slot is cheaper than the heap call it replace
 
 ### Allocators: `.memory.allocator`
 
-Types never name an allocator; an **object** does, through its tree-shakeable
-`.memory`, on the line right after it is made (`var scratch = List<Integer>()` then `scratch.memory.allocator =
-arena`), and the compiler reads the two lines as where the object was always meant to live, so it is made
-there from the start. Setting it after the object was used is a compile error naming `copy()`. The rules:
+**The compiler chooses where each object is made, and a program only reads the choice.** The frame, a pool and an
+arena are the compiler's to pick, from what it proves about how long the object lives
+([Placement](#placement-the-compiler-decides-where-memory-lives)), so there is no way to name one: a program that
+wants its objects together writes them in one list and the compiler lays them out. The rules:
 
 - **An allocator is a class that answers `allocate(bytes: Long): Memory.Address` and `free(address:
-  Memory.Address)`** (no `type` is declared for it). `Memory.Heap` is the default, and
-  setting it changes nothing. `Memory.Arena(block_bytes)` (`library/memory/arena.spite`, Spite over the heap)
-  hands out 16-byte-aligned memory from blocks of that size, chaining a new block when one is full, never frees
-  one piece at a time, and frees every block when the arena itself is dropped.
-- **Where it may be set:** only as the statement directly after `var name =
-  ...` whose value is a constructor call, `List<T>()`/`Dictionary<Key, Value>()` or `.copy()` of a class whose copy the
-  compiler writes, and only to a name or a path of names (so evaluating it earlier than written changes nothing).
-  Anything else is an error (`diagnostics/allocator_after_use`):
-  - after the object was used: `'spark' was already used, so its allocator can no longer change: an
-    object's allocator is set on the line right after it is made. To move it, copy it and set the copy's: 'var
-    moved = spark.copy()' and then 'moved.memory.allocator = ...'`;
-  - on a value no constructor made, such as a reflection object (`var place = text.memory`): `'place' gets an
-    allocator only on the line right after the line that makes it: a constructor, 'List<T>()' or '.copy()'`;
-  - on a number or a `String`: `only an object gets an allocator of its own, and 'count' is a value of type
-    Integer, which the compiler places itself`;
-  - to a class that is not an allocator: `'Console' is not an allocator: an allocator answers 'allocate(bytes:
-    Long): Memory.Address' and 'free(address: Memory.Address)', like 'Memory.Arena'`.
-- **How it is compiled**: the construction becomes `C___make_in(allocator, give_back, address, arguments...)` with
-  the address from the allocator's `allocate`, so nothing is allocated twice or moved. An object made this way
-  holds a reference to its allocator and the allocator's `free`, and gives its memory back through them when its
-  count reaches zero; the allocator therefore outlives everything made in it. **Tree-shaken**: only a class
-  some line gives an allocator carries the two hidden pointers (16 bytes per object of that class), and nothing
-  else in the program changes; there is no run-time registry and no current-allocator state.
-- **Lists:** a `List` given an allocator is made there, and so is its buffer of references, each time it grows;
-  each element lives wherever it was made, since a list holds references. A `Vector<T>`'s block of items and an
-  `Items<T>`' storage follow their object the same way. A `Dictionary` given an allocator is made there, and its
+  Memory.Address)`** (no `type` is declared for it). `Memory.Heap` is the default. `Memory.Arena(block_bytes)`
+  (`library/memory/arena.spite`, Spite over the heap) hands out 16-byte-aligned memory from blocks of that size,
+  chaining a new block when one is full, never frees one piece at a time, and frees every block when the arena
+  itself is dropped. An object made in an allocator holds a reference to it and to its `free`, and gives its
+  memory back through them when its count reaches zero; the allocator therefore outlives everything made in it.
+  **Tree-shaken**: only a class the compiler makes in an arena somewhere carries the two hidden pointers (16
+  bytes per object of that class), and there is no run-time registry and no current-allocator state.
+- **A `List`, a `Vector<T>`, an `Items<T>` and a `Dictionary`** made in an allocator take their buffer from it,
+  each time it grows; each element lives wherever it was made, since a list holds references. A `Dictionary`'s
   table and its lists of keys and values stay on the heap.
 - **Reading it back:** `value.memory.allocator`, for a name or a path of names, answers the allocator the object
   was made in, `Memory.Heap` unless a line said otherwise (an object the compiler placed in a frame answers

@@ -310,8 +310,8 @@ under `Vector<T>`](../docs/collections.md#vectort-items-inline), which is normat
   template, such as 'each_<function>()'`; and a vector of `String`s, whose items are references to text, has
   `names.each(f)` as `'each' passes each item to a function, which a Vector never does: keep the values in a
   'List<String>' to pass them on` (`diagnostics/text_items_passed`).
-- **Its allocator.** `velocities.memory.allocator = arena` on the next line places the `Vector` object in the
-  arena, as for any object, and its block of items with it, each time it grows.
+- **Its allocator.** The compiler chooses where the `Vector` object and its block of items are made, as for any
+  object; `velocities.memory.allocator` only reads it back.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/plain_items`,
 `diagnostics/text_items_passed`, `diagnostics/found_item_borrows`, `conformance/stage6/vector_items`,

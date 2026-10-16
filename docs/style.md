@@ -216,6 +216,19 @@ func ProseCommentError() {
 this comment is not a link: a comment is one line holding only a link to a markdown section
 ```
 
+## A number gets a name
+
+A number inside an expression says nothing about what it means, so it is named first:
+
+```gdscript
+var days_per_cycle = 146097
+var days = cycles * days_per_cycle + remaining
+```
+
+`146097` in the middle of the arithmetic is an error that gives this form. The name costs nothing: the compiler folds
+it as it folded the number. `0`, `1` and `-1` need no name, and neither does the number on the right of the `var`
+that names it. The rule is in [the specification](../specs/style.md#a-number-is-named-before-it-is-used).
+
 ## A function body holds no empty lines
 
 A blank line inside a function is where a second function wants to be: the part below it is a step with a

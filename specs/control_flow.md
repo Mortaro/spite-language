@@ -78,6 +78,14 @@ branch; and an `if`/`else` inside a `while` or `switch` inside the branch, since
 unit. The message names "a union or an enum", since `switch` takes an enum's values.
 Compile time only.
 
+### An `if` that only holds an `if`
+
+**An `if` with no `else` whose body is exactly one `if` with no `else` is a compile error that names the `and`
+form.** `if modified { if size { return "{modified}-{size}" } }` is `if modified and size { ... }`. The message:
+"this 'if' only contains another 'if' and neither has an 'else': write one condition, 'if modified and size'".
+Not counted: an `if` with other statements beside the inner one, and an `if` or an inner `if` with an `else` or
+an `else if` (that is a decision tree, [above](#nested-ifelse)). Compile time only.
+
 ### One statement per case
 
 A case of a `switch` is one statement: a call, an assignment, a `return` or a `crash`, on the case's line, or the same

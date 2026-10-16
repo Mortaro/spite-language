@@ -234,15 +234,20 @@ Every operator is a shortcut for a function, which a class can define to support
 | `a[x] = v` | `set_at(x, v)` | |
 
 For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<Key, Value>` these are intrinsic (they compile to exactly
-the same C as before this table existed).
+the same C as before this table existed). **Every operator a library class answers is declared in `library/`**,
+in the class's own file, as a function like any other: `Integer`'s `sum`, `String`'s `get_at` and `List`'s `equals`
+are there to read and are in `Spite.Class.functions`. A body the compiler supplies names the primitive it stands for;
+no operator exists only inside the compiler.
 
 **A direct call of an operator's function is an error naming the operator**: `a.sum(b)` is "write 'a + b'", and the same for every row of the table above, for `get_<name>()`
 and `set_<name>(value)` (write `.name` and `.name = value`), and for `get_at` and `set_at` on a `List` and a
 `Dictionary` alike (write `[key]` and `[key] = value`). It holds for every class (built-in, library or the program's own) wherever the operator could be
 written instead. The only exception is the function used as a value (`run_callback(point.get_x)`,
 [Functions are values](../docs/functions_and_operators.md#functions-are-values)), since no operator can be passed. A call with no receiver inside the class's own functions (`get_x()`) is not covered, since a bare `x` there is
-the raw field and no shortcut reaches the getter; nor is `get_attribute(attribute)`/`set_attribute`, which
-Symbol codegen offers per attribute rather than as one operator. This also settles `get_x()` against `.x`: there
+the raw field and no shortcut reaches the getter; nor is `get_attribute(attribute)`/`set_attribute` called with an attribute from a walk, which
+Symbol codegen offers per attribute rather than as one operator. **Called with an attribute written out it is an
+error naming the shortcut**: `person.set_attribute('age', 2)` is "write 'person.age = 2'", and
+`person.get_attribute('age')` is "write 'person.age'", since a write and a read have one spelling. This also settles `get_x()` against `.x`: there
 is one spelling. A union receiver is covered when every member offers the operator. After a `.` a word is always
 a member name and never a keyword, so a getter or setter named after a keyword is covered like any other
 (`thing.type`, `thing.type = value`). An `equals` that `==` would not call (an `equals` whose parameter is not a

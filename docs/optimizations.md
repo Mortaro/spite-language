@@ -51,7 +51,6 @@ emit nothing.
 | [Appending to text in place](#appending-to-text-in-place) | every | fewer allocations |
 | [The compiler places memory](#the-compiler-places-memory) | every | fewer allocations; `.memory.section` |
 | [Reading an address is one machine operation](#reading-an-address-is-one-machine-operation) | every | nothing |
-| [An allocator set after construction is where the object is made](#an-allocator-set-after-construction-is-where-the-object-is-made) | every | the arena's blocks are the allocations; sixteen bytes more per object of a class given an allocator |
 | [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | every | the constructor runs at first use |
 | [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | production | one allocation fewer each; not in `.instances` |
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | every, decided per program | nothing |
@@ -486,31 +485,6 @@ same way, as the C library's copy and comparison.
 reads its memory this way.
 
 **What you notice.** Nothing: there is no other way these could run.
-
-### An allocator set after construction is where the object is made
-
-**The case:** [benchmarks/an_allocator_set_after_construction_is_where_the_object_is_made](../benchmarks/an_allocator_set_after_construction_is_where_the_object_is_made/).
-
-**What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
-though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
-two lines become one construction that asks the arena for the memory, with nothing allocated twice and nothing
-decided while the program runs ([memory.md](memory.md#choosing-an-allocator-memoryallocator)).
-The same holds for `var kept = ash.copy()` followed by `kept.memory.allocator = arena`.
-
-**When.** Always, for the line right after the one that makes the object; anywhere else setting the allocator is
-an error.
-
-**What you notice.** Under `--debug-memory`, an object made in an arena is not an allocation of its own: the
-arena's blocks are. A class some line gives an allocator is sixteen bytes larger per object (two hidden pointers:
-the allocator, and the function that gives the memory back), on every object of that class, heap ones included;
-no other class changes. Setting `Memory.Heap()` is the default and costs nothing.
-
-A `List`, a `Vector<T>` and an `Items<T>` given an allocator take their buffer from it too, through
-`memory.allocator` ([memory.md](memory.md#an-object-reads-its-own-allocator)): filling one allocates nothing
-on the heap past the arena's blocks. On the heap a buffer still grows in place (`resize`); in any other
-allocator it grows by allocating the new size, copying and freeing the old, so in an arena the smaller buffers
-stay until the arena goes. A class that never reads its allocator is unchanged, and one that reads it but is
-never given one answers `Memory.Heap` with no hidden pointers: reading it is one comparison with the heap.
 
 ### Singletons: made on first use, never counted
 
@@ -2067,7 +2041,7 @@ and argument's `class`, is one (three allocations: the class object and its two 
 prints is not.
 
 **When.** Every build but `--hot-reload` (whose constructors can be swapped for ones that read the attribute first),
-for objects made by their constructor; an object given an allocator on the next line still makes its defaults.
+for objects made by their constructor.
 
 **What you notice.** Fewer allocations under `--debug-memory`, one per discarded object and those it holds:
 [its case](../benchmarks/defaults_the_constructor_replaces_are_never_made/), which makes 500 000 items that each
@@ -3860,9 +3834,8 @@ Every class is passed by reference and `copy()` gives an independent one; that i
 optimises behind it: a copy used only once is passed by value instead of allocated; a copy that is never changed
 shares the original, when that is cheaper; an object that never escapes its function is laid out inline or in
 registers; and reference counting is left out wherever ownership is provable. You keep writing `copy()` where you mean
-an independent object. (An allocator set right after construction is
-[above](#an-allocator-set-after-construction-is-where-the-object-is-made), and so is the first part of objects that
-never escape: [objects of numbers in the frame](#objects-that-never-leave-their-function-live-in-the-frame), including
+an independent object. (The first part of objects that
+never escape is [above](#objects-that-never-leave-their-function-live-in-the-frame): [objects of numbers in the frame](#objects-that-never-leave-their-function-live-in-the-frame), including
 a `copy()` of one, and leaving out the count on a frame object passed to a function whose callee never assigns the
 parameter.) Frame objects also cover classes that hold text, lists or other objects (their attributes are let go at
 the end of the frame), and an attribute object is laid inline in a frame-held object where the attribute is never

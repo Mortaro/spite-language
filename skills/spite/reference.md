@@ -565,12 +565,10 @@ func is_alive(): Boolean {
   `TypedMemory<$value_type>` (`read_value`, `write_value`, `release_value`, `value_bytes`), as
   `library/list.spite` is. `address.read_long(offset)` and the other reads and writes are for `library/` only
   (`'read_long' reads or writes the memory at an address, which only library/ does`); there is no `Memory()`.
-- An object is made on the heap unless the line right after it names another allocator:
-  `var spark = Particle()` then `spark.memory.allocator = arena` (`var arena = Memory.Arena(65536)` beforehand)
-  makes it in the arena from the start. Later, it is an error (`'spark' was already used, so its allocator can no
-  longer change`): copy it and set the copy's allocator. A number or a `String` gets none.
+- The compiler chooses where an object is made; `.memory` is read-only, and `spark.memory.allocator = arena` is an
+  error. A number or a `String` gets none.
 - `spark.memory.allocator` reads it back, and inside a class `memory.allocator` is the object's own: one of the
-  program's allocators (`Memory.Heap` unless set), so `== Memory.Arena` asks which, and `allocate`/`free` call
+  program's allocators (`Memory.Heap` unless the compiler chose another), so `== Memory.Arena` asks which, and `allocate`/`free` call
   it. A `List`'s buffer, a `Vector`'s and an `Items`' block follow their object's allocator. An allocator is a
   class that is not generic with `allocate(bytes: Long): Memory.Address` and `free(address: Memory.Address)`.
 

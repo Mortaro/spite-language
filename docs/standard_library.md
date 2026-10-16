@@ -200,6 +200,14 @@ func ByteRecords() {
 the second record starts at 8 and holds 2222 of 16 bytes
 ```
 
+### Lock a file
+
+`file.lock()` waits until no other process holds a lock on the file, and answers a `File.Lock` you hold until you
+call `unlock()` or let it go. It is how two programs take turns on one file, such as a cache both write. If the
+program ends or crashes the system releases the lock, so it is never left held. `lock()` answers `null` only when
+the path cannot be opened. There is nothing to write for the operating system: the same call works on Windows,
+Linux and macOS. The rules are in [the specification](../specs/standard_library.md#system-classes).
+
 ### Rename or move a file or folder
 
 `move_to(path)` is one function for both, on a `File` and on a `Directory`: a new name in the same folder renames

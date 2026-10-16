@@ -289,6 +289,8 @@ func get_owner(): String {
 outside the class. `owner` has exact functions instead, which always win over Symbol codegen, so every name
 written through `set_owner` is capitalized.
 
+The templates answer `account.balance = 5` and `account.balance`. Calling one with the attribute written out, `account.set_attribute('balance', 5)`, is an error that tells you to write `account.balance = 5`, since a write has one spelling; a template is called with an attribute only when the attribute is a value, such as the one a walk over the attributes hands you.
+
 ```gdscript title=interception/interception.spite entry
 var console = Console()
 

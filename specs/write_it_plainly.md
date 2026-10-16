@@ -23,6 +23,10 @@ is the bug.
   the program's profile file. A later build may read that file to choose among forms the compiler has proven
   equivalent. A build's result never depends on the profile: only its speed does, so a stale or missing profile is
   never wrong. The profiling build is the only one that records anything; no other build carries the recording.
+- A program does not write by hand what the standard library already does. Code that reimplements a library
+  function the compiler recognises (timing a loop with the clock where `Benchmark` exists, adding to a library
+  class what it already has) is a compile error that names the library form to write. The recognised patterns
+  are few and each one is added as it is seen; a similar piece of code that is not one of them is never refused.
 - A plain program written with lists, loops and classes must be able to reach the speed of the same program
   written with `Concurrent`, `Parallel` and `Memory` by hand. Where it does not, the compiler is wrong.
 
