@@ -683,6 +683,14 @@ func pass_through(block: Integer, count: Integer, before: List<Integer>, incomin
     emitter.current = -1
 }
 
+func equal_values(equality: String, subject: Integer, written: Integer): Integer {
+    var boolean = known().typed_boolean()
+    if equality == "String.equals" {
+        return lowering().same_text(subject, written)
+    }
+    return emitter.emit_call_two(equality, subject, written, boolean)
+}
+
 func equality_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer, equality: String) {
     var count = emitter.locals.count()
     var before = emitter.snapshot(count)
@@ -698,7 +706,7 @@ func equality_switch(statement: Syntax.Statements.SwitchStatement, subject: Inte
         } else {
             crash switch_case.value
             var written = lowering().lower_toward(switch_case.value, subject_type)
-            var same = emitter.emit_call_two(equality, subject, written, boolean)
+            var same = equal_values(equality, subject, written)
             text_case(same, switch_case.body, count, before, incomings)
         }
         index = index + 1
@@ -863,7 +871,7 @@ func text_switch(statement: Syntax.Statements.SwitchStatement, subject: Integer)
         } else {
             crash switch_case.value
             var written = lowering().lower(switch_case.value)
-            var same = emitter.emit_call_two("String.equals", subject, written, boolean)
+            var same = lowering().same_text(subject, written)
             text_case(same, switch_case.body, count, before, incomings)
         }
         index = index + 1

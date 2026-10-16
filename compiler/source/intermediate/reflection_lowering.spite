@@ -1055,8 +1055,7 @@ func parsed_argument(item: Integer, parameter_type: Analysis.SpiteType, fail: In
         return unwrapped_or_fail(parsed, parameter_type, fail)
     }
     if enumerated {
-        var maybe_enum = known.nullable_of(parameter_type)
-        var parsed = emitter.emit_call_one("Enum.from_text", item, maybe_enum)
+        var parsed = lowering().enum_read(item, parameter_type)
         return unwrapped_or_fail(parsed, parameter_type, fail)
     }
     return item
