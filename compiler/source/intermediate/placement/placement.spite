@@ -464,12 +464,49 @@ func mark_frame_releases(function: Function, framed: Dictionary<Integer, Boolean
                     kept.append(operation)
                 }
             } else if not dropped {
+                var after = List<Operation>()
+                hand_back_frame(function, operation, framed, kept, after)
                 kept.append(operation)
+                after.each(kept.append)
             }
             index = index + 1
         }
         block.operations = kept
         block_index = block_index + 1
+    }
+}
+
+# ../../../../docs/proofs.md#objects-that-never-leave-their-function-live-in-the-frame
+func hand_back_frame(
+    function: Function,
+    operation: Operation,
+    framed: Dictionary<Integer, Boolean>,
+    before: List<Operation>,
+    after: List<Operation>,
+) {
+    crash lowered
+    assert operation.kind == "call" and operation.form == "moved"
+    var callee = lowered.function_named(operation.callee)
+    assert callee and not callee.is_intrinsic()
+    var position = 1
+    while position < operation.operands.count() {
+        var operand = operation.operands[position]
+        var slot = position - 1
+        if framed.has(operand) and slot < callee.parameters.count() {
+            var ownership = callee.parameters[slot].ownership
+            if ownership != "held" and ownership != "lent" {
+                var counted = Operation("retain", operation.line)
+                counted.takes(operand)
+                counted.spite_type = function.value_at(operand).spite_type
+                before.append(counted)
+                var freed = Operation("release", operation.line)
+                freed.takes(operand)
+                freed.spite_type = function.value_at(operand).spite_type
+                freed.form = "frame"
+                after.append(freed)
+            }
+        }
+        position = position + 1
     }
 }
 

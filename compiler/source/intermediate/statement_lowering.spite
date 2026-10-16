@@ -522,6 +522,7 @@ func halt_here(text: String, identity: String) {
     var made = front()
     var shown = List<Integer>()
     var labels = List<String>()
+    show_condition_names(text, shown, labels)
     var position = emitter.floor
     while position < emitter.locals.count() and shown.count() < 12 {
         var held = emitter.local_at(position)
@@ -539,6 +540,42 @@ func halt_here(text: String, identity: String) {
     site.shown = labels
     site.identity = identity
     emitter.halt(site_number, shown)
+}
+
+func show_condition_names(text: String, shown: List<Integer>, labels: List<String>) {
+    var made = front()
+    var candidates = List<String>()
+    var places = List<Integer>()
+    var position = emitter.floor
+    while position < emitter.locals.count() {
+        var held = emitter.local_at(position)
+        var held_type = emitter.scope.written_type(held.name)
+        var at = text.index_of(held.name)
+        if held_type and at >= 0 and made.mentions_word(text, held.name) and made.is_scope_value_type(held_type) {
+            candidates.append(held.name)
+            places.append(at)
+        }
+        position = position + 1
+    }
+    while not candidates.is_empty() and shown.count() < 12 {
+        var best = 0
+        var best_place = places.first()
+        crash best_place
+        var look = 1
+        while look < places.count() {
+            var here = places[look]
+            if here < best_place {
+                best = look
+                best_place = here
+            }
+            look = look + 1
+        }
+        var chosen = candidates[best]
+        crash chosen
+        show_name(chosen, shown, labels)
+        candidates.remove_at(best)
+        places.remove_at(best)
+    }
 }
 
 func show_fields(text: String, shown: List<Integer>, labels: List<String>) {

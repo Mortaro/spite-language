@@ -452,6 +452,7 @@ func generator_pass(
 func write_from_intermediate(generator: Generation.Generator) {
     var pipeline = Intermediate.Pipeline(generator)
     pipeline.optimized = is_on("optimized")
+    pipeline.lowers_only = is_on("check") and option("high_ir").is_empty()
     var written = pipeline.run()
     if pipeline.has_error() {
         var refused_ir_folder = option("high_ir")
@@ -1210,6 +1211,7 @@ func append_code_settings(process_arguments: List<String>, c_compiler: String, s
         process_arguments.append("-O0")
         append_machine_tuning(process_arguments, c_compiler)
     }
+    process_arguments.append("-ffp-contract=off")
     process_arguments.append("-Wno-parentheses-equality")
     process_arguments.append("-I.")
 }
@@ -1775,6 +1777,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
         process_arguments.append("-O0")
         append_machine_tuning(process_arguments, c_compiler)
     }
+    process_arguments.append("-ffp-contract=off")
     process_arguments.append("-w")
     if option("target_operating_system") == "windows" {
         append_shared_runtime(process_arguments, c_compiler)

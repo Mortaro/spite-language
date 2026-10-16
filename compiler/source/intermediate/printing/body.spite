@@ -689,6 +689,10 @@ func answers_nothing(): Boolean {
 }
 
 func note_place(c_name: String) {
+    if function.name == "main" and c_name == "spite_main" {
+        output.hidden_place(c_name)
+        return
+    }
     var owner = lowered.layout_named(function.owner)
     if not function.source or not owner {
         output.runtime_place(c_name)
@@ -1190,7 +1194,34 @@ func resumable_value_targets(called_shape: Analysis.Types.ClassRefType, returned
     return found
 }
 
+func print_digits_in_place(operation: Operation) {
+    if operation.operands.count() != 1 or not is_declared(operation.result) {
+        refuse("it writes digits in place for something that is not one number with a result")
+        return
+    }
+    var number_type = operand_type(operation, 0)
+    crash number_type
+    var scalar = shape.as_scalar(number_type)
+    if not scalar or scalar.kind == 'float_kind' or scalar.kind == 'double_kind' or scalar.kind == 'boolean_kind' {
+        refuse("it writes digits in place for a value that is not a whole number")
+        return
+    }
+    var number = operand(operation, 0)
+    var buffer = "spite_digits_{operation.result}"
+    declare("char {buffer}[24];")
+    var writer = "spite_long_digits({buffer}, (int64_t)({number}))"
+    if naming.is_unsigned(scalar.kind) {
+        output.need("unsigned digits")
+        writer = "spite_unsigned_digits({buffer}, (uint64_t)({number}))"
+    }
+    assign(operation.result, "(SpiteString)SPITE_STATIC_STRING({buffer}, {writer})")
+}
+
 func print_known_call(operation: Operation, callee: Function) {
+    if operation.form == "digits_in_place" {
+        print_digits_in_place(operation)
+        return
+    }
     if not callee.intrinsic.is_empty() and callee.intrinsic != "supplied" {
         intrinsics.print(this, operation)
         return
@@ -1206,7 +1237,18 @@ func print_known_call(operation: Operation, callee: Function) {
         print_wait_call(operation, callee)
         return
     }
-    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping", "overlap", "started"]
+    var forms = [
+        ""
+        "moved"
+        "borrowed"
+        "in_place"
+        "frame"
+        "unguarded"
+        "skipping"
+        "overlap"
+        "started"
+        "digits_in_place"
+    ]
     if not forms.contains(operation.form) {
         refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
         return
@@ -2137,6 +2179,7 @@ func release_temporary(written: String): String {
 }
 
 func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
+    crash spite_type
     var nullable = shape.as_nullable(spite_type)
     if nullable {
         return suspend_release(held, nullable.inner)
@@ -2163,6 +2206,14 @@ func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
     if own_waiting_drop(layout) {
         var dropper = layout_dropper(layout)
         crash dropper
+        var joiner = drop_joiner(dropper)
+        if joiner {
+            lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+            print_wait_through(-1, joiner, held)
+            release_waiting_fields(layout, held)
+            lines.append("}")
+            return false
+        }
         var counting = "SPITE_COUNT"
         if lowered.makes_threads and not layout.atomic_counts {
             counting = "SPITE_PLAIN_COUNT"
@@ -2178,6 +2229,25 @@ func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
     release_waiting_fields(layout, held)
     lines.append("}")
     return false
+}
+
+func drop_joiner(dropper: Function): Function? {
+    var found: Function? = null
+    if not dropper.blocks.is_empty() and dropper.receiver >= 0 {
+        var entry = dropper.blocks[0]
+        var index = 0
+        while index < entry.operations.count() and not found {
+            var operation = entry.operations[index]
+            index = index + 1
+            if operation.kind == "call" and operation.operands.count() == 1 and operation.operands[0] == dropper.receiver {
+                var called = lowered.function_named(operation.callee)
+                if called and waits_in_machine(called) {
+                    found = called
+                }
+            }
+        }
+    }
+    return found
 }
 
 func release_waiting_fields(layout: Layout, held: String) {
@@ -2221,6 +2291,7 @@ func release_items(held: String, element: Analysis.SpiteType) {
 
 func print_waiting_clear(operation: Operation): Boolean {
     var cleared_type = operand_type(operation, 0)
+    crash cleared_type
     var listed = shape.as_list(cleared_type)
     if not listed {
         return false
@@ -2470,8 +2541,20 @@ func transfer(target: Target): String {
     return "\{ {held.join(" ")} {moved.join(" ")} } goto block_{target.block};"
 }
 
+func in_library_file(): Boolean {
+    var path = ""
+    if function.source {
+        path = function.source.source_path
+    }
+    var owner = lowered.layout_named(function.owner)
+    if path.is_empty() and owner and owner.information {
+        path = owner.information.source_path
+    }
+    return path.starts_with("library/")
+}
+
 func print_return(terminator: Terminator) {
-    if terminator.site >= 0 {
+    if terminator.site >= 0 and not in_library_file() {
         var answered = assert_answer()
         output.need("assert trace")
         lines.append("SPITE_TRACE_ASSERT({sites.assert_line(terminator.site, answered)});")

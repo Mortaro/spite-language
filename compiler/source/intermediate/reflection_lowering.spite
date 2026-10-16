@@ -246,7 +246,8 @@ func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
     var listed = lowering().new_list(element)
     var appender = lowering().list_function(element, "append")
     var index = 0
-    while index < described.declared_functions.count() {
+    var limit = lowering().known().declared_limit(described)
+    while index < described.declared_functions.count() and index < limit {
         var function = described.declared_functions[index]
         var shown = not described.is_container or not function.symbol_owner_c_name.is_empty()
         var plain = not function.is_constructor and not function.symbol_through_caller
@@ -711,7 +712,12 @@ func placed_attribute(attribute: Integer, owner: Integer, described: Analysis.Cl
         lowering().known().reach(described, setter)
         placing.literal = setter.c_name
     }
-    var scalar_type = types.as_scalar(field.type)
+    var plain_type: Analysis.SpiteType = field.type
+    var wrapped = types.as_nullable(plain_type)
+    if wrapped {
+        plain_type = wrapped.inner
+    }
+    var scalar_type = types.as_scalar(plain_type)
     assert scalar_type
     var word = lowering().known().scalar_word(scalar_type.kind)
     var parser = made.written_string_function("to_{word}")
@@ -888,7 +894,7 @@ func items_attributes(
     }
     var name_symbol = emitter.emit_call_one("Symbol.of_text", name_text, symbol_type)
     var attribute = reflect_attribute(name_symbol, item, element)
-    if keys < 0 {
+    if items >= 0 {
         var list_class = made.list_class_of(element)
         var bound = [attribute, items, index]
         var binding = emitter.call_operation("Attribute.bind_item", bound, null)
@@ -1007,7 +1013,7 @@ func text_call_body(
         var values = [result_name, returned]
         reflected = lowering().construct_values(attribute_class, values)
     } else {
-        reflected = reflect_attribute(result_name, called, function.return_type)
+        reflected = reflect_body(result_name, called)
     }
     var answer = lowering().convert(reflected, maybe_attribute)
     emitter.returns(answer)

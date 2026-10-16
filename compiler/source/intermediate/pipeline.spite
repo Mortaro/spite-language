@@ -5,6 +5,7 @@ var lowered = Lowered()
 var reached_unions = List<String>()
 var types = Analysis.TypeShape()
 var optimized = false
+var lowers_only = false
 var placed_allocators = List<String>()
 var hot_manifest = ""
 
@@ -14,7 +15,7 @@ func Pipeline(starting_generator: Generation.Generator) {
 
 func run(): String {
     prepare()
-    if has_error() {
+    if has_error() or lowers_only {
         return ""
     }
     var printer = Printer()
@@ -36,6 +37,10 @@ func prepare() {
     settle_layouts()
     lowered.runtime_roots = roots_of_runtime()
     lowered.concrete_functions.each(settle_waiting_kind)
+    if lowers_only {
+        note_unlowered()
+        return
+    }
     var passes = Passes()
     passes.run(lowered)
     if not passes.verifier.problems.is_empty() {
@@ -45,6 +50,22 @@ func prepare() {
     settle_held_layouts()
     if lowered.hot_reload {
         settle_hot()
+    }
+}
+
+# ../../../design/proposals/desugared_high_ir.md#caching-the-high-ir-d569
+func note_unlowered() {
+    var refused = List<String>()
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        if not function.not_lowered.is_empty() {
+            refused.append("'{function.c_name}' ({function.owner}.{function.name}): {function.not_lowered}")
+        }
+        index = index + 1
+    }
+    if not refused.is_empty() {
+        error_message = "error: the high IR could not be lowered:\n{refused.join("\n")}"
     }
 }
 
@@ -267,9 +288,15 @@ func runs_pieces(): Boolean {
 func settle_held(held: Analysis.SpiteType) {
     crash generator
     var held_name = generator.type_label(held)
-    assert not lowered.layout_named(held_name)
     var information = generator.find_class_by_c_name(held_name)
-    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    if information and not lowered.layout_named(held_name) {
+        if not information.is_value_class and not information.is_generic_template and not information.is_singleton {
+            add_held_layout(information)
+        }
+    }
+}
+
+func add_held_layout(information: Analysis.ClassInfo) {
     var made = Layout(information.c_name, information.qualified_dotted)
     made.information = information
     var index = 0

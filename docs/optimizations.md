@@ -593,10 +593,9 @@ type, and `Build`, whose attributes are all settings folded into the program) is
 allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
 fewer for each.
 
-**When.** Production builds only. In an inspectable build (`--repl`, `--repl-port`, `--hot-reload` or
-`--development`) each is an ordinary singleton: allocated at first use, one of
-its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
-destroyed after it asks for it at exit, so the order of teardown never matters for it.
+**When.** Every build: the object is static and never destroyed, so the order of teardown never matters for it.
+In an inspectable build (`--repl`, `--repl-port`, `--hot-reload` or `--development`) `.instances` lists it; in a
+production build `.instances` does not.
 
 **Example.** The same program in both kinds of build: the production build has no `Memory.Heap` object to list.
 

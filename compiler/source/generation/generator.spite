@@ -11351,27 +11351,43 @@ func generate_binary(
 
 # ../../../specs/failure.md#nothing-fails-silently-the-rule
 func tolerate_chains(binary: Syntax.Expressions.BinaryExpression): Integer {
-    crash binary.left
-    crash binary.right
+    var left_side = binary_left(binary)
+    var right_side = binary_right(binary)
+    var added = tolerate_chain(left_side)
+    added = added + tolerate_chain(right_side)
+    return added
+}
+
+func tolerate_chain(side: Syntax.Expressions.Expression): Integer {
     var added = 0
-    var sides = [binary.left, binary.right]
-    var side_index = 0
-    while side_index < sides.count() {
-        var walked: Syntax.Expressions.Expression? = sides[side_index]
-        var following = true
-        while following {
-            var link = shape.as_member(walked)
-            if link {
-                tolerated_chains.append(link)
-                added = added + 1
-                walked = link.object
-            } else {
-                following = false
-            }
+    var walked = side
+    var following = true
+    while following {
+        var link = shape.as_member(walked)
+        if link {
+            tolerated_chains.append(link)
+            added = added + 1
+            walked = link_object(link)
+        } else {
+            following = false
         }
-        side_index = side_index + 1
     }
     return added
+}
+
+func link_object(member: Syntax.Expressions.MemberExpression): Syntax.Expressions.Expression {
+    crash member.object
+    return member.object
+}
+
+func binary_left(binary: Syntax.Expressions.BinaryExpression): Syntax.Expressions.Expression {
+    crash binary.left
+    return binary.left
+}
+
+func binary_right(binary: Syntax.Expressions.BinaryExpression): Syntax.Expressions.Expression {
+    crash binary.right
+    return binary.right
 }
 
 func release_chains(count: Integer) {
@@ -12119,9 +12135,9 @@ func binary_after_left(
     if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
         var right_scope = Scope(scope)
         if binary.operator == 'logical_and' {
-            crash binary.left
-            narrow_proven_indices(binary.left, right_scope, class_information)
-            narrow_by_left_presence(binary.left, right_scope, class_information)
+            var left_side = binary_left(binary)
+            narrow_proven_indices(left_side, right_scope, class_information)
+            narrow_by_left_presence(left_side, right_scope, class_information)
         }
         var right_position = builder.user_count()
         var right_marks = wait_mark_counters.count()
@@ -25865,6 +25881,7 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
         index = index + 1
     }
     list_class.declared_functions = kept
+    list_class.forget_function_positions()
 }
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
@@ -27888,11 +27905,11 @@ func tolerated_member_read(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult? {
-    crash member.object
-    var object_path = operand_text(member.object)
+    var chained = link_object(member)
+    var object_path = operand_text(chained)
     assert not object_path.is_empty()
     assert not scope.is_path_narrowed(object_path)
-    var guard = try_nullable_guard(member.object, scope, class_information)
+    var guard = try_nullable_guard(chained, scope, class_information)
     assert guard
     var narrowed_scope = Scope(scope)
     narrow_by_guard(narrowed_scope, guard, "the comparison")
@@ -43175,25 +43192,23 @@ func narrow_width_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope
 
 # ../../../docs/proofs.md#an-index-offset-by-a-base-is-proven-by-one-guard
 func narrow_offset_room(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    var left_side = binary_left(binary)
+    var right_side = binary_right(binary)
     var counted = ""
-    crash binary.left
-    crash binary.right
-    var sum_ast = binary.left
+    var sum_ast = left_side
     if binary.operator == 'less_equal' {
-        counted = counted_list_text(binary.right)
+        counted = counted_list_text(right_side)
     } else if binary.operator == 'greater_equal' {
-        crash binary.left
-        counted = counted_list_text(binary.left)
-        crash binary.right
-        sum_ast = binary.right
+        counted = counted_list_text(left_side)
+        sum_ast = right_side
     }
     assert not counted.is_empty()
     var sum = shape.as_binary(sum_ast)
     assert sum and sum.operator == 'add'
-    crash sum.left
-    var first = shape.as_identifier(sum.left)
-    crash sum.right
-    var second = shape.as_identifier(sum.right)
+    var sum_left = binary_left(sum)
+    var sum_right = binary_right(sum)
+    var first = shape.as_identifier(sum_left)
+    var second = shape.as_identifier(sum_right)
     assert first and second
     var condition_text = Syntax.SourcePrinter().source_expression(binary)
     var key = offset_guard_key(counted, first.name, second.name)
@@ -43214,20 +43229,13 @@ func offset_read_proven(index_expression: Syntax.Expressions.IndexExpression, sc
     if not sum or sum.operator != 'add' {
         return false
     }
-    crash sum.left
-    crash sum.right
+    var sum_left = binary_left(sum)
+    var sum_right = binary_right(sum)
     var list_text = operand_text(index_expression.object)
     if list_text.is_empty() {
         return false
     }
-    crash sum.left
-    crash sum.right
-    if offset_counted(list_text, sum.left, sum.right, scope) {
-        return true
-    }
-    crash sum.left
-    crash sum.right
-    return offset_counted(list_text, sum.right, sum.left, scope)
+    return offset_counted(list_text, sum_left, sum_right, scope) or offset_counted(list_text, sum_right, sum_left, scope)
 }
 
 func offset_counted(
