@@ -2,6 +2,15 @@
 var types = Analysis.TypeShape()
 var appended_count = 0
 var flow: Facts.Flow? = null
+var lowered: Lowered? = null
+var kinds: Facts.ValueKinds? = null
+var digits_count = 0
+
+func TextAppends(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var made_kinds = Facts.ValueKinds(starting_lowered)
+    kinds = made_kinds
+}
 
 func mark(function: Function) {
     assert not function.blocks.is_empty()
@@ -18,6 +27,7 @@ func mark(function: Function) {
                 operation.form = "in_place"
                 appended_count = appended_count + 1
             }
+            mark_digits(function, uses, operation)
             index = index + 1
         }
         block_index = block_index + 1
@@ -93,4 +103,32 @@ func blocks_after(start: Integer, stop: Integer): List<Integer> {
         }
     }
     return seen
+}
+
+# ../../../../docs/optimizations.md#a-number-joined-into-text-is-written-in-place
+func mark_digits(function: Function, uses: Facts.Uses, joined: Operation) {
+    assert joined.kind == "call" and joined.callee == "String.join"
+    var index = 0
+    while index < joined.operands.count() {
+        note_digits(function, uses, joined, joined.operands[index])
+        index = index + 1
+    }
+}
+
+func note_digits(function: Function, uses: Facts.Uses, joined: Operation, part: Integer) {
+    crash lowered
+    crash kinds
+    var defining = uses.definition_of(part)
+    assert defining and defining.kind == "call" and defining.form.is_empty() and defining.operands.count() == 1
+    var callee = lowered.function_named(defining.callee)
+    assert callee and callee.name == "to_string"
+    var number = defining.operands.first()
+    crash number
+    var number_value = function.value_at(number)
+    var scalar = types.as_scalar(number_value.spite_type)
+    assert scalar and kinds.is_whole_kind(scalar.kind)
+    var reached = uses.uses_of(part)
+    assert reached.count() == 1
+    defining.form = "digits_in_place"
+    digits_count = digits_count + 1
 }
