@@ -80,6 +80,9 @@ func classified(value: Integer): String {
         if wrapped_origin == "lent" {
             return "lent"
         }
+        if wrapped_origin == "static" {
+            return "static"
+        }
         if wrapped_origin != "owned" and wrapped_origin != "plain" {
             note_sources(value, defining)
             return "borrowed"
