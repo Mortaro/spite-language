@@ -3672,8 +3672,8 @@ and a list do. Four places use it:
   function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
   in a text's hole other than as `{name.attribute}`.
 - **A function value.** `apply(scorer.score, value)` builds one `Spite.Function` holding the object and its function; when the
-  callee only calls it (`change(value)`) and keeps it nowhere, the function value lives in the frame too, and the
-  heap object, with its argument list, is made once per call of the enclosing function with no allocation of its own.
+  callee only calls it (`change(value)`) and keeps it nowhere, the function value itself lives in the frame
+  instead of on the heap (its list of arguments is still made).
 - **A result, into the caller's slot.** A function whose every `return` gives a fresh object (`return
   Vector3(...)`, a local that lives in the frame, or another such call; a generic class's constructor whose
   codegen values are inferred counts, both where its arguments' types are known in the caller and in a `return`
