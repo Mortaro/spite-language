@@ -8,6 +8,7 @@ var framed_objects = 0
 var framed_lists = 0
 var framed_buffers = 0
 var dropped_count = 0
+var tracked_classes = Dictionary<String, Boolean>()
 var waiting: Facts.Effects? = null
 
 func run(starting_lowered: Lowered) {
@@ -19,6 +20,7 @@ func run(starting_lowered: Lowered) {
     var made_escape = Escape(starting_lowered)
     escape = made_escape
     var made_results = ResultSlots(starting_lowered, made_escape)
+    note_tracked(starting_lowered)
     var made_waiting = Facts.Effects(starting_lowered)
     waiting = made_waiting
     results = made_results
@@ -104,6 +106,7 @@ func copied_layout(function: Function, operation: Operation): Layout? {
     var copied_type = function.value_at(operation.result).spite_type
     var layout = kinds.layout_of(copied_type)
     assert layout and layout.kind == "class" and results.holds_only_plain(layout.c_name)
+    assert not tracked_classes.has(layout.c_name)
     assert not escape.escapes(function, operation.result)
     crash waiting
     var made_value = function.value_at(operation.result)
@@ -160,6 +163,7 @@ func place_object(
     assert operation.result >= 0 and operation.form.is_empty()
     var layout_name = operation.layout
     assert kinds.class_is_counted(layout_name)
+    assert not tracked_classes.has(layout_name)
     assert not escape.escapes(function, operation.result)
     crash waiting
     var made_value = function.value_at(operation.result)
@@ -444,4 +448,25 @@ func block_of_value(function: Function, value: Integer): Integer {
         block_index = block_index + 1
     }
     return -1
+}
+
+func note_tracked(starting_lowered: Lowered) {
+    var functions = starting_lowered.concrete_functions
+    functions.each(note_tracked_in)
+}
+
+func note_tracked_in(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == "Instances.fill" {
+                tracked_classes[operation.literal] = true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
 }

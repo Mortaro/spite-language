@@ -119,7 +119,7 @@ func start(function: Function) {
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
         parameter.ownership = "owned"
-        if lent.contains(parameter.name) {
+        if lent.contains(parameter.name) or called_from_runtime(function) {
             parameter.ownership = "lent"
         } else if index == 0 and fills_described(function) {
             parameter.ownership = "lent"
@@ -214,4 +214,9 @@ func consumes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value
 
 func fills_described(function: Function): Boolean {
     return function.c_name.ends_with("___accessed") or function.c_name.ends_with("___describe_functions") or function.c_name.ends_with("___describe_attributes")
+}
+
+func called_from_runtime(function: Function): Boolean {
+    var kinds = ["text_call", "item_assign", "item_store"]
+    return kinds.contains(function.made_for)
 }
