@@ -340,12 +340,20 @@ func consumed_at(place: Facts.Place, value: Integer): Boolean {
     if passes_on and operation.result >= 0 and origin_of(operation.result) != "owned" {
         return is_consumed(operation.result)
     }
-    return consumption.consumes(operation, value) and not hands_over_by_count(operation)
+    return consumption.consumes(operation, value) and not hands_over_by_count(operation, value)
 }
 
 # ../../../../docs/optimizations.md#a-borrowed-item-is-counted-only-where-it-is-kept
-func hands_over_by_count(operation: Operation): Boolean {
-    return operation.kind == "call" and operation.form != "in_place" and not consumption_is_wrap(operation)
+func hands_over_by_count(operation: Operation, value: Integer): Boolean {
+    if operation.kind != "call" or operation.form == "in_place" or consumption_is_wrap(operation) {
+        return false
+    }
+    crash uses
+    var defining = uses.definition_of(value)
+    if not defining {
+        return true
+    }
+    return not consumption_is_wrap(defining)
 }
 
 func consumption_is_wrap(operation: Operation): Boolean {
@@ -398,7 +406,7 @@ func valid_until(value: Integer, start: Facts.Place, at: Facts.Place): Boolean {
     crash block.operations[at.position]
     var used_in = block.operations[at.position]
     crash consumption
-    if used_in.kind == "call" and consumption.consumes(used_in, value) and hands_over_by_count(used_in) {
+    if used_in.kind == "call" and consumption.consumes(used_in, value) and hands_over_by_count(used_in, value) {
         return true
     }
     return used_in.kind != "call" or not disturbs(used_in, value)
