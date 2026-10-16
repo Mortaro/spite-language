@@ -3,6 +3,7 @@ var emitter = Emitter()
 var resolver: Instances? = null
 var lowered_class = Analysis.ClassInfo("", "", "", "", 0)
 var held_bindings = List<Generation.ReflectedBinding>()
+var widened = Dictionary<Integer, Integer>()
 var function_information: Analysis.FunctionInfo? = null
 var receiver = -1
 var shapes = Analysis.AstShape()
@@ -476,6 +477,10 @@ func between_numbers(
     to: Analysis.Types.NumericKind,
     wanted: Analysis.SpiteType,
 ): Integer {
+    if widened.has(value) and known().scalar_name(to) == "Double" {
+        crash widened[value]
+        return widened[value]
+    }
     var literal = emitter.literal_of(value)
     if literal and literal_fits(literal, from, to) {
         return emitter.constant(wanted, literal)
@@ -939,10 +944,18 @@ func index_of_value(object: Integer, index: Syntax.Expressions.Expression): Inte
     var read = call_with_arguments(owner, reader, object, arguments)
     var listed = types.as_list(object_type)
     if listed and read >= 0 {
-        var element_type = known().nullable_of(listed.element)
+        var element_type = nullable_answer(listed.element)
         emitter.retype(read, element_type)
     }
     return read
+}
+
+func nullable_answer(element: Analysis.SpiteType): Analysis.SpiteType {
+    var answer = element
+    if not types.as_nullable(element) {
+        answer = known().nullable_of(element)
+    }
+    return answer
 }
 
 func call_reached(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, operands: List<Integer>): Integer {
@@ -2680,6 +2693,51 @@ func right_operand(left_type: Analysis.SpiteType, right_expression: Syntax.Expre
     return convert(right, left_type)
 }
 
+func works_in_double(left: Integer, right: Integer): Boolean {
+    var left_literal = emitter.literal_of(left)
+    var right_literal = emitter.literal_of(right)
+    if left_literal and right_literal {
+        return true
+    }
+    return widened.has(left) or widened.has(right)
+}
+
+func as_double(value: Integer): Integer {
+    var made = front()
+    var double_type = made.double_type()
+    if widened.has(value) {
+        crash widened[value]
+        return widened[value]
+    }
+    var literal = emitter.literal_of(value)
+    if literal {
+        return emitter.constant(double_type, literal)
+    }
+    return emitter.emit_call_one("Float.to_double", value, double_type)
+}
+
+func double_operation(
+    operator: Syntax.Expressions.BinaryOperator,
+    left: Integer,
+    right: Integer,
+    whole: Syntax.Expressions.Expression,
+): Integer {
+    var made = front()
+    var double_type = made.double_type()
+    var left_double = as_double(left)
+    var right_double = as_double(right)
+    var answered = number_operation(operator, left_double, right_double, double_type, whole)
+    var answered_type = type_of(answered)
+    var answered_scalar = types.as_scalar(answered_type)
+    if not answered_scalar or known().scalar_name(answered_scalar.kind) != "Double" {
+        return answered
+    }
+    var float_type = known().typed_float()
+    var narrowed = emitter.emit_call_one("Double.to_float", answered, float_type)
+    widened[narrowed] = answered
+    return narrowed
+}
+
 func number_operation(
     operator: Syntax.Expressions.BinaryOperator,
     left: Integer,
@@ -2693,6 +2751,9 @@ func number_operation(
     }
     var kind = scalar_type.kind
     var name = known().scalar_name(kind)
+    if name == "Float" and works_in_double(left, right) {
+        return double_operation(operator, left, right, whole)
+    }
     var operands = [left, right]
     var written = source_text(whole)
     if operator == 'add' or operator == 'subtract' or operator == 'multiply' {

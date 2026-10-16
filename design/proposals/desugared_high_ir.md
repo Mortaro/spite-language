@@ -219,3 +219,24 @@ declarations and functions when the program asks for them. `value.attributes` an
 listed function is bound to its object with `Function.bind`, the same intrinsic a function value uses. Only what
 the printer must know about C stays an intrinsic: the memory a value lives in (`Reflection.memory`) and the class
 of a union's value (`Reflection.class`).
+
+## Caching the high IR (D569)
+
+The lowered IR is cached per function, so a check or a build relowers only what changed. What a function's IR is
+depends on more than its own text, and the key says all of it:
+
+- **The winning definition.** A class's functions can be spread over files: the class's own file, reopenings in other
+  files and packages ([classes_and_files.md](../../docs/classes_and_files.md#reopening-a-class)), and the
+  standard library's. Which definition wins depends on everything loaded. The key of a function is the definition
+  that won, named by its file and its text, never the file a function first came from; a definition that lost is not
+  the function and is never served for it.
+- **The load set.** Loading more (a package, a new reopening file) can change which definition wins without
+  changing any body. Every build resolves the winners first, compares them with the cache's, and relowers each
+  function whose winner changed.
+- **What it depends on.** The types, layouts and signatures it uses, the templates and codegen values that made it
+  (monomorphisation), the facts it was lowered against (which functions wait, which classes are singletons), and the
+  compiler's own version.
+
+A stale or unreadable entry is rebuilt, never trusted (D244). `--check` stops after lowering: it parses, analyses
+and lowers (from the cache where it can) and runs no pass and prints no C; the passes and the printer run only for a
+build that runs.
