@@ -921,10 +921,22 @@ func items_attributes(
 
 # ../../../docs/reflection.md#spiteaccess
 func text_callable(function: Analysis.FunctionInfo): Boolean {
+    var made = lowering().front()
     var index = 0
     while index < function.parameters.count() {
         var parameter_type = function.parameters[index].type
-        var counted = types.as_string(parameter_type) or types.as_scalar(parameter_type) or types.as_enum(parameter_type)
+        var scalar = types.as_scalar(parameter_type)
+        var counted = types.as_string(parameter_type) or types.as_enum(parameter_type)
+        if scalar {
+            counted = scalar.kind == 'boolean_kind'
+            if not counted {
+                var word = lowering().known().scalar_word(scalar.kind)
+                var parser = made.written_string_function("to_{word}")
+                if parser {
+                    counted = true
+                }
+            }
+        }
         if not counted {
             return false
         }

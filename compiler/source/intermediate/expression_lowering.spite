@@ -614,7 +614,8 @@ func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Inte
 
 func read_own_field(name: String, field_type: Analysis.SpiteType): Integer {
     if lowered_class.c_name == "SpiteString" {
-        return string_storage(name, field_type)
+        var own_text = own_receiver()
+        return string_storage(name, field_type, own_text)
     }
     if lowered_class.is_value_class {
         return not_lowered(field_type, "the memory a value class is kept in")
@@ -624,14 +625,12 @@ func read_own_field(name: String, field_type: Analysis.SpiteType): Integer {
     return narrowed_name(field_value, name)
 }
 
-func string_storage(name: String, field_type: Analysis.SpiteType): Integer {
+func string_storage(name: String, field_type: Analysis.SpiteType, text: Integer): Integer {
     if name == "_bytes" {
-        var own_object = own_receiver()
-        return emitter.emit_call_one("String.bytes", own_object, field_type)
+        return emitter.emit_call_one("String.bytes", text, field_type)
     }
     if name == "_length" {
-        var own_object = own_receiver()
-        return emitter.emit_call_one("String.stored_length", own_object, field_type)
+        return emitter.emit_call_one("String.stored_length", text, field_type)
     }
     return not_lowered(field_type, "a part of a String other than its bytes and length")
 }
@@ -908,6 +907,9 @@ func class_member(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberE
     var field = target.find_field(member.name)
     if not field {
         return member_function_value(target, member, object)
+    }
+    if target.c_name == "SpiteString" {
+        return string_storage(member.name, field.type, object)
     }
     if target.c_name == "Build" {
         var setting = made.hardcoded_setting(target, member.name)
