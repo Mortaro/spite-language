@@ -652,10 +652,37 @@ func held_value(value: Integer, value_type: Analysis.SpiteType): Integer {
     if made.has_attribute_object(plain) or made.boxed_class_of(plain) or types.is_symbol(plain) {
         carried = true
     }
-    if not made.attribute_object_used or not carried or types.as_nullable(value_type) {
+    if not made.attribute_object_used or not carried {
         return lowering().emitter.constant(held_type, "null")
     }
+    var wrapped = types.as_nullable(value_type)
+    if wrapped {
+        return held_when_present(value, wrapped.inner, held_type)
+    }
     return lowering().convert(value, held_type)
+}
+
+func held_when_present(value: Integer, inner_type: Analysis.SpiteType, held_type: Analysis.SpiteType): Integer {
+    var emitter = lowering().emitter
+    var boolean = lowering().known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", value, boolean)
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(held_type, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    var present_block = emitter.new_block()
+    var absent_block = emitter.new_block()
+    emitter.branch(present, present_block, absent_block)
+    emitter.enter_block(present_block)
+    var inner = emitter.emit_call_one("Nullable.value", value, inner_type)
+    var carried = lowering().convert(inner, held_type)
+    var carried_passed = [carried]
+    emitter.jump(joined, carried_passed)
+    emitter.enter_block(absent_block)
+    var absent = emitter.constant(held_type, "null")
+    var absent_passed = [absent]
+    emitter.jump(joined, absent_passed)
+    emitter.enter_block(joined)
+    return answered
 }
 
 func held_links(value_type: Analysis.SpiteType): String {
