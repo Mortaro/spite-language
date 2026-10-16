@@ -6,7 +6,7 @@ func Utf8Text() {
     var back = bytes.to_utf8_text()
     crash back
     console.print(back, back == greeting)
-    var nothing = Buffer()
+    var nothing = Buffer(0)
     show("empty", nothing)
     var lone = of(128)
     show("a lone continuation byte", lone)
@@ -29,7 +29,7 @@ func Utf8Text() {
 }
 
 func of(...values: List<Integer>): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     var index = 0
     while index < values.count() {
         var value: Byte = values[index]

@@ -6,13 +6,13 @@ func SocketWaits() {
     var serving = Concurrent(echo_once)
     var client = Socket()
     crash client.connect("127.0.0.1", 47314)
-    var message = Buffer()
+    var message = Buffer(0)
     message.append(10)
     message.append(20)
     message.append(30)
     message.append(40)
     crash client.write_bytes(message)
-    var answer = Buffer()
+    var answer = Buffer(0)
     while answer.count() < 4 and not client.closed {
         var more = client.read_bytes()
         if more {
@@ -36,7 +36,7 @@ func SocketWaits() {
 func echo_once(): Integer {
     var peer = server.accept_client()
     crash peer
-    var buffer = Buffer()
+    var buffer = Buffer(0)
     while buffer.count() < 4 and not peer.closed {
         var more = peer.read_bytes()
         if more {

@@ -26,7 +26,7 @@ func FramesBetweenWaits() {
         crash total == 499500
         if sent < 3 {
             sent = sent + 1
-            var message = Buffer()
+            var message = Buffer(0)
             message.append(sent)
             var written = peer.write_bytes_now(message)
             crash written == 1

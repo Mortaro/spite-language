@@ -3,9 +3,8 @@ singleton
 func compress(bytes: Buffer): Buffer {
     var deflate = Deflate()
     var body = deflate.compress(bytes)
-    var output = Buffer()
     var body_count = body.count()
-    output.reserve(body_count + 6)
+    var output = Buffer(body_count + 6)
     output.append(120)
     output.append(156)
     output.append_bytes(body, 0, body_count)

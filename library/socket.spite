@@ -264,7 +264,7 @@ func _receive_buffer(): Memory.Address {
 }
 
 func _received_bytes(buffer: Memory.Address, received: Integer): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     if received > 0 {
         bytes.reserve(received)
         buffer.copy_to(bytes.items, received)

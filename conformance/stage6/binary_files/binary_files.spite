@@ -3,12 +3,12 @@ var clock = Clock()
 
 func BinaryFiles() {
     var store = File(".spite/binary_files.bin")
-    var header = Buffer()
-    header.append_integer(7)
-    header.append_long(1234567890123)
+    var header = Buffer(0)
+    header.append_integer_little_endian(7)
+    header.append_long_little_endian(1234567890123)
     var saved = store.write_bytes(header)
-    var record = Buffer()
-    record.append_long(-42)
+    var record = Buffer(0)
+    record.append_long_little_endian(-42)
     var record_start = store.append_bytes(record)
     crash record_start
     var size = store.size()
@@ -17,12 +17,12 @@ func BinaryFiles() {
     var read_back = store.read_bytes_at(4, 8)
     crash read_back
     var got = read_back.count()
-    var stamp = read_back.read_long_at(0)
+    var stamp = read_back.read_long_little_endian_at(0)
     crash stamp
     console.print("read", got, "bytes at 4:", stamp)
     var tail = store.read_bytes_at(record_start, 8)
     crash tail
-    var appended = tail.read_long_at(0)
+    var appended = tail.read_long_little_endian_at(0)
     crash appended
     console.print("the appended record:", appended)
     var past_end = store.read_bytes_at(size, 8)
@@ -31,7 +31,7 @@ func BinaryFiles() {
     console.print("reading past the end gives", past_count, "bytes")
     var whole = store.read_bytes()
     crash whole
-    var first = whole.read_integer_at(0)
+    var first = whole.read_integer_little_endian_at(0)
     crash first
     var whole_count = whole.count()
     console.print("the whole file is", whole_count, "bytes, starting with", first)
@@ -53,7 +53,7 @@ func BinaryFiles() {
         console.print("a missing file answers null")
     }
     var empty = File(".spite/binary_files_empty.bin")
-    var nothing_written = Buffer()
+    var nothing_written = Buffer(0)
     empty.write_bytes(nothing_written)
     var no_bytes = empty.read_bytes()
     crash no_bytes

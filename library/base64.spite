@@ -21,8 +21,7 @@ func decode_url(text: String): Buffer? {
 
 func _encoded(bytes: Buffer, alphabet: String, padded: Boolean): String {
     var count = bytes.count()
-    var written = Buffer()
-    written.reserve((count + 2) / 3 * 4)
+    var written = Buffer((count + 2) / 3 * 4)
     var index = 0
     while index < count {
         var first: Integer = _byte(bytes, index)
@@ -79,8 +78,7 @@ func _decoded(text: String, url: Boolean): Buffer? {
     assert padding == 0 or written_length % 4 == 0
     assert length % 4 != 1
     assert url or length % 4 == 0 or padding > 0
-    var bytes = Buffer()
-    bytes.reserve(length / 4 * 3 + 2)
+    var bytes = Buffer(length / 4 * 3 + 2)
     var group = 0
     var held = 0
     var index = 0

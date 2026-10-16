@@ -1,6 +1,5 @@
 var _address: Memory.Address = 0
 var _count: Long = 0
-var byte_order: Buffer.ByteOrder = 'little_endian'
 
 func ForeignBytes(address: Long, length: Long) {
     crash length >= 0 and (address != 0 or length == 0)
@@ -25,9 +24,8 @@ func set_at(position: Long, value: Byte) {
 func read_bytes_at(position: Long, length: Integer): Buffer? {
     crash length >= 0
     assert _inside(position, length)
-    var run = Buffer(byte_order)
+    var run = Buffer(length)
     if length > 0 {
-        run.reserve(length)
         var from: Memory.Address = _address + position
         from.copy_to(run.items, length)
         run.item_count = length
@@ -49,130 +47,186 @@ func read_tiny_at(position: Long): Tiny? {
     return _address.read_tiny(position)
 }
 
-func read_short_at(position: Long): Short? {
+func read_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Short? {
     assert _inside(position, 2)
-    if byte_order == 'big_endian' {
+    return _load_short(position, order.name == "big_endian")
+}
+
+func write_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: Short) {
+    crash _inside(position, 2)
+    _store_short(position, value, order.name == "big_endian")
+}
+
+func read_unsigned_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): UnsignedShort? {
+    assert _inside(position, 2)
+    return _load_unsigned_short(position, order.name == "big_endian")
+}
+
+func write_unsigned_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: UnsignedShort) {
+    crash _inside(position, 2)
+    _store_unsigned_short(position, value, order.name == "big_endian")
+}
+
+func read_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Integer? {
+    assert _inside(position, 4)
+    return _load_integer(position, order.name == "big_endian")
+}
+
+func write_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: Integer) {
+    crash _inside(position, 4)
+    _store_integer(position, value, order.name == "big_endian")
+}
+
+func read_unsigned_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): UnsignedInteger? {
+    assert _inside(position, 4)
+    return _load_unsigned_integer(position, order.name == "big_endian")
+}
+
+func write_unsigned_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: UnsignedInteger) {
+    crash _inside(position, 4)
+    _store_unsigned_integer(position, value, order.name == "big_endian")
+}
+
+func read_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Long? {
+    assert _inside(position, 8)
+    return _load_long(position, order.name == "big_endian")
+}
+
+func write_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: Long) {
+    crash _inside(position, 8)
+    _store_long(position, value, order.name == "big_endian")
+}
+
+func read_unsigned_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): UnsignedLong? {
+    assert _inside(position, 8)
+    return _load_unsigned_long(position, order.name == "big_endian")
+}
+
+func write_unsigned_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: UnsignedLong) {
+    crash _inside(position, 8)
+    _store_unsigned_long(position, value, order.name == "big_endian")
+}
+
+func read_float_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Float? {
+    assert _inside(position, 4)
+    return _load_float(position, order.name == "big_endian")
+}
+
+func write_float_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: Float) {
+    crash _inside(position, 4)
+    _store_float(position, value, order.name == "big_endian")
+}
+
+func read_double_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Double? {
+    assert _inside(position, 8)
+    return _load_double(position, order.name == "big_endian")
+}
+
+func write_double_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: Double) {
+    crash _inside(position, 8)
+    _store_double(position, value, order.name == "big_endian")
+}
+
+func _load_short(position: Long, big: Boolean): Short {
+    if big {
         return _address.read_short_big_endian(position)
     }
     return _address.read_short(position)
 }
 
-func read_unsigned_short_at(position: Long): UnsignedShort? {
-    assert _inside(position, 2)
-    if byte_order == 'big_endian' {
+func _store_short(position: Long, value: Short, big: Boolean) {
+    if big {
+        _address.write_short_big_endian(position, value)
+        return
+    }
+    _address.write_short(position, value)
+}
+
+func _load_unsigned_short(position: Long, big: Boolean): UnsignedShort {
+    if big {
         return _address.read_unsigned_short_big_endian(position)
     }
     return _address.read_unsigned_short(position)
 }
 
-func read_integer_at(position: Long): Integer? {
-    assert _inside(position, 4)
-    if byte_order == 'big_endian' {
-        return _address.read_integer_big_endian(position)
-    }
-    return _address.read_integer(position)
-}
-
-func read_unsigned_integer_at(position: Long): UnsignedInteger? {
-    assert _inside(position, 4)
-    if byte_order == 'big_endian' {
-        return _address.read_unsigned_integer_big_endian(position)
-    }
-    return _address.read_unsigned_integer(position)
-}
-
-func read_long_at(position: Long): Long? {
-    assert _inside(position, 8)
-    if byte_order == 'big_endian' {
-        return _address.read_long_big_endian(position)
-    }
-    return _address.read_long(position)
-}
-
-func read_unsigned_long_at(position: Long): UnsignedLong? {
-    assert _inside(position, 8)
-    if byte_order == 'big_endian' {
-        return _address.read_unsigned_long_big_endian(position)
-    }
-    return _address.read_unsigned_long(position)
-}
-
-func read_float_at(position: Long): Float? {
-    assert _inside(position, 4)
-    if byte_order == 'big_endian' {
-        var pattern = _float_pattern(position)
-        return pattern.bits_as_float()
-    }
-    return _address.read_float(position)
-}
-
-func read_double_at(position: Long): Double? {
-    assert _inside(position, 8)
-    if byte_order == 'big_endian' {
-        var pattern = _double_pattern(position)
-        return pattern.bits_as_double()
-    }
-    return _address.read_double(position)
-}
-
-func write_tiny_at(position: Long, value: Tiny) {
-    crash _inside(position, 1)
-    _address.write_tiny(position, value)
-}
-
-func write_short_at(position: Long, value: Short) {
-    crash _inside(position, 2)
-    _write_short(position, value)
-}
-
-func write_unsigned_short_at(position: Long, value: UnsignedShort) {
-    crash _inside(position, 2)
-    if byte_order == 'big_endian' {
+func _store_unsigned_short(position: Long, value: UnsignedShort, big: Boolean) {
+    if big {
         _address.write_unsigned_short_big_endian(position, value)
         return
     }
     _address.write_unsigned_short(position, value)
 }
 
-func write_integer_at(position: Long, value: Integer) {
-    crash _inside(position, 4)
-    if byte_order == 'big_endian' {
+func _load_integer(position: Long, big: Boolean): Integer {
+    if big {
+        return _address.read_integer_big_endian(position)
+    }
+    return _address.read_integer(position)
+}
+
+func _store_integer(position: Long, value: Integer, big: Boolean) {
+    if big {
         _address.write_integer_big_endian(position, value)
         return
     }
     _address.write_integer(position, value)
 }
 
-func write_unsigned_integer_at(position: Long, value: UnsignedInteger) {
-    crash _inside(position, 4)
-    if byte_order == 'big_endian' {
+func _load_unsigned_integer(position: Long, big: Boolean): UnsignedInteger {
+    if big {
+        return _address.read_unsigned_integer_big_endian(position)
+    }
+    return _address.read_unsigned_integer(position)
+}
+
+func _store_unsigned_integer(position: Long, value: UnsignedInteger, big: Boolean) {
+    if big {
         _address.write_unsigned_integer_big_endian(position, value)
         return
     }
     _address.write_unsigned_integer(position, value)
 }
 
-func write_long_at(position: Long, value: Long) {
-    crash _inside(position, 8)
-    if byte_order == 'big_endian' {
+func _load_long(position: Long, big: Boolean): Long {
+    if big {
+        return _address.read_long_big_endian(position)
+    }
+    return _address.read_long(position)
+}
+
+func _store_long(position: Long, value: Long, big: Boolean) {
+    if big {
         _address.write_long_big_endian(position, value)
         return
     }
     _address.write_long(position, value)
 }
 
-func write_unsigned_long_at(position: Long, value: UnsignedLong) {
-    crash _inside(position, 8)
-    if byte_order == 'big_endian' {
+func _load_unsigned_long(position: Long, big: Boolean): UnsignedLong {
+    if big {
+        return _address.read_unsigned_long_big_endian(position)
+    }
+    return _address.read_unsigned_long(position)
+}
+
+func _store_unsigned_long(position: Long, value: UnsignedLong, big: Boolean) {
+    if big {
         _address.write_unsigned_long_big_endian(position, value)
         return
     }
     _address.write_unsigned_long(position, value)
 }
 
-func write_float_at(position: Long, value: Float) {
-    crash _inside(position, 4)
-    if byte_order == 'big_endian' {
+func _load_float(position: Long, big: Boolean): Float {
+    if big {
+        var pattern = _address.read_unsigned_integer_big_endian(position)
+        return pattern.bits_as_float()
+    }
+    return _address.read_float(position)
+}
+
+func _store_float(position: Long, value: Float, big: Boolean) {
+    if big {
         var pattern = value.bits()
         _address.write_unsigned_integer_big_endian(position, pattern)
         return
@@ -180,9 +234,16 @@ func write_float_at(position: Long, value: Float) {
     _address.write_float(position, value)
 }
 
-func write_double_at(position: Long, value: Double) {
-    crash _inside(position, 8)
-    if byte_order == 'big_endian' {
+func _load_double(position: Long, big: Boolean): Double {
+    if big {
+        var pattern = _address.read_unsigned_long_big_endian(position)
+        return pattern.bits_as_double()
+    }
+    return _address.read_double(position)
+}
+
+func _store_double(position: Long, value: Double, big: Boolean) {
+    if big {
         var pattern = value.bits()
         _address.write_unsigned_long_big_endian(position, pattern)
         return
@@ -190,26 +251,9 @@ func write_double_at(position: Long, value: Double) {
     _address.write_double(position, value)
 }
 
-func _float_pattern(position: Long): UnsignedInteger {
-    if byte_order == 'big_endian' {
-        return _address.read_unsigned_integer_big_endian(position)
-    }
-    return _address.read_unsigned_integer(position)
-}
-
-func _double_pattern(position: Long): Long {
-    if byte_order == 'big_endian' {
-        return _address.read_unsigned_long_big_endian(position).bits_as_signed()
-    }
-    return _address.read_long(position)
-}
-
-func _write_short(position: Long, value: Short) {
-    if byte_order == 'big_endian' {
-        _address.write_short_big_endian(position, value)
-        return
-    }
-    _address.write_short(position, value)
+func write_tiny_at(position: Long, value: Tiny) {
+    crash _inside(position, 1)
+    _address.write_tiny(position, value)
 }
 
 func _inside(at: Long, width: Long): Boolean {

@@ -24,8 +24,6 @@ var row_sources = List<String>()
 var row_paths = List<String>()
 var counted_keys = List<String>()
 var counted_items = List<String>()
-var counted_orders = List<String>()
-var counted_order_values = List<String>()
 var site_paths = List<String>()
 var site_texts = List<String>()
 var kept_read_paths = List<String>()
@@ -91,26 +89,6 @@ func row_source(name: String): String {
 func count_items(key: String, items: String) {
     counted_keys.append(key)
     counted_items.append(items)
-}
-
-func count_order(listed: String, order: String) {
-    counted_orders.append(listed)
-    counted_order_values.append(order)
-}
-
-func counted_order_of(listed: String): String {
-    var index = counted_orders.count() - 1
-    while index >= 0 {
-        if counted_orders[index] == listed {
-            crash counted_order_values[index]
-            return counted_order_values[index]
-        }
-        index = index - 1
-    }
-    if not parent {
-        return ""
-    }
-    return parent.counted_order_of(listed)
 }
 
 func counted_items_of(key: String): String {

@@ -134,7 +134,7 @@ func _read_byte(): Integer {
 
 func _read_short(): Integer {
     var at = position
-    var read = _buffer().read_short_at(at)
+    var read = _buffer().read_short_little_endian_at(at)
     crash read
     position = at + 2
     return read
@@ -142,7 +142,7 @@ func _read_short(): Integer {
 
 func _read_unsigned_short(): Integer {
     var at = position
-    var read = _buffer().read_unsigned_short_at(at)
+    var read = _buffer().read_unsigned_short_little_endian_at(at)
     crash read
     position = at + 2
     return read
@@ -150,7 +150,7 @@ func _read_unsigned_short(): Integer {
 
 func _read_integer(): Integer {
     var at = position
-    var read = _buffer().read_integer_at(at)
+    var read = _buffer().read_integer_little_endian_at(at)
     crash read
     position = at + 4
     return read
@@ -158,7 +158,7 @@ func _read_integer(): Integer {
 
 func _read_long(): Long {
     var at = position
-    var read = _buffer().read_long_at(at)
+    var read = _buffer().read_long_little_endian_at(at)
     crash read
     position = at + 8
     return read
@@ -166,7 +166,7 @@ func _read_long(): Long {
 
 func _read_float(): Float {
     var at = position
-    var read = _buffer().read_float_at(at)
+    var read = _buffer().read_float_little_endian_at(at)
     crash read
     position = at + 4
     return read
@@ -174,7 +174,7 @@ func _read_float(): Float {
 
 func _read_double(): Double {
     var at = position
-    var read = _buffer().read_double_at(at)
+    var read = _buffer().read_double_little_endian_at(at)
     crash read
     position = at + 8
     return read

@@ -63,7 +63,7 @@ func accept_eventually(): Socket {
 }
 
 func send(socket: Socket, first: Byte, second: Byte, third: Byte) {
-    var message = Buffer()
+    var message = Buffer(0)
     message.append(first)
     message.append(second)
     message.append(third)

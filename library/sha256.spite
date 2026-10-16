@@ -82,7 +82,7 @@ func hash(bytes: Buffer): Buffer {
 }
 
 func hmac(key: Buffer, message: Buffer): Buffer {
-    var block = Buffer()
+    var block = Buffer(64)
     var key_count = key.count()
     if key_count > 64 {
         var hashed_key = _digest(key)
@@ -93,8 +93,9 @@ func hmac(key: Buffer, message: Buffer): Buffer {
     while block.count() < 64 {
         block.append(0)
     }
-    var inner_input = Buffer()
-    var outer_input = Buffer()
+    var message_count = message.count()
+    var inner_input = Buffer(message_count + 64)
+    var outer_input = Buffer(96)
     var index = 0
     while index < 64 {
         var key_byte: Integer = _byte(block, index)
@@ -104,7 +105,6 @@ func hmac(key: Buffer, message: Buffer): Buffer {
         outer_input.append(outer_byte)
         index = index + 1
     }
-    var message_count = message.count()
     inner_input.append_bytes(message, 0, message_count)
     var inner = _digest(inner_input)
     outer_input.append_bytes(inner, 0, 32)
@@ -142,7 +142,7 @@ func _digest(source: Buffer): Buffer {
         offset = offset + 64
     }
     var rest = source.count() - offset
-    var tail = Buffer()
+    var tail = Buffer(128)
     tail.append_bytes(source, offset, rest)
     tail.append(128)
     var tail_length = 64
@@ -163,8 +163,7 @@ func _digest(source: Buffer): Buffer {
     if tail_length == 128 {
         _compress(state, tail, 64)
     }
-    var digest = Buffer()
-    digest.reserve(32)
+    var digest = Buffer(32)
     var word_index = 0
     while word_index < 8 {
         var word = _word(state, word_index)

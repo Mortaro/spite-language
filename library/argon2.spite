@@ -200,7 +200,7 @@ func verify(password: String, encoded: String): Boolean? {
     assert salt and expected
     assert expected.count() >= 4 and salt.count() >= 8
     var secret = password.to_bytes()
-    var nothing = Buffer()
+    var nothing = Buffer(0)
     var tag_length = expected.count()
     var tag = _derived(variant, secret, salt, nothing, nothing, time_cost, memory_cost, lanes, tag_length)
     return _same_bytes(tag, expected)
@@ -214,7 +214,7 @@ func derive(
     lanes: Integer,
     tag_length: Integer,
 ): Buffer {
-    var nothing = Buffer()
+    var nothing = Buffer(0)
     return _derived(2, password, salt, nothing, nothing, time_cost, memory_cost, lanes, tag_length)
 }
 
@@ -272,7 +272,7 @@ func _byte(bytes: Buffer, index: Integer): Byte {
 }
 
 func _long_at(bytes: Buffer, at: Integer): Long {
-    var value = bytes.read_long_at(at)
+    var value = bytes.read_long_little_endian_at(at)
     crash value
     return value
 }
@@ -296,7 +296,7 @@ func _derived(
 ): Buffer {
     crash lanes >= 1 and time_cost >= 1 and tag_length >= 4
     crash memory_cost >= 8 * lanes
-    var parameters = Buffer()
+    var parameters = Buffer(0)
     _append_word(parameters, lanes)
     _append_word(parameters, tag_length)
     _append_word(parameters, memory_cost)
@@ -323,10 +323,10 @@ func _derived(
     while lane < lanes {
         var column = 0
         while column < 2 {
-            var seeded = Buffer()
+            var seeded = Buffer(72)
             seeded.append_bytes(seed, 0, 64)
-            seeded.append_integer(column)
-            seeded.append_integer(lane)
+            seeded.append_integer_little_endian(column)
+            seeded.append_integer_little_endian(lane)
             var hashed = _long_hash(seeded, 1024)
             var target = _block(lane * lane_length + column)
             var word = 0
@@ -375,12 +375,11 @@ func _derived(
         _xor_into(memory, work, lane_last)
         lane = lane + 1
     }
-    var final_input = Buffer()
-    final_input.reserve(1024)
+    var final_input = Buffer(1024)
     word = 0
     while word < 128 {
         var held = _word(memory, work + word)
-        final_input.append_long(held)
+        final_input.append_long_little_endian(held)
         word = word + 1
     }
     return _long_hash(final_input, tag_length)
@@ -656,10 +655,8 @@ func _short_hash(input: Buffer): Buffer {
         engine.append(0)
         cleared = cleared + 1
     }
-    var tail = Buffer()
-    tail.reserve(128)
-    var digest = Buffer()
-    digest.reserve(64)
+    var tail = Buffer(128)
+    var digest = Buffer(64)
     _blake2b(engine, tail, input, 64, digest)
     return digest
 }
@@ -672,24 +669,19 @@ func _long_hash(input: Buffer, output_length: Integer): Buffer {
         engine.append(0)
         cleared = cleared + 1
     }
-    var tail = Buffer()
-    tail.reserve(128)
-    var prefixed = Buffer()
+    var tail = Buffer(128)
     var input_count = input.count()
-    prefixed.reserve(input_count + 4)
-    prefixed.append_integer(output_length)
+    var prefixed = Buffer(input_count + 4)
+    prefixed.append_integer_little_endian(output_length)
     prefixed.append_bytes(input, 0, input_count)
-    var digest = Buffer()
     var digest_room = output_length.minimum(64)
-    digest.reserve(digest_room)
+    var digest = Buffer(digest_room)
     if output_length <= 64 {
         _blake2b(engine, tail, prefixed, output_length, digest)
         return digest
     }
-    var output = Buffer()
-    output.reserve(output_length)
-    var chain = Buffer()
-    chain.reserve(64)
+    var output = Buffer(output_length)
+    var chain = Buffer(64)
     _blake2b(engine, tail, prefixed, 64, chain)
     output.append_bytes(chain, 0, 32)
     var written = 32
@@ -740,7 +732,7 @@ func _blake2b(engine: List<Long>, tail: Buffer, input: Buffer, output_length: In
     index = 0
     while index < 8 {
         var held = _word(engine, index)
-        digest.append_long(held)
+        digest.append_long_little_endian(held)
         index = index + 1
     }
     digest.truncate(output_length)

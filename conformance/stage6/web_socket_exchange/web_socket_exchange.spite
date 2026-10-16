@@ -91,7 +91,7 @@ func talk() {
     var large = counting_bytes(70000)
     socket.send_bytes(large)
     show(socket)
-    var empty = Buffer()
+    var empty = Buffer(0)
     socket.send_bytes(empty)
     show(socket)
     var question = "are you there".to_bytes()
@@ -135,7 +135,7 @@ func show_bytes(binary: WebSocketBinary) {
 }
 
 func counting_bytes(count: Integer): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     var index = 0
     while index < count {
         var value: Byte = index % 256
@@ -166,7 +166,7 @@ func talk_raw() {
     write_frame(socket, 137, true, "p")
     write_frame(socket, 128, true, "mented")
     write_frame(socket, 129, false, "no mask")
-    var received = Buffer()
+    var received = Buffer(0)
     while not socket.closed {
         var got = socket.read_bytes()
         if got {
@@ -189,7 +189,7 @@ func write_list(socket: Socket, list: Buffer) {
 func write_frame(socket: Socket, first: Integer, masked: Boolean, payload: String) {
     var text_bytes = payload.to_bytes()
     var counted = text_bytes.count()
-    var frame = Buffer()
+    var frame = Buffer(0)
     var opening: Byte = first
     frame.append(opening)
     var second: Byte = counted
@@ -222,7 +222,7 @@ func describe_frames(received: Buffer) {
         crash received[at + 1]
         var first: Integer = received[at]
         var length: Integer = received[at + 1]
-        var payload = Buffer()
+        var payload = Buffer(0)
         var index = at + 2
         while index < at + 2 + length {
             crash received[index]

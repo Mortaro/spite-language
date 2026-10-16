@@ -185,7 +185,7 @@ func hexadecimal_digit(at: Integer): Integer {
 }
 
 func text_of(code_point: Integer): String {
-    var bytes = Buffer()
+    var bytes = Buffer(4)
     var shift = 0
     var lead_marker = 0
     if code_point >= 65536 {

@@ -13,7 +13,7 @@ func WebSocketFailures() {
     var nothing = not message
     console.print("a client of a plain HTTP server: connected", connected, "and receives nothing", nothing)
     old_version()
-    var invalid = Buffer()
+    var invalid = Buffer(0)
     invalid.append(104)
     invalid.append(255)
     exchange("/invalid-text", 129, invalid)
@@ -21,7 +21,7 @@ func WebSocketFailures() {
     exchange("/oversized", 130, oversized)
     var nothing_started = counting_bytes(3)
     exchange("/stray-continuation", 128, nothing_started)
-    var bad_code = Buffer()
+    var bad_code = Buffer(0)
     bad_code.append(3)
     bad_code.append(231)
     exchange("/bad-close-code", 136, bad_code)
@@ -118,7 +118,7 @@ func open_raw(path: String): Socket {
 }
 
 func counting_bytes(count: Integer): Buffer {
-    var counted = Buffer()
+    var counted = Buffer(0)
     var index = 0
     while index < count {
         var value: Byte = index
@@ -139,7 +139,7 @@ func write_list(socket: Socket, list: Buffer) {
 
 func write_frame(socket: Socket, first: Integer, payload: Buffer) {
     var counted = payload.count()
-    var frame = Buffer()
+    var frame = Buffer(0)
     var opening: Byte = first
     frame.append(opening)
     var second: Byte = counted + 128
@@ -160,7 +160,7 @@ func write_frame(socket: Socket, first: Integer, payload: Buffer) {
 }
 
 func read_until_closed(socket: Socket): Buffer {
-    var received = Buffer()
+    var received = Buffer(0)
     while not socket.closed {
         var got = socket.read_bytes()
         if got {

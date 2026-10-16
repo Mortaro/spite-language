@@ -1,14 +1,14 @@
 var console = Console()
 
 func ByteReads() {
-    var header = Buffer()
-    header.append_integer(12)
+    var header = Buffer(0)
+    header.append_integer_little_endian(12)
     unproven(header)
     undone(header)
 }
 
 func unproven(header: Buffer) {
-    var length = header.read_integer_at(0)
+    var length = header.read_integer_little_endian_at(0)
     var doubled = length * 2
     console.print(doubled)
 }
@@ -17,7 +17,7 @@ func undone(header: Buffer) {
     var start = 0
     crash start + 4 <= header.count()
     header.clear()
-    var length = header.read_integer_at(start)
+    var length = header.read_integer_little_endian_at(start)
     var doubled = length * 2
     console.print(doubled)
 }

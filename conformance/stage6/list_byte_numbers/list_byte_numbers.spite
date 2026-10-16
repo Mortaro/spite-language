@@ -2,49 +2,48 @@ var console = Console()
 var heap = Memory.Heap()
 
 func ListByteNumbers() {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     var tiny: Tiny = -5
     bytes.append_tiny(tiny)
     var short: Short = -300
-    bytes.append_short(short)
+    bytes.append_short_little_endian(short)
     var unsigned_short: UnsignedShort = 65000
-    bytes.append_unsigned_short(unsigned_short)
-    bytes.append_integer(-70000)
-    bytes.append_integer(258)
+    bytes.append_unsigned_short_little_endian(unsigned_short)
+    bytes.append_integer_little_endian(-70000)
+    bytes.append_integer_little_endian(258)
     var unsigned_integer: UnsignedInteger = 4000000000
-    bytes.append_unsigned_integer(unsigned_integer)
+    bytes.append_unsigned_integer_little_endian(unsigned_integer)
     var long: Long = -9000000000
-    bytes.append_long(long)
+    bytes.append_long_little_endian(long)
     var unsigned_long: UnsignedLong = 9000000000000000000
-    bytes.append_unsigned_long(unsigned_long)
+    bytes.append_unsigned_long_little_endian(unsigned_long)
     var float: Float = 1.5
-    bytes.append_float(float)
+    bytes.append_float_little_endian(float)
     var double: Double = -0.25
-    bytes.append_double(double)
+    bytes.append_double_little_endian(double)
     var counted = bytes.count()
     console.print("appended", counted, "bytes")
     show_numbers(bytes)
-    var big = Buffer('big_endian')
-    big.append_unsigned_short(65000)
-    big.append_integer(258)
-    big.append_float(1.5)
-    var big_short = big.read_unsigned_short_at(0)
+    var big = Buffer(10)
+    big.append_unsigned_short_big_endian(65000)
+    big.append_integer_big_endian(258)
+    big.append_float_big_endian(1.5)
+    var big_short = big.read_unsigned_short_big_endian_at(0)
     crash big_short
-    var big_integer = big.read_integer_at(2)
+    var big_integer = big.read_integer_big_endian_at(2)
     crash big_integer
-    var big_float = big.read_float_at(6)
+    var big_float = big.read_float_big_endian_at(6)
     crash big_float
     console.print("big-endian:", big_short, big_integer, big_float)
-    big.byte_order = 'little_endian'
-    var wrong_order = big.read_integer_at(2)
+    var wrong_order = big.read_integer_little_endian_at(2)
     crash wrong_order
     console.print("big-endian bytes read little-endian:", wrong_order)
-    bytes.write_integer_at(1, 258)
-    var rewritten = bytes.read_integer_at(1)
+    bytes.write_integer_little_endian_at(1, 258)
+    var rewritten = bytes.read_integer_little_endian_at(1)
     crash rewritten
     console.print("written in place:", rewritten)
-    var past_end = bytes.read_long_at(counted - 4)
-    var below = bytes.read_short_at(-1)
+    var past_end = bytes.read_long_little_endian_at(counted - 4)
+    var below = bytes.read_short_little_endian_at(-1)
     var missed = 0
     if not past_end {
         missed = missed + 1
@@ -53,18 +52,18 @@ func ListByteNumbers() {
         missed = missed + 1
     }
     console.print("a read past the end and one below 0 are null:", missed == 2)
-    var copied = Buffer()
+    var copied = Buffer(0)
     copied.append_bytes(bytes, 3, 4)
-    var copied_number = copied.read_integer_at(0)
+    var copied_number = copied.read_integer_little_endian_at(0)
     crash copied_number
     console.print("a run copied out:", copied_number)
-    var header = Buffer()
-    header.append_integer(1)
-    header.append_integer(2)
-    header.append_short(3)
+    var header = Buffer(0)
+    header.append_integer_little_endian(1)
+    header.append_integer_little_endian(2)
+    header.append_short_little_endian(3)
     var read_header = sum_header(header, 0)
     console.print("a header read under one bound:", read_header)
-    var image = Buffer()
+    var image = Buffer(0)
     var pixel = 0
     while pixel < 12 {
         image.append(pixel)
@@ -74,10 +73,10 @@ func ListByteNumbers() {
     console.print("an image read by row and column:", brightness)
     var walked = walk_records(bytes)
     console.print("whole integers walked:", walked)
-    var message = Buffer()
-    message.append_unsigned_short(2)
-    message.append_integer(1200)
-    message.append_integer(-35)
+    var message = Buffer(0)
+    message.append_unsigned_short_little_endian(2)
+    message.append_integer_little_endian(1200)
+    message.append_integer_little_endian(-35)
     var records = read_records(message)
     var left = message.remaining()
     console.print("records:", records)
@@ -87,15 +86,15 @@ func ListByteNumbers() {
 
 func show_numbers(bytes: Buffer) {
     var tiny = bytes.read_tiny_at(0)
-    var short = bytes.read_short_at(1)
-    var unsigned_short = bytes.read_unsigned_short_at(3)
-    var integer = bytes.read_integer_at(5)
-    var swapped = bytes.read_integer_at(9)
-    var unsigned_integer = bytes.read_unsigned_integer_at(13)
-    var long = bytes.read_long_at(17)
-    var unsigned_long = bytes.read_unsigned_long_at(25)
-    var float = bytes.read_float_at(33)
-    var double = bytes.read_double_at(37)
+    var short = bytes.read_short_little_endian_at(1)
+    var unsigned_short = bytes.read_unsigned_short_little_endian_at(3)
+    var integer = bytes.read_integer_little_endian_at(5)
+    var swapped = bytes.read_integer_little_endian_at(9)
+    var unsigned_integer = bytes.read_unsigned_integer_little_endian_at(13)
+    var long = bytes.read_long_little_endian_at(17)
+    var unsigned_long = bytes.read_unsigned_long_little_endian_at(25)
+    var float = bytes.read_float_little_endian_at(33)
+    var double = bytes.read_double_little_endian_at(37)
     crash tiny and short and unsigned_short and integer and swapped
     crash unsigned_integer and long and unsigned_long and float and double
     console.print(tiny, short, unsigned_short, integer, swapped, unsigned_integer)
@@ -104,9 +103,9 @@ func show_numbers(bytes: Buffer) {
 
 func sum_header(header: Buffer, body: Integer): Integer {
     crash body >= 0 and body + 10 <= header.count()
-    var first = header.read_integer_at(body)
-    var second = header.read_integer_at(body + 4)
-    var third = header.read_short_at(body + 8)
+    var first = header.read_integer_little_endian_at(body)
+    var second = header.read_integer_little_endian_at(body + 4)
+    var third = header.read_short_little_endian_at(body + 8)
     return first + second + third
 }
 
@@ -131,7 +130,7 @@ func walk_records(bytes: Buffer): Long {
     var total: Long = 0
     var position = 0
     while position + 3 < bytes.count() {
-        var whole = bytes.read_integer_at(position)
+        var whole = bytes.read_integer_little_endian_at(position)
         total = total + whole
         position = position + 4
     }
@@ -139,12 +138,12 @@ func walk_records(bytes: Buffer): Long {
 }
 
 func read_records(message: Buffer): Integer {
-    var count = message.read_unsigned_short()
+    var count = message.read_unsigned_short_little_endian()
     crash count
     var whole: Integer = count
-    var first = message.read_integer()
+    var first = message.read_integer_little_endian()
     crash first
-    var second = message.read_integer()
+    var second = message.read_integer_little_endian()
     crash second
     return whole + first + second
 }
@@ -152,18 +151,18 @@ func read_records(message: Buffer): Integer {
 func foreign_memory() {
     var block = heap.allocate(8)
     var foreign = ForeignBytes(block, 8)
-    foreign.write_integer_at(0, 41)
-    var payload = Buffer()
+    foreign.write_integer_little_endian_at(0, 41)
+    var payload = Buffer(0)
     payload.append(1)
     payload.append(2)
     payload.append(3)
     payload.append(4)
     foreign.write_bytes_at(4, payload)
-    var read_back = foreign.read_integer_at(0)
+    var read_back = foreign.read_integer_little_endian_at(0)
     crash read_back
     var last = foreign[7]
     crash last
-    var outside = foreign.read_long_at(4)
+    var outside = foreign.read_long_little_endian_at(4)
     var length = foreign.count()
     var missed = 0
     if not outside {

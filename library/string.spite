@@ -186,7 +186,7 @@ func to_string(): String {
 }
 
 func to_bytes(): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     var counted: Integer = _length
     bytes.reserve(counted)
     _bytes.copy_to(bytes.items, _length)

@@ -1,1 +1,1 @@
-var _memory = Memory.Bytes(8)
+var _memory = Buffer(8)

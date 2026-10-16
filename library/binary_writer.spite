@@ -3,7 +3,7 @@ generic $value_type
 var format = BinaryFormat<$value_type>()
 
 func write(value: $value_type): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     append_to(value, bytes)
     return bytes
 }

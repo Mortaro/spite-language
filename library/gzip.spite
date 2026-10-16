@@ -3,9 +3,8 @@ singleton
 func compress(bytes: Buffer): Buffer {
     var deflate = Deflate()
     var body = deflate.compress(bytes)
-    var output = Buffer()
     var body_count = body.count()
-    output.reserve(body_count + 18)
+    var output = Buffer(body_count + 18)
     var header: List<Byte> = [31, 139, 8, 0, 0, 0, 0, 0, 0, 255]
     var index = 0
     while index < 10 {

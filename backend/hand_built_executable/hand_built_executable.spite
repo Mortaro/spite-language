@@ -21,7 +21,7 @@ func HandBuiltExecutable() {
 }
 
 func exit_code_bytes(status: Integer, offset: Long): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     move_status_into_first_argument(bytes, status)
     align_the_stack_for_the_call(bytes)
     reach_the_import_slot(bytes, offset)
@@ -32,7 +32,7 @@ func exit_code_bytes(status: Integer, offset: Long): Buffer {
 
 func move_status_into_first_argument(bytes: Buffer, status: Integer) {
     bytes.append(185)
-    bytes.append_unsigned_integer(status)
+    bytes.append_unsigned_integer_little_endian(status)
 }
 
 func align_the_stack_for_the_call(bytes: Buffer) {
@@ -46,7 +46,7 @@ func reach_the_import_slot(bytes: Buffer, offset: Long) {
     bytes.append(72)
     bytes.append(141)
     bytes.append(5)
-    bytes.append_integer(offset)
+    bytes.append_integer_little_endian(offset)
 }
 
 func call_through_the_slot(bytes: Buffer) {

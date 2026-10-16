@@ -2,8 +2,7 @@ singleton
 
 func bytes(count: Integer): Buffer {
     crash count >= 0
-    var filled = Buffer()
-    filled.reserve(count)
+    var filled = Buffer(count)
     if count > 0 {
         _fill(filled, count)
     }

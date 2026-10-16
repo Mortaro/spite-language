@@ -72,7 +72,7 @@ var _code_length_order = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2,
 var _bit_buffer: Long = 0
 var _bit_count = 0
 
-var _source = Buffer()
+var _source = Buffer(0)
 var _source_length = 0
 var _scratch = List<Integer>()
 var _head = 0
@@ -96,12 +96,12 @@ var _compress_scratch_count = 69436
 var _run_count = 0
 var _symbols = List<Integer>()
 var _extras = List<Integer>()
-var _output = Buffer()
+var _output = Buffer(0)
 
 var _input_length = 0
 var _position = 0
 var _failed = false
-var _result = Buffer()
+var _result = Buffer(0)
 var _literal_table = 0
 var _distance_table = 32768
 var _length_table = 65536
@@ -117,8 +117,7 @@ func compress(bytes: Buffer): Buffer {
     _allocate_scratch(_compress_scratch_count)
     _fill(_head, _hash_size, -1)
     _fill(_previous, _window, -1)
-    _output = Buffer()
-    _output.reserve(_source_length / 2 + 64)
+    _output = Buffer(_source_length / 2 + 64)
     _bit_buffer = 0
     _bit_count = 0
     _start_block()
@@ -137,7 +136,7 @@ func compress(bytes: Buffer): Buffer {
     _symbols = List<Integer>()
     _extras = List<Integer>()
     var result = _output
-    _output = Buffer()
+    _output = Buffer(0)
     return result
 }
 
@@ -148,12 +147,11 @@ func decompress(bytes: Buffer): Buffer? {
     _bit_buffer = 0
     _bit_count = 0
     _failed = false
-    _result = Buffer()
-    _result.reserve(_input_length * 2 + 64)
+    _result = Buffer(_input_length * 2 + 64)
     _allocate_scratch(_decompress_scratch_count)
     _inflate_blocks()
     var result = _result
-    _result = Buffer()
+    _result = Buffer(0)
     assert not _failed
     return result
 }

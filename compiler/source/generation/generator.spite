@@ -170,8 +170,6 @@ var call_edge_callers = List<String>()
 var call_edge_callees = List<String>()
 var current_function_c_name = ""
 var buffer_check_written = false
-var buffer_orders_written = List<String>()
-var buffer_orders_made = Dictionary<String, String>()
 var never_negative_names = Dictionary<String, Boolean>()
 var report_outline = ReportOutline()
 var report_function_start = -1
@@ -18637,27 +18635,57 @@ func buffer_form_refusal(target_class: Analysis.ClassInfo, name: String, argumen
     if target_class.qualified_dotted != "Buffer" {
         return ""
     }
-    if name.ends_with("_big_endian") {
-        var name_length = name.length()
-        var plain = name.slice(0, name_length - 11)
-        var plain_word = buffer_word_of(plain)
-        if plain_word.is_empty() {
-            return ""
-        }
-        return "Buffer has no method '{name}': set 'byte_order' to 'big_endian' and call '{plain}'"
-    }
     var word = buffer_word_of(name)
     if word.is_empty() {
         return ""
     }
-    if name.starts_with("read_") and not name.ends_with("_at") {
+    var width = buffer_number_width(word)
+    var at = name.ends_with("_at")
+    var stem = name
+    if at {
+        var stem_length = name.length()
+        stem = name.slice(0, stem_length - 3)
+    }
+    var named = stem.ends_with("_little_endian") or stem.ends_with("_big_endian")
+    var reading = name.starts_with("read_")
+    var writing = name.starts_with("write_")
+    var appending = name.starts_with("append_")
+    if width > 1 and not named {
+        var cause = "Buffer has no method '{name}': a number of {width} bytes names its byte order"
+        if reading and at {
+            return "{cause}: write '{stem}_little_endian_at(position)' or '{stem}_big_endian_at(position)'"
+        }
+        if reading and argument_count == 0 {
+            return "{cause}: write '{stem}_little_endian()' or '{stem}_big_endian()'"
+        }
+        if reading {
+            return "'{name}' reads at the buffer's position and takes nothing, and a number of {width} bytes names its byte order: write '{stem}_little_endian_at(position)' or '{stem}_big_endian_at(position)' to read anywhere else"
+        }
+        if writing and at {
+            return "{cause}: write '{stem}_little_endian_at(position, value)' or '{stem}_big_endian_at(position, value)'"
+        }
+        if writing {
+            return "{cause}: write '{stem}_little_endian_at(position, value)' or '{stem}_big_endian_at(position, value)', or 'append_{word}_little_endian(value)' or 'append_{word}_big_endian(value)' to add at the end"
+        }
+        if appending {
+            return "{cause}: write 'append_{word}_little_endian(value)' or 'append_{word}_big_endian(value)'"
+        }
+        return ""
+    }
+    if reading and not at {
         if argument_count == 0 {
             return ""
         }
         return "'{name}' reads at the buffer's position and takes nothing: write '{name}_at(position)' to read anywhere else"
     }
-    if name.starts_with("write_") and not name.ends_with("_at") {
-        return "Buffer has no method '{name}': write '{name}_at(position, value)', or 'append_{word}(value)' to add at the end"
+    if writing and not at {
+        var order_suffix = ""
+        if width > 1 {
+            var name_length = name.length()
+            var word_length = word.length()
+            order_suffix = name.slice(6 + word_length, name_length)
+        }
+        return "Buffer has no method '{name}': write '{name}_at(position, value)', or 'append_{word}{order_suffix}(value)' to add at the end"
     }
     return ""
 }
@@ -18680,6 +18708,7 @@ func buffer_word_of(name: String): String {
     if rest.ends_with("_at") {
         rest = rest.slice(0, rest_length - 3)
     }
+    rest = buffer_without_order(rest)
     if buffer_number_width(rest) == 0 {
         return ""
     }
@@ -19278,7 +19307,7 @@ func generate_list_method(
         return copied_list
     }
     if is_buffer_only_function(name) {
-        report("List has no method '{name}': bytes are a Buffer, which has it: make them with 'Buffer()'")
+        report("List has no method '{name}': bytes are a Buffer, which has it: make them with 'Buffer(size)'")
         return void_result()
     }
     if is_function_form(name, arguments_ast) {
@@ -25293,10 +25322,37 @@ func buffer_number_word(name: String): String {
     var without_at = name.slice(0, name_length - 3)
     var without_at_length = without_at.length()
     if name.starts_with("read_") {
-        return without_at.slice(5, without_at_length)
+        return buffer_without_order(without_at.slice(5, without_at_length))
     }
     if name.starts_with("write_") {
-        return without_at.slice(6, without_at_length)
+        return buffer_without_order(without_at.slice(6, without_at_length))
+    }
+    return ""
+}
+
+# ../../../specs/standard_library.md#bytes-are-a-buffer
+func buffer_without_order(word: String): String {
+    var word_length = word.length()
+    if word.ends_with("_little_endian") {
+        return word.slice(0, word_length - 14)
+    }
+    if word.ends_with("_big_endian") {
+        return word.slice(0, word_length - 11)
+    }
+    return word
+}
+
+# the order a read or write names, written as the enum value; a byte and a tiny have no order and read as little endian
+func buffer_order_of_name(name: String): String {
+    var word = buffer_number_word(name)
+    if buffer_number_width(word) == 1 {
+        return "'little_endian'"
+    }
+    if name.ends_with("_little_endian_at") {
+        return "'little_endian'"
+    }
+    if name.ends_with("_big_endian_at") {
+        return "'big_endian'"
     }
     return ""
 }
@@ -25315,18 +25371,6 @@ func buffer_number_width(word: String): Integer {
         return 8
     }
     return 0
-}
-
-func buffer_big_endian_code(): String {
-    var index = 0
-    while index < enums.count() {
-        var enumeration = enums[index]
-        if enumeration.owner_qualified == "Buffer" and enumeration.simple_name == "ByteOrder" {
-            return "{enumeration.c_name}_big_endian"
-        }
-        index = index + 1
-    }
-    return "1"
 }
 
 func buffer_number_return_type(word: String): Analysis.SpiteType {
@@ -25371,8 +25415,8 @@ func proven_buffer_access(
     var bottom = counted or byte_range_proven(list_text, position_ast, width, scope)
     var top_key = byte_key(list_text, position_ast, width - 1)
     assert bottom or scope.is_path_narrowed(top_key)
-    var order = _buffer_order_of(list_text, scope)
-    assert counted or not order.is_empty()
+    var order = buffer_order_of_name(name)
+    assert not order.is_empty()
     if counted {
         var position = counted_position(position_ast, scope, class_information)
         var base = "(intptr_t)({counted_base})"
@@ -25439,43 +25483,14 @@ func _buffer_operation(word: String, writing: Boolean, base: String, at: String,
     var big_function = find_or_instantiate_function(address_class, big_name)
     crash big_function
     var big = "{big_function.c_name}({arguments})"
-    if order == "'little_endian'" {
-        return "{plain_function.c_name}({arguments})"
-    }
     if order == "'big_endian'" {
         return big
     }
-    return "(({order}) == {buffer_big_endian_code()} ? {big} : {plain_function.c_name}({arguments}))"
+    return "{plain_function.c_name}({arguments})"
 }
 
 func width_of_word(word: String): Integer {
     return buffer_number_width(word)
-}
-
-func _buffer_order_of(list_text: String, scope: Scope): String {
-    var hoisted = scope.counted_order_of(list_text)
-    if not hoisted.is_empty() {
-        return hoisted
-    }
-    return static_buffer_order(list_text)
-}
-
-func static_buffer_order(list_text: String): String {
-    if buffer_orders_written.contains(list_text) {
-        return ""
-    }
-    var made = buffer_orders_made[list_text]
-    if not made {
-        return ""
-    }
-    return made
-}
-
-func note_buffer_order_written(list_text: String, order: String) {
-    if not buffer_orders_written.contains(list_text) {
-        buffer_orders_written.append(list_text)
-    }
-    buffer_orders_made[list_text] = order
 }
 
 func _buffer_checked_read(held: String, position: String, outside: String, read_text: String, item: String): String {
@@ -44486,7 +44501,6 @@ func generate_counted_loop(
     builder.add_user("int32_t {bound} = {count_result.code};")
     var key = "{listed}[{counter.name}]"
     var items = hoist_items(member.object, scope, class_information)
-    var order = hoist_order(listed, scope)
     var truth = "{counter_result.code} < {bound}"
     if reach > 0 {
         truth = "{counter_result.code} < {bound} - {reach}"
@@ -44498,9 +44512,6 @@ func generate_counted_loop(
         var body_scope = Scope(scope)
         body_scope.is_loop = true
         start_loop_body(body_scope)
-        if not order.is_empty() {
-            body_scope.count_order(listed, order)
-        }
         count_reached_items(body_scope, key, listed, counter.name, reach, items)
         generate_counted_body(truth, while_statement, body_scope, class_information, function_information)
         return
@@ -44508,9 +44519,6 @@ func generate_counted_loop(
     var fast_scope = Scope(scope)
     fast_scope.is_loop = true
     start_loop_body(fast_scope)
-    if not order.is_empty() {
-        fast_scope.count_order(listed, order)
-    }
     count_reached_items(fast_scope, key, listed, counter.name, reach, items)
     var fits = List<String>()
     var index = 0
@@ -44531,29 +44539,9 @@ func generate_counted_loop(
     var slow_scope = Scope(scope)
     slow_scope.is_loop = true
     start_loop_body(slow_scope)
-    if not order.is_empty() {
-        slow_scope.count_order(listed, order)
-    }
     count_reached_items(slow_scope, key, listed, counter.name, reach, items)
     generate_counted_body(truth, while_statement, slow_scope, class_information, function_information)
     builder.add_user("}")
-}
-
-func hoist_order(listed: String, scope: Scope): String {
-    var listed_type = scope.written_type(listed)
-    if not listed_type {
-        return ""
-    }
-    if not is_buffer_type(listed_type) {
-        return ""
-    }
-    var static_order = static_buffer_order(listed)
-    if not static_order.is_empty() {
-        return ""
-    }
-    var order = next_temporary()
-    builder.add_user("int32_t {order} = {listed}->byte_order_;")
-    return order
 }
 
 func count_reached_items(scope: Scope, key: String, listed: String, counter: String, reach: Integer, items: String) {
@@ -47486,8 +47474,6 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
         guarded_positions.append(guarded_at)
     }
     current_function_c_name = function.c_name
-    buffer_orders_written = List<String>()
-    buffer_orders_made = Dictionary<String, String>()
     in_specialised_copy = not function.specialised_from.is_empty()
     borrowed_names = List<String>()
     into_function_active = function.result_slot
@@ -47847,7 +47833,7 @@ func emit_value_class(information: Analysis.ClassInfo) {
     if information.qualified_dotted != "String" and not information.fields.is_empty() and not declares_only_memory {
         current_path = information.source_path
         report(
-            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only its size, 'var _memory = Memory.Bytes(bytes)': keep what a function needs in its locals",
+            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only its size, 'var _memory = Buffer(bytes)': keep what a function needs in its locals",
         )
         return
     }
@@ -47932,6 +47918,15 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): 
     var allocation = shape.as_call(declaration.value)
     if allocation {
         crash allocation.callee
+        var sized = shape.as_identifier(allocation.callee)
+        if sized {
+            if sized.name == "Buffer" and allocation.arguments.count() == 1 {
+                var buffer_bytes = shape.as_integer_literal(allocation.arguments[0])
+                if buffer_bytes {
+                    return buffer_bytes.value
+                }
+            }
+        }
         var sizing = shape.as_member(allocation.callee)
         if sizing {
             crash sizing.object
@@ -47949,7 +47944,7 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): 
         }
     }
     report(
-        "a value states its size as 'var _memory = Memory.Bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
+        "a value states its size as 'var _memory = Buffer(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
     )
     return -1
 }
@@ -47985,7 +47980,7 @@ func check_number_memory() {
             var laid_out = scalar_c_bytes(c_type)
             if not information.find_field("_memory") {
                 report(
-                    "'{information.simple_name}' declares no memory: its file states its size with 'var _memory = Memory.Bytes({laid_out})', the {laid_out} bytes the compiler keeps it in",
+                    "'{information.simple_name}' declares no memory: its file states its size with 'var _memory = Buffer({laid_out})', the {laid_out} bytes the compiler keeps it in",
                 )
             } else if information.memory_bytes >= 0 and information.memory_bytes != laid_out {
                 report(
