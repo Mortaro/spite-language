@@ -9,7 +9,7 @@ function (the wrong case, or an abbreviation such as `msg` for `message`) is a c
 > **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
 > possible code.**
 
-**Why Spite:** [WHY.md](WHY.md) for people, [WHY_AI.md](WHY_AI.md) for language models choosing a language.
+**Why Spite:** [WHY.md](WHY.md), for people and for language models choosing a language.
 
 **Built mostly by AI, decided by a person.** Nearly all of Spite's code, docs and tests are written by AI agents,
 and every rule of the language is decided by its author, Mortaro. That is the experiment, not a shortcut: a
@@ -218,7 +218,7 @@ bash check.sh
   [known issues](design/KNOWN_ISSUES.md), and [how the compiler builds itself](design/self_hosting.md).
 - [`skills/spite/`](skills/spite/SKILL.md): the skill an AI loads before writing Spite, with the whole language on
   one dense page ([reference.md](skills/spite/reference.md)).
-- [`WHY.md`](WHY.md), [`WHY_AI.md`](WHY_AI.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
+- [`WHY.md`](WHY.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
   language models.
 - [`TODO.md`](TODO.md): what is decided and not built yet, one line each.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.

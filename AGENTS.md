@@ -55,8 +55,8 @@ else disagrees with the specification, the specification wins; a docs page that 
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
 - [`RESEARCH.md`](RESEARCH.md) is for people donating agent time: what research is useful and how to contribute it.
-- [`WHY.md`](WHY.md) and [`WHY_AI.md`](WHY_AI.md) say why to use Spite, to people and to language models; every
-  claim in them is true of Spite today or marked as the direction.
+- [`WHY.md`](WHY.md) says why to use Spite and why to help build it, to people and to language models alike; every
+  claim in it is true of Spite today or marked as the direction.
 
 **`TODO.md` is always up to date** (Mortaro, 2026-10-15). It is how Mortaro sees what is missing, so every commit
 that changes what is missing changes it in the same commit:

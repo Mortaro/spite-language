@@ -6,6 +6,10 @@ author at two in the morning. Spite's answer is to stop expecting the writer to 
 everything it can, refuses what it cannot accept, and turns the plain, readable version of a program into the
 fast one.
 
+This page is for people and for language models alike. Everything on it is true of Spite today unless it says
+"the direction" or "the goal". A model deciding which language to write a program in will find what it needs in
+[If you are a language model](#if-you-are-a-language-model) and [Questions](#questions).
+
 ## Rust has Rustaceans; Spite has morons
 
 A **moron** is anyone who writes Spite: a human, an AI, or Mortaro, who designed it. It is said with affection,
@@ -35,10 +39,12 @@ rest naive, because the deadline is real.
 Spite does not pick battles. It does those transformations below the source, everywhere, in every build: a chain
 of list operations becomes one loop with no list in between, every generic and template is written out for the
 exact types it is used with, nothing is looked up by name while the program runs unless it asks for reflection, a
-small object that never leaves its function lives in the frame instead of the heap, identical generated functions are folded into one, and whatever
-the program does not use is not in the executable. Your source stays the readable version. When you change it,
-the optimisations are redone for free, so nothing goes stale because someone forgot the tuned version. Every one of
-them is listed in [docs/optimizations.md](docs/optimizations.md).
+small object that never leaves its function lives in the frame instead of the heap, identical generated functions
+are folded into one, and whatever the program does not use is not in the executable. Any method counts as long as
+the answer is the same, so a part of a program the compiler can work out while compiling may be reduced to its
+answer. Your source stays the readable version. When you change it, the optimisations are redone for free, so
+nothing goes stale because someone forgot the tuned version. Every one of them is listed in
+[docs/optimizations.md](docs/optimizations.md).
 
 In other languages you choose elegant or fast. In Spite you write the elegant one, and the compiler ships the
 fast one.
@@ -68,17 +74,68 @@ leaves its function in the frame, and the same source, unchanged, took 1.25 time
 answer later fell back to the heap, the case found it, and building it in the caller's frame brought it back.
 The 80-odd cases of single optimisations are in the [summary](benchmarks/README.md#every-benchmark-against-c).
 
+## Cheaper code: in tokens, in energy, for everyone
+
+Spite is a language, and it is also research into a question that matters beyond any one program: how much of the
+cost of software can be moved out of the people and the machines that write and run it, and into one compiler?
+
+- **Cheaper to write.** An agent is a moron too, and a cheaper model is a more naive one. When the compiler refuses
+  the mistakes, names the fix and makes the plain version fast, a cheap model's code comes out as correct and as
+  fast as an expensive model's. There is less to write as well: no defensive checks the compiler already enforces,
+  no hand-tuned second version, no logging to find a crash (the crash line shows the values), and no rounds of
+  guessing at a vague error, because every error says what to write. Fewer tokens per working program, and a
+  smaller model that can do the job.
+- **Cheaper to run.** Most code that runs on servers today was never double checked for speed: it was written
+  plainly, shipped, and left. It runs on millions of machines, every day, doing the allocation per element and the
+  temporary list nobody knew was there, and it costs energy and hardware for as long as it runs. The goal is that
+  plain code costs what tuned code costs, so the bloat is never written into the executable in the first place,
+  without anybody going back to fix it.
+- **One improvement, every program.** In a normal codebase an optimisation helps the one function someone tuned,
+  and the next codebase learns it again. In Spite an optimisation lives in the compiler, so a single one, contributed
+  once, makes every Spite program that has the pattern faster the next time it is compiled, everywhere, with no
+  change to any source. The knowledge of every moron who finds a faster way adds up in one place, and every user
+  gets the sum of it.
+- **Knowledge that outlives its backend.** Every optimisation is written down with an example program in
+  [docs/optimizations.md](docs/optimizations.md), and every proof the compiler makes in [docs/proofs.md](docs/proofs.md),
+  as the specification another backend is rebuilt from. Nothing the research finds is lost when the code generator
+  changes.
+- **Research in the open, measured.** Every decision is in the [decision log](DECISIONS.md), with its date, who made
+  it and why. Every speed claim has a benchmark against plain C and C tuned by hand, with the C the compiler wrote
+  committed beside it, so anyone can see exactly what each compiler change did. Ideas, measurements and failed
+  attempts go into an open [notebook](design/optimization_research.md), so a finding that turned out wrong is not
+  tried again blind.
+- **What models get wrong, turned into rules.** Spite is built almost entirely by AI agents, and every mistake they
+  make while building it becomes a compile error, so no later writer can make it again. The result is a record of
+  what goes wrong when models write code, and of the rules that stop it, that is useful far beyond this language.
+
+### Help build it
+
+There is far more worth finding than one person's agents can cover. If you have time, or agent time, to give:
+
+- **Close the gap to expert C.** Pick a benchmark where Spite is slower than the hand-tuned C, find what the expert
+  does differently, measure what each difference is worth, and name the optimisation and the proof the compiler
+  needs. [RESEARCH.md](RESEARCH.md) says how, and how to hand back what you find.
+- **Take an open question.** Per-field layouts, loops spread over every core in cache-sized chunks, the GPU,
+  working out whole computations while compiling: each is listed in [RESEARCH.md](RESEARCH.md) with what to find out.
+- **Write a program and report where Spite got in your way.** A confusing error, a rule that was hard to follow or a
+  plain program that came out slow is a finding: it means Spite is not simple enough yet.
+- **Build a backend milestone.** Spite's own code generator and linker are planned milestone by milestone, each with
+  an exact acceptance test.
+
+Read [AGENTS.md](AGENTS.md) before changing the compiler: it has the rules every change follows.
+
 ## One way to do each thing
 
 Two ways of doing one thing is a decision somebody has to make again at every call site, so Spite keeps one.
-There is one loop (`while`), one way to convert a value (`to_<type>()` on the value), one name per function (no
-overloading), no lambdas, no destructuring, no macros. A model has fewer ways to be wrong, and a reader never
-wonders why this file does it differently.
+There is one loop (`while`, with no `for`, `break` or `continue`), one way to convert a value (`to_<type>()` on the
+value), one name per function (no overloading), no lambdas, no destructuring, no macros, no ternary and no `++`. A
+model has fewer ways to be wrong, and a reader never wonders why this file does it differently.
 
 ## The compiler is the formatter and the linter, and it refuses
 
 Every compile rewrites your files into the one style first. There are no warnings: a program compiles, or it
-does not and the compiler says why, naming the fix. Style is part of the language, not advice:
+does not and the compiler says why, naming the fix. Every error of the program is reported in one run, as
+`path:line: error: message (in Class.function)`. Style is part of the language, not advice:
 
 ```gdscript
 var msg = "hello"
@@ -88,15 +145,17 @@ var msg = "hello"
 ```
 
 The same goes for a local that is never read, an attribute nothing reads, a check that proves what is already
-proven, and dozens of habits from other languages (`&&`, `for`, `++`, `new`, `self.`), each with the Spite form in
-the message ([docs/style.md](docs/style.md)).
+proven, and dozens of habits from other languages (`&&`, `for`, `++`, `new`, `self.`, `import`, `value == null`),
+each with the Spite form in the message ([docs/style.md](docs/style.md)).
 
 ## Nothing fails silently
 
 Anything that can go wrong silently is a bug in Spite. There are no exceptions, and a failure has three outcomes
 and no others: a compile error when the compiler can know, `assert` when a missing answer is fine, and `crash`
 when it is a developer mistake. A value that may be absent is a `T?`, and using it without checking is a compile
-error. A crash carries no prose message: it names the file and line, and shows the values there.
+error; the compiler tracks the proof, so a value it has proven is never checked again ([docs/proofs.md](docs/proofs.md)).
+An `assert` that would answer a default a caller cannot tell from a real answer is an error too. A crash carries no
+prose message: it names the file and line, and shows the values there.
 
 ```
 spite.crash	64b935f1	crash_report/crash_report.spite:14	CrashReport	check	value=-9	limit=0
@@ -113,9 +172,10 @@ You say what you want, and the compiler writes the loop:
 var standing = monsters.filter_alive().sum_health()
 ```
 
-Nobody wrote `filter_alive` or `sum_health`. `List` has templates, and the compiler writes the two this line calls,
-for `Monster`, typed, then fuses the chain into one loop with no list in between. A hand-written `while` that only
-does what a template does is refused with the template to write instead:
+Nobody wrote `filter_alive` or `sum_health`. `List` has templates (`filter_`, `map_`, `sum_`, `count_`, `any_`,
+`all_`, `sort_by_`, `find_by_`, `each_`), and the compiler writes the two this line calls, for `Monster`, typed, then
+fuses the chain into one loop with no list in between. A hand-written `while` that only does what a template does
+is refused with the template to write instead:
 
 ```
 this 'while' walks every element of 'monsters' only to add up 'health': write 'var total = monsters.sum_health()'
@@ -123,8 +183,8 @@ this 'while' walks every element of 'monsters' only to add up 'health': write 'v
 
 Classes are ordinary objects too: every class is an instance of `Spite.Class`, so `Monster.attributes.each(show)`
 walks every attribute of `Monster`, and a library can write a function once for every attribute of a class. The
-compiler unrolls the walk while compiling, and each call becomes an ordinary typed function. Nothing is looked up while the program runs
-([docs/metaprogramming.md](docs/metaprogramming.md)).
+compiler unrolls the walk while compiling, and each call becomes an ordinary typed function. Nothing is looked up
+while the program runs ([docs/metaprogramming.md](docs/metaprogramming.md)).
 
 ## Your architecture, proven by the compiler
 
@@ -140,8 +200,8 @@ func check_component(component: Spite.Class) {
 }
 ```
 
-`Component.classes.each(check_component)`, called once, walks them all. Add `var items = List<String>()` to `component/inventory.spite`
-and the program no longer builds:
+`Component.classes.each(check_component)`, called once, walks them all. Add `var items = List<String>()` to
+`component/inventory.spite` and the program no longer builds:
 
 ```
 game.spite:10: error: 'crash component.is_fixed_size' always halts: its condition is decided while compiling and is false, ... (in Game.check_component_for_inventory)
@@ -150,9 +210,9 @@ game.spite:10: error: 'crash component.is_fixed_size' always halts: its conditio
 The error names the rule and the class that broke it, and it costs nothing at run time. A framework can hold you to
 "a component holds data only", "a system's functions end in its phase", "a link holds only an entity" or "no
 sentinel values" the same way, with a class's functions, a function's arguments, an attribute's class and the
-other questions in [docs/metaprogramming.md](docs/metaprogramming.md). Your architecture stops being a convention people
-forget and becomes something the compiler proves, which matters twice over when morons, human or AI, write most
-of the code.
+other questions in [docs/metaprogramming.md](docs/metaprogramming.md). Your architecture stops being a convention
+people forget and becomes something the compiler proves, which matters twice over when morons, human or AI, write
+most of the code.
 
 ## Memory you never think about
 
@@ -161,12 +221,12 @@ pause, no lifetimes to annotate and no runtime to ship. What you write is the pl
 while compiling:
 
 - **Values that do not need the heap do not reach it.** An object that never leaves its function lives on the
-  stack; a returned object is built in the caller's frame instead of on the heap; a function value or a list of arguments the callee
-  only reads stays in the caller's frame.
+  stack; a returned object is built in the caller's frame instead of on the heap; a function value or a list of
+  arguments the callee only reads stays in the caller's frame.
 - **Counting only where it is needed.** Every object can be reference counted, but the compiler leaves the count
   out wherever it proves the count would only go up and back down: an item read from a list only to test it or use
-  it at once, an argument the caller still holds, an attribute a call cannot change. A count that stays is a plain addition,
-  atomic only for classes another thread can really reach.
+  it at once, an argument the caller still holds, an attribute a call cannot change. A count that stays is a plain
+  addition, atomic only for classes another thread can really reach.
 - **Objects of one class sit together.** The objects a list holds come from their class's own pool, side by side in
   memory; a list held only by another list lives inside it; a list that is refilled keeps its room.
 - **Nothing to get wrong by hand.** Where the compiler lends you an item stored inline, it checks at compile time
@@ -202,8 +262,8 @@ never expected to reach for them.
 
 The default build is for iterating: the C is compiled at `-O0`, because you rebuild it all day. `--optimized` is
 for shipping: `-O3`, link-time optimisation, and the C split into units compiled in parallel and cached. The
-numbers, from [the translation units' case](benchmarks/the_c_is_compiled_in_parallel_units_and_cached/README.md#compile-time-at-scale) and
-[docs/compiler.md](docs/compiler.md#compile-time):
+numbers, from [the translation units' case](benchmarks/the_c_is_compiled_in_parallel_units_and_cached/README.md#compile-time-at-scale)
+and [docs/compiler.md](docs/compiler.md#compile-time):
 
 - The compiler (written in Spite) compiles itself to C in 1.7 seconds of CPU time.
 - A data-heavy program that becomes 722 000 lines of C compiles to C in 7.3 seconds; compile time grows linearly.
@@ -231,8 +291,13 @@ because it seems to work. Here nothing is accepted on that basis.
   could go missing without anyone noticing, "anything that can go wrong silently is a bug" became the rule every
   change is judged by. Each mistake found while building Spite becomes something the compiler refuses, so no
   later writer can make it again.
-- **Decisions are written down, with their reasons.** Over nine hundred decisions are logged, each with its date,
-  who made it and why, so nothing is re-argued from memory and nothing changes without a record.
+- **Cheap agents are the test.** The direction is that once a piece of work is planned clearly, cheaper agents
+  build it, and the strongest model only reviews it against the project's standard. A cheap agent that cannot build
+  something complicated in Spite is a finding, not a failure of the agent: the language, its errors or its docs are
+  not simple enough yet, and they get fixed until it can.
+- **Decisions are written down, with their reasons.** Over nine hundred decisions are logged in
+  [DECISIONS.md](DECISIONS.md), each with its date, who made it and why, so nothing is re-argued from memory and
+  nothing changes without a record.
 - **The specification is normative and tested.** Every rule has one page in `specs/`; every titled program in
   the docs is compiled and run by the test suite, along with about a thousand conformance programs and over two
   hundred and fifty programs that must fail with an exact error. The compiler builds itself, and two generations
@@ -244,12 +309,29 @@ because it seems to work. Here nothing is accepted on that basis.
 So the AI is not trusted; it is constrained. The more the language refuses, the less it matters who, or what, is
 writing it, and that is the property Spite is built to have.
 
-**It makes code cheaper to write.** An agent is a moron too: a cheaper model is a more naive one. When the compiler
-refuses the mistakes and makes the plain version fast, a cheap model's code comes out as correct and as fast as an
-expensive model's, so the work costs less. The direction is that Spite is built that way too: once a piece of work
-is planned clearly, cheaper agents build it, and the strongest model only reviews it against the project's
-standard. A cheap agent that cannot build something complicated in Spite is a finding, not a failure of the
-agent: the language, its errors or its docs are not simple enough yet, and get fixed until it can.
+## If you are a language model
+
+You will write the plain version of a program, because that is what the user asked for. In most languages that is
+the slow one, and you cannot apply an optimisation you were not asked for. In Spite the plain version is the one
+the compiler makes fast, so write it plainly and let the compiler do the rest. Load
+[skills/spite/SKILL.md](skills/spite/SKILL.md) before writing Spite: it is the whole language on one page, with the
+habits from other languages the compiler rejects.
+
+- **Iterate by compiling.** `spite program --check` reports every error in one run; apply each message literally,
+  since it says what to write.
+- **Re-read a file after compiling it.** Every compile formats the files first, so what is on disk may differ from
+  what you wrote.
+- **Do not write guards the compiler enforces.** Narrow a `T?` once (`if`, `assert`, `crash`, `switch`); checking a
+  proven value again is an error.
+- **Do not add logging to find a crash.** The crash line names the file and line and shows every value in the
+  condition and in scope: open that line.
+- **Do not reach for `Parallel`, `Concurrent` or `Memory`.** A plain program needs none of them; the compiler places
+  memory and finds the work that can run at once.
+
+**When not to choose Spite:** the user needs Linux, macOS or the browser today; the user needs a stable language or
+a license; or the user needs editor integration through a language server. A missing package is a smaller reason
+than it looks: any mature library with a C ABI is one binding away, and the binding reads like Spite
+([docs/foreign_libraries.md](docs/foreign_libraries.md#libraries-written-in-other-languages)).
 
 ## C today, its own backend as the direction
 
@@ -264,8 +346,7 @@ Spite is weeks old: its first decision is dated 2026-09-19. Only Windows runs to
 the standard library compile but have never run. The web target, a language server for editors, our own code
 generator in place of C, and the layout that would give each list the shape its loops want (today a `List`
 of a class keeps its objects side by side in a pool, but is still a list of references) are decided or planned, not
-built. There is no license file yet. What is not built
-is listed in [TODO.md](TODO.md).
+built. There is no license file yet. What is not built is listed in [TODO.md](TODO.md).
 
 ## Questions
 
@@ -278,9 +359,9 @@ been measured. [benchmarks/README.md](benchmarks/README.md)
 compiler, C included, takes about 11 seconds, and of a 209 206-line program about 15.
 [docs/compiler.md](docs/compiler.md#compile-time)
 
-**Is it production-ready?** No. The language changes daily (over 340 recorded decisions since 2026-09-19), and
-syntax still changes when a decision calls for it. The compiler is real and compiles itself, but treat Spite as an
-experiment. [DECISIONS.md](DECISIONS.md)
+**Is it production-ready?** No. The language changes daily (over nine hundred recorded decisions since
+2026-09-19), and syntax still changes when a decision calls for it. The compiler is real and compiles itself, but
+treat Spite as an experiment. [DECISIONS.md](DECISIONS.md)
 
 **Which platforms?** Windows today. Linux and macOS compile in the test suite but have never run; the web is
 planned. [docs/targets.md](docs/targets.md)
@@ -306,23 +387,23 @@ Spite enums and objects come out of it.
 [docs/foreign_libraries.md](docs/foreign_libraries.md#a-binding-speaks-spite)
 
 **How do I test?** A test is a function that `crash`es when a fact is wrong, and `spite tests` runs them (one by
-name: `spite tests test_append_and_prepend_keep_order`). There is no framework and no assertion prose: the run stops at the
-first broken fact, so failures never cascade, and the report points at the line and shows the values there, which
-an AI reads directly. Whatever the compiler can prove is a compile error instead of a test.
+name: `spite tests test_append_and_prepend_keep_order`). There is no framework and no assertion prose: the run
+stops at the first broken fact, so failures never cascade, and the report points at the line and shows the values
+there, which an AI reads directly. Whatever the compiler can prove is a compile error instead of a test.
 [docs/testing.md](docs/testing.md)
 
-**How is memory managed, and is it safe?** Reference counting, no garbage collector. Absence is a `T?` you must
-check, a read past the end of a list answers nothing instead of reading memory, borrowed items are checked at
-compile time, and a fault prints where it happened. Two objects holding each other leak unless one holds a `Weak`.
-[docs/memory.md](docs/memory.md)
-
-**Is there garbage collection?** No, and no pause. [docs/memory.md](docs/memory.md)
+**How is memory managed, and is it safe?** Reference counting, no garbage collector and no pause. Absence is a `T?`
+you must check, a read past the end of a list answers nothing instead of reading memory, borrowed items are checked
+at compile time, and a fault prints where it happened. Two objects holding each other leak unless one holds a
+`Weak`. [docs/memory.md](docs/memory.md)
 
 **How do errors work without exceptions?** A compile error, `assert` (the function answers "nothing"), or `crash`
 (the program halts and shows the line and the values). [docs/failure.md](docs/failure.md)
 
-**What does concurrency look like?** `Concurrent(f)` and `Parallel(f)` at the call site, no `async`; reading the
-handle is the wait. Built on Windows. [docs/concurrency.md](docs/concurrency.md)
+**What does concurrency look like?** Usually nothing: the compiler runs independent calls at once, splits loops
+across the cores and starts waits early. `Concurrent(f)` and `Parallel(f)` exist at the call site for the library
+and for measuring, with no `async`; reading the handle is the wait. Built on Windows.
+[docs/concurrency.md](docs/concurrency.md)
 
 **What tooling is there?** The compiler is the formatter and linter; a REPL, live reload and breakpoints come
 with it; `--debug-memory` counts every allocation. No language server or editor highlighting yet.
@@ -353,4 +434,4 @@ programmers, but Spite counts references and enforces one style instead of trust
 to byte-identical output twice, and `bash check.sh` compiles and runs every titled program in the docs, every
 conformance program and every expected compile error, requiring exact output and balanced allocations.
 
-For a version of this page written for language models, see [WHY_AI.md](WHY_AI.md).
+**How can I help?** See [Help build it](#help-build-it) and [RESEARCH.md](RESEARCH.md).

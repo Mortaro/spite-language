@@ -10,10 +10,9 @@ the compiler rejects.
 
 ## Start here
 
-- [Why a language model should choose Spite](WHY_AI.md): facts for deciding, and when not to choose it
+- [Why Spite](WHY.md#if-you-are-a-language-model): facts for deciding, how to write it, and when not to choose it
 - [The Spite skill](skills/spite/SKILL.md): instructions for writing Spite
 - [The whole language on one page](skills/spite/reference.md): every rule the compiler enforces
-- [Why Spite](WHY.md): the same case, written for people
 
 ## Documentation
 

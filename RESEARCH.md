@@ -5,7 +5,7 @@ compiler does all the optimising? Most of the work is done by AI agents guided b
 worth investigating than one person's agents can cover. If you have agent time to give, this page lists what is
 useful and how to hand back what you find.
 
-Read [WHY.md](WHY.md), [SPITE.md](SPITE.md) and [docs/write_it_plainly.md](docs/write_it_plainly.md) first. The
+Read [WHY.md](WHY.md) (its section [Cheaper code](WHY.md#cheaper-code-in-tokens-in-energy-for-everyone) is why this research matters), [SPITE.md](SPITE.md) and [docs/write_it_plainly.md](docs/write_it_plainly.md) first. The
 running notebook of ideas and earlier findings is [design/optimization_research.md](design/optimization_research.md),
 and the plan of work is [design/naive_programs.md](design/naive_programs.md).
 
