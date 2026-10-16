@@ -723,3 +723,43 @@ func return_label(spite_type: Analysis.SpiteType?): String {
     }
     return naming.label(spite_type)
 }
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func value_waiters_of(function: Function): List<String> {
+    var found = List<String>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.kind == "call value" {
+                note_value_waiters(function, operation, found)
+            }
+            position = position + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func note_value_waiters(function: Function, operation: Operation, found: List<String>) {
+    var called = operation.operands.first()
+    crash called
+    var called_value = function.value_at(called)
+    var signature: Analysis.Types.ClassRefType? = null
+    if called_value.spite_type {
+        signature = types.as_class_ref(called_value.spite_type)
+    }
+    var index = 0
+    while index < value_targets.count() {
+        var target = value_targets[index]
+        if summaries.has(target.c_name) and fits_signature(signature, target) {
+            crash summaries[target.c_name]
+            if summaries[target.c_name].waits {
+                found.append(target.c_name)
+            }
+        }
+        index = index + 1
+    }
+}

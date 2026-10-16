@@ -105,7 +105,29 @@ func into_row(operation: Operation): Boolean {
     if not current or not object {
         return false
     }
-    return is_row_value(current, object)
+    if not is_row_value(current, object) {
+        return false
+    }
+    var uses = Facts.Uses(current)
+    return made_here(uses, object, 0)
+}
+
+func made_here(uses: Facts.Uses, value: Integer, depth: Integer): Boolean {
+    var defining = uses.definition_of(value)
+    if not defining or depth > 8 {
+        return false
+    }
+    if defining.kind == "make" {
+        return true
+    }
+    if is_projection(defining) or is_wrap(defining) {
+        var inner = defining.operands.first()
+        if not inner {
+            return false
+        }
+        return made_here(uses, inner, depth + 1)
+    }
+    return false
 }
 
 func is_row_value(function: Function, value: Integer): Boolean {
