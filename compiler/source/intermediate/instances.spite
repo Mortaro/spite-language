@@ -49,6 +49,14 @@ func reach_layout(information: Analysis.ClassInfo) {
     reach(information, information.drop_function)
 }
 
+func reach_held(held: Analysis.SpiteType) {
+    var made = front()
+    var held_name = made.type_label(held)
+    var information = made.find_class_by_c_name(held_name)
+    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    reach_layout(information)
+}
+
 func reach_type(spite_type: Analysis.SpiteType?) {
     assert spite_type
     var nullable = types.as_nullable(spite_type)

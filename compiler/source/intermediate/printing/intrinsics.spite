@@ -48,10 +48,7 @@ func singleton_instance(body: Body, tracked: Layout, filled: String, appending: 
         )
         return
     }
-    if tracked.arrangement == "static" {
-        body.emit("{appending}({filled}, {getter}());")
-        return
-    }
+    assert tracked.arrangement != "static"
     body.emit(
         "\{ {tracked.c_name}* spite_made = {getter}_peek(); if (spite_made != 0) {appending}({filled}, spite_made); }",
     )
@@ -210,15 +207,14 @@ func attribute_bind_item(body: Body, operation: Operation) {
         body.emit("({attribute})->spite_assign = {assign};")
     }
     if not operation.literal.is_empty() {
-        var element = shape.as_list(list_type)
-        crash element
-        var item_layout = naming.layout_of(element.element)
+        crash operation.spite_type
+        var item_layout = naming.layout_of(operation.spite_type)
         if not item_layout {
             body.refuse("it binds a store to items that are not objects")
             return
         }
         var identity = naming.class_id_of(item_layout)
-        var written = naming.c_type(element.element)
+        var written = naming.c_type(operation.spite_type)
         var store = item_thunk(body, layout, operation.literal, "void* object", "({written})object", identity)
         body.emit("({attribute})->spite_store = {store};")
     }
