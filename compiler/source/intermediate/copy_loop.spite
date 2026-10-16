@@ -1,0 +1,10 @@
+# ../../../docs/optimizations.md#a-deep-copy-is-written-per-class-with-a-table-only-where-a-graph-needs-one
+var header = -1
+var done = -1
+var index = -1
+
+func CopyLoop(starting_header: Integer, starting_done: Integer, starting_index: Integer) {
+    header = starting_header
+    done = starting_done
+    index = starting_index
+}

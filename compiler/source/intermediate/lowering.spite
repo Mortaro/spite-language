@@ -661,6 +661,10 @@ func write_accessed(instances: Instances, position: Integer) {
         write_copy(instances, position)
         return
     }
+    if kind == "deep_copy" {
+        write_deep_copy(instances, position)
+        return
+    }
     if kind == "item_assign" or kind == "item_store" {
         write_item_function(instances, position)
         return
@@ -786,6 +790,31 @@ func write_copy(instances: Instances, position: Integer) {
         index = index + 1
     }
     emitter.returns(made_object)
+    finish_body(function, emitter)
+}
+
+func write_deep_copy(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    crash name
+    crash described
+    var function = synthetic_function(name, "deep_copy", described)
+    var owner_type = instances.class_type(described)
+    function.answer = owner_type
+    function.receiver = function.new_value(owner_type, "receiver")
+    var described_function = synthetic_description("deep_copy", name, owner_type)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var copying = DeepCopying(expressions)
+    var copied = -1
+    if described.qualified_dotted == "List" {
+        copied = copying.list_body(described, function.receiver)
+    } else if described.qualified_dotted == "Dictionary" {
+        copied = copying.dictionary_body(described, function.receiver)
+    } else {
+        copied = copying.class_body(described, function.receiver, owner_type)
+    }
+    emitter.returns(copied)
     finish_body(function, emitter)
 }
 

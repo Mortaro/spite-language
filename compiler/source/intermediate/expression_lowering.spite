@@ -1936,6 +1936,10 @@ func deep_copied(object: Integer): Integer {
             return call_reached(owner, own_copy, operands)
         }
     }
+    var copying = DeepCopying(this)
+    if copying.plain(copied_type) {
+        return copying.copy_value(object, copied_type)
+    }
     var visited = List<String>()
     reach_own_copies(copied_type, visited)
     return emitter.emit_call_one("Object.deep_copy", object, copied_type)
