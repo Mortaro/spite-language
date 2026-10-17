@@ -55,6 +55,9 @@ func _ask(connection: Socket, host: String, request: HttpRequest): String? {
     if host.contains(":") {
         host_header = "[{host}]"
     }
+    if port != 80 {
+        host_header = "{host_header}:{port}"
+    }
     var head = "{request.method} {request.path} HTTP/1.1\r\nhost: {host_header}\r\n"
     var names = request.headers.keys()
     var index = 0
