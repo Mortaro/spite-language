@@ -207,7 +207,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - A Windows `__fastfail` ends the program without Spite's report
 - A `while true` that can never leave but calls something is refused only in `Parallel` work and locked singleton functions (D510)
 - `Process.run` reads pipes in text mode on Windows, so a byte 0x1A ends the output
-- `HttpClient.send` writes `host` without the port when the port is not 80
 - A list's templates read elements uncounted without checking the `drop()` functions that may free one
 - `read_value`, `write_value`, `release_value` and `swap_values` are accepted by name on any receiver
 - A copy made to narrow is caught only when the condition is the bare name
