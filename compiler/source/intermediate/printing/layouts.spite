@@ -136,6 +136,7 @@ func print_class(layout: Layout) {
         return
     }
     print_initialize(layout)
+    print_arguments_describer(layout)
     if layout.pooled {
         print_pool(layout)
     }
@@ -243,6 +244,14 @@ func print_uncounted(layout: Layout) {
     output.name_piece("{name}___retain")
     output.support("static inline void {name}___release({name}* self) \{ (void)self; }")
     output.name_piece("{name}___release")
+}
+
+func print_arguments_describer(layout: Layout) {
+    assert layout.c_name == "Spite_Function"
+    output.prototypes.append("static void spite_function_arguments_described(Spite_Function* self);")
+    output.support(
+        "static void spite_function_arguments_described(Spite_Function* self) \{\nif (SPITE_SINGLETON_FOUND(self->spite_add_arguments) == 0) return;\nSPITE_LOCK(self->spite_arguments_lock);\nvoid (*adding)(Spite_Function*) = self->spite_add_arguments;\nif (adding != 0) \{\nadding(self);\nSPITE_SINGLETON_PUBLISH(self->spite_add_arguments, (void (*)(Spite_Function*))0);\n}\nSPITE_UNLOCK(self->spite_arguments_lock);\n}",
+    )
 }
 
 func print_initialize(layout: Layout) {

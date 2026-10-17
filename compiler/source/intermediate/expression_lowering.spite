@@ -1672,7 +1672,7 @@ func function_value(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, 
     }
     known().reach_layout(function_class)
     var reflection = ReflectionLowering(this)
-    var bound = reflection.function_of(owner, function, object, function_class, argument_class)
+    var bound = reflection.function_of(owner, function, object, function_class, argument_class, true)
     var bound_value = emitter.built_function().value_at(bound)
     bound_value.spite_type = signature
     return bound

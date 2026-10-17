@@ -251,7 +251,7 @@ func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
         var shown = not described.is_container or not function.symbol_owner_c_name.is_empty()
         var plain = not function.is_constructor and not function.symbol_through_caller
         if shown and plain and function.specialisation_position < 0 {
-            var made_function = function_of(described, function, owner, function_class, argument_class)
+            var made_function = function_of(described, function, owner, function_class, argument_class, false)
             lowering().call_two_function(appender, listed, made_function)
         }
         index = index + 1
@@ -259,18 +259,14 @@ func functions_of(described: Analysis.ClassInfo, owner: Integer): Integer {
     return listed
 }
 
-func function_of(
+# ../../../docs/optimizations.md#a-function-value-describes-its-arguments-when-asked
+func describe_arguments(
     described: Analysis.ClassInfo,
     function: Analysis.FunctionInfo,
-    owner: Integer,
-    function_class: Analysis.ClassInfo,
+    made_function: Integer,
     argument_class: Analysis.ClassInfo,
-): Integer {
+) {
     var made = lowering().front()
-    var name_value = symbol(function.name)
-    var returned = returned_class(function)
-    var values = [name_value, returned]
-    var made_function = lowering().construct_values(function_class, values)
     var argument_element = lowering().known().class_type(argument_class)
     var argument_list_type = made.list_type_of(argument_element)
     var arguments = lowering().emitter.load_field(made_function, "_arguments", argument_list_type)
@@ -289,6 +285,34 @@ func function_of(
         }
         lowering().call_two_function(appender, arguments, argument)
         index = index + 1
+    }
+}
+
+func function_of(
+    described: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    owner: Integer,
+    function_class: Analysis.ClassInfo,
+    argument_class: Analysis.ClassInfo,
+    lazily: Boolean,
+): Integer {
+    var made = lowering().front()
+    var name_value = symbol(function.name)
+    var returned = returned_class(function)
+    var values = [name_value, returned]
+    var made_function = lowering().construct_values(function_class, values)
+    if not lazily {
+        describe_arguments(described, function, made_function, argument_class)
+    } else if not function.parameters.is_empty() {
+        var describer = lowering().known().accessed_maker(
+            "{function.c_name}___arguments",
+            described,
+            function.c_name,
+            "arguments",
+        )
+        var described_function = [made_function]
+        var adding = lowering().emitter.call_operation("Function.add_arguments", described_function, null)
+        adding.target = describer
     }
     if made.run_time_kinds_used and made.literal_body(function) {
         store_literal(made_function, function)

@@ -217,6 +217,6 @@ func fills_described(function: Function): Boolean {
 }
 
 func called_from_runtime(function: Function): Boolean {
-    var kinds = ["text_call", "item_assign", "item_store"]
+    var kinds = ["text_call", "item_assign", "item_store", "arguments"]
     return kinds.contains(function.made_for)
 }

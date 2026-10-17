@@ -1259,9 +1259,34 @@ func function_text_call(body: Body, operation: Operation) {
     body.emit("({bound})->spite_text_call = (void*){texter.c_name};")
 }
 
+func function_add_arguments(body: Body, operation: Operation) {
+    var bound = body.operand(operation, 0)
+    var describer = lowered.function_named(operation.target)
+    if not describer {
+        body.refuse(
+            "it gives a function value the argument describer x27{operation.target}x27, which the program does not hold",
+        )
+        return
+    }
+    body.emit("({bound})->spite_add_arguments = (void (*)(Spite_Function*)){describer.c_name};")
+}
+
+func function_describe_arguments(body: Body, operation: Operation) {
+    var described = body.operand(operation, 0)
+    body.emit("spite_function_arguments_described({described});")
+}
+
 func print_function_value(body: Body, operation: Operation, word: String) {
     if word == "text_call" {
         function_text_call(body, operation)
+        return
+    }
+    if word == "add_arguments" {
+        function_add_arguments(body, operation)
+        return
+    }
+    if word == "describe_arguments" {
+        function_describe_arguments(body, operation)
         return
     }
     if word != "bind" {

@@ -225,6 +225,10 @@ func lower_body(
     function: Function,
 ) {
     var emitter = start_body(function, information, declared, instances)
+    if information.c_name == "Spite_Function" and declared.name == "get_arguments" {
+        var described_arguments = [function.receiver]
+        emitter.call_operation("Function.describe_arguments", described_arguments, null)
+    }
     var index = 0
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
@@ -766,6 +770,10 @@ func write_accessed(instances: Instances, position: Integer) {
         write_started(instances, position)
         return
     }
+    if kind == "arguments" {
+        write_arguments(instances, position)
+        return
+    }
     if kind == "enum_from_text" {
         write_enum_reader(instances, position)
         return
@@ -886,6 +894,45 @@ func write_enum_reader(instances: Instances, position: Integer) {
     finish_body(function, emitter)
 }
 
+# ../../../docs/optimizations.md#a-function-value-describes-its-arguments-when-asked
+func write_arguments(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var called = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash called
+    var made = instances.front()
+    var found: Analysis.FunctionInfo? = null
+    var index = 0
+    while index < described.declared_functions.count() {
+        var candidate = described.declared_functions[index]
+        if candidate.c_name == called {
+            found = candidate
+        }
+        index = index + 1
+    }
+    crash found
+    var function_class = made.find_class_by_c_name("Spite_Function")
+    var argument_class = made.find_class_by_c_name("Spite_Argument")
+    crash function_class
+    crash argument_class
+    var function = synthetic_function(name, "arguments", described)
+    function.made_for = "arguments"
+    var function_type = instances.class_type(function_class)
+    var value = function.new_value(function_type, "parameter")
+    var parameter = Parameter("described", function_type, value)
+    function.parameters.append(parameter)
+    var nothing = instances.typed_nothing()
+    var described_function = synthetic_description("arguments", name, nothing)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    reflection.describe_arguments(described, found, value, argument_class)
+    emitter.returns(-1)
+    finish_body(function, emitter)
+}
+
 func write_copy(instances: Instances, position: Integer) {
     var name = instances.accessed_names[position]
     var described = instances.accessed_classes[position]
@@ -898,6 +945,10 @@ func write_copy(instances: Instances, position: Integer) {
     function.receiver = function.new_value(owner_type, "receiver")
     var described_function = synthetic_description("copy", name, owner_type)
     var emitter = start_body(function, described, described_function, instances)
+    if described.c_name == "Spite_Function" {
+        var described_arguments = [function.receiver]
+        emitter.call_operation("Function.describe_arguments", described_arguments, null)
+    }
     var made_object = emitter.make_object(described.c_name, owner_type)
     var index = 0
     while index < described.fields.count() {
