@@ -1,0 +1,351 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var shape = Analysis.AstShape()
+var paths = Model.Paths()
+var parts = Model.Parts()
+
+func type_of(
+    catalog: Model.Catalog,
+    expression: Syntax.Expressions.Expression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    if shape.is_true_literal(expression) or shape.is_false_literal(expression) {
+        return types.boolean_type()
+    }
+    var integer = shape.as_integer_literal(expression)
+    if integer {
+        if integer.value > 2147483647 or integer.value < -2147483648 {
+            return types.long_type()
+        }
+        return types.integer_type()
+    }
+    if shape.as_float_literal(expression) {
+        return types.float_type()
+    }
+    if shape.as_string_literal(expression) {
+        return types.string_type()
+    }
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        return type_of_name(catalog, identifier.name, scope, owner)
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        return type_of_binary(catalog, binary, scope, owner)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        return type_of_unary(catalog, unary, scope, owner)
+    }
+    var member = shape.as_member(expression)
+    if member {
+        return type_of_member(catalog, member, scope, owner)
+    }
+    var call = shape.as_call(expression)
+    if call {
+        return type_of_call(catalog, call, scope, owner)
+    }
+    var generic_call = shape.as_generic_call(expression)
+    if generic_call {
+        return type_of_generic_call(catalog, generic_call, owner)
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        return type_of_index(catalog, indexed, scope, owner)
+    }
+    var listed = shape.as_list_literal(expression)
+    if listed {
+        return type_of_list_literal(catalog, listed, scope, owner)
+    }
+    catalog.resolution.refuse(catalog, owner, 0, "the front end cannot type this expression yet")
+    return null
+}
+
+func type_of_name(
+    catalog: Model.Catalog,
+    name: String,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var local = scope.written_type(name)
+    if local {
+        return narrowed(catalog, local, name, scope)
+    }
+    var field = owner.find_field(name)
+    if field {
+        var field_type = field.type
+        return narrowed(catalog, field_type, name, scope)
+    }
+    return null
+}
+
+func narrowed(
+    catalog: Model.Catalog,
+    spite_type: Analysis.SpiteType,
+    path: String,
+    scope: Model.Scope,
+): Analysis.SpiteType {
+    var nullable = catalog.types.shape.as_nullable(spite_type)
+    if nullable and scope.is_path_narrowed(path) {
+        return nullable.inner
+    }
+    return spite_type
+}
+
+func type_of_binary(
+    catalog: Model.Catalog,
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    var operator = binary.operator
+    var compares = operator == 'equal' or operator == 'not_equal' or operator == 'less' or operator == 'less_equal'
+    if compares or operator == 'greater' or operator == 'greater_equal' {
+        return types.boolean_type()
+    }
+    if operator == 'logical_and' or operator == 'logical_or' {
+        return types.boolean_type()
+    }
+    if binary.is_text_join {
+        return types.string_type()
+    }
+    var left = parts.left_of(binary)
+    return type_of(catalog, left, scope, owner)
+}
+
+func type_of_unary(
+    catalog: Model.Catalog,
+    unary: Syntax.Expressions.UnaryExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    if unary.operator == 'logical_not' {
+        return catalog.types.boolean_type()
+    }
+    var operand = parts.operand_of(unary)
+    return type_of(catalog, operand, scope, owner)
+}
+
+func type_of_member(
+    catalog: Model.Catalog,
+    member: Syntax.Expressions.MemberExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var object = parts.object_of(member)
+    var object_type = type_of(catalog, object, scope, owner)
+    assert object_type
+    var held = catalog.types.without_nullable(object_type)
+    var held_class = catalog.class_of_type(held)
+    if not held_class {
+        catalog.resolution.refuse(catalog, owner, 0, "the front end cannot read '{member.name}' of this value yet")
+        return null
+    }
+    var field = held_class.find_field(member.name)
+    if field {
+        var field_type = field.type
+        var path = paths.text_of(member)
+        return narrowed(catalog, field_type, path, scope)
+    }
+    var getter = catalog.function_of(held_class, "get_{member.name}")
+    if getter {
+        return getter.return_type
+    }
+    var function = catalog.function_of(held_class, member.name)
+    if function {
+        return catalog.signature_of(function)
+    }
+    catalog.resolution.refuse(
+        catalog,
+        owner,
+        0,
+        "'{held_class.simple_name}' has no attribute or function '{member.name}'",
+    )
+    return null
+}
+
+func type_of_call(
+    catalog: Model.Catalog,
+    call: Syntax.Expressions.CallExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var callee = parts.callee_of(call)
+    var named = shape.as_identifier(callee)
+    if named {
+        return type_of_own_call(catalog, named.name, scope, owner)
+    }
+    var member = shape.as_member(callee)
+    if member {
+        return type_of_member_call(catalog, member, scope, owner)
+    }
+    catalog.resolution.refuse(catalog, owner, 0, "the front end cannot type this call yet")
+    return null
+}
+
+func type_of_own_call(
+    catalog: Model.Catalog,
+    name: String,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var local = scope.written_type(name)
+    if local {
+        return returned_by_value(catalog, local)
+    }
+    var own = catalog.function_of(owner, name)
+    if own {
+        return own.return_type
+    }
+    var made = catalog.class_named(name, owner.qualified_dotted)
+    if made {
+        return catalog.constructed_type(made)
+    }
+    var held = owner.find_field(name)
+    if held {
+        var held_type = held.type
+        return returned_by_value(catalog, held_type)
+    }
+    catalog.resolution.refuse(catalog, owner, 0, "'{name}()' is not a function this class can call")
+    return null
+}
+
+func type_of_member_call(
+    catalog: Model.Catalog,
+    member: Syntax.Expressions.MemberExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var object = parts.object_of(member)
+    var class_path = paths.text_of(object)
+    var path_class = static_class(catalog, object, scope, owner)
+    if path_class {
+        if path_class.is_singleton {
+            var singleton_function = catalog.function_of(path_class, member.name)
+            if singleton_function {
+                return singleton_function.return_type
+            }
+        }
+    }
+    var object_type = type_of(catalog, object, scope, owner)
+    if object_type {
+        var held = catalog.types.without_nullable(object_type)
+        var held_class = catalog.class_of_type(held)
+        if held_class {
+            var function = catalog.function_of(held_class, member.name)
+            if function {
+                return function.return_type
+            }
+        }
+        return null
+    }
+    var named_class = catalog.class_named("{class_path}.{member.name}", owner.qualified_dotted)
+    if named_class {
+        return catalog.constructed_type(named_class)
+    }
+    return null
+}
+
+func returned_by_value(catalog: Model.Catalog, value_type: Analysis.SpiteType): Analysis.SpiteType? {
+    var signature = catalog.types.shape.as_class_ref(value_type)
+    assert signature and signature.has_signature
+    return signature.returns
+}
+
+func static_class(
+    catalog: Model.Catalog,
+    expression: Syntax.Expressions.Expression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        var is_local = scope.written_type(identifier.name)
+        var is_field = owner.find_field(identifier.name)
+        assert not is_local and not is_field
+        return catalog.class_named(identifier.name, owner.qualified_dotted)
+    }
+    var generic_call = shape.as_generic_call(expression)
+    if generic_call {
+        var generic_target = parts.generic_callee_of(generic_call)
+        return static_class(catalog, generic_target, scope, owner)
+    }
+    var call = shape.as_call(expression)
+    if call {
+        var target = parts.callee_of(call)
+        var made = static_class(catalog, target, scope, owner)
+        if made {
+            if made.is_singleton {
+                return made
+            }
+        }
+    }
+    return null
+}
+
+func type_of_generic_call(
+    catalog: Model.Catalog,
+    call: Syntax.Expressions.GenericCallExpression,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var callee = parts.generic_callee_of(call)
+    var identifier = shape.as_identifier(callee)
+    if not identifier {
+        catalog.resolution.refuse(catalog, owner, call.line, "the front end cannot type this generic call yet")
+        return null
+    }
+    var path = [identifier.name]
+    var written = Syntax.Types.NamedType(path, call.type_arguments)
+    written.line = call.line
+    return catalog.resolution.resolve_named(catalog, written, owner)
+}
+
+func type_of_index(
+    catalog: Model.Catalog,
+    indexed: Syntax.Expressions.IndexExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    var object = parts.indexed_object_of(indexed)
+    var object_type = type_of(catalog, object, scope, owner)
+    assert object_type
+    var listed = types.shape.as_list(object_type)
+    if listed {
+        var element = listed.element
+        return types.nullable_of(element)
+    }
+    var dictionary = types.shape.as_dictionary(object_type)
+    if dictionary {
+        var value = dictionary.element
+        return types.nullable_of(value)
+    }
+    var held_class = catalog.class_of_type(object_type)
+    if held_class {
+        var reader = catalog.function_of(held_class, "get_at")
+        if reader {
+            return reader.return_type
+        }
+    }
+    catalog.resolution.refuse(catalog, owner, 0, "the front end cannot read an item of this value yet")
+    return null
+}
+
+func type_of_list_literal(
+    catalog: Model.Catalog,
+    listed: Syntax.Expressions.ListLiteralExpression,
+    scope: Model.Scope,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var first = listed.elements.first()
+    if not first {
+        catalog.resolution.refuse(catalog, owner, 0, "an empty list needs a declared type")
+        return null
+    }
+    var value = parts.element_value_of(first)
+    var element = type_of(catalog, value, scope, owner)
+    assert element
+    return catalog.types.list_of(element)
+}

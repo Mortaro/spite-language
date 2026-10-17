@@ -415,6 +415,26 @@ check lives in `checks/<spec page>.spite` as a class whose functions take what t
 model entry) and the `Checks.Report`; the lowering calls it at the place it builds the operation the error is
 about and returns when `report.failed` is true.
 
+**The program model (`model/`).** `Model.Catalog` is the program: built once from the discovery result, it holds every
+class, enum, union and `type` shape (`classes`, `enums`, `unions`, each an `Analysis` info object) and answers by name.
+Everything the lowering used to ask the generator is asked here, and nothing in `model/` writes C or reads C text.
+
+| Class (file) | What it answers |
+|---|---|
+| `Catalog` (`catalog.spite`) | `class_by_c_name`, `class_by_qualified`, `class_named(name, from_namespace)` (the namespace search of [classes_and_files](../../../specs/classes_and_files.md)), `union_by_c_name`, `union_named`, `union_qualified`, `enum_by_c_name`, `enum_named`, `enum_qualified`, `enum_with_value`, `class_of_type(type)`, `list_class(element)`, `dictionary_class(dictionary)`, `function_of(class, name)` (a declared function, else the template instance that name means), `getter_of`, `setter_of`, `signature_of(function)`, `constructed_type(class)`, `resolve_type(reference, owner)`, `allocate_class_id` |
+| `Types` (`types.spite`) | the type constructors (`integer_type()`, `list_of`, `nullable_of`, `dictionary_of`, `class_type`, `union_type`, `enum_type`, `signature_of`), `label` and `exact_label` (the names of container and generic classes), `same`, `is_reference`, `is_wider`, `without_nullable` |
+| `Scope` (`scope.spite`) | a function's names with their declared types, and which paths are narrowed to non-null: `declare`, `written_type`, `narrow_path`, `is_path_narrowed`, `forget_path`, `visible_names`, `inside_loop`; a block makes `Scope(parent)` |
+| `Paths` (`paths.spite`) | `text_of(expression)`, the text of a name path (`monster.target`, `list[index]`) that narrowing is keyed by; empty for anything that is not one |
+| `Typing` (`typing.spite`) | `type_of(catalog, expression, scope, owner)`: the type an expression has, from the syntax tree and the catalog alone, with narrowing applied; null when it has none (and a refusal was raised) |
+| `Declarations`, `Resolution`, `Bindings` | building the catalog: registration of classes, enums, unions and shapes; the resolution of type references, attributes and functions; the instance of a generic class for the values given (`instantiate`, named `Store__List_Integer`) |
+| `Templates` (`templates.spite`) | template functions: a function with a `Symbol` parameter is a template, recorded in the class's `templates` instead of its functions (`register_template`), and `function_instance(catalog, owner, name)` makes the instance a call by `name` means when the class declares none |
+| `Evaluation` (`evaluation.spite`) | values worked out while compiling: the types a `$name` stands for (`codegen_member_type`), the value of a `$name` for an instance, and reflection read at compile time |
+| `Parts` (`parts.spite`) | non-null reads of the parts of a syntax node, which the language's narrowing rules need as functions |
+
+The lowering holds one `Model.Catalog` (through `Instances`) and one `Model.Scope` per block; it asks `Typing` for the type of
+an expression it needs before it has lowered it, and types a value it has lowered from the value itself. A check
+needs only a node, a `Model.Scope`, the catalog and the `Checks.Report`.
+
 **What proves it:** every program in `diagnostics/` gives its exact `expected_errors.txt`, every conformance program,
 example and documentation program its exact output with balanced memory, the benchmarks allocate no more and run no
 slower than the generator's C, and the compiler builds itself to a fixpoint.

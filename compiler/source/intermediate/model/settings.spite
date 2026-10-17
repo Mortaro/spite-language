@@ -1,0 +1,39 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var keeps_internals = false
+
+func Settings(values: Dictionary<String, String>) {
+    var hot_reload = is_on(values, "hot_reload")
+    var development = is_on(values, "development") or hot_reload
+    var console_loop = is_on(values, "repl")
+    var remote_loop_port = port_of(values)
+    var read_evaluate_print_loop = console_loop or remote_loop_port > 0
+    keeps_internals = development or read_evaluate_print_loop
+}
+
+func is_on(values: Dictionary<String, String>, name: String): Boolean {
+    var text = values[name]
+    return text == "true"
+}
+
+func port_of(values: Dictionary<String, String>): Integer {
+    var text = values["repl_port"]
+    if not text or text == "0" {
+        return 0
+    }
+    if text.length() > 5 {
+        return -1
+    }
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code < 48 or code > 57 {
+            return -1
+        }
+        index = index + 1
+    }
+    var number = text.to_integer()
+    if not number or number < 1 or number > 65535 {
+        return -1
+    }
+    return number
+}

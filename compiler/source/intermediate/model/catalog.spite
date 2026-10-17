@@ -1,0 +1,299 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var discovery: Discovery.DiscoveryResult? = null
+var report: Checks.Report? = null
+var types = Model.Types()
+var declarations = Model.Declarations()
+var resolution = Model.Resolution()
+var templates = Model.Templates()
+var evaluation = Model.Evaluation()
+var typing = Model.Typing()
+var classes = List<Analysis.ClassInfo>()
+var enums = List<Analysis.EnumInfo>()
+var unions = List<Analysis.UnionInfo>()
+var entries = List<Discovery.DiscoveredClass>()
+var positions_by_c_name = Dictionary<String, Integer>()
+var positions_by_qualified = Dictionary<String, Integer>()
+var class_names_by_id = List<String>()
+var class_identities = List<String>()
+var settings = Dictionary<String, String>()
+var first_discovered = 0
+
+func Catalog(starting_discovery: Discovery.DiscoveryResult, starting_report: Checks.Report) {
+    discovery = starting_discovery
+    report = starting_report
+    settings = starting_discovery.build_values
+}
+
+func get_discovery(): Discovery.DiscoveryResult {
+    crash discovery
+    return discovery
+}
+
+func get_report(): Checks.Report {
+    crash report
+    return report
+}
+
+func build() {
+    crash discovery
+    var found = discovery
+    declarations.register(this, found.class_files)
+    declarations.resolve_union_members(this)
+    resolution.resolve_all(this, found.class_files)
+}
+
+func add_class(information: Analysis.ClassInfo) {
+    var position = classes.count()
+    classes.append(information)
+    if not positions_by_c_name.has(information.c_name) {
+        positions_by_c_name[information.c_name] = position
+    }
+    if not positions_by_qualified.has(information.qualified_dotted) {
+        positions_by_qualified[information.qualified_dotted] = position
+    }
+}
+
+func class_by_c_name(c_name: String): Analysis.ClassInfo? {
+    assert positions_by_c_name.has(c_name)
+    crash positions_by_c_name[c_name]
+    var position = positions_by_c_name[c_name]
+    return classes[position]
+}
+
+func class_by_qualified(qualified: String): Analysis.ClassInfo? {
+    assert positions_by_qualified.has(qualified)
+    crash positions_by_qualified[qualified]
+    var position = positions_by_qualified[qualified]
+    return classes[position]
+}
+
+func class_named(name: String, from_namespace: String): Analysis.ClassInfo? {
+    var segments = from_namespace.split(".")
+    if from_namespace.is_empty() {
+        segments.clear()
+    }
+    while not segments.is_empty() {
+        var inside = class_by_qualified("{segments.join(".")}.{name}")
+        if inside {
+            return inside
+        }
+        segments.remove_last()
+    }
+    return class_by_qualified(name)
+}
+
+func union_by_c_name(c_name: String): Analysis.UnionInfo? {
+    return unions.find_by_c_name(c_name)
+}
+
+func union_named(name: String, owner_qualified: String): Analysis.UnionInfo? {
+    var fallback: Analysis.UnionInfo? = null
+    var index = 0
+    while index < unions.count() {
+        var candidate = unions[index]
+        if candidate.simple_name == name {
+            if candidate.owner_qualified == owner_qualified {
+                return candidate
+            }
+            fallback = candidate
+        }
+        index = index + 1
+    }
+    return fallback
+}
+
+func union_qualified(owner_qualified: String, name: String): Analysis.UnionInfo? {
+    var index = 0
+    while index < unions.count() {
+        var candidate = unions[index]
+        if candidate.simple_name == name and candidate.owner_qualified == owner_qualified {
+            return candidate
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func enum_by_c_name(c_name: String): Analysis.EnumInfo? {
+    return enums.find_by_c_name(c_name)
+}
+
+func enum_named(name: String, owner_qualified: String): Analysis.EnumInfo? {
+    var fallback: Analysis.EnumInfo? = null
+    var index = 0
+    while index < enums.count() {
+        var candidate = enums[index]
+        if candidate.simple_name == name {
+            if candidate.owner_qualified == owner_qualified {
+                return candidate
+            }
+            fallback = candidate
+        }
+        index = index + 1
+    }
+    return fallback
+}
+
+func enum_qualified(owner_qualified: String, name: String): Analysis.EnumInfo? {
+    var index = 0
+    while index < enums.count() {
+        var candidate = enums[index]
+        if candidate.simple_name == name and candidate.owner_qualified == owner_qualified {
+            return candidate
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func enum_with_value(value: String): Analysis.EnumInfo? {
+    var found: Analysis.EnumInfo? = null
+    var matches = 0
+    var index = 0
+    while index < enums.count() {
+        if enums[index].has_value(value) {
+            found = enums[index]
+            matches = matches + 1
+        }
+        index = index + 1
+    }
+    if matches == 1 {
+        return found
+    }
+    return null
+}
+
+func declaring_owner(name: String, from_namespace: String): String {
+    var segments = from_namespace.split(".")
+    if from_namespace.is_empty() {
+        segments.clear()
+    }
+    while not segments.is_empty() {
+        var owner = segments.join(".")
+        var has_union = union_qualified(owner, name)
+        var has_enum = enum_qualified(owner, name)
+        if has_union or has_enum {
+            return owner
+        }
+        var shadowing = class_by_qualified("{owner}.{name}")
+        if shadowing {
+            return ""
+        }
+        segments.remove_last()
+    }
+    return ""
+}
+
+func allocate_class_id(name: String): Integer {
+    if class_names_by_id.is_empty() {
+        class_names_by_id.append("String")
+        class_identities.append("String")
+    }
+    class_names_by_id.append(name)
+    class_identities.append(name)
+    return class_names_by_id.count() - 1
+}
+
+func class_of_type(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = types.shape.as_class_ref(spite_type)
+    if class_ref {
+        return class_by_c_name(class_ref.c_name)
+    }
+    if types.shape.as_string(spite_type) {
+        return class_by_c_name("SpiteString")
+    }
+    var listed = types.shape.as_list(spite_type)
+    if listed {
+        var listed_element = listed.element
+        return list_class(listed_element)
+    }
+    var dictionary = types.shape.as_dictionary(spite_type)
+    if dictionary {
+        return dictionary_class(dictionary)
+    }
+    return null
+}
+
+func class_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
+    return types.class_type(information)
+}
+
+func list_class(element: Analysis.SpiteType): Analysis.ClassInfo? {
+    var name = "List_{types.label(element)}"
+    var existing = class_by_c_name(name)
+    if existing {
+        return existing
+    }
+    var template = class_by_qualified("List")
+    assert template
+    return resolution.instantiate_container(this, template, [element], name)
+}
+
+func dictionary_class(dictionary: Analysis.Types.DictionaryType): Analysis.ClassInfo? {
+    var element = dictionary.element
+    var key = dictionary.key
+    var suffix = types.key_suffix(dictionary)
+    var name = "Dictionary_{types.label(element)}{suffix}"
+    var existing = class_by_c_name(name)
+    if existing {
+        return existing
+    }
+    var template = class_by_qualified("Dictionary")
+    assert template
+    var arguments = [element, key]
+    if template.codegen_names.first() == "key_type" {
+        arguments = [key, element]
+    }
+    return resolution.instantiate_container(this, template, arguments, name)
+}
+
+func resolve_type(reference: Syntax.Types.Type, owner: Analysis.ClassInfo): Analysis.SpiteType? {
+    return resolution.resolve_type(this, reference, owner)
+}
+
+func function_of(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
+    var declared = information.find_function(name)
+    if declared {
+        return declared
+    }
+    return templates.function_instance(this, information, name)
+}
+
+func getter_of(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
+    var getter = function_of(information, "get_{name}")
+    if getter {
+        if getter.parameters.count() == 0 {
+            return getter
+        }
+    }
+    return null
+}
+
+func setter_of(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
+    var setter = information.find_function("set_{name}")
+    if information.find_field(name) {
+        setter = function_of(information, "set_{name}")
+    }
+    if setter {
+        if setter.parameters.count() == 1 {
+            return setter
+        }
+    }
+    return null
+}
+
+func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
+    return types.signature_of(function)
+}
+
+func constructed_type(information: Analysis.ClassInfo): Analysis.SpiteType? {
+    assert not information.is_generic_template
+    var scalar = types.scalar_named(information.qualified_dotted)
+    if scalar {
+        return scalar
+    }
+    if information.qualified_dotted == "String" {
+        return types.string_type()
+    }
+    return types.class_type(information)
+}

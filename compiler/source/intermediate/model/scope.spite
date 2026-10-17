@@ -1,0 +1,100 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var parent: Model.Scope? = null
+var names = List<String>()
+var kinds = List<Analysis.SpiteType>()
+var narrowed_paths = List<String>()
+var forgotten_paths = List<String>()
+var is_loop = false
+
+func Scope(starting_parent: Model.Scope?) {
+    parent = starting_parent
+}
+
+func declare(name: String, spite_type: Analysis.SpiteType) {
+    names.append(name)
+    kinds.append(spite_type)
+}
+
+func written_type(name: String): Analysis.SpiteType? {
+    var index = names.count() - 1
+    while index >= 0 {
+        if names[index] == name {
+            return kinds[index]
+        }
+        index = index - 1
+    }
+    if parent {
+        return parent.written_type(name)
+    }
+    return null
+}
+
+func visible_names(visible: List<String>) {
+    var index = 0
+    while index < names.count() {
+        if not visible.contains(names[index]) {
+            visible.append(names[index])
+        }
+        index = index + 1
+    }
+    assert parent
+    parent.visible_names(visible)
+}
+
+func narrow_path(path: String) {
+    var index = forgotten_paths.count() - 1
+    while index >= 0 {
+        if forgotten_paths[index] == path {
+            forgotten_paths.remove_at(index)
+        }
+        index = index - 1
+    }
+    if not narrowed_paths.contains(path) {
+        narrowed_paths.append(path)
+    }
+}
+
+func is_path_narrowed(path: String): Boolean {
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        var narrowed = narrowed_paths[index]
+        crash narrowed
+        if narrowed == path or narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") {
+            return true
+        }
+        index = index - 1
+    }
+    if forgotten_paths.contains(path) {
+        return false
+    }
+    if parent {
+        return parent.is_path_narrowed(path)
+    }
+    return false
+}
+
+func forget_path(path: String) {
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        var narrowed = narrowed_paths[index]
+        crash narrowed
+        if narrowed == path or narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") {
+            narrowed_paths.remove_at(index)
+        }
+        index = index - 1
+    }
+    assert parent
+    if parent.is_path_narrowed(path) and not forgotten_paths.contains(path) {
+        forgotten_paths.append(path)
+    }
+}
+
+func inside_loop(): Boolean {
+    if is_loop {
+        return true
+    }
+    if parent {
+        return parent.inside_loop()
+    }
+    return false
+}

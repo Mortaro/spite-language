@@ -1,0 +1,388 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var shape = Analysis.TypeShape()
+var parts = Model.Parts()
+
+func integer_type(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('integer_kind')
+}
+
+func long_type(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('long_kind')
+}
+
+func float_type(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('float_kind')
+}
+
+func double_type(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('double_kind')
+}
+
+func boolean_type(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('boolean_kind')
+}
+
+func address_type(): Analysis.SpiteType {
+    return Analysis.Types.ScalarType('address_kind')
+}
+
+func string_type(): Analysis.SpiteType {
+    return Analysis.Types.StringType()
+}
+
+func symbol_type(): Analysis.SpiteType {
+    return Analysis.Types.SymbolType()
+}
+
+func void_type(): Analysis.SpiteType {
+    return Analysis.Types.VoidType()
+}
+
+func class_type(information: Analysis.ClassInfo): Analysis.SpiteType {
+    return Analysis.Types.ClassRefType(information.c_name)
+}
+
+func union_type(information: Analysis.UnionInfo): Analysis.SpiteType {
+    return Analysis.Types.UnionType(information.c_name)
+}
+
+func enum_type(information: Analysis.EnumInfo): Analysis.SpiteType {
+    return Analysis.Types.EnumType(information.c_name, information.values)
+}
+
+func list_of(element: Analysis.SpiteType): Analysis.SpiteType {
+    return Analysis.Types.ListType(element)
+}
+
+func dictionary_of(element: Analysis.SpiteType, key: Analysis.SpiteType): Analysis.SpiteType {
+    return Analysis.Types.DictionaryType(element, key)
+}
+
+func nullable_of(inner: Analysis.SpiteType): Analysis.SpiteType {
+    var already = shape.as_nullable(inner)
+    if already {
+        return inner
+    }
+    return Analysis.Types.NullableType(inner)
+}
+
+func scalar_named(name: String): Analysis.SpiteType? {
+    switch name {
+        "Integer": return integer_type()
+        "Long": return long_type()
+        "Tiny": return Analysis.Types.ScalarType('tiny_kind')
+        "Short": return Analysis.Types.ScalarType('short_kind')
+        "Byte": return Analysis.Types.ScalarType('byte_kind')
+        "UnsignedShort": return Analysis.Types.ScalarType('unsigned_short_kind')
+        "UnsignedInteger": return Analysis.Types.ScalarType('unsigned_integer_kind')
+        "UnsignedLong": return Analysis.Types.ScalarType('unsigned_long_kind')
+        "Float": return float_type()
+        "Double": return double_type()
+        "Boolean": return boolean_type()
+        "Memory.Address": return address_type()
+        _: return null
+    }
+}
+
+func value_class_names(): List<String> {
+    return [
+        "Integer"
+        "Long"
+        "Float"
+        "Double"
+        "Boolean"
+        "Tiny"
+        "Short"
+        "Byte"
+        "UnsignedShort"
+        "UnsignedInteger"
+        "UnsignedLong"
+        "Memory.Address"
+    ]
+}
+
+func kind_label(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'integer_kind': return "Integer"
+        'long_kind': return "Long"
+        'tiny_kind': return "Tiny"
+        'short_kind': return "Short"
+        'byte_kind': return "Byte"
+        'unsigned_short_kind': return "UnsignedShort"
+        'unsigned_integer_kind': return "UnsignedInteger"
+        'unsigned_long_kind': return "UnsignedLong"
+        'address_kind': return "Memory_Address"
+        'float_kind': return "Float"
+        'double_kind': return "Double"
+        _: return "Boolean"
+    }
+}
+
+func label(spite_type: Analysis.SpiteType): String {
+    var scalar = shape.as_scalar(spite_type)
+    if scalar {
+        return kind_label(scalar.kind)
+    }
+    if shape.as_string(spite_type) {
+        return "String"
+    }
+    if shape.is_symbol(spite_type) {
+        return "Symbol"
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if class_ref {
+        return class_ref.c_name
+    }
+    var enumerated = shape.as_enum(spite_type)
+    if enumerated {
+        return enumerated.c_name
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        var listed_element = listed.element
+        return "List_{label(listed_element)}"
+    }
+    var dictionary = shape.as_dictionary(spite_type)
+    if dictionary {
+        var dictionary_element = dictionary.element
+        var suffix = key_suffix(dictionary)
+        return "Dictionary_{label(dictionary_element)}{suffix}"
+    }
+    var united = shape.as_union(spite_type)
+    if united {
+        return united.c_name
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return "Nullable_{label(inner)}"
+    }
+    return "Value"
+}
+
+func key_suffix(dictionary: Analysis.Types.DictionaryType): String {
+    var key = dictionary.key
+    if shape.as_string(key) {
+        return ""
+    }
+    var key_label = label(key)
+    return "_by_{key_label}"
+}
+
+func exact_label(spite_type: Analysis.SpiteType): String {
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return "Nullable_{exact_label(inner)}"
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        var listed_element = listed.element
+        return "List_{exact_label(listed_element)}"
+    }
+    var dictionary = shape.as_dictionary(spite_type)
+    if dictionary {
+        var dictionary_element = dictionary.element
+        var suffix = key_suffix(dictionary)
+        return "Dictionary_{exact_label(dictionary_element)}{suffix}"
+    }
+    var function_type = shape.as_class_ref(spite_type)
+    if function_type {
+        if function_type.has_signature {
+            return signature_label(function_type)
+        }
+    }
+    return label(spite_type)
+}
+
+func signature_label(function_type: Analysis.Types.ClassRefType): String {
+    var text = "Spite_Function_{function_type.arguments.count()}"
+    var index = 0
+    while index < function_type.arguments.count() {
+        var argument = function_type.arguments[index]
+        var argument_label = exact_label(argument)
+        text = "{text}_{argument_label}"
+        index = index + 1
+    }
+    if function_type.returns {
+        var returned_label = exact_label(function_type.returns)
+        text = "{text}_{returned_label}"
+    }
+    return text
+}
+
+func same(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType): Boolean {
+    var left_scalar = shape.as_scalar(left_type)
+    if left_scalar {
+        var right_scalar = shape.as_scalar(right_type)
+        if right_scalar {
+            return left_scalar.kind == right_scalar.kind
+        }
+        return false
+    }
+    if shape.as_string(left_type) {
+        return shape.as_string(right_type)
+    }
+    if shape.is_symbol(left_type) {
+        return shape.is_symbol(right_type)
+    }
+    var left_class = shape.as_class_ref(left_type)
+    if left_class {
+        var right_class = shape.as_class_ref(right_type)
+        if right_class {
+            return left_class.c_name == right_class.c_name and same_signature(left_class, right_class)
+        }
+        return false
+    }
+    var left_union = shape.as_union(left_type)
+    if left_union {
+        var right_union = shape.as_union(right_type)
+        if right_union {
+            return left_union.c_name == right_union.c_name
+        }
+        return false
+    }
+    var left_dictionary = shape.as_dictionary(left_type)
+    if left_dictionary {
+        var right_dictionary = shape.as_dictionary(right_type)
+        if right_dictionary {
+            var left_dictionary_element = left_dictionary.element
+            var right_dictionary_element = right_dictionary.element
+            var left_key = left_dictionary.key
+            var right_key = right_dictionary.key
+            var same_element = same(left_dictionary_element, right_dictionary_element)
+            return same_element and same(left_key, right_key)
+        }
+        return false
+    }
+    var left_list = shape.as_list(left_type)
+    if left_list {
+        var right_list = shape.as_list(right_type)
+        if right_list {
+            var left_list_element = left_list.element
+            var right_list_element = right_list.element
+            return same(left_list_element, right_list_element)
+        }
+        return false
+    }
+    var left_enum = shape.as_enum(left_type)
+    if left_enum {
+        var right_enum = shape.as_enum(right_type)
+        if right_enum {
+            return left_enum.c_name == right_enum.c_name
+        }
+        return false
+    }
+    var left_nullable = shape.as_nullable(left_type)
+    if left_nullable {
+        var right_nullable = shape.as_nullable(right_type)
+        if right_nullable {
+            var left_inner = left_nullable.inner
+            var right_inner = right_nullable.inner
+            return same(left_inner, right_inner)
+        }
+        return false
+    }
+    if shape.is_void(left_type) {
+        return shape.is_void(right_type)
+    }
+    if shape.is_arguments(left_type) {
+        return shape.is_arguments(right_type)
+    }
+    return false
+}
+
+func same_signature(left: Analysis.Types.ClassRefType, right: Analysis.Types.ClassRefType): Boolean {
+    if left.has_signature != right.has_signature {
+        return false
+    }
+    if not left.has_signature {
+        return true
+    }
+    if left.arguments.count() != right.arguments.count() {
+        return false
+    }
+    var index = 0
+    while index < left.arguments.count() {
+        var left_argument = parts.signature_type_at(left.arguments, index)
+        var right_argument = parts.signature_type_at(right.arguments, index)
+        if not same(left_argument, right_argument) {
+            return false
+        }
+        index = index + 1
+    }
+    if left.returns and right.returns {
+        return same(left.returns, right.returns)
+    }
+    return false
+}
+
+func is_reference(spite_type: Analysis.SpiteType): Boolean {
+    if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
+        return true
+    }
+    if shape.as_list(spite_type) or shape.as_dictionary(spite_type) {
+        return true
+    }
+    if shape.as_union(spite_type) or shape.as_class_ref(spite_type) {
+        return true
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return is_reference(inner)
+    }
+    return false
+}
+
+func is_float_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'float_kind' or kind == 'double_kind'
+}
+
+func bits_of(kind: Analysis.Types.NumericKind): Integer {
+    if kind == 'tiny_kind' or kind == 'byte_kind' {
+        return 8
+    }
+    if kind == 'short_kind' or kind == 'unsigned_short_kind' {
+        return 16
+    }
+    if kind == 'long_kind' or kind == 'unsigned_long_kind' or kind == 'double_kind' or kind == 'address_kind' {
+        return 64
+    }
+    return 32
+}
+
+func is_wider(right: Analysis.Types.NumericKind, left: Analysis.Types.NumericKind): Boolean {
+    if is_float_kind(right) and not is_float_kind(left) {
+        return true
+    }
+    var right_bits = bits_of(right)
+    var left_bits = bits_of(left)
+    return right_bits > left_bits
+}
+
+func without_nullable(spite_type: Analysis.SpiteType): Analysis.SpiteType {
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return nullable.inner
+    }
+    return spite_type
+}
+
+func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
+    var signature = Analysis.Types.ClassRefType("Spite_Function")
+    signature.has_signature = true
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter_type = function.parameters[index].type
+        signature.arguments.append(parameter_type)
+        index = index + 1
+    }
+    var returned = function.return_type
+    if shape.is_void(returned) {
+        signature.returns = Analysis.Types.ClassRefType("Nothing")
+    } else {
+        signature.returns = returned
+    }
+    return signature
+}

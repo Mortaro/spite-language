@@ -1,0 +1,241 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var shape = Analysis.AstShape()
+var parts = Model.Parts()
+
+func register(catalog: Model.Catalog, entries: List<Discovery.DiscoveredClass>) {
+    catalog.first_discovered = catalog.classes.count()
+    var settings = Model.Settings(catalog.settings)
+    var index = 0
+    while index < entries.count() {
+        var entry = entries[index]
+        register_class(catalog, entry, index, settings)
+        catalog.entries.append(entry)
+        register_enums(catalog, entry)
+        register_unions(catalog, entry)
+        register_shapes(catalog, entry)
+        index = index + 1
+    }
+}
+
+func register_class(
+    catalog: Model.Catalog,
+    entry: Discovery.DiscoveredClass,
+    index: Integer,
+    settings: Model.Settings,
+) {
+    var value_type = catalog.types.scalar_named(entry.qualified_dotted)
+    var is_text = entry.qualified_dotted == "String"
+    var information: Analysis.ClassInfo? = null
+    if value_type or is_text {
+        var value_c_name = entry.qualified_dotted.replace(".", "_")
+        var value_class = Analysis.ClassInfo(
+            "Spite{value_c_name}",
+            entry.qualified_dotted,
+            "",
+            entry.qualified_dotted,
+            0,
+        )
+        value_class.is_value_class = true
+        information = value_class
+    } else {
+        var class_id = catalog.allocate_class_id(entry.mangled_name)
+        information = Analysis.ClassInfo(
+            entry.mangled_name,
+            entry.simple_name,
+            entry.namespace_dotted,
+            entry.qualified_dotted,
+            class_id,
+        )
+    }
+    crash information
+    var file = entry.file
+    information.source_path = file.path
+    information.entry_index = index
+    information.codegen_names = codegen_names(file)
+    information.is_singleton = has_singleton_line(file)
+    information.holds_nothing = information.is_singleton and holds_nothing(file)
+    information.is_stateless_singleton = information.holds_nothing and not settings.keeps_internals
+    information.is_generic_template = not information.codegen_names.is_empty()
+    catalog.add_class(information)
+}
+
+func codegen_names(file: Syntax.SourceFile): List<String> {
+    var declared = List<String>()
+    var index = 0
+    while index < file.statements.count() {
+        var generic_line = shape.as_generic_declaration(file.statements[index])
+        if generic_line {
+            var name = generic_line.name
+            if name.starts_with("$") {
+                var name_length = name.length()
+                name = name.slice(1, name_length)
+            }
+            declared.append(name)
+        }
+        index = index + 1
+    }
+    return declared
+}
+
+func has_singleton_line(file: Syntax.SourceFile): Boolean {
+    var index = 0
+    while index < file.statements.count() {
+        if shape.as_singleton_declaration(file.statements[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func holds_nothing(file: Syntax.SourceFile): Boolean {
+    var index = 0
+    while index < file.statements.count() {
+        var statement = file.statements[index]
+        var declaration = shape.as_variable_declaration(statement)
+        if declaration {
+            if not declaration.hardcoded_value {
+                return false
+            }
+        }
+        var function_declaration = shape.as_function_declaration(statement)
+        if function_declaration {
+            if function_declaration.name == "drop" {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func register_enums(catalog: Model.Catalog, entry: Discovery.DiscoveredClass) {
+    var file = entry.file
+    var index = 0
+    while index < file.statements.count() {
+        var declaration = shape.as_enum_declaration(file.statements[index])
+        if declaration {
+            var enumeration = Analysis.EnumInfo(
+                "{entry.mangled_name}_{declaration.name}",
+                declaration.name,
+                entry.qualified_dotted,
+                declaration.values,
+            )
+            enumeration.numbers = written_numbers(declaration)
+            catalog.enums.append(enumeration)
+        }
+        index = index + 1
+    }
+}
+
+func written_numbers(declaration: Syntax.Statements.EnumDeclaration): List<Integer> {
+    var numbers = List<Integer>()
+    var written_any = false
+    var scan = 0
+    while scan < declaration.numbers.count() {
+        var text = declaration.numbers[scan]
+        if not text.is_empty() {
+            written_any = true
+        }
+        scan = scan + 1
+    }
+    if not written_any {
+        return numbers
+    }
+    var next: Long = 0
+    var index = 0
+    while index < declaration.values.count() {
+        var written = parts.number_text_of(declaration, index)
+        var number = next
+        if not written.is_empty() {
+            var read = written.to_long()
+            crash read
+            number = read
+        }
+        var whole = number.to_integer()
+        numbers.append(whole)
+        next = number + 1
+        index = index + 1
+    }
+    return numbers
+}
+
+func register_unions(catalog: Model.Catalog, entry: Discovery.DiscoveredClass) {
+    var file = entry.file
+    var index = 0
+    while index < file.statements.count() {
+        var declaration = shape.as_union_declaration(file.statements[index])
+        if declaration {
+            var information = Analysis.UnionInfo(
+                "{entry.mangled_name}_{declaration.name}",
+                declaration.name,
+                entry.qualified_dotted,
+                entry.qualified_dotted,
+                declaration.members,
+            )
+            replace_or_add(catalog, information)
+        }
+        index = index + 1
+    }
+}
+
+func register_shapes(catalog: Model.Catalog, entry: Discovery.DiscoveredClass) {
+    var file = entry.file
+    var index = 0
+    while index < file.statements.count() {
+        var declaration = shape.as_type_declaration(file.statements[index])
+        if declaration {
+            var no_members = List<Syntax.Types.Type>()
+            var information = Analysis.UnionInfo(
+                "{entry.mangled_name}_{declaration.name}",
+                declaration.name,
+                entry.qualified_dotted,
+                entry.qualified_dotted,
+                no_members,
+            )
+            information.is_shape = true
+            information.shape_fields = declaration.fields
+            information.is_tagged = not declaration.fields.any(is_attribute_field)
+            information.shape_path = file.path
+            replace_or_add(catalog, information)
+        }
+        index = index + 1
+    }
+}
+
+func is_attribute_field(field: Syntax.Statements.FieldDeclaration): Boolean {
+    return not field.is_function
+}
+
+func replace_or_add(catalog: Model.Catalog, information: Analysis.UnionInfo) {
+    var index = 0
+    while index < catalog.unions.count() {
+        if catalog.unions[index].c_name == information.c_name {
+            catalog.unions[index] = information
+            return
+        }
+        index = index + 1
+    }
+    catalog.unions.append(information)
+}
+
+func resolve_union_members(catalog: Model.Catalog) {
+    var index = 0
+    while index < catalog.unions.count() {
+        var information = catalog.unions[index]
+        var member_index = 0
+        while member_index < information.member_types.count() {
+            var reference = information.member_types[member_index]
+            var named = shape.as_named_type(reference)
+            if named {
+                var joined = named.path.join(".")
+                var member_class = catalog.class_named(joined, information.owner_namespace)
+                if member_class {
+                    information.members.append(member_class)
+                }
+            }
+            member_index = member_index + 1
+        }
+        index = index + 1
+    }
+}

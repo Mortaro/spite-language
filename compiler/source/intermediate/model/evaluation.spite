@@ -1,0 +1,78 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+func codegen_member_type(
+    catalog: Model.Catalog,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var written = named.path.first()
+    crash written
+    var name = written
+    if name.starts_with("$") {
+        var name_length = name.length()
+        name = name.slice(1, name_length)
+    }
+    var bound = catalog.resolution.codegen_position(owner, name)
+    if bound < 0 {
+        catalog.resolution.refuse(
+            catalog,
+            owner,
+            named.line,
+            "'${name}' is not a type declared on this class's constructor, so it has no codegen values to read",
+        )
+        return null
+    }
+    var bound_type: Analysis.SpiteType? = owner.codegen_types[bound]
+    var index = 1
+    while index < named.path.count() {
+        var segment = named.path[index]
+        crash bound_type
+        bound_type = member_of(catalog, bound_type, segment)
+        if not bound_type {
+            catalog.resolution.refuse(
+                catalog,
+                owner,
+                named.line,
+                "a type has no codegen value named '${segment}': List<$element_type>, Dictionary<$key_type, $value_type> and $value_type? name theirs, and a generic class names its own",
+            )
+            return null
+        }
+        index = index + 1
+    }
+    return bound_type
+}
+
+func member_of(catalog: Model.Catalog, owner: Analysis.SpiteType, name: String): Analysis.SpiteType? {
+    var types = catalog.types
+    var owner_list = types.shape.as_list(owner)
+    if owner_list and name == "element_type" {
+        return owner_list.element
+    }
+    var owner_dictionary = types.shape.as_dictionary(owner)
+    if owner_dictionary {
+        if name == "key_type" {
+            return owner_dictionary.key
+        }
+        if name == "value_type" {
+            return owner_dictionary.element
+        }
+    }
+    var owner_nullable = types.shape.as_nullable(owner)
+    if owner_nullable and name == "value_type" {
+        return owner_nullable.inner
+    }
+    var owner_class_ref = types.shape.as_class_ref(owner)
+    if owner_class_ref {
+        var owner_class = catalog.class_by_c_name(owner_class_ref.c_name)
+        if owner_class {
+            var bound = catalog.resolution.codegen_position(owner_class, name)
+            if bound >= 0 {
+                var code = owner_class.codegen_codes[bound]
+                crash code
+                if code.is_empty() {
+                    return owner_class.codegen_types[bound]
+                }
+            }
+        }
+    }
+    return null
+}

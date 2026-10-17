@@ -1,0 +1,75 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+func left_of(binary: Syntax.Expressions.BinaryExpression): Syntax.Expressions.Expression {
+    crash binary.left
+    return binary.left
+}
+
+func right_of(binary: Syntax.Expressions.BinaryExpression): Syntax.Expressions.Expression {
+    crash binary.right
+    return binary.right
+}
+
+func operand_of(unary: Syntax.Expressions.UnaryExpression): Syntax.Expressions.Expression {
+    crash unary.operand
+    return unary.operand
+}
+
+func object_of(member: Syntax.Expressions.MemberExpression): Syntax.Expressions.Expression {
+    crash member.object
+    return member.object
+}
+
+func callee_of(call: Syntax.Expressions.CallExpression): Syntax.Expressions.Expression {
+    crash call.callee
+    return call.callee
+}
+
+func generic_callee_of(call: Syntax.Expressions.GenericCallExpression): Syntax.Expressions.Expression {
+    crash call.callee
+    return call.callee
+}
+
+func indexed_object_of(indexed: Syntax.Expressions.IndexExpression): Syntax.Expressions.Expression {
+    crash indexed.object
+    return indexed.object
+}
+
+func indexed_key_of(indexed: Syntax.Expressions.IndexExpression): Syntax.Expressions.Expression {
+    crash indexed.index
+    return indexed.index
+}
+
+func value_of(declaration: Syntax.Statements.VariableDeclaration): Syntax.Expressions.Expression {
+    crash declaration.value
+    return declaration.value
+}
+
+func element_value_of(element: Syntax.Expressions.ListElement): Syntax.Expressions.Expression {
+    crash element.value
+    return element.value
+}
+
+func number_text_of(declaration: Syntax.Statements.EnumDeclaration, index: Integer): String {
+    crash declaration.numbers[index]
+    return declaration.numbers[index]
+}
+
+func argument_at(arguments: List<Syntax.Types.GenericArgument>, index: Integer): Syntax.Types.GenericArgument {
+    crash arguments[index]
+    return arguments[index]
+}
+
+func signature_type_at(arguments: List<Analysis.SpiteType>, index: Integer): Analysis.SpiteType {
+    crash arguments[index]
+    return arguments[index]
+}
+
+func type_of_parameter(parameter: Syntax.Statements.Parameter): Syntax.Types.Type {
+    crash parameter.type_reference
+    return parameter.type_reference
+}
+
+func type_of_argument(argument: Syntax.Types.TypeArgument): Syntax.Types.Type {
+    crash argument.value
+    return argument.value
+}

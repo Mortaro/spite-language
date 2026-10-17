@@ -1,0 +1,40 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var label = ""
+var types = List<Analysis.SpiteType>()
+var codes = List<String>()
+var texts = List<String>()
+
+func Bindings(starting_label: String) {
+    label = starting_label
+}
+
+func add_type(spite_type: Analysis.SpiteType, type_label: String) {
+    types.append(spite_type)
+    codes.append("")
+    texts.append("")
+    label = "{label}_{type_label}"
+}
+
+func add_value(spite_type: Analysis.SpiteType, code: String, text: String, word: String) {
+    types.append(spite_type)
+    codes.append(code)
+    texts.append(text)
+    label = "{label}_{word}"
+}
+
+func word_of(text: String): String {
+    var result = ""
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        var is_letter = code >= 65 and code <= 90 or code >= 97 and code <= 122
+        var is_digit = code >= 48 and code <= 57
+        if is_letter or is_digit {
+            result = result + text.character_at(index)
+        } else {
+            result = "{result}_"
+        }
+        index = index + 1
+    }
+    return result
+}

@@ -1,0 +1,611 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var shape = Analysis.AstShape()
+var parts = Model.Parts()
+
+func resolve_all(catalog: Model.Catalog, entries: List<Discovery.DiscoveredClass>) {
+    resolve_entries(catalog, entries, true)
+    resolve_entries(catalog, entries, false)
+}
+
+func resolve_entries(catalog: Model.Catalog, entries: List<Discovery.DiscoveredClass>, functions_pass: Boolean) {
+    var index = 0
+    while index < entries.count() {
+        var position = catalog.first_discovered + index
+        var information = catalog.classes[position]
+        crash information
+        if not information.is_generic_template {
+            var entry = entries[index]
+            resolve_body(catalog, entry, information, functions_pass)
+        }
+        index = index + 1
+    }
+}
+
+func resolve_body(
+    catalog: Model.Catalog,
+    entry: Discovery.DiscoveredClass,
+    information: Analysis.ClassInfo,
+    functions_pass: Boolean,
+) {
+    var file = entry.file
+    var index = 0
+    while index < file.statements.count() {
+        var statement = file.statements[index]
+        var variable_declaration = shape.as_variable_declaration(statement)
+        if variable_declaration and not functions_pass {
+            resolve_field(catalog, variable_declaration, information)
+        }
+        var function_declaration = shape.as_function_declaration(statement)
+        if function_declaration and functions_pass {
+            resolve_function(catalog, function_declaration, information)
+        }
+        index = index + 1
+    }
+}
+
+func note_source_path(information: Analysis.ClassInfo, path: String) {
+    assert not path.is_empty() and not information.source_paths.contains(path)
+    information.source_paths.append(path)
+}
+
+func resolve_field(
+    catalog: Model.Catalog,
+    declaration: Syntax.Statements.VariableDeclaration,
+    information: Analysis.ClassInfo,
+) {
+    if information.is_value_class and information.c_name != "SpiteString" {
+        resolve_memory_field(catalog, declaration, information)
+        return
+    }
+    var field_type: Analysis.SpiteType = catalog.types.void_type()
+    var initializer = parts.value_of(declaration)
+    if declaration.type_reference {
+        var resolved = resolve_type(catalog, declaration.type_reference, information)
+        if resolved {
+            field_type = resolved
+        }
+    } else {
+        var scope = Model.Scope(null)
+        var inferred = catalog.typing.type_of(catalog, initializer, scope, information)
+        if inferred {
+            field_type = inferred
+        }
+    }
+    var field = Analysis.FieldInfo(declaration.name, field_type, "")
+    field.line = declaration.line
+    field.default_value = declaration.value
+    information.fields.append(field)
+    note_source_path(information, declaration.source_path)
+}
+
+func resolve_memory_field(
+    catalog: Model.Catalog,
+    declaration: Syntax.Statements.VariableDeclaration,
+    information: Analysis.ClassInfo,
+) {
+    var memory_type = catalog.types.long_type()
+    var initializer = parts.value_of(declaration)
+    var allocation = shape.as_call(initializer)
+    var bytes = -1
+    if allocation {
+        var callee = parts.callee_of(allocation)
+        var sizing = shape.as_member(callee)
+        if sizing {
+            var sized = parts.object_of(sizing)
+            var namespace = shape.as_identifier(sized)
+            if namespace {
+                if namespace.name == "Memory" and sizing.name == "Bytes" and allocation.arguments.count() == 1 {
+                    var literal = shape.as_integer_literal(allocation.arguments[0])
+                    if literal {
+                        bytes = literal.value
+                    }
+                }
+            }
+        }
+    }
+    information.memory_bytes = bytes
+    information.memory_path = information.source_path
+    information.memory_line = declaration.line
+    var field = Analysis.FieldInfo(declaration.name, memory_type, "0")
+    field.line = declaration.line
+    information.fields.append(field)
+}
+
+func resolve_function(
+    catalog: Model.Catalog,
+    declaration: Syntax.Statements.FunctionDeclaration,
+    information: Analysis.ClassInfo,
+) {
+    assert not catalog.templates.register_template(catalog, declaration, information)
+    var parameters = List<Analysis.ParamInfo>()
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        crash parameter.type_reference
+        var parameter_type = catalog.types.void_type()
+        var resolved = resolve_type(catalog, parameter.type_reference, information)
+        if resolved {
+            parameter_type = received_type(parameter, resolved)
+        }
+        var described = Analysis.ParamInfo(parameter.name, parameter_type)
+        parameters.append(described)
+        index = index + 1
+    }
+    var return_type = catalog.types.void_type()
+    if declaration.return_type {
+        var resolved_return = resolve_type(catalog, declaration.return_type, information)
+        if resolved_return {
+            return_type = resolved_return
+        }
+    }
+    var is_constructor = declaration.name == information.simple_name
+    var c_name = "{information.c_name}_{declaration.name}"
+    var function = Analysis.FunctionInfo(
+        declaration.name,
+        c_name,
+        parameters,
+        return_type,
+        declaration.body,
+        is_constructor,
+    )
+    function.source_path = declaration.source_path
+    function.has_body = declaration.has_body
+    function.line = declaration.line
+    function.end_line = declaration.end_line
+    note_source_path(information, declaration.source_path)
+    if is_constructor {
+        information.constructor = function
+    } else if declaration.name == "drop" {
+        information.drop_function = function
+    }
+    information.declared_functions.append(function)
+}
+
+func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.SpiteType): Analysis.SpiteType {
+    if not parameter.is_variadic {
+        return resolved
+    }
+    var listed = Analysis.TypeShape().as_list(resolved)
+    if listed {
+        var element = listed.element
+        var spread = Analysis.Types.ListType(element)
+        spread.is_variadic = true
+        return spread
+    }
+    return resolved
+}
+
+func refuse(catalog: Model.Catalog, owner: Analysis.ClassInfo, line: Integer, text: String) {
+    var report = catalog.report
+    report.at(owner.source_path, line, owner.qualified_dotted, "")
+    report.refuse(text)
+}
+
+func codegen_position(information: Analysis.ClassInfo, name: String): Integer {
+    var index = 0
+    while index < information.codegen_names.count() {
+        if information.codegen_names[index] == name and index < information.codegen_types.count() {
+            return index
+        }
+        index = index + 1
+    }
+    return 0 - 1
+}
+
+func resolve_type(
+    catalog: Model.Catalog,
+    reference: Syntax.Types.Type,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var generic_type = shape.as_generic_type(reference)
+    if generic_type {
+        var name = generic_type.name
+        if name.starts_with("$") {
+            var name_length = name.length()
+            name = name.slice(1, name_length)
+        }
+        var bound = codegen_position(owner, name)
+        if bound >= 0 {
+            var code = owner.codegen_codes[bound]
+            crash code
+            if code.is_empty() {
+                return owner.codegen_types[bound]
+            }
+            refuse(catalog, owner, 0, "'${name}' is a value here, so it cannot be used as a type")
+            return null
+        }
+        refuse(catalog, owner, 0, "this class has no 'generic ${name}' line, so '${name}' cannot be used as a type")
+        return null
+    }
+    var named = shape.as_named_type(reference)
+    if named {
+        return resolve_named(catalog, named, owner)
+    }
+    refuse(catalog, owner, 0, "this kind of type reference is not supported yet")
+    return null
+}
+
+func resolve_argument(
+    catalog: Model.Catalog,
+    argument: Syntax.Types.GenericArgument,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var type_argument = shape.as_type_argument(argument)
+    if not type_argument {
+        refuse(catalog, owner, 0, "a type argument must be a type")
+        return null
+    }
+    crash type_argument.value
+    return resolve_type(catalog, type_argument.value, owner)
+}
+
+func resolve_named(
+    catalog: Model.Catalog,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    if named.path.count() > 1 and named.path[0].starts_with("$") {
+        return catalog.evaluation.codegen_member_type(catalog, named, owner)
+    }
+    var joined_path = named.path.join(".")
+    var scalar = types.scalar_named(joined_path)
+    if scalar {
+        return scalar
+    }
+    if named.path.count() == 1 {
+        var name = named.path[0]
+        switch name {
+            "String": return types.string_type()
+            "Symbol": return types.symbol_type()
+            "Arguments": return Analysis.Types.ArgumentsType()
+            "Nullable": {
+                var inner = single_argument(catalog, named, owner)
+                if inner {
+                    return types.nullable_of(inner)
+                }
+                return null
+            }
+            "List": {
+                var element = single_argument(catalog, named, owner)
+                if element {
+                    return types.list_of(element)
+                }
+                return null
+            }
+            "Dictionary": return dictionary_from(catalog, named, owner)
+            _: return resolve_single_name(catalog, name, named, owner)
+        }
+    }
+    return resolve_path(catalog, named, owner)
+}
+
+func single_argument(
+    catalog: Model.Catalog,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    if named.arguments.count() != 1 {
+        var type_name = named.path.last()
+        crash type_name
+        refuse(catalog, owner, named.line, "{type_name} takes exactly one type argument")
+        return null
+    }
+    return resolve_argument(catalog, named.arguments[0], owner)
+}
+
+func dictionary_from(
+    catalog: Model.Catalog,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    if named.arguments.count() != 2 {
+        refuse(
+            catalog,
+            owner,
+            named.line,
+            "a Dictionary names two types, its keys' and then its values', as in 'Dictionary<String, Integer>', and this one names {named.arguments.count()}",
+        )
+        return null
+    }
+    var key_argument = parts.argument_at(named.arguments, 0)
+    var value_argument = parts.argument_at(named.arguments, 1)
+    var key = resolve_argument(catalog, key_argument, owner)
+    var value = resolve_argument(catalog, value_argument, owner)
+    if key and value {
+        return catalog.types.dictionary_of(value, key)
+    }
+    return null
+}
+
+func resolve_single_name(
+    catalog: Model.Catalog,
+    name: String,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    var namespace = owner.qualified_dotted
+    var declaring = catalog.declaring_owner(name, namespace)
+    if not declaring.is_empty() {
+        var near_union = catalog.union_qualified(declaring, name)
+        if near_union {
+            return types.union_type(near_union)
+        }
+        var near_enum = catalog.enum_qualified(declaring, name)
+        crash near_enum
+        return types.enum_type(near_enum)
+    }
+    var found = catalog.class_named(name, namespace)
+    if found {
+        return type_of_class(catalog, found, named, owner)
+    }
+    var found_enum = catalog.enum_named(name, namespace)
+    if found_enum {
+        return types.enum_type(found_enum)
+    }
+    var found_union = catalog.union_named(name, namespace)
+    if found_union {
+        return types.union_type(found_union)
+    }
+    refuse(catalog, owner, named.line, "unknown type '{name}'")
+    return null
+}
+
+func type_of_class(
+    catalog: Model.Catalog,
+    found: Analysis.ClassInfo,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    var last = named.path.last()
+    crash last
+    if found.is_generic_template {
+        var instance = instantiate_generic(catalog, found, named.arguments, owner)
+        if instance {
+            return types.class_type(instance)
+        }
+        return null
+    }
+    var same_name_union = catalog.union_qualified(found.qualified_dotted, last)
+    if same_name_union {
+        return types.union_type(same_name_union)
+    }
+    var same_name_enum = catalog.enum_qualified(found.qualified_dotted, last)
+    if same_name_enum {
+        return types.enum_type(same_name_enum)
+    }
+    if found.c_name == "Spite_Function" and not named.arguments.is_empty() {
+        return function_type_from(catalog, named, owner)
+    }
+    return types.class_type(found)
+}
+
+func resolve_path(
+    catalog: Model.Catalog,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var types = catalog.types
+    var namespace = owner.qualified_dotted
+    var joined = named.path.join(".")
+    var owner_path = named.path.copy()
+    owner_path.remove_last()
+    var joined_owner_path = owner_path.join(".")
+    var last_segment = named.path.last()
+    crash last_segment
+    var owner_class = catalog.class_named(joined_owner_path, namespace)
+    if owner_class {
+        joined_owner_path = owner_class.qualified_dotted
+    }
+    var qualified_enum = catalog.enum_qualified(joined_owner_path, last_segment)
+    if qualified_enum {
+        return types.enum_type(qualified_enum)
+    }
+    var qualified_union = catalog.union_qualified(joined_owner_path, last_segment)
+    if qualified_union {
+        return types.union_type(qualified_union)
+    }
+    var qualified_class = catalog.class_named(joined, namespace)
+    if qualified_class {
+        return type_of_class(catalog, qualified_class, named, owner)
+    }
+    refuse(catalog, owner, named.line, "unknown type '{joined}'")
+    return null
+}
+
+func function_type_from(
+    catalog: Model.Catalog,
+    named: Syntax.Types.NamedType,
+    owner: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var signature = Analysis.Types.ClassRefType("Spite_Function")
+    signature.has_signature = true
+    var index = 0
+    while index < named.arguments.count() {
+        var resolved = resolve_argument(catalog, named.arguments[index], owner)
+        assert resolved
+        if index == named.arguments.count() - 1 {
+            signature.returns = resolved
+        } else {
+            signature.arguments.append(resolved)
+        }
+        index = index + 1
+    }
+    var typed: Analysis.SpiteType = signature
+    return typed
+}
+
+func instantiate_generic(
+    catalog: Model.Catalog,
+    template: Analysis.ClassInfo,
+    arguments: List<Syntax.Types.GenericArgument>,
+    owner: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    if arguments.count() != template.codegen_names.count() {
+        refuse(
+            catalog,
+            owner,
+            0,
+            "'{template.simple_name}' takes {template.codegen_names.count()} codegen value(s), in this order: ${template.codegen_names.join(", $")}, but {arguments.count()} were given",
+        )
+        return null
+    }
+    var bound = bind_arguments(catalog, template, arguments, owner)
+    assert bound
+    var existing = catalog.class_by_c_name(bound.label)
+    if existing {
+        return existing
+    }
+    return instantiate(catalog, template, bound.types, bound.codes, bound.texts, bound.label)
+}
+
+func bind_arguments(
+    catalog: Model.Catalog,
+    template: Analysis.ClassInfo,
+    arguments: List<Syntax.Types.GenericArgument>,
+    owner: Analysis.ClassInfo,
+): Model.Bindings? {
+    var types = catalog.types
+    var bound = Model.Bindings("{template.c_name}_")
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var type_argument = shape.as_type_argument(argument)
+        if type_argument {
+            var argument_type = resolve_argument(catalog, argument, owner)
+            assert argument_type
+            var exact = types.exact_label(argument_type)
+            bound.add_type(argument_type, exact)
+        }
+        var boolean_argument = shape.as_boolean_argument(argument)
+        if boolean_argument {
+            var code = "false"
+            if boolean_argument.value {
+                code = "true"
+            }
+            var boolean_kind = types.boolean_type()
+            bound.add_value(boolean_kind, code, "b:{code}", code)
+        }
+        var integer_argument = shape.as_integer_argument(argument)
+        if integer_argument {
+            var integer_code: String = integer_argument.value
+            var integer_kind = types.integer_type()
+            bound.add_value(integer_kind, integer_code, "i:{integer_code}", integer_code)
+        }
+        var float_argument = shape.as_float_argument(argument)
+        if float_argument {
+            var float_code: String = float_argument.value
+            var float_word = bound.word_of(float_code)
+            var float_kind = types.float_type()
+            bound.add_value(float_kind, float_code, "f:{float_code}", float_word)
+        }
+        var string_argument = shape.as_string_argument(argument)
+        if string_argument {
+            var string_word = bound.word_of(string_argument.value)
+            var string_kind = types.string_type()
+            bound.add_value(string_kind, string_argument.value, "s:{string_argument.value}", string_word)
+        }
+        var enum_argument = shape.as_enum_argument(argument)
+        if enum_argument {
+            var owner_enum = catalog.enum_with_value(enum_argument.value)
+            if not owner_enum {
+                refuse(catalog, owner, 0, "cannot tell which enum '{enum_argument.value}' belongs to here")
+                return null
+            }
+            var enumerated = types.enum_type(owner_enum)
+            bound.add_value(
+                enumerated,
+                "{owner_enum.c_name}_{enum_argument.value}",
+                "e:{enum_argument.value}",
+                enum_argument.value,
+            )
+        }
+        index = index + 1
+    }
+    return bound
+}
+
+func instantiate(
+    catalog: Model.Catalog,
+    template: Analysis.ClassInfo,
+    types: List<Analysis.SpiteType>,
+    codes: List<String>,
+    texts: List<String>,
+    label: String,
+): Analysis.ClassInfo {
+    var class_id = catalog.allocate_class_id(label)
+    var instance = Analysis.ClassInfo(
+        label,
+        template.simple_name,
+        template.namespace_dotted,
+        template.qualified_dotted,
+        class_id,
+    )
+    instance.source_path = template.source_path
+    instance.entry_index = template.entry_index
+    instance.codegen_names = template.codegen_names
+    instance.codegen_types = types
+    instance.codegen_codes = codes
+    instance.codegen_texts = texts
+    instance.codegen_constraints = template.codegen_constraints
+    instance.is_singleton = template.is_singleton
+    instance.is_stateless_singleton = template.is_stateless_singleton
+    instance.holds_nothing = template.holds_nothing
+    instance.is_container = template.qualified_dotted == "TypedMemory" or template.qualified_dotted == "InlineMemory"
+    instance.is_instantiated = true
+    catalog.add_class(instance)
+    var entry = catalog.entries[template.entry_index]
+    crash entry
+    resolve_body(catalog, entry, instance, true)
+    resolve_body(catalog, entry, instance, false)
+    return instance
+}
+
+func instantiate_container(
+    catalog: Model.Catalog,
+    template: Analysis.ClassInfo,
+    arguments: List<Analysis.SpiteType>,
+    label: String,
+): Analysis.ClassInfo {
+    var codes = List<String>()
+    var texts = List<String>()
+    var index = 0
+    while index < arguments.count() {
+        codes.append("")
+        texts.append("")
+        index = index + 1
+    }
+    var container = instantiate(catalog, template, arguments, codes, texts, label)
+    container.is_container = true
+    if template.qualified_dotted == "List" {
+        var element = arguments.first()
+        supply_list_functions(catalog, container, element)
+    }
+    return container
+}
+
+func supply_list_functions(catalog: Model.Catalog, list_class: Analysis.ClassInfo, element: Analysis.SpiteType?) {
+    crash element
+    var types = catalog.types
+    var comparable = joins_as_text(types, element)
+    var kept = List<Analysis.FunctionInfo>()
+    var index = 0
+    while index < list_class.declared_functions.count() {
+        var function = list_class.declared_functions[index]
+        var compares = function.name == "contains" or function.name == "index_of"
+        var unsupported = compares and not comparable or function.name == "join" and not comparable
+        if not unsupported {
+            kept.append(function)
+        }
+        index = index + 1
+    }
+    list_class.declared_functions = kept
+    list_class.forget_function_positions()
+}
+
+func joins_as_text(types: Model.Types, element: Analysis.SpiteType): Boolean {
+    var kinds = types.shape
+    return kinds.as_string(element) or kinds.is_symbol(element) or kinds.as_scalar(element) or kinds.as_enum(element)
+}

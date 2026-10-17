@@ -1,0 +1,16 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+func register_template(
+    catalog: Model.Catalog,
+    declaration: Syntax.Statements.FunctionDeclaration,
+    information: Analysis.ClassInfo,
+): Boolean {
+    var report = catalog.report
+    report.at(information.source_path, declaration.line, information.qualified_dotted, declaration.name)
+    return false
+}
+
+func function_instance(catalog: Model.Catalog, information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
+    var report = catalog.report
+    report.at(information.source_path, 0, information.qualified_dotted, name)
+    return null
+}
