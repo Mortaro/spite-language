@@ -387,6 +387,7 @@ func check_the_calls() {
 
 func check_the_returns() {
     check_alone("ret", "C3", encoder.return_to_caller)
+    check_alone("ud2", "0F 0B", encoder.illegal_instruction)
 }
 
 func check_the_pushes() {

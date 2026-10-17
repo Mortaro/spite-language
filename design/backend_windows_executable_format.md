@@ -22,22 +22,25 @@ executable must never be silent (D244).
 
 ## The entry code
 
-The code is the caller's, given as bytes. For a program whose only work is to finish, it is:
+The code is the caller's, given as bytes. `backend/hand_built_executable` writes it with
+[`X86.Encoder`](backend_x86_64_encoding.md#the-instructions), one instruction at a time, and for a program whose only
+work is to finish it is:
 
-| Bytes | Instruction |
-|---|---|
-| `B9 2A 00 00 00` | `mov ecx, 42`, the exit code the first argument takes |
-| `48 83 EC 08` | `sub rsp, 8`, so the stack is aligned for the call |
-| `48 8D 05 <4 bytes>` | `lea rax, [rip + <offset of the import>]`, the offset from [Addressing an import](#addressing-an-import) |
-| `FF 10` | `call qword ptr [rax]`, through the address the loader wrote there |
-| `0F 0B` | `ud2`, so a call that came back is an illegal instruction and not a silent fall-through |
+| Bytes | Instruction | Written by |
+|---|---|---|
+| `B9 2A 00 00 00` | `mov ecx, 42`, the exit code the first argument takes | `move` |
+| `48 83 EC 08` | `sub rsp, 8`, so the stack is aligned for the call | `subtract` |
+| `48 8D 05 <4 bytes>` | `lea rax, [rip + <offset of the import>]`, the offset from [Addressing an import](#addressing-an-import) | `take_address_of` |
+| `FF 10` | `call qword ptr [rax]`, through the address the loader wrote there | `call_through` |
+| `0F 0B` | `ud2`, so a call that came back is an illegal instruction and not a silent fall-through | `illegal_instruction` |
 
 The stack is aligned because the loader enters the executable the way it enters any function, with the return
 address on the stack, and a Windows x86-64 callee expects the stack aligned before the call.
 
 The offset is written against the instruction after the `lea`, so the code reads the import wherever the image was
 loaded and no relocation is needed. `code_address()` answers where the first code byte lands, so the caller takes
-the difference between the two answers itself.
+the difference between the two answers itself, against the length of the three instructions before the `call`, which is
+where the code generator's layout will answer it in every other program (D560).
 
 ## The DOS header
 

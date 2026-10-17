@@ -242,8 +242,12 @@ one, which is what made the assembler choose it.
 | `call_through` a register | `FF /2` | `call rax` | `FF D0` |
 | `call_through` a memory | `FF /2` | `call qword ptr [rax]` | `FF 10` |
 | `return_to_caller` | `C3` | `ret` | `C3` |
+| `illegal_instruction` | `0F 0B` | `ud2` | `0F 0B` |
 
-A call's displacement is always four bytes: the machine has no short form of it.
+A call's displacement is always four bytes: the machine has no short form of it. `illegal_instruction` is what a path
+that must not run ends with, so a function that falls off its end stops there instead of running whatever the layout
+put next: it is the only instruction here that raises a fault, and [M0's executable](../backend/hand_built_executable)
+ends with it after the call it cannot come back from.
 
 ### Pushing and popping
 

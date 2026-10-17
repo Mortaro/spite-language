@@ -627,6 +627,11 @@ func return_to_caller() {
     bytes.append(195)
 }
 
+func illegal_instruction() {
+    bytes.append(15)
+    bytes.append(11)
+}
+
 # ../../../../design/backend_x86_64_encoding.md#pushing-and-popping
 func push(source: Source) {
     switch source {
