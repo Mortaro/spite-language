@@ -8839,7 +8839,20 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     return null
 }
 
+func internal_class_message(written: String): String? {
+    assert not written.contains(".")
+    assert find_class_by_qualified("Spite.Internal.{written}")
+    if current_path.starts_with("library/") or current_path.starts_with("launcher/") {
+        return "{written} is a class of Spite.Internal, which only the files of library/spite/internal/ may write bare: write Spite.Internal.{written}"
+    }
+    return "{written} is internal to Spite and cannot be used outside the standard library: read bytes with Buffer or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler"
+}
+
 func unknown_type_message(written: String, current_namespace: String): String {
+    var internal_message = internal_class_message(written)
+    if internal_message {
+        return internal_message
+    }
     var held = versions_holding(written)
     if held {
         return "unknown type '{written}': {held}"
@@ -10580,6 +10593,11 @@ func generate_identifier(
         report(
             "Spite has no '{identifier.name}': maths is a function of the number itself, like 'value.square_root()', and a constant is the number class's, like 'Float.pi'",
         )
+    } else if internal_class_message(identifier.name) {
+        var internal_identifier = internal_class_message(identifier.name)
+        if internal_identifier {
+            report(internal_identifier)
+        }
     } else {
         report("unknown identifier '{identifier.name}'")
     }
@@ -16464,6 +16482,11 @@ func generate_own_function_call(
             if held {
                 report("this class has no function '{name}': {held}")
             }
+        } else if internal_class_message(name) {
+            var internal_call = internal_class_message(name)
+            if internal_call {
+                report(internal_call)
+            }
         } else if not reported_old_spelling(name) {
             report("this class has no function '{name}'")
         }
@@ -20490,7 +20513,7 @@ func holds_lock(owner: Analysis.ClassInfo, member: Syntax.Expressions.MemberExpr
     if not held_class {
         return false
     }
-    return held_class.qualified_dotted == "Lock"
+    return held_class.qualified_dotted == "Spite.Internal.Lock"
 }
 
 func collect_locked_work(
@@ -20605,7 +20628,7 @@ func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
 }
 
 func is_thread_safe_class(information: Analysis.ClassInfo): Boolean {
-    var shared = ["Lock", "ThreadLocal", "Atomic"]
+    var shared = ["Spite.Internal.Lock", "Spite.Internal.ThreadLocal", "Spite.Internal.Atomic"]
     return shared.contains(information.qualified_dotted)
 }
 
@@ -25086,6 +25109,12 @@ func generate_generic_constructor(
     crash generic_call.callee
     var callee_text = printer.source_expression(generic_call.callee)
     if reported_old_spelling(callee_text) {
+        poison_statement()
+        return void_result()
+    }
+    var internal_generic = internal_class_message(callee_text)
+    if internal_generic {
+        report(internal_generic)
         poison_statement()
         return void_result()
     }
@@ -30889,7 +30918,17 @@ func lend_window_holds(owner: Analysis.ClassInfo, keys_text: String): Boolean {
     if reached.has(owner.qualified_dotted) {
         return false
     }
-    var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
+    var blocking = [
+        "Parallel"
+        "Concurrent"
+        "ThreadPool"
+        "Scheduler"
+        "Spite.Internal.Lock"
+        "Program"
+        "Console"
+        "File"
+        "Socket"
+    ]
     var index = 0
     while index < blocking.count() {
         if reached.has(blocking[index]) {
@@ -35036,7 +35075,17 @@ func store_may_reach(watch: SlotWatch, effect: String): Boolean {
 
 func slot_watch_settles(watch: SlotWatch): Boolean {
     var reached_classes = call_effects.reached_classes(watch.keys)
-    var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
+    var blocking = [
+        "Parallel"
+        "Concurrent"
+        "ThreadPool"
+        "Scheduler"
+        "Spite.Internal.Lock"
+        "Program"
+        "Console"
+        "File"
+        "Socket"
+    ]
     var index = 0
     while index < blocking.count() {
         if reached_classes.has(blocking[index]) {
@@ -44445,7 +44494,17 @@ func coarse_holds(owner: String, called: List<String>, keys: List<String>): Bool
         return false
     }
     var reached = call_effects.reached_classes(keys)
-    var blocking = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "Program", "Console", "File", "Socket"]
+    var blocking = [
+        "Parallel"
+        "Concurrent"
+        "ThreadPool"
+        "Scheduler"
+        "Spite.Internal.Lock"
+        "Program"
+        "Console"
+        "File"
+        "Socket"
+    ]
     index = 0
     while index < blocking.count() {
         if reached.has(blocking[index]) {
@@ -59740,7 +59799,15 @@ func mirror_function_reference(
 }
 
 func mirror_threads_class(qualified: String): Boolean {
-    var threaded = ["Parallel", "Concurrent", "ThreadPool", "Scheduler", "Lock", "ThreadLocal", "Atomic"]
+    var threaded = [
+        "Parallel"
+        "Concurrent"
+        "ThreadPool"
+        "Scheduler"
+        "Spite.Internal.Lock"
+        "Spite.Internal.ThreadLocal"
+        "Spite.Internal.Atomic"
+    ]
     return threaded.contains(qualified)
 }
 

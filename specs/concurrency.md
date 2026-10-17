@@ -130,12 +130,12 @@ there is no second pool to create or pass around.
 **A value per thread, and a lock.** Three small
 classes, each system's folder supplying the calls, and each carried only by a program that makes one:
 
-- **`Lock()`** (`library/lock.spite`): `while_locked(work: Spite.Function<Nothing>)` runs the function holding the
+- **`Spite.Internal.Lock()`** (`library/spite/internal/lock.spite`, each system's variant in `library/<system>/spite/internal/`), internal to the library and refused in a program's source; a program uses a singleton a `Parallel` reaches instead: `while_locked(work: Spite.Function<Nothing>)` runs the function holding the
   lock, so the unlock cannot be forgotten; `lock()` and `unlock()` stay for a section that is not one function.
   `SRWLOCK` on Windows, `pthread_mutex_t` elsewhere; `drop()` frees it. Not reentrant.
-- **`ThreadSlot()`** (`library/thread_slot.spite`): one `Long` per thread, `0` until written (`TlsAlloc` or
+- **`Spite.Internal.ThreadSlot()`** (`library/spite/internal/thread_slot.spite`), internal like `Lock`: one `Long` per thread, `0` until written (`TlsAlloc` or
   `pthread_key_create`). `read()`, `write(value)`; `drop()` gives the key back.
-- **`ThreadLocal<T>()`** (`library/thread_local.spite`): a value of any type per thread. Its `ThreadSlot` holds
+- **`Spite.Internal.ThreadLocal<T>()`** (`library/spite/internal/thread_local.spite`), internal like `Lock`: a value of any type per thread. Its `ThreadSlot` holds
   each thread's position in an array of `T` the `ThreadLocal` owns, so values stay reference counted
   and are all released when the `ThreadLocal` is dropped, whichever threads set them and whether or not those
   threads still run. `get(): T?` is `null` on a thread that has not called `set(value)`. `get()` takes no lock: the
@@ -143,7 +143,9 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   copying it into one twice the size and publishing that with an atomic store, and the arrays it replaced are freed
   with the `ThreadLocal`, so a thread still reading one reads its own unchanged value there.
 
-- **`Atomic<T>`** (`library/atomic.spite`): a whole
+- **`Spite.Internal.Atomic<T>`** (`library/spite/internal/atomic.spite`), internal to the library and refused in a
+  program's source (a program shares a counter or flag through a singleton, which the compiler turns into the same
+  atomic instructions): a whole
   number or a `Boolean` that threads share, in an 8-byte cell of its own that the `Atomic` frees when it is dropped.
   `read()`, `write(value)`, `add(amount)`, `exchange(value)` and `compare_and_swap(expected, desired)` are
   the primitives `read_long_atomically`, `write_long_atomically`, `add_long_atomically`, `exchange_long` and
@@ -153,7 +155,7 @@ classes, each system's folder supplying the calls, and each carried only by a pr
   `compare_and_swap` compares the value as a `T`, retrying when another thread changed the cell's upper bits in
   between. The constructor holds a `crash` on `$value_type` and `add` one on `Boolean`, which fold, so a wrong `T`
   is a compile error where the program makes it (`diagnostics/atomic_misuse`). A `Parallel` may reach an `Atomic`
-  attribute, as it may a `Lock` (`conformance/stage6/atomic_values`). A program that makes none carries none of it.
+  attribute, as it may a `Lock` (`conformance/stage6/atomic_values`, a repository test program, which may name it). A program that makes none carries none of it.
 
 A value per pool worker (`worker_index()` into a list) needs no system call but covers only the pool's workers,
 not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread_locals`,

@@ -10,6 +10,6 @@ func join(handle: Concurrent<String>): String {
     return handle
 }
 
-func total(counting: Parallel<Integer>, _slot: ThreadSlot, _guard: Lock): Integer {
+func total(counting: Parallel<Integer>, _slot: Spite.Internal.ThreadSlot, _guard: Spite.Internal.Lock): Integer {
     return counting
 }

@@ -499,19 +499,34 @@ return from the loop once the work is done, or run the loop on the program's own
 | `size(): Integer` | how many worker threads it runs (starting them if it has not) |
 | `worker_index(): Integer` | which worker is running this code, from `0`, or `-1` on a thread that is not one of them, for scratch memory kept per worker |
 
-### A value per thread, and a lock
+### Work of its own, and a short section
 
-Work split across threads often wants something of its own on each thread (a command buffer per runner, a
-scratch list) and a short section only one thread may be in at a time. `ThreadLocal<T>()` holds one value per
-thread: `get(): T?` answers this thread's (`null` until this thread has called `set`), and `set(value)` changes
-only this thread's. `Lock()` is the lock: `while_locked(function)` runs a function value holding it, and `lock()` and
-`unlock()` are there for the rare case that does not fit one function.
+Work split across threads often wants something of its own on each thread (a command buffer per runner, a scratch
+list) and a short section only one thread may be in at a time. Both have plain forms. Something of its own on
+each thread is an object the work makes itself: a local list, or an object handed over to the `Parallel` that
+runs it, which no other thread can reach. A short section only one thread may be in is a function of a singleton:
+a singleton a `Parallel` reaches is made safe by the compiler, and each call of its functions is one indivisible
+step, so two threads never run `count_two` below at once.
 
+```gdscript title=per_thread_buffers/totals.spite
+singleton
+
+var commands = 0
+var seen = List<String>()
+
+func count_two(first: String, second: String) {
+    commands = commands + 2
+    seen.append(first)
+    seen.append(second)
+}
+
+func total(): Integer {
+    return commands
+}
+```
 ```gdscript title=per_thread_buffers/per_thread_buffers.spite entry
 var console = Console()
-var buffers = ThreadLocal<List<String>>()
-var totals_lock = Lock()
-var commands = 0
+var totals = Totals()
 
 func PerThreadBuffers() {
     var runs = List<Parallel<Integer>>()
@@ -528,29 +543,24 @@ func PerThreadBuffers() {
         recorded = recorded + count
         index = index + 1
     }
-    console.print(recorded, "commands recorded,", commands, "counted under the lock")
+    var counted = totals.total()
+    console.print(recorded, "commands recorded,", counted, "counted by the singleton")
 }
 
 func record_commands(): Integer {
-    var buffer = buffers.get()
-    if not buffer {
-        var fresh_buffer = List<String>()
-        buffers.set(fresh_buffer)
-    }
-    var own = buffers.get()
-    crash own
+    var own = List<String>()
     own.append("spawn")
     own.append("move")
-    totals_lock.while_locked(count_two)
-    return 2
-}
-
-func count_two() {
-    commands = commands + 2
+    var first = own.first()
+    var last = own.last()
+    crash first
+    crash last
+    totals.count_two(first, last)
+    return own.count()
 }
 ```
 ```output
-16 commands recorded, 16 counted under the lock
+16 commands recorded, 16 counted by the singleton
 ```
 
 A lock of your own is rarely needed for a singleton: one of the program's own that a `Parallel` reaches is made
@@ -676,51 +686,59 @@ work split between the threads with no lock at all. So:
   one that never changes takes nothing, and one no `Parallel` reaches takes nothing
   ([the forms](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)).
 
-A `ThreadLocal` keeps every thread's value until it is dropped itself, so a thread that ends does not take its
-value with it. `get()` takes no lock and costs the same with one thread or thirty; `set` takes the lock briefly.
-Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t` and
-`pthread_mutex_t` elsewhere), reached through each system's folder, and a program that makes neither carries
-neither.
+The classes behind these, `Lock`, `ThreadLocal` and `ThreadSlot`, are internal to the standard library: a program
+cannot name them ([the rule](../specs/packages.md#packages-namespaces-and-loading)). They are the operating
+system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t` and `pthread_mutex_t` elsewhere), and a program
+that reaches none carries none.
 
-### A number every thread shares: `Atomic<T>`
+### A number every thread shares
 
-A counter or a flag that several threads change without a lock is an `Atomic<T>`, for a whole number or a
-`Boolean`: `read()`, `write(value)`, `add(amount)`
-(answering the value after the add), `exchange(value)` (answering the one before) and
-`compare_and_swap(expected, desired)` (answering whether it held `expected` and now holds `desired`). Each is one
-atomic instruction, sequentially consistent, with no lock and no call, and a `Parallel` may reach one like a
-`Lock`:
+A counter or a flag that several threads change is a singleton with a whole number or a `Boolean` that each
+function touches once. You write nothing more: the compiler turns every read and write of it into one atomic
+instruction, sequentially consistent, with no lock and no call, and a `Parallel` may reach it like any singleton
+([the forms](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)).
 
-```gdscript title=atomic_counter/atomic_counter.spite entry
+```gdscript title=shared_counter/jobs_done.spite
+singleton
+
+var count = 0
+
+func add(amount: Integer) {
+    count = count + amount
+}
+
+func total(): Integer {
+    return count
+}
+```
+```gdscript title=shared_counter/shared_counter.spite entry
 var console = Console()
-var jobs_done = Atomic<Integer>(0)
+var jobs = JobsDone()
 
-func AtomicCounter() {
+func SharedCounter() {
     var first = Parallel(finish_jobs)
     var second = Parallel(finish_jobs)
     var finished = first + second
-    var counted = jobs_done.read()
-    var claimed = jobs_done.compare_and_swap(200, 0)
-    var now_held = jobs_done.read()
-    console.print(finished, "finished,", counted, "counted, reset:", claimed, now_held)
+    var counted = jobs.total()
+    console.print(finished, "finished,", counted, "counted")
 }
 
 func finish_jobs(): Integer {
     var index = 0
     while index < 100 {
-        jobs_done.add(1)
+        jobs.add(1)
         index = index + 1
     }
     return index
 }
 ```
 ```output
-200 finished, 200 counted, reset: true 0
+200 finished, 200 counted
 ```
 
-`add` halts when its answer does not fit the type, as `+` does, in every build. An `Atomic` of anything else (a
-`Float`, a `String`, an object) and `add` on an `Atomic<Boolean>` are compile errors where the program calls them
-([failure.md](failure.md#crash)): share an object through a `Lock`, or give each thread its own.
+The class behind it, `Atomic<T>`, is internal to the standard library like `Lock` and `ThreadLocal`: naming it, or
+`Spite.Internal`, in a program is a compile error
+([the rule](../specs/packages.md#packages-namespaces-and-loading)).
 
 A program that makes a `Parallel` (or a `Concurrent`, or a `ForeignCallback` C may call from a thread of its own
 ([foreign_libraries.md](foreign_libraries.md#calling-back-into-spite)), or is built with `--repl-port` or
@@ -729,7 +747,7 @@ the plain, cheaper counts, and so does every class whose objects no other thread
 ([optimizations.md](optimizations.md#plain-reference-counts-where-no-thread-reaches-a-class)). `Parallel(work)` is checked while compiling: the function it
 runs, and every function of the same class that function calls by name, may read and write only the attributes of
 its own instance that hold values (numbers, `Boolean`, enums, text), its locals and parameters, singletons (which
-the compiler makes safe) and a `Lock`, `ThreadLocal` or `Atomic`, which are made to be shared. An attribute holding a
+the compiler makes safe) which are made to be shared. An attribute holding a
 list, a dictionary or another object is an error naming it, since another thread may hold the same object:
 `'Parallel(tally.count_up)' runs 'record' on another thread, so it may reach only the attributes of its own
 'Tally' that hold values, its locals and singletons: 'marks' holds a List<Integer>, which another thread may
@@ -960,7 +978,6 @@ carries none of it; the compiler's side of each is on
 | makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts for the classes another thread can count; one count the scheduler adds to at each read of `finished` that answers `false` and clears at each step |
 | makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts for the classes another thread can count; for each program singleton a `Parallel` can reach and that changes, atomics or a lock per call (about 2 ns when one thread takes it, far more when several contend: [what it costs](#what-a-singletons-lock-costs)), or one per counted loop of calls |
 | calls `Scheduler().resume_only_when_asked()` or `run_ready()` | one `Boolean` the scheduler reads at each wait, and each function it calls; neither is there otherwise |
-| makes a `ThreadLocal` or a `Lock` | one system per-thread slot or lock each, freed with it |
 | is built with `--repl-port` or `--hot-reload` | the scheduler, and one check-point call at the end of every pass of every loop of its own code; nothing of either in any other build |
 
 What is never there: a stack per `Concurrent`, a stack switch, a runtime that a WebAssembly build could not carry.

@@ -1,0 +1,1 @@
+diagnostics/user_internal_use/user_internal_use.spite:4: error: Spite.Internal.Memory is internal to Spite and cannot be used outside the standard library: read bytes with Buffer or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler

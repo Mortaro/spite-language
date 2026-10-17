@@ -3,7 +3,7 @@ var console = Console()
 var headers = Headers()
 var fingerprints = Fingerprints()
 var runs = List<Parallel<Integer>>()
-var slots = List<ThreadLocal<Integer>>()
+var slots = List<Spite.Internal.ThreadLocal<Integer>>()
 var header_books = List<Headers>()
 var fingerprint_books = List<Fingerprints>()
 
@@ -22,7 +22,7 @@ func KeptTemplates() {
     }
     var all_finished = runs.all_finished()
     console.print("parallel total:", total, "all finished:", all_finished)
-    var slot = ThreadLocal<Integer>()
+    var slot = Spite.Internal.ThreadLocal<Integer>()
     slot.set(3)
     slots.append(slot)
     var slot_count = slots.count()

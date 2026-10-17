@@ -1,0 +1,6 @@
+var console = Console()
+
+func UserAtomicBare() {
+    var count = Atomic<Integer>(0)
+    console.print(count.read())
+}

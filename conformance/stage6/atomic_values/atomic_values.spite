@@ -1,5 +1,5 @@
 var console = Console()
-var hits = Atomic<Integer>(0)
+var hits = Spite.Internal.Atomic<Integer>(0)
 
 func AtomicValues() {
     var first = Parallel(record_many)
@@ -13,12 +13,12 @@ func AtomicValues() {
     var previous = hits.exchange(7)
     var now_held = hits.read()
     console.print(swapped, missed, previous, now_held)
-    var ready = Atomic<Boolean>(false)
+    var ready = Spite.Internal.Atomic<Boolean>(false)
     ready.write(true)
     var was_ready = ready.exchange(false)
     var still_ready = ready.read()
     console.print(was_ready, still_ready)
-    var small = Atomic<Byte>(250)
+    var small = Spite.Internal.Atomic<Byte>(250)
     var wrapped = small.add(5)
     var matched = small.compare_and_swap(255, 9)
     var small_now = small.read()

@@ -48,7 +48,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 ## Memory and the internal namespace
 
 - `.memory` read-only: assigning `.memory.allocator` is an error, and the allocator-setting rules, their diagnostics (`allocator_after_use`), the docs programs and the benchmark case `an_allocator_set_after_construction_is_where_the_object_is_made` go (D611)
-- The memory floor, `Concurrent`, `Parallel`, `ThreadPool`, `Lock`, `Atomic` and `ThreadLocal` move into `Spite.Internal` (D566)
+- The memory floor, `Concurrent`, `Parallel` and `ThreadPool` move into `Spite.Internal`, in the order `ThreadPool` and `Parallel`, then `Concurrent` and `Scheduler`, the memory floor last; `Atomic`, `Lock`, `ThreadLocal` and `ThreadSlot` have moved (D566, D600)
 - The library above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off `Memory` onto `Buffer` and plain values (D566, D590)
 - Using `Memory` directly outside the library is a compile error, once plain foreign structs and a lock between processes exist (D565)
 - `Memory.Heap` asks the operating system for pages itself (D147, D178)

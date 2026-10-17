@@ -1,5 +1,5 @@
 var program = Program()
-var guard = Lock()
+var guard = Spite.Internal.Lock()
 var opened = false
 
 func open() {

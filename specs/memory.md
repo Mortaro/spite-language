@@ -174,8 +174,8 @@ made the value ([below](#allocators-memoryallocator)).
   `read_unsigned_integer`, `read_long`, `read_float` and `read_double`, each `(offset)`, the matching
   `write_*(offset, value)`, and `exchange_long`, `read_long_atomically`, `write_long_atomically`,
   `add_long_atomically` (answering the sum) and `compare_and_swap_long(offset, expected, desired)` (answering
-  whether it swapped) for memory threads share; a program uses them through `Atomic<T>`
-  ([concurrency.md](../docs/concurrency.md#a-number-every-thread-shares-atomict)). Each is a primitive of the language, like `+`: the compiler writes it where it is called as one
+  whether it swapped) for memory threads share; the library uses them through `Spite.Internal.Atomic<T>`, which a program cannot name; a program shares a number
+  through a singleton ([concurrency.md](../docs/concurrency.md#a-number-every-thread-shares)). Each is a primitive of the language, like `+`: the compiler writes it where it is called as one
   load, store or atomic instruction, with no call and no check, so reading a field costs what it costs in C
   ([optimizations.md](../docs/optimizations.md#reading-an-address-is-one-machine-operation)). **Only `library/` may call
   them**: a function of a class the standard library declares, including one a program reopens (so

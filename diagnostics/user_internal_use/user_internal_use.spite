@@ -1,6 +1,6 @@
 var console = Console()
 
-func InternalUse() {
+func UserInternalUse() {
     var floor = Spite.Internal.Memory()
     console.print("{Spite.Internal.Lock()}")
 }

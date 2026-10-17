@@ -4,6 +4,7 @@ var has_error = false
 var error_message = ""
 var walking_library = false
 var internal_allowed = false
+var program = Program()
 var language_folder = "."
 var build = Build()
 var host_operating_system = build.target_operating_system
@@ -277,6 +278,67 @@ func part_of_the_compiler(path: String): Boolean {
     return path == "compiler/compiler.spite" or path.ends_with("/compiler/compiler.spite") or path.ends_with("\\compiler\\compiler.spite")
 }
 
+func program_segments(entry_path: String): List<String> {
+    var written = entry_path.replace("\\", "/")
+    var length = written.length()
+    var absolute = written.starts_with("/") or length > 1 and written.slice(1, 2) == ":"
+    if not absolute {
+        var folder_here = program.working_directory()
+        var here = folder_here.replace("\\", "/")
+        written = "{here}/{written}"
+    }
+    var folders = List<String>()
+    var segments = written.split("/")
+    var index = 0
+    while index < segments.count() {
+        var segment = segments[index]
+        var skipped = segment == "." or segment.is_empty() and index > 0
+        if segment == ".." {
+            if folders.count() > 1 {
+                folders.remove_last()
+            }
+        } else if not skipped {
+            folders.append(segment)
+        }
+        index = index + 1
+    }
+    return folders
+}
+
+func in_repository_tests(entry_path: String): Boolean {
+    var all = program_segments(entry_path)
+    all.remove_last()
+    var folders = all.copy()
+    while folders.count() > 1 {
+        var root = folders.join("/")
+        if File("{root}/launcher/launcher.spite").exists() {
+            var root_depth = folders.count()
+            return names_test_folder(all, root_depth)
+        }
+        folders.remove_last()
+    }
+    return false
+}
+
+func names_test_folder(all: List<String>, root_depth: Integer): Boolean {
+    if all.count() <= root_depth {
+        return false
+    }
+    var below = all[root_depth]
+    if below == "conformance" or below == "benchmarks" {
+        return true
+    }
+    if below != "diagnostics" {
+        return false
+    }
+    var case_depth = root_depth + 1
+    if case_depth < all.count() {
+        var case_name = all[case_depth]
+        return not case_name.starts_with("user_")
+    }
+    return true
+}
+
 func internal_name_error(path: String, line: Integer, name: String): String {
     var place = path
     if line > 0 {
@@ -362,7 +424,7 @@ func discover_program(entry_path: String, entry_source: String) {
     }
     check_comments(entry_path, lexer.tokens)
     assert not has_error
-    internal_allowed = part_of_the_compiler(entry_path)
+    internal_allowed = part_of_the_compiler(entry_path) or in_repository_tests(entry_path)
     refuse_internal_names(entry_path, lexer.tokens, 0)
     assert not has_error
     var parser = Syntax.Parser(lexer.tokens)

@@ -1,7 +1,7 @@
 singleton
 
-var buffer = ThreadLocal<Integer>()
-var id_lock = Lock()
+var buffer = Spite.Internal.ThreadLocal<Integer>()
+var id_lock = Spite.Internal.Lock()
 var next_id = 0
 var claims = 0
 var wrong_buffers = 0

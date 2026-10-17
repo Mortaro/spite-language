@@ -1,12 +1,12 @@
 var console = Console()
 var pool = ThreadPool()
-var markers = ThreadLocal<String>()
+var markers = Spite.Internal.ThreadLocal<String>()
 
 func ThreadLocalGrowth() {
     var every_round = true
     var round = 0
     while round < 20 {
-        markers = ThreadLocal<String>()
+        markers = Spite.Internal.ThreadLocal<String>()
         markers.set("main")
         var runs = List<Parallel<Boolean>>()
         var index = 0
