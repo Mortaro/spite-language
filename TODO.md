@@ -113,6 +113,8 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 ## Compiler and backend
 
 - The compiler's argument reading and path handling (`compiler/compiler.spite`) moves into `Build`, `Environment`, `Path` and the library (D606)
+- `compiler/source/intermediate/README.md` describes the IR as it is built today; at the cut it goes, `compiler/high_ir.md` is the one page, and the compiler sources' comment links point at its headings (D619)
+- Names resolved and every check made while the high IR is built, so the lowering asks the generator nothing and `compiler/source/generation/` is deleted, each error keeping its exact text (D618)
 - Every line of C written from the high-level IR: arithmetic, calls, references, `assert`/`crash`, texts, lists, dictionaries, layouts, dispatch and `main` (D560, D586, D587, D599: no IR operation for what is a function in the end)
 - The high IR desugared and monomorphised, every decision of the generator a pass over it, and the switch-over made whole (D587)
 - The passes that read or rewrite the C text moved onto the IR (D586, D587)

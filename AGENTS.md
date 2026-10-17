@@ -51,6 +51,9 @@ else disagrees with the specification, the specification wins; a docs page that 
     theories, where every idea is welcome and agents record what they find;
   - [`design/KNOWN_ISSUES.md`](design/KNOWN_ISSUES.md): where the compiler falls short of the docs;
   - [`design/self_hosting.md`](design/self_hosting.md): how the compiler builds itself, and what proves it;
+- [`compiler/README.md`](compiler/README.md) is how the compiler works, for people who work on it: the flow from source
+  to executable and what each step owns, with the [high IR](compiler/high_ir.md) and the [low IR](compiler/low_ir.md).
+  Like `docs/`, it describes the final form only; how the code stands today goes in `design/handoff.md` and `TODO.md`.
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
