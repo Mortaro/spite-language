@@ -1,0 +1,24 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+var failed = false
+var message = ""
+var path = ""
+var line = 0
+var owner = ""
+var function = ""
+
+func at(starting_path: String, starting_line: Integer, starting_owner: String, starting_function: String) {
+    path = starting_path
+    line = starting_line
+    owner = starting_owner
+    function = starting_function
+}
+
+func on_line(starting_line: Integer) {
+    line = starting_line
+}
+
+func refuse(text: String) {
+    assert not failed
+    failed = true
+    message = "{path}:{line}: error: {text} (in {owner}.{function})"
+}

@@ -20,6 +20,7 @@ var accessed_classes = List<Analysis.ClassInfo>()
 var accessed_texts = List<String>()
 var accessed_kinds = List<String>()
 var row_classes = Dictionary<String, Boolean>()
+var report = Checks.Report()
 
 func Instances(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -105,6 +106,7 @@ func enter_function(information: Analysis.ClassInfo, function: Analysis.Function
     made.bind_symbol_of(function)
     made.bind_reflected_of(function)
     made.in_specialised_copy = not function.specialised_from.is_empty()
+    report.at(made.current_path, function.line, information.qualified_dotted, function.name)
 }
 
 func enter_class(information: Analysis.ClassInfo) {

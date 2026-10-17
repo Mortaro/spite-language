@@ -9,6 +9,7 @@ var made_reflections = 0
 var loop_written = false
 var made_accessed = 0
 var started_noted = false
+var failure = ""
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -34,6 +35,11 @@ func lower(): Lowered {
             crash reached
             lower_reached(instances, owner, reached)
             settled = false
+            if instances.report.failed {
+                failure = instances.report.message
+                made.nested_quiet = quiet_before
+                return lowered
+            }
         }
         while made_singletons < instances.singleton_names.count() {
             write_singleton(instances, made_singletons)
@@ -76,6 +82,9 @@ func lower(): Lowered {
     lowered.foreign_namings = made.foreign_library_namings
     lowered.foreign_headers = made.foreign_library_headers
     made.nested_quiet = quiet_before
+    if instances.report.failed {
+        failure = instances.report.message
+    }
     return lowered
 }
 

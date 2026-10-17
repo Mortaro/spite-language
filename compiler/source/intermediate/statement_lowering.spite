@@ -45,6 +45,7 @@ func lower_statements(statements: List<Syntax.Statements.Statement>) {
 func lower_statement(statement: Syntax.Statements.Statement) {
     if statement.line > 0 {
         emitter.line = statement.line
+        known().report.on_line(statement.line)
     }
     var made = front()
     if not made.breakpoint_sites.is_empty() {

@@ -405,6 +405,16 @@ The cut deletes `generation/`, the C readers (`overlap_facts`, `tree_shaker`, `c
 `function_folder`, `configured_copies`, `nested_lists`, the C splitting of `hot_reload_library`, `state_machine`) and
 the older walk in `backend/high_*.spite` in one change.
 
+**Where a check is called from.** `Instances` holds one `Checks.Report` (`intermediate/checks/report.spite`) for the
+whole compile, reached as `known().report` from `ExpressionLowering`, `StatementLowering` and `ReflectionLowering`.
+`Instances.enter_function` sets its place (path, line, owner, function) and `StatementLowering.lower_statement` its
+line, so a check only says what is wrong: `known().report.refuse("the exact text of the spec page")` makes
+`<path>:<line>: error: <text> (in <Owner>.<function>)`. Only the first refusal is kept; `Lowering.lower` stops at
+the function that raised it and `Pipeline.prepare` answers it as `error_message`, so no pass or printer runs. A
+check lives in `checks/<spec page>.spite` as a class whose functions take what they judge (a syntax node, a type, a
+model entry) and the `Checks.Report`; the lowering calls it at the place it builds the operation the error is
+about and returns when `report.failed` is true.
+
 **What proves it:** every program in `diagnostics/` gives its exact `expected_errors.txt`, every conformance program,
 example and documentation program its exact output with balanced memory, the benchmarks allocate no more and run no
 slower than the generator's C, and the compiler builds itself to a fixpoint.

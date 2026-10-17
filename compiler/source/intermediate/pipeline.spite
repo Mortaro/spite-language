@@ -33,6 +33,10 @@ func prepare() {
     crash generator
     var lowering = Lowering(generator)
     lowered = lowering.lower()
+    if not lowering.failure.is_empty() {
+        error_message = lowering.failure
+        return
+    }
     settle_settings()
     settle_layouts()
     lowered.runtime_roots = roots_of_runtime()
