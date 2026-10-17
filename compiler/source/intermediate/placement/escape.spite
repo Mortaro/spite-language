@@ -188,6 +188,11 @@ func position_keeps(operation: Operation, position: Integer): Boolean {
     if copies_item(operation, position) {
         return false
     }
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if callee and callee.receiver < 0 {
+        return function_keeps(operation.callee, position)
+    }
     return function_keeps(operation.callee, position - 1)
 }
 

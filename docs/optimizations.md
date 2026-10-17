@@ -2393,6 +2393,19 @@ through an address, or a call the compiler cannot follow disturbs it.
 
 **What you notice.** Fewer counts, and `--debug-memory` shows the same allocations and frees.
 
+### An object wrapped and read back is the object
+
+**What it does.** A `switch` over a union or a shape reads the member back out of the value it was just put into:
+`Union.value(Union.wrap(x))` is `x`. When a small function a program calls with a wrapped object (the per-attribute
+helpers of a row walk) is inlined into the caller, the read-back is replaced by the object itself, so the object is
+seen to stay in the function and is placed in the frame instead of on the heap.
+
+**When.** The wrapped value and the member read back are the same class. Small functions that the compiler made from
+a generic function for one symbol or class (their name carries the symbol) are inlined like the library's.
+
+**What you notice.** Fewer allocations (`--debug-memory`), and a crash report that lists one frame fewer for an
+inlined helper.
+
 ### An item a name holds from its list is not counted
 
 **The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).
