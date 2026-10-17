@@ -25,11 +25,9 @@ func run(starting_lowered: Lowered) {
 }
 
 func inline_function(function: Function) {
-    var rounds = 0
     var changed = true
-    while changed and rounds < 256 {
+    while changed {
         changed = inline_once(function)
-        rounds = rounds + 1
     }
 }
 
@@ -79,7 +77,9 @@ func judged(callee_name: String): Boolean {
         return false
     }
     var copying = callee.made_for == "copy" and callee.blocks.count() == 1
-    if callee.blocks.is_empty() or not copying and (callee.blocks.count() > 6 or not kinds.is_library_layout(callee.owner)) {
+    var specialised = not callee.specialised_from.is_empty()
+    var own_code = copying or specialised or kinds.is_library_layout(callee.owner)
+    if callee.blocks.is_empty() or not own_code or not copying and callee.blocks.count() > 6 {
         return false
     }
     if reaches_itself(callee_name) {

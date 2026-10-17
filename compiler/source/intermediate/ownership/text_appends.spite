@@ -44,6 +44,7 @@ func appends_in_place(
     if operation.kind != "call" or operation.callee != "String.join" or operation.result < 0 or not operation.form.is_empty() {
         return false
     }
+    drop_empty_pieces(function, uses, operation)
     var first = operation.operands.first()
     if not first {
         return false
@@ -61,6 +62,21 @@ func appends_in_place(
         index = index + 1
     }
     return used_only_before(uses, first, block_index, position)
+}
+
+# ../../../../docs/optimizations.md#appending-to-text-in-place
+func drop_empty_pieces(function: Function, uses: Facts.Uses, operation: Operation) {
+    var index = operation.operands.count() - 1
+    while index >= 0 and operation.operands.count() > 1 {
+        var piece = operation.operands[index]
+        crash piece
+        var defining = uses.definition_of(piece)
+        var described = function.value_at(piece)
+        if defining and defining.kind == "constant" and defining.literal.is_empty() and is_text(described.spite_type) {
+            operation.operands.remove_at(index)
+        }
+        index = index - 1
+    }
 }
 
 func is_text(spite_type: Analysis.SpiteType?): Boolean {

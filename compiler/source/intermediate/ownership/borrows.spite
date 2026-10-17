@@ -422,7 +422,12 @@ func disturbs(operation: Operation, value: Integer): Boolean {
     }
     var field_key = read_field(value)
     if origin_of(value) == "lending" {
-        return summary.writes_memory or summary.releases and drop_effects.writes_memory
+        var memory = lending_memory(value, 0)
+        if memory.is_empty() {
+            return summary.writes_memory or summary.releases and drop_effects.writes_memory
+        }
+        var wrote = summary.address_memory or summary.typed_memory.has(memory)
+        return wrote or summary.releases and drop_effects.writes_memory
     }
     if field_key.is_empty() {
         return false
@@ -436,6 +441,50 @@ func disturbs(operation: Operation, value: Integer): Boolean {
         return true
     }
     return summary.releases and drop_effects.may_write(layout, field)
+}
+
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func lending_memory(value: Integer, depth: Integer): String {
+    crash uses
+    crash kinds
+    crash consumption
+    if depth > 6 {
+        return ""
+    }
+    var defining = uses.definition_of(value)
+    if not defining or defining.kind != "call" {
+        return ""
+    }
+    if consumption.is_projection(defining) or consumption.is_wrap(defining) {
+        var inner = defining.operands.first()
+        crash inner
+        return lending_memory(inner, depth + 1)
+    }
+    crash kinds.lowered
+    var callee = kinds.lowered.function_named(defining.callee)
+    if not callee {
+        return ""
+    }
+    if callee.intrinsic == "supplied" and callee.name == "read_value" {
+        var memory = kinds.lowered.layout_named(callee.owner)
+        if memory and memory.qualified == "TypedMemory" {
+            return memory.c_name
+        }
+        return ""
+    }
+    var container = kinds.lowered.layout_named(callee.owner)
+    if not container or container.qualified != "List" {
+        return ""
+    }
+    var held = container.field_named("values")
+    if not held {
+        return ""
+    }
+    var held_layout = kinds.layout_of(held.spite_type)
+    if not held_layout or held_layout.qualified != "TypedMemory" {
+        return ""
+    }
+    return held_layout.c_name
 }
 
 func read_field(value: Integer): String {

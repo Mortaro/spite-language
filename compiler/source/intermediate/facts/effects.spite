@@ -116,6 +116,25 @@ func is_waiting(function: Function): Boolean {
     return waiting_classes.contains(layout.qualified) and waiting_names.contains(function.name)
 }
 
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func note_memory_kind(made: Summary, function: Function) {
+    crash lowered
+    var owner = lowered.layout_named(function.owner)
+    if not owner {
+        made.address_memory = true
+        return
+    }
+    if owner.qualified == "TypedMemory" or owner.qualified == "InlineMemory" {
+        made.typed_memory[owner.c_name] = true
+        return
+    }
+    if owner.qualified == "Memory.Heap" {
+        made.heap_blocks = true
+        return
+    }
+    made.address_memory = true
+}
+
 func note_intrinsic(made: Summary, function: Function) {
     crash intrinsics
     crash kinds
@@ -123,6 +142,7 @@ func note_intrinsic(made: Summary, function: Function) {
     assert not intrinsics.is_reading_name(name)
     if intrinsics.is_memory_write_name(name) {
         made.writes_memory = true
+        note_memory_kind(made, function)
         made.releases = intrinsics.is_release_name(name)
         return
     }
@@ -256,6 +276,7 @@ func note_dotted(made: Summary, callee: String) {
     crash lowered
     if owner == "Foreign" and not calls_back_from_c() {
         made.writes_memory = true
+        made.address_memory = true
         return
     }
     made.unknown = true

@@ -387,6 +387,8 @@ when a piece mentions the variable again (`"{text}{text}"`); those compile as an
 
 A text literal is never counted, so a variable that starts as a literal (`var text = ""`) and is handed on to the loop's next pass takes no count either.
 
+Empty pieces of the join (the empty text before `{text}` in `"{text}item"`) are dropped first, so they do not stop the append.
+
 **Example.** Text stays immutable as observed: `kept` still holds the text it was given.
 
 ```gdscript title=text_append/text_append.spite entry
@@ -2385,9 +2387,24 @@ so a loop that only keeps some of the items it walks counts those and nothing el
 
 **When.** The item has no use between its read and the call that a call or a write to memory could disturb: the call
 that keeps it does not count as a disturbance, because the count is made before it runs. A read used after such a call
-is counted when read, as before.
+is counted when read, as before. A call that only writes the memory of lists of other classes (an `append` to the inner list
+read out of a list of lists) leaves a borrowed item valid; only a write to lists of the same item class, a write
+through an address, or a call the compiler cannot follow disturbs it.
 
 **What you notice.** Fewer counts, and `--debug-memory` shows the same allocations and frees.
+
+### An object wrapped and read back is the object
+
+**What it does.** A `switch` over a union or a shape reads the member back out of the value it was just put into:
+`Union.value(Union.wrap(x))` is `x`. When a small function a program calls with a wrapped object (the per-attribute
+helpers of a row walk) is inlined into the caller, the read-back is replaced by the object itself, so the object is
+seen to stay in the function and is placed in the frame instead of on the heap.
+
+**When.** The wrapped value and the member read back are the same class. Small functions that the compiler made from
+a generic function for one symbol or class (their name carries the symbol) are inlined like the library's.
+
+**What you notice.** Fewer allocations (`--debug-memory`), and a crash report that lists one frame fewer for an
+inlined helper.
 
 ### An item a name holds from its list is not counted
 
