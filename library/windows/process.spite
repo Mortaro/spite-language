@@ -7,7 +7,7 @@ func run_attached(): Integer {
 }
 
 func open_process(line: String): Long {
-    return library._popen_as_long(line, "r")
+    return library._popen_as_long(line, "rb")
 }
 
 func read_into(buffer: Long, bytes: Long, handle: Long): Long {
