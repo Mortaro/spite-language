@@ -55178,7 +55178,8 @@ func class_description(information: Analysis.ClassInfo): String {
     while function_index < information.declared_functions.count() {
         var listed = information.declared_functions[function_index]
         var public = not listed.name.starts_with("_") and listed.name != "drop"
-        if public and not listed.is_constructor and listed.symbol_name.is_empty() {
+        var declared_in_source = listed.line > 0
+        if public and declared_in_source and not listed.is_constructor and listed.symbol_name.is_empty() {
             var signature = prompt_signature(listed)
             if not signatures.contains(signature) {
                 signatures.append(signature)
