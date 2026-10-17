@@ -1,6 +1,6 @@
 # The Windows executable Spite's backend writes
 
-What [`compiler/source/backend/windows_executable_writer.spite`](../compiler/source/backend/windows_executable_writer.spite)
+What [`compiler/source/backend/executable_writing/windows_executable_writer.spite`](../compiler/source/backend/executable_writing/windows_executable_writer.spite)
 writes for Windows x86-64 (D558, milestone M0 of
 [own_backend_plan.md](proposals/own_backend_plan.md#m0-a-hand-built-executable-windows)): one section holding the machine
 code of `main`, one holding the imports of `kernel32.dll`, and the headers that put them on disk. Windows calls the

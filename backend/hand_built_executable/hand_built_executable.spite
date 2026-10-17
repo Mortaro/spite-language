@@ -3,7 +3,7 @@ var console = Console()
 var program = Program()
 
 func HandBuiltExecutable() {
-    load "../../compiler/source/backend"
+    load "../../compiler/source/backend/executable_writing"
     var imported = List<String>()
     imported.append("ExitProcess")
     var image = WindowsExecutableWriter(imported)
@@ -11,7 +11,7 @@ func HandBuiltExecutable() {
     var start = image.code_address()
     var call_starts_at = 16
     var code = exit_code_bytes(42, slot - start - call_starts_at)
-    var path = "hand_built_executable.exe"
+    var path = ".\\hand_built_executable.exe"
     image.write(path, code)
     var no_arguments = List<String>()
     var finished = Process(path, no_arguments)

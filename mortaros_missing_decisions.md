@@ -319,6 +319,14 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   program's `Build` declares it, and a declared setting is a field. The cost to confirm: the regenerated benchmark
   C and the updated `unknown_compiler_flag` error, and whether the settings should stop being fields as part of
   D578.
+- **D616, where the executable writers and the encoder live**: `compiler/source/backend/executable_writing/` for the
+  writers (one folder, the class names unchanged) and `compiler/source/backend/x86/` for the encoder and its operand
+  classes, the namespace `X86`. Why: a `load` reads every file of the folder it names, and the high level IR walk
+  beside the writers names `Analysis.*`, `Syntax.*` and `Generation.*`, which only the compiler loads, so M0's program
+  could not be built (it had never run); and D588 wants no name prefix standing for a namespace. The alternative was to
+  move `backend/high_*.spite` into `backend/high/` first (the fix D588's own text suggests, and the TODO line names),
+  which touches the IR work in other branches. Say if you want the IR moved instead and the writers back at
+  `compiler/source/backend/windows_executable_writer.spite`.
 
 ## Open
 
