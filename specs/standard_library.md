@@ -129,7 +129,7 @@ On every whole number, `Tiny` to `UnsignedLong`, answering the receiver's type:
 
 | Member | Answers |
 |---|---|
-| `absolute()` | the value without its sign; the smallest signed value wraps to itself, as its negation does (`Integer.smallest.absolute()` is -2147483648), and an unsigned value is itself |
+| `absolute()` | the value without its sign, and an unsigned value is itself; the smallest signed value has no positive counterpart, so its `absolute()` halts as its negation does, naming the class (`'lowest.absolute()' does not fit in an Integer (0 - -2147483648)`) |
 | `minimum(other)`, `maximum(other)` | the smaller or larger, `other` cast first: a `Byte`'s `minimum(300)` compares with 44 |
 | `clamp(low, high)` | `value` held between `low` and `high`, with `high` winning when `low` is above it, as on a float |
 
