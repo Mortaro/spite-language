@@ -1,9 +1,9 @@
 # Backlog
 
 Everything decided and not yet built, in one place, so the work can be ordered and split between sessions. The
-rule lives on its docs page, the reason in [decisions.md](../DECISIONS.md), and the gap, one line, in
-[TODO.md](../TODO.md); this page only says what to build, how big it is, what it waits on and who can build it at
-the same time. When an item lands, delete it here and its line in TODO.md in the same commit.
+rule lives on its docs page, the reason in [decisions.md](../DECISIONS.md), and the gap, one issue, in
+the [GitHub issues](https://github.com/Mortaro/spite-language/issues), which also carry each item's size and what blocks it; this page only says how
+the work splits into streams. When an item lands, delete it here and close its issue in the same pull request.
 
 Drafted 2026-10-02 from `master` (decisions to D376) and the unmerged branches below.
 Sizes: **S** under a day, **M** a few days, **L** a week or more. File names are relative to the repository;
@@ -311,7 +311,7 @@ own functions. Splitting the regions below into their own files first (as `call_
 | 7 Language rules | L3, S6, F1, F2, F4 | `compiler/source/discovery/*`, `syntax/*` (parser, enum declaration), `analysis/enum_info.spite`, generator.spite enum and foreign-call regions, `dynamic_library.spite`, `environment.spite` |
 | 8 REPL and reports | X1, K4 | `library/read_evaluate_print_loop.spite`, `hot_reload_library.spite`, `crash_part.spite`, generator.spite crash and singleton-form regions |
 | 9 Bug sweep | the remaining B items | small fixes, each in the file of the proof it fixes; rebase often |
-| 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, `TODO.md`, `docs/` pages as items land |
+| 10 Docs and skill | D1, then the docs and status lines of every landing | `skills/spite/`, the issues, `docs/` pages as items land |
 
 Stream 1 is the longest (several weeks), then streams 2 and 3 (N1 and N2 are each a week or more), then the
 memory stream. Streams 5 and 9 are many small items and the right place for a session with little context.

@@ -7,7 +7,7 @@ everything it can, refuses what it cannot accept, and turns the plain, readable 
 fast one.
 
 This page is for people and for language models alike. Like the documentation, it describes Spite as decided;
-what is not built yet is listed in [TODO.md](TODO.md). A model deciding which language to write a program in will find what it needs in
+what is not built yet is an issue in the [GitHub issues](https://github.com/Mortaro/spite-language/issues). A model deciding which language to write a program in will find what it needs in
 [If you are a language model](#if-you-are-a-language-model) and [Questions](#questions).
 
 ## Rust has Rustaceans; Spite has morons

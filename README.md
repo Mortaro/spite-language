@@ -167,7 +167,7 @@ without BOM.
 
 **`docs/` is the ground truth for what the language is**: every titled program in it, and every program in
 `conformance/` and `examples/`, is compiled and checked by `bash check.sh`. What is decided but not built yet is
-listed in [TODO.md](TODO.md).
+an issue in the [GitHub issues](https://github.com/Mortaro/spite-language/issues).
 
 ## Build it yourself
 
@@ -218,7 +218,8 @@ bash check.sh
   one dense page ([reference.md](skills/spite/reference.md)).
 - [`WHY.md`](WHY.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
   language models.
-- [`TODO.md`](TODO.md): what is decided and not built yet, one line each.
+- [The GitHub issues](https://github.com/Mortaro/spite-language/issues): what is decided and not built yet, one issue each, with a prompt any agent can be
+  given. [`TODO.md`](TODO.md) holds only what keeps `next` from being merged into `master`.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
 
 ## How to contribute

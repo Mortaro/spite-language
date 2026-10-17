@@ -145,7 +145,7 @@ fix. A `D` number is a row of the [decision log](../DECISIONS.md).
   compiler emits itself and the members `prelude.spite` supplies; D178's primitives on `Memory.Address` are the
   part each backend is meant to keep. Moving the other supplied members into Spite is **not finished**.
 - The language is larger than the part the compiler implements today; each page says what is decided but not
-  built, [TODO.md](../TODO.md) lists what is not built yet, and `conformance/` is the part that
+  built, the [GitHub issues](https://github.com/Mortaro/spite-language/issues) list what is not built yet, and `conformance/` is the part that
   demonstrably works.
 
 ## Only the current compiler is tested (D609)

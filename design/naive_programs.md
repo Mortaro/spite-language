@@ -284,7 +284,7 @@ made in turn, gets them side by side.
 Pooling every class instead of the ones a list holds was measured too: `vector_maths` ran in 0.57 of the time (its
 `Vector3` temporaries reuse one block), but `particles` ran 4% slower, traced to where its single `Vector` header
 landed, and `number_dictionary` moved by as much from code placement alone. So only listed classes are pooled; the
-rest is in [TODO.md](../TODO.md).
+rest is in the [GitHub issues](https://github.com/Mortaro/spite-language/issues).
 
 After M6 the profile of the stress tick is: writing rows back 32%, matching 28% (half of it in `candidates()`),
 filling rows 18% (reading the components themselves 5%), the candidate list 15%, `choose` 9%. Next, by the

@@ -16,7 +16,7 @@ error, or a crash that names its cause, and never a wrong value, a lost write, a
 Judge everything you build, and every open item, against it: a compiler rule that lets one of those through, a
 library function that answers a default a caller cannot tell from a real answer, a report that prints a value where
 something is missing. Each is a bug to fix, not a style to document. When you find one you cannot fix now, write
-it as one line under "Bugs that fail silently" in [`TODO.md`](TODO.md).
+it as a GitHub issue labelled `bug`.
 
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
 project. Then the docs, in the [reading order](docs/README.md#reading-order). **The specification is normative**
@@ -26,8 +26,9 @@ else disagrees with the specification, the specification wins; a docs page that 
 
 ## Where things live
 
-- [`TODO.md`](TODO.md) is the to-do list: one line per thing decided (or wished for by Mortaro) and not built,
-  grouped by area, with its decision numbers, and the bugs that fail silently under D244.
+- The [GitHub issues](https://github.com/Mortaro/spite-language/issues) are the to-do list: one issue per thing decided (or wished for by Mortaro) and not built,
+  with its decision numbers and a prompt any agent can be given, and one per bug that fails silently (D244).
+- [`TODO.md`](TODO.md) holds only the section "Before master": what keeps `next` from being merged into `master`.
 - [`DECISIONS.md`](DECISIONS.md) is the append-only decision log: every decision, with its date, who made it and
   why.
 - `docs/` is documentation for people learning Spite, and nothing else. It holds no notes to AI writers, no
@@ -53,25 +54,29 @@ else disagrees with the specification, the specification wins; a docs page that 
   - [`design/self_hosting.md`](design/self_hosting.md): how the compiler builds itself, and what proves it;
 - [`compiler/README.md`](compiler/README.md) is how the compiler works, for people who work on it: the flow from source
   to executable and what each step owns, with the [high IR](compiler/high_ir.md) and the [low IR](compiler/low_ir.md).
-  Like `docs/`, it describes the final form only; how the code stands today goes in `design/handoff.md` and `TODO.md`.
+  Like `docs/`, it describes the final form only; how the code stands today goes in `design/handoff.md` and the issues.
 - `skills/spite/` is the skill for an AI that writes Spite: [`SKILL.md`](skills/spite/SKILL.md) and the whole
   language on one dense page, [`reference.md`](skills/spite/reference.md). It is user-facing like `docs/`, and it
   changes with the language.
 - [`WHY.md`](WHY.md) says why to use Spite and why to help build it, to people and to language models alike. Like
-  `docs/`, it describes Spite as decided and does not say what is not built yet (that is `TODO.md`'s); only what
+  `docs/`, it describes Spite as decided and does not say what is not built yet (that is the issues'); only what
   someone choosing Spite today must know (the platforms that run, maturity, license) is stated as it is today.
 
-**`TODO.md` is always up to date** (Mortaro, 2026-10-15). It is how Mortaro sees what is missing, so every commit
-that changes what is missing changes it in the same commit:
+**The issues are always up to date, and nothing else lists what is missing** (Mortaro, 2026-10-15 and 2026-10-17,
+D623). They are how Mortaro sees what is missing, and a second list would drift from them, so:
 
-- a decision recorded and not built yet adds its line (with its decision number), and so does a wish of Mortaro's;
-- building something deletes its line, and building part of it rewrites the line to say only what is left;
-- a bug that fails silently (D244) and is not fixed now adds a line under "Bugs that fail silently";
-- a decision that supersedes another rewrites or deletes the old one's line.
+- a decision recorded and not built yet opens an issue (with its decision number and a prompt an agent can be
+  given), and so does a wish of Mortaro's; research issues ask for code and tests, not only findings;
+- building something closes its issue in the pull request that builds it, and building part of it rewrites the
+  issue to say only what is left;
+- a bug that fails silently (D244) and is not fixed now opens an issue labelled `bug`;
+- a decision that supersedes another rewrites or closes the old one's issue;
+- an issue that changes the language's design (hiding memory or threads, say) is labelled `priority`, and one that
+  keeps `next` from `master` is labelled `before-master` and has its line in `TODO.md`.
 
-A decision that is not built yet is still described on its page as the language; `TODO.md` is the one place that
-says it is not built, in one line. It lists only the language and what this repository builds (the compiler, the
-library, the tools); work in packages outside it is not a line.
+A decision that is not built yet is still described on its page as the language; its issue is the one place that
+says it is not built. Issues cover only the language and what this repository builds (the compiler, the library,
+the tools); work in packages outside it is not an issue.
 
 ## Writing
 
@@ -146,7 +151,7 @@ each compiler change rewrote its C. `check.sh` fails when one is out of date.
 A change that makes the compiler optimise something on its own, or builds a planned optimisation, updates
 [`docs/optimizations.md`](docs/optimizations.md) in the same commit (D185, D102): what it does, when it applies,
 and anything a user could observe (allocation counts under `--debug-memory`, reflection, order of calls). What
-of it is not built yet goes into [`TODO.md`](TODO.md), one line. An optimisation with a user-visible cost says so
+of it is not built yet is an issue. An optimisation with a user-visible cost says so
 on the page; one that contradicts a rule in the docs goes into `mortaros_missing_decisions.md`.
 
 **No optimisation is undocumented** (Mortaro, 2026-10-03). `docs/optimizations.md` is how users learn what the
@@ -177,10 +182,10 @@ what cannot be undone cheaply; an agent decides anything that can be changed lat
 records it as "decided by Claude under D509", and lists it under "To confirm" in `mortaros_missing_decisions.md`.
 A proposal not yet decided is marked "(proposed by Claude, unconfirmed)".
 
-A decision not built in the same commit also gets its line in [`TODO.md`](TODO.md).
+A decision not built in the same commit also gets its issue.
 
 `mortaros_notes.md` is Mortaro's inbox, nothing else: read it, move what it contains into the specification and the
-docs (the spec page, the teaching, a decision-log row and, until it is built, a `TODO.md` line), clear it. Agent-owned state belongs in an agent-owned file.
+docs (the spec page, the teaching, a decision-log row and, until it is built, an issue), clear it. Agent-owned state belongs in an agent-owned file.
 
 ## Builds and test runs cost hours and quota: batch them
 
@@ -222,7 +227,7 @@ plan and the notes have been lost to a whole-file overwrite once already.
   `check.sh` runs too (`scripts/docs_corpus` writes them out), so a page cannot drift from the compiler without
   failing. A program for something not built yet carries no title.
 - `specs/`: the language, normative: one page per docs page with that part's rules in full.
-- `TODO.md`: what is decided and not built yet, one line each.
+- The GitHub issues: what is decided and not built yet, one issue each; `TODO.md`: only what keeps `next` from `master`.
 - `DECISIONS.md`: every decision, with its date and why.
 - `design/`: open questions, proposals and known issues (above).
 - `compiler/`: the compiler, written in Spite; `compiler/compiler.spite` is its entry class and
