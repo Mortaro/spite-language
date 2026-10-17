@@ -1,0 +1,164 @@
+# ../../../../specs/standard_library.md#standard-library
+var generator: Generation.Generator? = null
+
+func StandardLibrary(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+# ../../../../specs/standard_library.md#standard-library
+func refuse(message: String) {
+    crash generator
+    var quiet = generator.nested_quiet
+    generator.nested_quiet = false
+    generator.report(message)
+    generator.nested_quiet = quiet
+}
+
+# ../../../../specs/standard_library.md#standard-library
+func with_article(name: String): String {
+    var first_letter = name.slice(0, 1)
+    if "AEIOU".contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func upper_or_lower(name: String) {
+    assert name == "upper" or name == "lower"
+    refuse("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func no_text_method(name: String) {
+    refuse("String has no method '{name}'")
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func text_is_not_indexed() {
+    refuse(
+        "text is not indexed with [ ]: 'text.character_at(index)' gives one character and 'text.slice(start, end)' gives a piece",
+    )
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func not_indexed(type_name: String) {
+    refuse("{with_article(type_name)} is not indexed with [ ]: only a List<T> and a Dictionary<K, T> are")
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func text_storage_read() {
+    refuse("a String is its characters and their length: read '_bytes' or '_length'")
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func text_part_unnamed(name: String) {
+    refuse("'{name}' is read from a String that has a name: name this text with 'var' first")
+}
+
+# ../../../../specs/standard_library.md#the-string-class
+func enum_value_has_no_function(enum_name: String, name: String) {
+    refuse(
+        "{with_article(enum_name)} value has no function '{name}': an enum value answers 'to_string()', 'to_debug()' and 'to_integer()'",
+    )
+}
+
+# ../../../../specs/standard_library.md#system-classes
+func singleton_called(simple_name: String, variable: String, construction_text: String, use: String) {
+    refuse(
+        "'{simple_name}' is a singleton: bind it once beside the attributes, 'var {variable} = {construction_text}', and use '{use}'",
+    )
+}
+
+# ../../../../specs/standard_library.md#system-classes
+func console_has_no_function(name: String) {
+    refuse(
+        "this class has no function '{name}': printing goes through the console, so write 'var console = Console()' beside the attributes, then 'console.print(value)'",
+    )
+}
+
+# ../../../../specs/standard_library.md#system-classes
+func does_not_fit_printable(fit_subject: String, problem: String) {
+    refuse("{fit_subject} does not fit type 'Printable': {problem}")
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func address_form_message(receiver: String, name: String): String {
+    switch receiver {
+        "File": return file_address_form(name)
+        "Socket": return socket_address_form(name)
+        "BinaryReader": return reader_address_form(name)
+        _: return ""
+    }
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func file_address_form(name: String): String {
+    switch name {
+        "read_bytes": return "a File reads bytes into a Buffer, not into memory at an address: 'read_bytes_at(position, count)' answers a 'Buffer?' of up to 'count' bytes from 'position', and 'read_bytes()' the whole file"
+        "write_bytes": return "a File writes bytes from a Buffer, not from memory at an address: write 'write_bytes(bytes)'"
+        "append_bytes": return "a File writes bytes from a Buffer, not from memory at an address: write 'append_bytes(bytes)'"
+        _: return ""
+    }
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func socket_address_form(name: String): String {
+    if name == "read_bytes" or name == "read_bytes_into" {
+        return "a Socket reads bytes into a Buffer, not into memory at an address: write 'read_bytes()', which answers a 'Buffer?'"
+    }
+    if name == "read_bytes_now" or name == "read_bytes_now_into" {
+        return "a Socket reads bytes into a Buffer, not into memory at an address: write 'read_bytes_now()', which answers a 'Buffer'"
+    }
+    if name == "write_bytes" or name == "write_bytes_from" {
+        return "a Socket writes bytes from a Buffer, not from memory at an address: write 'write_bytes(bytes)'"
+    }
+    if name == "write_bytes_now" or name == "write_bytes_now_from" {
+        return "a Socket writes bytes from a Buffer, not from memory at an address: write 'write_bytes_now(bytes)'"
+    }
+    return ""
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func reader_address_form(name: String): String {
+    if name != "read_memory" {
+        return ""
+    }
+    return "a BinaryReader reads from a Buffer, not from memory at an address: write 'read(bytes)', or 'read_from(bytes, start)' to read one value and leave what follows"
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func address_form(receiver: String, name: String) {
+    var message = address_form_message(receiver, name)
+    assert not message.is_empty()
+    refuse(message)
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func list_has_no_bytes(name: String) {
+    refuse("List has no method '{name}': bytes are a Buffer, which has it: make them with 'Buffer()'")
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func buffer_reads_at_position(name: String) {
+    refuse(
+        "'{name}' reads at the buffer's position and takes nothing: write '{name}_at(position)' to read anywhere else",
+    )
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func buffer_write_form(name: String) {
+    var name_length = name.length()
+    var number = name.slice(6, name_length)
+    refuse(
+        "Buffer has no method '{name}': write 'write_{number}_at(position, value)', or 'append_{number}(value)' to add at the end",
+    )
+}
+
+# ../../../../specs/standard_library.md#bytes-are-a-buffer
+func buffer_big_endian_form(name: String) {
+    assert name.ends_with("_big_endian")
+    var stem_length = name.length() - 11
+    var stem = name.slice(0, stem_length)
+    refuse("Buffer has no method '{name}': set 'byte_order' to 'big_endian' and call '{stem}'")
+}

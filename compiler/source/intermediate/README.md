@@ -412,6 +412,43 @@ slower than the generator's C, and the compiler builds itself to a fixpoint.
 **Where an error's rule is:** its `specs/` page is normative (D511). `generation/generator.spite` is only a reference
 for how the rule was implemented; read it for the cases the spec page states, and when the two disagree the spec wins.
 
+**The checks of `values_and_types`, `failure`, `functions_and_operators`, `control_flow`, `collections` and
+`standard_library`.** Each file of `checks/` is one class of the namespace `Checks` (`Checks.ValuesAndTypes`,
+`Checks.Failure`, `Checks.FunctionsAndOperators`, `Checks.ControlFlow`, `Checks.Collections`,
+`Checks.StandardLibrary`, and `Checks.WalkPlan`, the data the template walk keeps). It holds the generator it reports
+through, and one function, `refuse(message)`, is the only place that touches it: it lifts the lowering's quiet switch
+for the one `generator.report` call, so an error carries its file, line and `(in Class.function)` from the context
+`Instances.enter_function` sets (or `enter_declaration` for what is declared and never called). Every other function is
+the check of one error: it takes what the lowering has at that place (a syntax node, a type, the function being
+lowered) and raises the exact text of its spec page. `Pipeline.prepare` copies the generator's errors after the
+lowering and stops. The calls are made from `ExpressionLowering` (`right_operand`, `convert`, `between_numbers`,
+`enum_toward`, `lower_arguments`, `truth_of`, `method_call`, `scalar_call`, `string_call`, `enum_call`,
+`container_call`, `member_of_value`, `operate`, `class_operator`, `store_default`), `StatementLowering`
+(`lower_statements`, `lower_statement`, `assert_statement`, `if_statement`, `return_statement`, `switch_statement`,
+`endless_loop`, `store_member`, `assign_member`) and `Lowering` (`check_*_declarations` for what is declared and never
+called, and the end of a body).
+
+| File | Diagnostics it raises where the lowering calls it |
+|---|---|
+| `values_and_types.spite` | `null_defaults`, `null_default_locals`, `wider_right_operand`, `wider_comparison`, `wider_bitwise_operand`, `bitwise_on_float`, `literal_does_not_fit`, `division_by_constant_zero`, `lone_hole`, `enum_from_text`, `symbol_for_text`, `enum_reopening_replaces`, `from_conversion`, `cast_by_name`, `maths_constant_assigned`, `maths_constant_on_value`, `maths_other_spellings`, `old_type_spellings` (a text function), `union_value_members`, `switch_rest_case`, `switch_single_case` |
+| `failure.spite` | `default_answer`, `default_guard`, `returning_guard`, `empty_collection_guard`, `falling_end`, `plain_get_at`, `maybe_boolean_conditions`, and the texts of `index_reads`, `maybe_null_into_type`, `store_through_nullable` and `byte_reads` for a value that may be null |
+| `functions_and_operators.spite` | `reserved_signature`, `shadowed_function`, `read_only_attribute`, `variadic_mistakes` (the count and the whole list), `passed_functions` (a class function as a value), `operator_function_call`, and the operator texts for a class without `sum`, `negate`, `get_at` or `set_at` |
+| `control_flow.spite` | `nested_if_else`, `returned_local`, `spinning_loop`, `value_switch`, `switch_chain`, `template_walk`, `vector_template_walk`, `walk_with_function` |
+| `collections.spite` | `old_list_names`, `address_forms` on a list, the dictionary literal written twice and `Dictionary` without `remove_where`; the other texts of the page are written as functions |
+| `standard_library.spite` | `address_forms`, the `Buffer` forms, the text of a missing `String` method, an enum value's missing function |
+
+**Written and not called yet**, because the lowering does not hold the fact the check needs (each is a function with its
+text in the file, to be called by the program model): `enum_numbers`, the type names `old_type_spellings` and
+`number_type_mistakes`, the narrowing proofs of `failure` (`check_proves_nothing`, `known_fact_checked`,
+`proven_element`, `proven_index_check`, `copy_to_narrow`, `namespace_nullable`, `narrowed_name_reassigned`,
+`path_narrow_loop`, `call_undoes_proof`, `count_proves_no_key`, `structural_index_undone`, `indexable_unproven`,
+`lost_writes`, `replaced_items`), a `T?` passed where a `T` is wanted (`maybe_null_into_type`), the member template and
+passed-function errors, the dictionary key and type argument errors, the item errors of `Vector` and `Items`, and "one
+statement per case" (the compiler and `library/` hold about 530 cases of more than one statement). The parser keeps
+`old_shift`, `old_ampersand`, `old_reference_type`, `variadic_not_last`, `old_break`, `left_over_after_block`,
+`left_over_after_return` and `this.name`. `diagnostics/address_forms` still expects `List<Byte>` where the specification
+says `Buffer`.
+
 ## Where it stands
 
 The pipeline is built whole: lowering, the eight passes and the printer all exist, and a pipeline compiler compiles

@@ -1,0 +1,16 @@
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+var purpose = ""
+var replacement = ""
+var members = List<String>()
+var result_name = ""
+var total_name = ""
+var returned_after = ""
+var value_names = List<String>()
+var passed_functions = List<String>()
+var tests = false
+var keeps_elements = false
+
+func WalkPlan(walk_purpose: String, walk_replacement: String) {
+    purpose = walk_purpose
+    replacement = walk_replacement
+}

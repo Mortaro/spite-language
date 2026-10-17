@@ -1,0 +1,400 @@
+# ../../../../specs/collections.md#standard-library-metaprogramming
+var generator: Generation.Generator? = null
+var types = Analysis.TypeShape()
+
+func Collections(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func refuse(message: String) {
+    crash generator
+    var quiet = generator.nested_quiet
+    generator.nested_quiet = false
+    generator.report(message)
+    generator.nested_quiet = quiet
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func with_article(name: String): String {
+    var first_letter = name.slice(0, 1)
+    if "AEIOU".contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func is_boolean_type(spite_type: Analysis.SpiteType): Boolean {
+    var scalar = types.as_scalar(spite_type)
+    if scalar {
+        return scalar.kind == 'boolean_kind'
+    }
+    return false
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func is_numeric_type(spite_type: Analysis.SpiteType): Boolean {
+    var scalar = types.as_scalar(spite_type)
+    if scalar {
+        return scalar.kind != 'boolean_kind'
+    }
+    return false
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func described_member(member_label: String, member_type: Analysis.SpiteType): String {
+    if types.is_void(member_type) {
+        return "returns nothing"
+    }
+    return "is {with_article(member_label)}"
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func member_requirement(
+    prefix: String,
+    is_field: Boolean,
+    member_name: String,
+    member_type: Analysis.SpiteType,
+    joins_as_text: Boolean,
+): String {
+    var wants_boolean = prefix == "filter_" or prefix == "any_" or prefix == "all_" or prefix == "count_" or prefix == "remove_where_"
+    if wants_boolean and not is_boolean_type(member_type) {
+        if prefix == "count_" and is_numeric_type(member_type) {
+            return "return Boolean (to add up a numeric member use 'sum_{member_name}')"
+        }
+        return "return Boolean"
+    }
+    if prefix == "sum_" and not is_numeric_type(member_type) {
+        return "return a numeric type"
+    }
+    if prefix == "each_" and is_field {
+        return "be a function: reading an attribute and discarding it does nothing"
+    }
+    if prefix == "map_" and types.is_void(member_type) {
+        return "return a value (to only call it for each element, write 'each_{member_name}()')"
+    }
+    if prefix == "map_" and is_boolean_type(member_type) {
+        return "be a value to collect, not a test: write 'filter_{member_name}()' to keep the elements it is true for, 'count_{member_name}()' to count them, or 'any_{member_name}()' or 'all_{member_name}()' to ask whether any or all of them pass"
+    }
+    var ordered = is_numeric_type(member_type) or types.as_string(member_type)
+    if prefix == "sort_by_" and not ordered {
+        return "return something ordered: a number or a String"
+    }
+    var finds = prefix == "find_by_" or prefix == "find_index_by_"
+    if finds and not joins_as_text {
+        return "return something comparable: a number, Boolean, String, Symbol or enum value"
+    }
+    return ""
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func member_does_not_fit(
+    name: String,
+    member_name: String,
+    element_label: String,
+    member_label: String,
+    member_type: Analysis.SpiteType,
+    prefix: String,
+    is_field: Boolean,
+    joins_as_text: Boolean,
+) {
+    var requirement = member_requirement(prefix, is_field, member_name, member_type, joins_as_text)
+    assert not requirement.is_empty()
+    var described = described_member(member_label, member_type)
+    refuse(
+        "'{name}': the member '{member_name}' of '{element_label}' {described}, but '{prefix}' needs it to {requirement}",
+    )
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func passing_hint(caller_has_function: Boolean, prefix: String, member_name: String): String {
+    if prefix == "find_by_" or prefix == "find_index_by_" {
+        return ""
+    }
+    if not caller_has_function {
+        return ""
+    }
+    var form_length = prefix.length() - 1
+    var form = prefix.slice(0, form_length)
+    return ": a template reads a member of each element, never a function of this class, so pass this class's '{member_name}' instead: '{form}({member_name})'"
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func member_missing(
+    element_label: String,
+    member_name: String,
+    template_name: String,
+    hint: String,
+    asks_enum: Boolean,
+) {
+    var tail = hint
+    if asks_enum {
+        tail = ", and no enum of its members lists '{member_name}'{hint}"
+    }
+    refuse("'{element_label}' has no attribute or zero argument function '{member_name}' for '{template_name}'{tail}")
+}
+
+# ../../../../specs/collections.md#member-templates-over-an-enum-value
+func enum_value_and_member(name: String, word: String, element_label: String, listing: List<String>) {
+    refuse(
+        "'{name}' could read the member '{word}' of '{element_label}' or compare '{listing.join("' or '")}' with '{word}', a value of its enum: rename the member '{word}'",
+    )
+}
+
+# ../../../../specs/collections.md#member-templates-over-an-enum-value
+func enum_value_in_two_members(name: String, word: String, element_label: String, listing: List<String>) {
+    refuse(
+        "'{name}' could read '{listing.join("' or '")}', whose enums both list '{word}': write the comparison as a Boolean member of {element_label}, or pass a function",
+    )
+}
+
+# ../../../../specs/collections.md#member-templates-over-an-enum-value
+func union_member_and_class(name: String, class_name: String, element_label: String, member_name: String) {
+    refuse(
+        "'{name}' could keep the '{class_name}' items of '{element_label}' or filter by their attribute '{member_name}': rename the attribute",
+    )
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func plain_symbol_on_list(template_name: String, symbol_parameter: String) {
+    refuse(
+        "'{template_name}' is a template on List, whose own attributes are its buffer, so a plain 'Symbol' answers nothing: write '{symbol_parameter}: Symbol<$element_type>' to name a member of the element",
+    )
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func plural_name(template_name: String, symbol_parameter: String, renamed: String) {
+    refuse(
+        "'{template_name}' answers every '{symbol_parameter}' of the element, a 'List<{symbol_parameter}.class>', so its name holds the member in the plural: '{renamed}'",
+    )
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func no_map_function() {
+    refuse(
+        "there is no 'map(function)': collect a member of each element with 'map_<member>()', and a value computed from each element by giving the element's class a read-only attribute (a 'get_<name>()' with no setter) and writing 'map_<name>()'",
+    )
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func form_requirement(name: String, label: String, returned: Analysis.SpiteType): String {
+    var tests = ["filter", "any", "all", "count", "find", "remove_where"]
+    if tests.contains(name) and not is_boolean_type(returned) {
+        if name == "count" and is_numeric_type(returned) {
+            return "return Boolean (to add up what it returns use 'sum({label})')"
+        }
+        return "return Boolean"
+    }
+    if name == "sum" and not is_numeric_type(returned) {
+        return "return a numeric type"
+    }
+    var ordered = is_numeric_type(returned) or types.as_string(returned)
+    if name == "sort_by" and types.as_nullable(returned) {
+        return "return something ordered, a number or a String, and a value that may be null has no place in the order: pass a function of your own that narrows it and returns the plain value"
+    }
+    if name == "sort_by" and not ordered {
+        return "return something ordered: a number or a String"
+    }
+    return ""
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func passed_function_problem(
+    name: String,
+    label: String,
+    element_label: String,
+    parameter_count: Integer,
+    parameter_label: String,
+    parameter_matches: Boolean,
+    returned: Analysis.SpiteType,
+    returned_label: String,
+) {
+    if parameter_count != 1 {
+        refuse(
+            "'{name}' calls '{label}' with each '{element_label}' as its only argument, but '{label}' takes {parameter_count}",
+        )
+        return
+    }
+    if not parameter_matches {
+        refuse("'{name}' calls '{label}' with each '{element_label}', but '{label}' takes '{parameter_label}'")
+        return
+    }
+    var requirement = form_requirement(name, label, returned)
+    assert not requirement.is_empty()
+    var described = described_member(returned_label, returned)
+    if types.as_nullable(returned) {
+        described = "returns {with_article(returned_label)}"
+    }
+    refuse("'{name}({label})': '{label}' {described}, but '{name}' needs it to {requirement}")
+}
+
+# ../../../../specs/collections.md#standard-library-metaprogramming
+func not_a_function(name: String, printed: String) {
+    refuse(
+        "'{name}' takes a function to call with each element, such as '{name}(say_hello)' or '{name}(greeter.say_hello)', and '{printed}' is not one",
+    )
+}
+
+# ../../../../specs/collections.md#listt-additions
+func list_has_no_method(name: String) {
+    if name == "map" {
+        no_map_function()
+        return
+    }
+    if name == "add" {
+        refuse(
+            "List has no method 'add', which does not say where: write 'append' to add at the end, or 'prepend' at the start",
+        )
+        return
+    }
+    if name == "pop" {
+        refuse("List has no method 'pop': write 'remove_last()', or 'remove_first()' to take from the start")
+        return
+    }
+    refuse("List has no method '{name}'")
+}
+
+# ../../../../specs/collections.md#listt-additions
+func list_has_no_bytes(name: String) {
+    refuse("List has no method '{name}': bytes are a Buffer, which has it: make them with 'Buffer()'")
+}
+
+# ../../../../specs/collections.md#there-is-no-heapt
+func no_heap() {
+    refuse(
+        "there is no 'Heap<T>': a class, a list and a text are references already, so a class that holds one of its own kind declares an ordinary attribute, like 'var left: Expression? = null' ('Memory.Heap' is the allocator, for containers of your own)",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_type_arguments(given: Integer) {
+    assert given != 2
+    refuse(
+        "a Dictionary names two types, its keys' and then its values', as in 'Dictionary<String, Integer>', and this one names {given}",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_key_is_value(key_name: String) {
+    refuse(
+        "a Dictionary cannot be keyed by '{key_name}': it is a value, copied wherever it goes, so it has no identity to key by; key the dictionary by a number or a String made from it",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_key_declares_equals(key_name: String) {
+    refuse(
+        "a Dictionary keyed by '{key_name}' finds each key by identity, one object one key, but '{key_name}' declares 'equals', so an equal '{key_name}' would not be found: key the dictionary by what 'equals' compares, a number or a String",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_key_kind(key_name: String) {
+    refuse(
+        "a Dictionary cannot be keyed by '{key_name}': a key is a number, a Boolean, a String, an enum value or an object of a class",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_key_written_twice(key_text: String) {
+    refuse("{key_text} is written twice in this dictionary: keep one entry for each key")
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_json_key(key_name: String) {
+    refuse(
+        "its dictionary is keyed by '{key_name}', and a JSON key is text: key it by a String, a whole number or an enum value",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_object_key(class_name: String) {
+    refuse(
+        "its dictionary is keyed by '{class_name}' objects, each key one object's identity, which has no binary form",
+    )
+}
+
+# ../../../../specs/collections.md#dictionarykey-value
+func dictionary_has_no_method(name: String) {
+    if name.starts_with("remove_where") {
+        refuse(
+            "Dictionary has no method '{name}': the templates read a dictionary's values from a copy, so removing from it would change nothing; remove each key with 'remove(key)'",
+        )
+        return
+    }
+    refuse("Dictionary has no method '{name}'")
+}
+
+# ../../../../specs/collections.md#vectort
+func plain_items(instance_name: String, label: String) {
+    refuse(
+        "'{instance_name}<{label}>' holds plain values, and a List keeps numbers, Boolean, enums and Memory.Address flat just as it did, so a list of them has one spelling: write 'List<{label}>'",
+    )
+}
+
+# ../../../../specs/collections.md#vectort
+func vector_item_not_inline(type_name: String, label: String) {
+    refuse(
+        "a Vector holds each item inline, so an item is a number, a Boolean, an enum, a String or a class made only of those, and {with_article(type_name)} is not: keep it in a 'List<{label}>'",
+    )
+}
+
+# ../../../../specs/collections.md#vectort
+func vector_item_attribute(label: String, field_name: String, field_type_name: String) {
+    refuse(
+        "'{label}' cannot be an item of a Vector: its attribute '{field_name}' is {with_article(field_type_name)}, and a Vector holds each item inline, so every attribute is a number, a Boolean, an enum or a String (keep '{label}' in a 'List<{label}>', or keep '{field_name}' somewhere else)",
+    )
+}
+
+# ../../../../specs/collections.md#vectort
+func vector_item_drop(label: String) {
+    refuse(
+        "'{label}' cannot be an item of a Vector: it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep '{label}' in a 'List<{label}>')",
+    )
+}
+
+# ../../../../specs/collections.md#vectort
+func vector_item_uses_this(label: String, function_name: String) {
+    refuse(
+        "'{label}.{function_name}' uses 'this' as a value, and an item of a Vector is borrowed from the Vector, never an object to keep or to pass on: read and write its attributes instead",
+    )
+}
+
+# ../../../../specs/collections.md#vectort
+func collection_passes_items(form: String, collection: String, text_items: Boolean, kept_by_reference: Boolean) {
+    if text_items {
+        refuse(
+            "'{form}' passes each item to a function, which {with_article(collection)} never does: keep the values in a 'List<String>' to pass them on",
+        )
+        return
+    }
+    if kept_by_reference {
+        refuse(
+            "'{form}' passes each item to a function, which {collection} does not do whichever storage it chose, since an item that fits a Vector is borrowed and never passed on: give the item's class a function and call it with a member template, such as '{form}_<function>()'",
+        )
+        return
+    }
+    refuse(
+        "'{form}' passes each item to a function, and an item of {with_article(collection)} is borrowed from it, never passed on: give the item's class a function and call it with a member template, such as '{form}_<function>()'",
+    )
+}
+
+# ../../../../specs/collections.md#removing-many-at-once
+func remove_where_on_chain(chain_text: String) {
+    refuse(
+        "'remove_where' removes from the collection it is called on, and '{chain_text}' makes a new one that nothing keeps: call it on the collection itself, with one test that says everything to remove",
+    )
+}
+
+# ../../../../specs/collections.md#itemst
+func items_inline_passes(form: String, item_label: String) {
+    refuse(
+        "'{form}' passes each item to a function, and '{item_label}' fits a Vector, so an item of these Items is borrowed from them, never passed on: give the item's class a function and call it with a member template, such as '{form}_<function>()'",
+    )
+}
+
+# ../../../../specs/collections.md#itemst
+func items_borrow_prefix(item_label: String): String {
+    return "'{item_label}' fits a Vector, so the items of "
+}

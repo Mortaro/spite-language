@@ -37,9 +37,64 @@ func lower_statements(statements: List<Syntax.Statements.Statement>) {
     while index < statements.count() and emitter.reachable() and not emitter.lowering_failed() {
         made.borrow_statements = statements
         made.borrow_index = index
-        lower_statement(statements[index])
+        var current = statements[index]
+        check_statement_lints(statements, index)
+        lower_statement(current)
         index = index + 1
     }
+}
+
+func statement_at(statements: List<Syntax.Statements.Statement>, index: Integer): Syntax.Statements.Statement? {
+    return statements[index]
+}
+
+func check_statement_lints(statements: List<Syntax.Statements.Statement>, index: Integer) {
+    check_returned_local(statements, index)
+    check_value_chain(statements, index)
+    check_template_walk(statements, index)
+}
+
+func check_template_walk(statements: List<Syntax.Statements.Statement>, index: Integer) {
+    assert index > 0
+    var lowered_expressions = lowering()
+    var flow = lowered_expressions.flow_checks()
+    flow.template_walk_at(statements, index, lowered_expressions)
+}
+
+func check_returned_local(statements: List<Syntax.Statements.Statement>, index: Integer) {
+    assert index + 1 < statements.count()
+    var statement = statement_at(statements, index)
+    assert statement
+    var declared = shapes.as_variable_declaration(statement)
+    assert declared
+    var described = lowering().lowered_function()
+    var result_type = described.return_type
+    var result_name = known().type_text(result_type)
+    var matches = true
+    if declared.type_reference {
+        matches = false
+        var resolved = front().resolve_type(declared.type_reference, lowered_class.qualified_dotted)
+        if resolved {
+            matches = known().same(resolved, result_type)
+        }
+    }
+    lowering().flow_checks().returned_local(statements, index, result_name, matches)
+}
+
+func check_value_chain(statements: List<Syntax.Statements.Statement>, index: Integer) {
+    var flow = lowering().flow_checks()
+    var subject = flow.statement_subject(statements, index)
+    assert not subject.is_empty()
+    var statement = statement_at(statements, index)
+    assert statement
+    var arm = shapes.as_if_statement(statement)
+    assert arm
+    crash arm.condition
+    var binary = shapes.as_binary(arm.condition)
+    assert binary
+    crash binary.left
+    var enum_values = lowering().enum_values_of(binary.left)
+    flow.value_chain(statements, index, enum_values)
 }
 
 func lower_statement(statement: Syntax.Statements.Statement) {
@@ -110,7 +165,22 @@ func expression_statement(statement: Syntax.Statements.ExpressionStatement) {
     lowering().lower(statement.value)
 }
 
+func check_return_value(statement: Syntax.Statements.ReturnStatement) {
+    var described = lowering().lowered_function()
+    var answer = described.return_type
+    var checks = lowering().function_checks()
+    if types.is_void(answer) {
+        assert statement.value
+        checks.return_without_result(described.name)
+        return
+    }
+    assert not statement.value
+    var answered_name = known().type_text(answer)
+    checks.return_needs_value(described.name, answered_name)
+}
+
 func return_statement(statement: Syntax.Statements.ReturnStatement) {
+    check_return_value(statement)
     if not statement.value {
         emitter.returns(-1)
         return
@@ -218,6 +288,7 @@ func assign_index(indexed: Syntax.Expressions.IndexExpression, assigned: Syntax.
     }
     var writer = made.find_or_instantiate_function(owner, "set_at")
     if not writer {
+        lowering().function_checks().index_write_missing(owner.simple_name)
         emitter.fail_lowering("an assignment through an index on '{owner.qualified_dotted}', which has no set_at")
         return
     }
@@ -253,6 +324,7 @@ func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax
     }
     var object_nullable = types.as_nullable(object_type)
     if object_nullable {
+        check_nullable_store(member, object_type)
         var present_object = lowering().checked_present(object, object_nullable.inner)
         store_through(member, present_object, assigned)
         return
@@ -266,6 +338,15 @@ func check_constant_assignment(static_class: Analysis.ClassInfo, member: Syntax.
     var read = made.number_constant_read(static_class, member.name)
     assert read
     lowering().value_checks().constant_assigned("{static_class.qualified_dotted}.{member.name}")
+}
+
+func check_nullable_store(member: Syntax.Expressions.MemberExpression, object_type: Analysis.SpiteType) {
+    crash member.object
+    var object_expression = member.object
+    var found_name = known().type_text(object_type)
+    var lowered_expressions = lowering()
+    var failure = lowered_expressions.failure_checks()
+    failure.nullable_use(object_expression, found_name, "store", member.name, lowered_expressions)
 }
 
 func store_through(
@@ -293,6 +374,17 @@ func store_through(
     store_member(target, member, object, assigned)
 }
 
+func check_unwritable(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberExpression) {
+    var made = front()
+    var checks = lowering().function_checks()
+    var getter = made.find_getter(target, member.name, lowered_class)
+    if getter {
+        checks.read_only_attribute(member.name, target.simple_name)
+        return
+    }
+    checks.no_attribute_to_assign(member.name, target.simple_name)
+}
+
 func store_member(
     target: Analysis.ClassInfo,
     member: Syntax.Expressions.MemberExpression,
@@ -308,6 +400,7 @@ func store_member(
     }
     var field = target.find_field(member.name)
     if not field {
+        check_unwritable(target, member)
         emitter.fail_lowering("an assignment to '{member.name}', which '{target.qualified_dotted}' does not hold")
         return
     }
@@ -321,7 +414,48 @@ func store_member(
     }
 }
 
+func check_guard_if(statement: Syntax.Statements.IfStatement) {
+    var described = lowering().lowered_function()
+    var return_type = described.return_type
+    var answers = lowering().answers_nothing(return_type)
+    lowering().failure_checks().default_guard(statement, return_type, answers, described.is_constructor)
+}
+
+func check_else_chain(statement: Syntax.Statements.IfStatement) {
+    assert statement.has_else_branch and not statement.follows_else
+    var flow = lowering().flow_checks()
+    var subject = flow.compared_subject(statement)
+    assert not subject.is_empty()
+    crash statement.condition
+    var binary = shapes.as_binary(statement.condition)
+    assert binary
+    crash binary.left
+    var enum_values = lowering().enum_values_of(binary.left)
+    flow.else_chain(statement, enum_values)
+}
+
+func check_terminal_if(statement: Syntax.Statements.IfStatement, condition: Condition) {
+    assert not statement.has_else_branch
+    assert not condition.when_true.is_empty()
+    crash statement.condition
+    var written = statement.condition
+    assert not shapes.as_binary(written)
+    assert not shapes.as_unary(written)
+    var described = lowering().lowered_function()
+    var return_type = described.return_type
+    var answers = lowering().answers_nothing(return_type)
+    var type_name = known().type_text(return_type)
+    var name = lowering().source_text(written)
+    lowering().failure_checks().terminal_if(statement, described.body, name, type_name, answers)
+}
+
+func check_if_lints(statement: Syntax.Statements.IfStatement) {
+    lowering().flow_checks().nested_if_else(statement)
+    check_else_chain(statement)
+}
+
 func if_statement(statement: Syntax.Statements.IfStatement) {
+    check_if_lints(statement)
     crash statement.condition
     lowering().restore_bindings()
     var made = front()
@@ -334,11 +468,13 @@ func if_statement(statement: Syntax.Statements.IfStatement) {
         lower_block(statement.else_branch)
         return
     }
+    check_guard_if(statement)
     var count = emitter.locals.count()
     var before = emitter.snapshot(count)
     crash statement.condition
     var condition = lowering().lower_condition(statement.condition)
     assert not emitter.lowering_failed()
+    check_terminal_if(statement, condition)
     var then_block = emitter.new_block()
     var else_block = emitter.new_block()
     emitter.branch(condition.value, then_block, else_block)
@@ -421,6 +557,7 @@ func while_statement(statement: Syntax.Statements.WhileStatement) {
 }
 
 func endless_loop(statement: Syntax.Statements.WhileStatement, header: Integer, carried: List<Integer>) {
+    lowering().flow_checks().spinning_loop(statement)
     emitter.push_frame()
     emitter.scope.is_loop = true
     lower_statements(statement.body)
@@ -476,7 +613,24 @@ func note_assigned(target: Syntax.Expressions.Expression?, assigned: List<String
     }
 }
 
+func check_assert(statement: Syntax.Statements.AssertStatement) {
+    assert not statement.is_crash
+    var described = lowering().lowered_function()
+    var checks = lowering().failure_checks()
+    if described.is_constructor {
+        checks.assert_in_constructor()
+        return
+    }
+    var return_type = described.return_type
+    var answers = lowering().answers_nothing(return_type)
+    var type_name = known().type_text(return_type)
+    var made_answer = lowering().made_answer(return_type)
+    var lowered_expressions = lowering()
+    checks.default_answer(statement, return_type, type_name, made_answer, answers, lowered_expressions)
+}
+
 func assert_statement(statement: Syntax.Statements.AssertStatement) {
+    check_assert(statement)
     if not statement.value {
         fail_check(statement, statement.condition_text)
         return
@@ -504,7 +658,9 @@ func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expr
         fail_check(statement, side_text)
         return
     }
+    lowering().asserting = true
     var condition = lowering().lower_condition(side)
+    lowering().asserting = false
     assert not emitter.lowering_failed()
     var pass_block = emitter.new_block()
     var fail_block = emitter.new_block()
@@ -617,10 +773,132 @@ func show_name(name: String, shown: List<Integer>, labels: List<String>) {
     labels.append(name)
 }
 
+func check_switch(statement: Syntax.Statements.SwitchStatement, subject_type: Analysis.SpiteType) {
+    var nullable = types.as_nullable(subject_type)
+    if nullable {
+        check_nullable_switch(statement, nullable.inner)
+        return
+    }
+    var united = types.as_union(subject_type)
+    if united {
+        check_union_switch(statement, united.c_name)
+        return
+    }
+    check_value_switch(statement, subject_type)
+}
+
+func check_nullable_switch(statement: Syntax.Statements.SwitchStatement, inner: Analysis.SpiteType) {
+    var flow = lowering().flow_checks()
+    var inner_name = known().type_text(inner)
+    var covered_null = false
+    var covered_value = false
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        if switch_case.value {
+            flow.nullable_case_value()
+        }
+        if switch_case.type_reference and case_names(switch_case) == "Null" {
+            covered_null = true
+        } else if switch_case.type_reference {
+            covered_value = true
+            var resolved = front().resolve_type(switch_case.type_reference, lowered_class.qualified_dotted)
+            if resolved and not known().same(resolved, inner) {
+                flow.nullable_case_type(inner_name)
+            }
+        }
+        index = index + 1
+    }
+    if not covered_null {
+        flow.nullable_not_covered("Null")
+    }
+    if not covered_value {
+        flow.nullable_not_covered(inner_name)
+    }
+}
+
+func check_union_switch(statement: Syntax.Statements.SwitchStatement, union_name: String) {
+    var made = front()
+    var described_union = made.find_union_by_c_name(union_name)
+    assert described_union and not described_union.is_shape
+    var values = lowering().value_checks()
+    values.repeated_cases(statement)
+    values.single_case(statement)
+    var covered = List<String>()
+    var answers_the_rest = false
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        if case_names(switch_case) == "_" {
+            var members = described_union.members.count()
+            var case_count = statement.cases.count()
+            var covered_count = covered.count()
+            values.rest_case_misplaced(index, case_count, covered_count, members, described_union.simple_name)
+            answers_the_rest = true
+        } else {
+            check_union_case(switch_case, described_union, covered)
+        }
+        index = index + 1
+    }
+    var missing = List<String>()
+    var member_index = 0
+    while member_index < described_union.members.count() {
+        var member_name = described_union.members[member_index].simple_name
+        if not covered.contains(member_name) {
+            missing.append(member_name)
+        }
+        member_index = member_index + 1
+    }
+    assert not answers_the_rest
+    lowering().flow_checks().union_missing(described_union.simple_name, missing)
+}
+
+func check_union_case(
+    switch_case: Syntax.Statements.SwitchCase,
+    described_union: Analysis.UnionInfo,
+    covered: List<String>,
+) {
+    var values = lowering().value_checks()
+    if switch_case.value {
+        values.case_is_value(described_union.simple_name)
+        return
+    }
+    var case_class = union_case_class(switch_case, described_union)
+    if not case_class {
+        values.case_names_no_class()
+        return
+    }
+    if not described_union.has_member(case_class.c_name) {
+        values.case_not_in_union(case_class.simple_name, described_union.simple_name)
+    }
+    covered.append(case_class.simple_name)
+}
+
+func check_value_switch(statement: Syntax.Statements.SwitchStatement, subject_type: Analysis.SpiteType) {
+    var enum_type = types.as_enum(subject_type)
+    var scalar = types.as_scalar(subject_type)
+    var whole = false
+    if scalar {
+        whole = known().is_checked(scalar.kind)
+    }
+    var is_text = types.as_string(subject_type)
+    assert enum_type or whole or is_text
+    var values = lowering().value_checks()
+    values.repeated_cases(statement)
+    values.single_case(statement)
+    var enum_values = List<String>()
+    if enum_type {
+        enum_values = enum_type.values
+    }
+    var type_name = known().type_text(subject_type)
+    lowering().flow_checks().value_switch(statement, type_name, enum_values, is_text)
+}
+
 func switch_statement(statement: Syntax.Statements.SwitchStatement) {
     crash statement.subject
     var subject = lowering().lower(statement.subject)
     var subject_type = lowering().type_of(subject)
+    check_switch(statement, subject_type)
     if types.as_nullable(subject_type) {
         nullable_switch(statement, subject)
         return

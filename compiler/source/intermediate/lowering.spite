@@ -21,6 +21,7 @@ func lower(): Lowered {
     made.nested_quiet = true
     var instances = Instances(made)
     check_value_declarations(made, instances)
+    check_function_declarations(made, instances)
     write_main(instances)
     write_debug_memory(instances)
     write_scheduler(instances)
@@ -122,6 +123,87 @@ func check_value_functions(checks: Checks.ValuesAndTypes, instances: Instances, 
         )
         index = index + 1
     }
+}
+
+func check_function_declarations(made: Generation.Generator, instances: Instances) {
+    var operators = Checks.FunctionsAndOperators(made)
+    var failure = Checks.Failure(made)
+    var class_index = 0
+    while class_index < made.classes.count() {
+        var described = made.classes[class_index]
+        check_declared_functions(operators, failure, instances, described)
+        check_shadowed_names(operators, instances, described)
+        class_index = class_index + 1
+    }
+}
+
+func check_declared_functions(
+    operators: Checks.FunctionsAndOperators,
+    failure: Checks.Failure,
+    instances: Instances,
+    described: Analysis.ClassInfo,
+) {
+    var index = 0
+    while index < described.declared_functions.count() {
+        var declared = described.declared_functions[index]
+        var path = instances.source_path_of(described, declared)
+        var answer = declared.return_type
+        var answers_nothing = instances.types.is_void(answer)
+        var answered_name = ""
+        if not answers_nothing {
+            answered_name = instances.type_text(answer)
+        }
+        var parameter_count = declared.parameters.count()
+        operators.reserved_declared(
+            path,
+            declared.line,
+            described.qualified_dotted,
+            described.simple_name,
+            declared.name,
+            parameter_count,
+            answered_name,
+        )
+        var plain = declared.name == "get_at" and not instances.types.as_nullable(answer)
+        if plain {
+            failure.plain_get_at(path, declared.line, described.qualified_dotted, answered_name, answers_nothing)
+        }
+        index = index + 1
+    }
+}
+
+func check_shadowed_names(
+    operators: Checks.FunctionsAndOperators,
+    instances: Instances,
+    described: Analysis.ClassInfo,
+) {
+    assert not described.is_instantiated
+    var statements = instances.file_statements(described)
+    operators.shadowing_names(described.source_path, described.qualified_dotted, statements)
+}
+
+func check_falling_end(instances: Instances, information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {
+    var answer = declared.return_type
+    assert not instances.types.is_void(answer)
+    var answered_name = instances.type_text(answer)
+    var instance_text = ""
+    if not information.codegen_types.is_empty() {
+        var names = List<String>()
+        var index = 0
+        while index < information.codegen_types.count() {
+            var each_type = information.codegen_types[index]
+            var each_name = instances.type_text(each_type)
+            names.append(each_name)
+            index = index + 1
+        }
+        instance_text = " in {information.simple_name}<{names.join(", ")}>"
+    }
+    var nullable = false
+    if instances.types.as_nullable(answer) {
+        nullable = true
+    }
+    var reporting = instances.front()
+    var failure = Checks.Failure(reporting)
+    failure.falling_end(declared.name, answered_name, instance_text, nullable, declared.body)
 }
 
 func write_main(instances: Instances) {
@@ -285,6 +367,7 @@ func lower_body(
     var statements = StatementLowering(expressions)
     statements.lower_block(declared.body)
     if emitter.reachable() {
+        check_falling_end(instances, information, declared)
         fall_off_end(expressions, declared)
     }
     finish_body(function, emitter)

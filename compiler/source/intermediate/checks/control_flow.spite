@@ -1,0 +1,1456 @@
+# ../../../../specs/control_flow.md#control-flow-in-full
+var generator: Generation.Generator? = null
+var shapes = Analysis.AstShape()
+var types = Analysis.TypeShape()
+var printer = Syntax.SourcePrinter()
+
+func ControlFlow(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func refuse(message: String) {
+    crash generator
+    var quiet = generator.nested_quiet
+    generator.nested_quiet = false
+    generator.report(message)
+    generator.nested_quiet = quiet
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func refuse_at(line: Integer, message: String) {
+    crash generator
+    var saved = generator.current_line
+    generator.current_line = line
+    refuse(message)
+    generator.current_line = saved
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func with_article(name: String): String {
+    var first_letter = name.slice(0, 1)
+    if "AEIOU".contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+# ../../../../specs/control_flow.md#nested-ifelse
+func chained_if(if_statement: Syntax.Statements.IfStatement): Syntax.Statements.IfStatement? {
+    assert if_statement.else_branch.count() == 1
+    var chained = shapes.as_if_statement(if_statement.else_branch[0])
+    assert chained
+    assert chained.follows_else
+    return chained
+}
+
+# ../../../../specs/control_flow.md#nested-ifelse
+func nested_if_else(if_statement: Syntax.Statements.IfStatement) {
+    assert if_statement.has_else_branch or if_statement.follows_else
+    if_else_in_branch(if_statement.then_branch)
+    var chained = chained_if(if_statement)
+    if not chained {
+        if_else_in_branch(if_statement.else_branch)
+    }
+}
+
+# ../../../../specs/control_flow.md#nested-ifelse
+func if_else_in_branch(branch: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < branch.count() {
+        var nested = shapes.as_if_statement(branch[index])
+        if nested and nested.has_else_branch {
+            refuse_at(
+                nested.line,
+                "this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides, or, when both test which member of a union or which value of an enum a value is, use one 'switch'",
+            )
+        }
+        index = index + 1
+    }
+}
+
+# ../../../../specs/control_flow.md#one-statement-per-case
+func case_runs(count: Integer) {
+    assert count > 1
+    refuse(
+        "this case runs {count} statements: a case is one statement, so move them into a function named for what they do and call it here",
+    )
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func returned_local(
+    statements: List<Syntax.Statements.Statement>,
+    index: Integer,
+    return_type_name: String,
+    declared_matches: Boolean,
+) {
+    assert index + 1 < statements.count()
+    var declaration = shapes.as_variable_declaration(statements[index])
+    assert declaration
+    assert declaration.value
+    var declared_value = declaration.value
+    var returned = shapes.as_return_statement(statements[index + 1])
+    assert returned
+    assert returned.value
+    var returned_value = returned.value
+    var returned_name = shapes.as_identifier(returned_value)
+    assert returned_name
+    assert returned_name.name == declaration.name
+    assert declared_matches
+    var source = printer.source_expression(declared_value)
+    refuse_at(
+        declaration.line,
+        "'{declaration.name}' is declared only to be returned on the next line: write 'return {source}', since 'return' already makes the value the function's {return_type_name}",
+    )
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func can_leave(statements: List<Syntax.Statements.Statement>): Boolean {
+    return statements.any(statement_can_leave)
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func statement_can_leave(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.ReturnStatement: return true
+        Syntax.Statements.AssertStatement: return true
+        Syntax.Statements.IfStatement: return can_leave(statement.then_branch) or can_leave(statement.else_branch)
+        Syntax.Statements.WhileStatement: return can_leave(statement.body)
+        Syntax.Statements.SwitchStatement: return switch_can_leave(statement)
+        _: return false
+    }
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func switch_can_leave(statement: Syntax.Statements.SwitchStatement): Boolean {
+    var index = 0
+    while index < statement.cases.count() {
+        var each_case = statement.cases[index]
+        if can_leave(each_case.body) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func expression_calls(expression: Syntax.Expressions.Expression?): Boolean {
+    if not expression {
+        return false
+    }
+    switch expression {
+        Syntax.Expressions.CallExpression: return true
+        Syntax.Expressions.GenericCallExpression: return true
+        Syntax.Expressions.BinaryExpression: return expression_calls(expression.left) or expression_calls(expression.right)
+        Syntax.Expressions.UnaryExpression: return expression_calls(expression.operand)
+        Syntax.Expressions.MemberExpression: return expression_calls(expression.object)
+        Syntax.Expressions.IndexExpression: return expression_calls(expression.object) or expression_calls(expression.index)
+        _: return false
+    }
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func block_calls(statements: List<Syntax.Statements.Statement>): Boolean {
+    return statements.any(statement_calls)
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func statement_calls(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return expression_calls(statement.value)
+        Syntax.Statements.AssignmentStatement: return expression_calls(statement.target) or expression_calls(statement.value)
+        Syntax.Statements.IfStatement: return expression_calls(statement.condition) or block_calls(statement.then_branch) or block_calls(statement.else_branch)
+        Syntax.Statements.WhileStatement: return expression_calls(statement.condition) or block_calls(statement.body)
+        Syntax.Statements.SwitchStatement: return expression_calls(statement.subject) or switch_calls(statement)
+        Syntax.Statements.AssertStatement: return expression_calls(statement.value)
+        Syntax.Statements.ReturnStatement: return expression_calls(statement.value)
+        Syntax.Statements.ExpressionStatement: return expression_calls(statement.value)
+        _: return false
+    }
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func switch_calls(statement: Syntax.Statements.SwitchStatement): Boolean {
+    var index = 0
+    while index < statement.cases.count() {
+        var each_case = statement.cases[index]
+        if block_calls(each_case.body) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../specs/control_flow.md#control-flow-in-full
+func spinning_loop(while_statement: Syntax.Statements.WhileStatement) {
+    crash while_statement.condition
+    assert shapes.is_true_literal(while_statement.condition)
+    assert not can_leave(while_statement.body)
+    assert not block_calls(while_statement.body)
+    refuse(
+        "this 'while true' never ends: nothing inside it returns, asserts or crashes, and it calls nothing, so the program would spin here for good: leave it with a 'return' ('if done \{ return }'), or loop 'while' a condition",
+    )
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func switch_subject(type_name: String) {
+    refuse("a switch is over a union, a 'T?', an enum, a whole number or a text, and this is {with_article(type_name)}")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_rest_not_last(case_index: Integer, case_count: Integer) {
+    assert case_index != case_count - 1
+    refuse("'_:' answers for every value without a case of its own, so it is the last case")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func example_case(enum_values: List<String>, is_text: Boolean): String {
+    var first_value = enum_values.first()
+    if first_value {
+        return "'{first_value}'"
+    }
+    if is_text {
+        return "\"text\""
+    }
+    return "1"
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_case_is_class(type_name: String, example: String) {
+    refuse("a case of a switch over {with_article(type_name)} is one of its values, like {example}, never a class")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_case_not_a_value(type_name: String, example: String) {
+    refuse("a case of a switch over {with_article(type_name)} is one of its values, like {example}")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_case_twice(label: String) {
+    refuse("this switch has two cases for {label}: keep one")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_case_not_written(label: String) {
+    refuse(
+        "a case of a switch is a value written out (a whole number or a text), never a name or a call, and '{label}' is not one",
+    )
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_coverage(
+    subject_text: String,
+    subject_type_name: String,
+    enum_name: String,
+    enum_values: List<String>,
+    covered: List<String>,
+    answers_the_rest: Boolean,
+) {
+    if enum_values.is_empty() {
+        assert not answers_the_rest
+        refuse(
+            "this switch over '{subject_text}' has no '_:': {with_article(subject_type_name)} has more values than a switch can list, so its last case is '_:', for every value without a case of its own",
+        )
+        return
+    }
+    var missing = List<String>()
+    var index = 0
+    while index < enum_values.count() {
+        var quoted = "'{enum_values[index]}'"
+        if not covered.contains(quoted) {
+            missing.append(quoted)
+        }
+        index = index + 1
+    }
+    if missing.is_empty() and answers_the_rest {
+        refuse("every value of '{enum_name}' already has a case, so '_:' answers for nothing: remove it")
+    } else if not missing.is_empty() and not answers_the_rest {
+        refuse(
+            "this switch over '{subject_text}' has no case for {missing.join(", ")}: a switch over an enum covers every value, so a value added later cannot be forgotten; add the cases, or end with '_:' for the rest",
+        )
+    }
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func union_missing(union_name: String, missing: List<String>) {
+    assert not missing.is_empty()
+    refuse(
+        "this switch over '{union_name}' has no case for {missing.join(", ")}: a switch over a union covers every member, so a member added later cannot be forgotten; add the cases, or end with '_:' for the rest",
+    )
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func nullable_case_value() {
+    refuse(
+        "this value may be null, so its switch cases are its type and 'Null': narrow it first ('crash value' or 'assert value') to switch over its values",
+    )
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func nullable_case_type(inner_name: String) {
+    refuse("this value is {with_article(inner_name)} or null, so its switch cases are '{inner_name}' and 'Null'")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func nullable_not_covered(name: String) {
+    refuse("this switch does not cover '{name}'")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func nullable_subject() {
+    refuse("switch over a value that may be null needs a variable or an attribute as its subject")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func switch_over_shape(type_name: String) {
+    refuse("switch needs a union: '{type_name}' is a type matched by shape, so read its attributes directly")
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func answer_text(statement: Syntax.Statements.Statement): String {
+    var returned = shapes.as_return_statement(statement)
+    var text = "..."
+    if returned {
+        text = "return"
+        if returned.value {
+            var value_text = printer.source_expression(returned.value)
+            text = "return {value_text}"
+        }
+    }
+    return text
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func is_constant_case(value: Syntax.Expressions.Expression): Boolean {
+    var integer = shapes.as_integer_literal(value)
+    if integer {
+        return true
+    }
+    var text = shapes.as_string_literal(value)
+    if text {
+        return true
+    }
+    var unary = shapes.as_unary(value)
+    if unary and unary.operator == 'negate' and unary.operand {
+        var negated = shapes.as_integer_literal(unary.operand)
+        if negated {
+            return true
+        }
+    }
+    return false
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func compared_path(left: Syntax.Expressions.Expression, right: Syntax.Expressions.Expression): String {
+    var printed = printer.source_expression(left)
+    var literal = shapes.as_enum_literal(right)
+    var constant = is_constant_case(right)
+    if literal {
+        constant = true
+    }
+    var subject = ""
+    if constant and not printed.contains("(") {
+        subject = printed
+    }
+    return subject
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func constant_comparison_subject(condition: Syntax.Expressions.Expression): String {
+    var subject = ""
+    var binary = shapes.as_binary(condition)
+    if binary and binary.operator == 'equal' and binary.left and binary.right {
+        subject = compared_path(binary.left, binary.right)
+    }
+    return subject
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func compared_subject(if_statement: Syntax.Statements.IfStatement): String {
+    var subject = ""
+    var only = if_statement.then_branch.first()
+    if only and if_statement.condition and if_statement.then_branch.count() == 1 and only == Syntax.Statements.ReturnStatement {
+        subject = constant_comparison_subject(if_statement.condition)
+    }
+    return subject
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func statement_subject(statements: List<Syntax.Statements.Statement>, index: Integer): String {
+    var subject = ""
+    if index >= 0 and index < statements.count() {
+        var arm = shapes.as_if_statement(statements[index])
+        if arm and not arm.has_else_branch {
+            subject = compared_subject(arm)
+        }
+    }
+    return subject
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func compared_constant(arm: Syntax.Statements.IfStatement): String {
+    crash arm.condition
+    var binary = shapes.as_binary(arm.condition)
+    crash binary
+    crash binary.right
+    return printer.source_expression(binary.right)
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func chain_case(arm: Syntax.Statements.IfStatement): String {
+    var only = arm.then_branch.first()
+    crash only
+    var constant = compared_constant(arm)
+    var answer = answer_text(only)
+    return "{constant}: {answer}"
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func covers_every_value(arms: List<Syntax.Statements.IfStatement>, enum_values: List<String>): Boolean {
+    if enum_values.is_empty() {
+        return false
+    }
+    var constants = List<String>()
+    var arm_index = 0
+    while arm_index < arms.count() {
+        var constant = compared_constant(arms[arm_index])
+        constants.append(constant)
+        arm_index = arm_index + 1
+    }
+    var value_index = 0
+    while value_index < enum_values.count() {
+        var quoted = "'{enum_values[value_index]}'"
+        if not constants.contains(quoted) {
+            return false
+        }
+        value_index = value_index + 1
+    }
+    return true
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func chain_of(arms: List<Syntax.Statements.IfStatement>, subject: String, rest: String, enum_values: List<String>) {
+    assert arms.count() >= 3
+    var first_line = arms[0].line
+    var covers = covers_every_value(arms, enum_values)
+    var cases = List<String>()
+    var cases_index = 0
+    while cases_index < arms.count() {
+        var cases_item = chain_case(arms[cases_index])
+        cases.append(cases_item)
+        cases_index = cases_index + 1
+    }
+    if not covers {
+        cases.append("_: {rest}")
+    }
+    var joined = cases.join("  ")
+    refuse_at(
+        first_line,
+        "these {arms.count()} 'if's each compare '{subject}' with a value and return, which is what a 'switch' says: write 'switch {subject} \{ {joined} }'",
+    )
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func value_chain(statements: List<Syntax.Statements.Statement>, index: Integer, enum_values: List<String>) {
+    var subject = statement_subject(statements, index)
+    assert not subject.is_empty()
+    var before = statement_subject(statements, index - 1)
+    assert before != subject
+    var arms = List<Syntax.Statements.IfStatement>()
+    var next = index
+    while statement_subject(statements, next) == subject {
+        var statement = statements[next]
+        crash statement
+        var arm = shapes.as_if_statement(statement)
+        crash arm
+        arms.append(arm)
+        next = next + 1
+    }
+    var rest = "..."
+    if next < statements.count() {
+        rest = answer_text(statements[next])
+    }
+    chain_of(arms, subject, rest, enum_values)
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func collect_else_arms(
+    link: Syntax.Statements.IfStatement,
+    subject: String,
+    arms: List<Syntax.Statements.IfStatement>,
+): String {
+    if compared_subject(link) != subject {
+        return "..."
+    }
+    arms.append(link)
+    var chained = chained_if(link)
+    if chained {
+        return collect_else_arms(chained, subject, arms)
+    }
+    var only = link.else_branch.first()
+    if only and link.else_branch.count() == 1 {
+        return answer_text(only)
+    }
+    return "..."
+}
+
+# ../../../../specs/control_flow.md#a-chain-of-ifs-on-one-value-is-a-switch
+func else_chain(if_statement: Syntax.Statements.IfStatement, enum_values: List<String>) {
+    assert not if_statement.follows_else and if_statement.has_else_branch
+    var subject = compared_subject(if_statement)
+    assert not subject.is_empty()
+    var arms = List<Syntax.Statements.IfStatement>()
+    var rest = collect_else_arms(if_statement, subject, arms)
+    chain_of(arms, subject, rest, enum_values)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func template_walk(list_text: String, purpose: String, replacement: String) {
+    refuse("this 'while' walks every element of '{list_text}' only {purpose}: write '{replacement}'")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Boolean {
+    if switch_case.type_reference {
+        var named = shapes.as_named_type(switch_case.type_reference)
+        if named {
+            return named.path.count() == 1 and named.path[0] == "_"
+        }
+    }
+    return false
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func not_an_enum_value(value: String) {
+    refuse("'{value}' is not a value of this enum")
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_case(
+    switch_case: Syntax.Statements.SwitchCase,
+    type_name: String,
+    enum_values: List<String>,
+    is_text: Boolean,
+    covered: List<String>,
+) {
+    var example = example_case(enum_values, is_text)
+    if not switch_case.value {
+        value_case_is_class(type_name, example)
+        return
+    }
+    var written = switch_case.value
+    var label = printer.source_expression(written)
+    if covered.contains(label) {
+        value_case_twice(label)
+    }
+    if not enum_values.is_empty() {
+        enum_case(written, type_name, enum_values, example, covered)
+        return
+    }
+    if not is_constant_case(written) {
+        value_case_not_written(label)
+        return
+    }
+    covered.append(label)
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func enum_case(
+    written: Syntax.Expressions.Expression,
+    type_name: String,
+    enum_values: List<String>,
+    example: String,
+    covered: List<String>,
+) {
+    var literal = shapes.as_enum_literal(written)
+    if not literal {
+        value_case_not_a_value(type_name, example)
+        return
+    }
+    covered.append("'{literal.value}'")
+    if not enum_values.contains(literal.value) {
+        not_an_enum_value(literal.value)
+    }
+}
+
+# ../../../../specs/control_flow.md#switch-over-values
+func value_switch(
+    statement: Syntax.Statements.SwitchStatement,
+    type_name: String,
+    enum_values: List<String>,
+    is_text: Boolean,
+) {
+    crash statement.subject
+    var subject_expression = statement.subject
+    var subject_text = printer.source_expression(subject_expression)
+    var covered = List<String>()
+    var answers_the_rest = false
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        if is_rest_case(switch_case) {
+            var case_count = statement.cases.count()
+            value_rest_not_last(index, case_count)
+            answers_the_rest = true
+        } else {
+            value_case(switch_case, type_name, enum_values, is_text, covered)
+        }
+        index = index + 1
+    }
+    value_coverage(subject_text, type_name, type_name, enum_values, covered, answers_the_rest)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func operand(expression: Syntax.Expressions.Expression): String {
+    var made = reporter()
+    return made.operand_text(expression)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func statement_at(statements: List<Syntax.Statements.Statement>, index: Integer): Syntax.Statements.Statement? {
+    return statements[index]
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func is_zero_literal(expression: Syntax.Expressions.Expression): Boolean {
+    var integer = shapes.as_integer_literal(expression)
+    if not integer {
+        return false
+    }
+    return integer.value == 0
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Boolean {
+    var declared = shapes.as_variable_declaration(before)
+    if declared {
+        crash declared.value
+        return declared.name == counter and is_zero_literal(declared.value)
+    }
+    var assigned = shapes.as_assignment_statement(before)
+    if not assigned {
+        return false
+    }
+    crash assigned.target
+    crash assigned.value
+    var target_expression = assigned.target
+    var value_expression = assigned.value
+    var target_text = operand(target_expression)
+    return target_text == counter and is_zero_literal(value_expression)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func is_counter_step(statement: Syntax.Statements.Statement, counter: String): Boolean {
+    var assigned = shapes.as_assignment_statement(statement)
+    if not assigned {
+        return false
+    }
+    crash assigned.target
+    crash assigned.value
+    var target_expression = assigned.target
+    var value_expression = assigned.value
+    var target_text = operand(target_expression)
+    if target_text != counter {
+        return false
+    }
+    var added = shapes.as_binary(value_expression)
+    if not added or added.operator != 'add' {
+        return false
+    }
+    crash added.left
+    crash added.right
+    var left_side = added.left
+    var right_side = added.right
+    var left_text = operand(left_side)
+    var right = shapes.as_integer_literal(right_side)
+    if not right {
+        return false
+    }
+    return left_text == counter and right.value == 1
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walked_list(loop: Syntax.Statements.WhileStatement, counter: String): Syntax.Expressions.Expression? {
+    crash loop.condition
+    var condition = shapes.as_binary(loop.condition)
+    assert condition
+    assert condition.operator == 'less'
+    crash condition.left
+    crash condition.right
+    var left_side = condition.left
+    var right_side = condition.right
+    var counter_text = operand(left_side)
+    assert counter_text == counter
+    var counted = shapes.as_call(right_side)
+    assert counted
+    assert counted.arguments.is_empty()
+    crash counted.callee
+    var count_call = shapes.as_member(counted.callee)
+    assert count_call
+    assert count_call.name == "count"
+    crash count_call.object
+    var list_expression = count_call.object
+    var list_text = operand(list_expression)
+    assert not list_text.is_empty()
+    return list_expression
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func range_element(core: List<Syntax.Statements.Statement>, list_text: String, counter: String): String {
+    var indexed = "{list_text}[{counter}]"
+    var first = core.first()
+    crash first
+    var read = shapes.as_variable_declaration(first)
+    if read and core.count() > 1 {
+        crash read.value
+        var read_value = read.value
+        var read_text = operand(read_value)
+        if read_text == indexed {
+            return read.name
+        }
+    }
+    return indexed
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func is_new_list(expression: Syntax.Expressions.Expression): Boolean {
+    var construction = shapes.as_generic_call(expression)
+    if not construction or not construction.arguments.is_empty() {
+        return false
+    }
+    crash construction.callee
+    var callee_expression = construction.callee
+    var callee_text = operand(callee_expression)
+    return callee_text == "List"
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func start_before(
+    statements: List<Syntax.Statements.Statement>,
+    position: Integer,
+    name: String,
+): Syntax.Expressions.Expression? {
+    var made = reporter()
+    var index = position - 2
+    while index >= 0 {
+        var statement = statement_at(statements, index)
+        crash statement
+        var declared = shapes.as_variable_declaration(statement)
+        if declared and declared.name == name {
+            return declared.value
+        }
+        var mentioned = List<String>()
+        made.collect_statement_names(statement, mentioned)
+        assert not mentioned.contains(name)
+        index = index - 1
+    }
+    return null
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_fits_around(
+    plan: WalkPlan,
+    statements: List<Syntax.Statements.Statement>,
+    position: Integer,
+    counter: String,
+): Boolean {
+    var made = reporter()
+    var after = List<Syntax.Statements.Statement>()
+    var after_index = position + 1
+    while after_index < statements.count() {
+        var each_statement = statement_at(statements, after_index)
+        crash each_statement
+        after.append(each_statement)
+        after_index = after_index + 1
+    }
+    var read_after = List<String>()
+    made.collect_block_names(after, read_after)
+    if read_after.contains(counter) {
+        return false
+    }
+    if not plan.result_name.is_empty() {
+        var result_start = start_before(statements, position, plan.result_name)
+        if not result_start or not is_new_list(result_start) {
+            return false
+        }
+    }
+    if not plan.total_name.is_empty() {
+        var total_start = start_before(statements, position, plan.total_name)
+        if not total_start or not is_zero_literal(total_start) {
+            return false
+        }
+    }
+    if plan.returned_after.is_empty() {
+        return true
+    }
+    var next = after.first()
+    if not next {
+        return false
+    }
+    var returned = shapes.as_return_statement(next)
+    if not returned or not returned.value {
+        return false
+    }
+    var returned_text = printer.source_expression(returned.value)
+    return returned_text == plan.returned_after
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walked_members_exist(element: Analysis.SpiteType, member_names: List<String>): Boolean {
+    if member_names.is_empty() {
+        return true
+    }
+    var made = reporter()
+    var element_class = made.element_class_of(element)
+    if not element_class {
+        return false
+    }
+    var index = 0
+    while index < member_names.count() {
+        var member_type = made.member_type_of(element_class, member_names[index])
+        if not member_type {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func takes_one_argument(information: Analysis.ClassInfo, name: String, tests: Boolean): Boolean {
+    var function = information.find_function(name)
+    if not function {
+        return false
+    }
+    if function.parameters.count() != 1 or function.is_constructor {
+        return false
+    }
+    var returned = function.return_type
+    if not tests {
+        return true
+    }
+    var scalar = types.as_scalar(returned)
+    if not scalar {
+        return false
+    }
+    return scalar.kind == 'boolean_kind'
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func passed_function_fits(name: String, tests: Boolean, expressions: ExpressionLowering): Boolean {
+    var made = reporter()
+    var parts = name.split(".")
+    var scope = expressions.emitter.scope
+    var class_information = expressions.lowered_class
+    if parts.count() == 1 {
+        var held = scope.lookup_type(name)
+        if held {
+            var held_class = types.as_class_ref(held)
+            if tests or not held_class {
+                return false
+            }
+            return held_class.has_signature
+        }
+        return takes_one_argument(class_information, name, tests)
+    }
+    if parts.count() != 2 {
+        return false
+    }
+    var receiver_name = parts.first()
+    crash receiver_name
+    var owner_type = scope.lookup_type(receiver_name)
+    if not owner_type {
+        var owner_field = class_information.find_field(receiver_name)
+        if not owner_field {
+            return false
+        }
+        owner_type = owner_field.type
+    }
+    crash owner_type
+    var owner_class_ref = types.as_class_ref(owner_type)
+    if not owner_class_ref {
+        return false
+    }
+    var owner_class = made.find_class_by_c_name(owner_class_ref.c_name)
+    if not owner_class {
+        return false
+    }
+    var function_name = parts.last()
+    crash function_name
+    return takes_one_argument(owner_class, function_name, tests)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func passed_functions_fit(plan: WalkPlan, expressions: ExpressionLowering): Boolean {
+    var index = 0
+    while index < plan.passed_functions.count() {
+        var passed_name = plan.passed_functions[index]
+        if not passed_function_fits(passed_name, plan.tests, expressions) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func passed_call(expression: Syntax.Expressions.Expression, element_text: String): String {
+    var called = shapes.as_call(expression)
+    if not called or called.arguments.count() != 1 {
+        return ""
+    }
+    crash called.callee
+    var callee_expression = called.callee
+    var argument = called.arguments.first()
+    crash argument
+    var argument_text = operand(argument)
+    if argument_text != element_text {
+        return ""
+    }
+    var callee_text = operand(callee_expression)
+    if callee_text.is_empty() or callee_text.contains("(") or callee_text.contains("[") {
+        return ""
+    }
+    if callee_text.contains(element_text) or callee_text.split(".").count() > 2 {
+        return ""
+    }
+    return callee_text
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func passed_walk(plan_purpose: String, plan_replacement: String, passed: String): WalkPlan {
+    var plan = WalkPlan(plan_purpose, plan_replacement)
+    plan.passed_functions.append(passed)
+    return plan
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func passed_test(plan_purpose: String, plan_replacement: String, passed: String): WalkPlan {
+    var plan = passed_walk(plan_purpose, plan_replacement, passed)
+    plan.tests = true
+    return plan
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func element_member(expression: Syntax.Expressions.Expression, element_text: String): String {
+    var read = expression
+    var called = shapes.as_call(expression)
+    if called {
+        if not called.arguments.is_empty() {
+            return ""
+        }
+        crash called.callee
+        read = called.callee
+    }
+    var member = shapes.as_member(read)
+    if not member {
+        return ""
+    }
+    crash member.object
+    var object_expression = member.object
+    var object_text = operand(object_expression)
+    if object_text != element_text or member.name.starts_with("_") {
+        return ""
+    }
+    return member.name
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func append_call(statement: Syntax.Statements.Statement): Syntax.Expressions.CallExpression? {
+    var expression_statement = shapes.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    var called = shapes.as_call(expression_statement.value)
+    assert called
+    assert called.arguments.count() == 1
+    crash called.callee
+    var callee = shapes.as_member(called.callee)
+    assert callee
+    assert callee.name == "append"
+    crash callee.object
+    var receiver = shapes.as_identifier(callee.object)
+    assert receiver
+    return called
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func appended_to(appending: Syntax.Expressions.CallExpression): String {
+    crash appending.callee
+    var callee = shapes.as_member(appending.callee)
+    crash callee
+    crash callee.object
+    var receiver = callee.object
+    return operand(receiver)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func collected_word(member_name: String): String {
+    var made = reporter()
+    return made.collected_word(member_name)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_call(
+    statement: Syntax.Statements.ExpressionStatement,
+    element_text: String,
+    list_text: String,
+): WalkPlan? {
+    crash statement.value
+    var statement_value = statement.value
+    var called = shapes.as_call(statement_value)
+    assert called
+    var member = element_member(statement_value, element_text)
+    if not member.is_empty() {
+        var each = WalkPlan("to call '{member}' on each", "{list_text}.each_{member}()")
+        each.members.append(member)
+        return each
+    }
+    var appending = append_call(statement)
+    if not appending {
+        var passed = passed_call(statement_value, element_text)
+        assert not passed.is_empty()
+        return passed_walk("to call '{passed}' with each", "{list_text}.each({passed})", passed)
+    }
+    var result = appended_to(appending)
+    assert result != list_text
+    var appended = appending.arguments.first()
+    crash appended
+    var appended_text = operand(appended)
+    if appended_text == element_text {
+        var copied = WalkPlan("to copy it", "var {result} = {list_text}.copy()")
+        copied.result_name = result
+        copied.keeps_elements = true
+        return copied
+    }
+    var mapped_member = element_member(appended, element_text)
+    assert not mapped_member.is_empty()
+    var word = collected_word(mapped_member)
+    var mapped = WalkPlan("to collect each '{mapped_member}'", "var {result} = {list_text}.map_{word}()")
+    mapped.members.append(mapped_member)
+    mapped.result_name = result
+    return mapped
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_through_local(core: List<Syntax.Statements.Statement>, element_text: String, list_text: String): WalkPlan? {
+    var first = core.first()
+    crash first
+    var declared = shapes.as_variable_declaration(first)
+    assert declared
+    crash declared.value
+    var declared_value = declared.value
+    var member = element_member(declared_value, element_text)
+    var last = core.last()
+    crash last
+    var appending = append_call(last)
+    assert appending
+    var appended = appending.arguments.first()
+    crash appended
+    var appended_text = operand(appended)
+    assert appended_text == declared.name
+    var result = appended_to(appending)
+    assert result != list_text
+    assert not member.is_empty()
+    var word = collected_word(member)
+    var mapped = WalkPlan("to collect each '{member}'", "var {result} = {list_text}.map_{word}()")
+    mapped.members.append(member)
+    mapped.result_name = result
+    return mapped
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_sum(statement: Syntax.Statements.AssignmentStatement, element_text: String, list_text: String): WalkPlan? {
+    crash statement.target
+    crash statement.value
+    var target_expression = statement.target
+    var value_expression = statement.value
+    var total = shapes.as_identifier(target_expression)
+    assert total
+    var added = shapes.as_binary(value_expression)
+    assert added
+    assert added.operator == 'add'
+    crash added.left
+    crash added.right
+    var left_side = added.left
+    var right_side = added.right
+    var left_text = operand(left_side)
+    assert left_text == total.name
+    var member = element_member(right_side, element_text)
+    if member.is_empty() {
+        var adder = passed_call(right_side, element_text)
+        assert not adder.is_empty()
+        var summed_by = passed_walk(
+            "to add up what '{adder}' answers for each",
+            "var {total.name} = {list_text}.sum({adder})",
+            adder,
+        )
+        summed_by.total_name = total.name
+        return summed_by
+    }
+    var summed = WalkPlan("to add up '{member}'", "var {total.name} = {list_text}.sum_{member}()")
+    summed.members.append(member)
+    summed.total_name = total.name
+    return summed
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_count(counted: Syntax.Statements.AssignmentStatement, tested: String, list_text: String): WalkPlan? {
+    var total = counted_total(counted)
+    assert total
+    var counting = WalkPlan(
+        "to count the elements whose '{tested}' is true",
+        "var {total} = {list_text}.count_{tested}()",
+    )
+    counting.members.append(tested)
+    counting.total_name = total
+    return counting
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func counted_total(counted: Syntax.Statements.AssignmentStatement): String? {
+    crash counted.target
+    crash counted.value
+    var target_expression = counted.target
+    var value_expression = counted.value
+    var total = shapes.as_identifier(target_expression)
+    assert total
+    var added = shapes.as_binary(value_expression)
+    assert added
+    assert added.operator == 'add'
+    crash added.left
+    crash added.right
+    var left_side = added.left
+    var right_side = added.right
+    var left_text = operand(left_side)
+    assert left_text == total.name
+    var step = shapes.as_integer_literal(right_side)
+    assert step
+    assert step.value == 1
+    return total.name
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_passed_count(
+    counted: Syntax.Statements.AssignmentStatement,
+    tester: String,
+    list_text: String,
+): WalkPlan? {
+    var total = counted_total(counted)
+    assert total
+    var counting = passed_test(
+        "to count the elements '{tester}' is true for",
+        "var {total} = {list_text}.count({tester})",
+        tester,
+    )
+    counting.total_name = total
+    return counting
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_kept(
+    action: Syntax.Statements.Statement,
+    tested: String,
+    element_text: String,
+    list_text: String,
+): WalkPlan? {
+    var returned = shapes.as_return_statement(action)
+    if returned {
+        assert returned.value
+        assert shapes.is_true_literal(returned.value)
+        var any = WalkPlan("to ask whether any element's '{tested}' is true", "return {list_text}.any_{tested}()")
+        any.members.append(tested)
+        any.returned_after = "false"
+        return any
+    }
+    var counted = shapes.as_assignment_statement(action)
+    if counted {
+        return walk_by_count(counted, tested, list_text)
+    }
+    var appending = append_call(action)
+    assert appending
+    var result = appended_to(appending)
+    assert result != list_text
+    var appended = appending.arguments.first()
+    crash appended
+    var appended_text = operand(appended)
+    if appended_text == element_text {
+        var kept = WalkPlan(
+            "to keep the elements whose '{tested}' is true",
+            "var {result} = {list_text}.filter_{tested}()",
+        )
+        kept.members.append(tested)
+        kept.result_name = result
+        kept.keeps_elements = true
+        return kept
+    }
+    var mapped_member = element_member(appended, element_text)
+    assert not mapped_member.is_empty()
+    var word = collected_word(mapped_member)
+    var kept_and_mapped = WalkPlan(
+        "to collect '{mapped_member}' of the elements whose '{tested}' is true",
+        "var {result} = {list_text}.filter_{tested}().map_{word}()",
+    )
+    kept_and_mapped.members.append(tested)
+    kept_and_mapped.members.append(mapped_member)
+    kept_and_mapped.result_name = result
+    return kept_and_mapped
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_passed_test(
+    action: Syntax.Statements.Statement,
+    tester: String,
+    element_text: String,
+    list_text: String,
+): WalkPlan? {
+    var returned = shapes.as_return_statement(action)
+    if returned {
+        assert returned.value
+        return passed_return(returned, tester, element_text, list_text)
+    }
+    var counted = shapes.as_assignment_statement(action)
+    if counted {
+        return walk_by_passed_count(counted, tester, list_text)
+    }
+    var appending = append_call(action)
+    assert appending
+    var result = appended_to(appending)
+    assert result != list_text
+    var appended = appending.arguments.first()
+    crash appended
+    var appended_text = operand(appended)
+    assert appended_text == element_text
+    var kept = passed_test(
+        "to keep the elements '{tester}' is true for",
+        "var {result} = {list_text}.filter({tester})",
+        tester,
+    )
+    kept.result_name = result
+    return kept
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func passed_return(
+    returned: Syntax.Statements.ReturnStatement,
+    tester: String,
+    element_text: String,
+    list_text: String,
+): WalkPlan? {
+    crash returned.value
+    var returned_value = returned.value
+    if shapes.is_true_literal(returned_value) {
+        var any = passed_test(
+            "to ask whether '{tester}' is true for any element",
+            "return {list_text}.any({tester})",
+            tester,
+        )
+        any.returned_after = "false"
+        return any
+    }
+    var returned_text = operand(returned_value)
+    assert returned_text == element_text
+    var found = passed_test(
+        "to find the first element '{tester}' is true for",
+        "return {list_text}.find({tester})",
+        tester,
+    )
+    found.returned_after = "null"
+    return found
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_every(
+    negated: Syntax.Expressions.UnaryExpression,
+    action: Syntax.Statements.Statement,
+    element_text: String,
+    list_text: String,
+): WalkPlan? {
+    assert negated.operator == 'logical_not'
+    crash negated.operand
+    var operand_expression = negated.operand
+    var tested = element_member(operand_expression, element_text)
+    var returned = shapes.as_return_statement(action)
+    assert returned
+    assert returned.value
+    assert shapes.is_false_literal(returned.value)
+    if tested.is_empty() {
+        var tester = passed_call(operand_expression, element_text)
+        assert not tester.is_empty()
+        var every_passed = passed_test(
+            "to ask whether '{tester}' is true for every element",
+            "return {list_text}.all({tester})",
+            tester,
+        )
+        every_passed.returned_after = "true"
+        return every_passed
+    }
+    var every = WalkPlan("to ask whether every element's '{tested}' is true", "return {list_text}.all_{tested}()")
+    every.members.append(tested)
+    every.returned_after = "true"
+    return every
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_find(
+    compared: Syntax.Expressions.BinaryExpression,
+    action: Syntax.Statements.Statement,
+    element_text: String,
+    list_text: String,
+): WalkPlan? {
+    var made = reporter()
+    assert compared.operator == 'equal'
+    crash compared.left
+    crash compared.right
+    var left_side = compared.left
+    var right_side = compared.right
+    var tested = element_member(left_side, element_text)
+    assert not tested.is_empty()
+    var returned = shapes.as_return_statement(action)
+    assert returned
+    assert returned.value
+    var returned_value = returned.value
+    var returned_text = operand(returned_value)
+    assert returned_text == element_text
+    var value_text = printer.source_expression(right_side)
+    var found = WalkPlan(
+        "to find the first whose '{tested}' equals '{value_text}'",
+        "return {list_text}.find_by_{tested}({value_text})",
+    )
+    found.members.append(tested)
+    found.returned_after = "null"
+    made.collect_mentioned_names(right_side, found.value_names)
+    return found
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walk_by_test(statement: Syntax.Statements.IfStatement, element_text: String, list_text: String): WalkPlan? {
+    assert not statement.has_else_branch and statement.then_branch.count() == 1
+    crash statement.condition
+    var condition = statement.condition
+    var action = statement.then_branch.first()
+    crash action
+    var tested = element_member(condition, element_text)
+    if not tested.is_empty() {
+        return walk_by_kept(action, tested, element_text, list_text)
+    }
+    var tester = passed_call(condition, element_text)
+    if not tester.is_empty() {
+        return walk_by_passed_test(action, tester, element_text, list_text)
+    }
+    var negated = shapes.as_unary(condition)
+    if negated {
+        return walk_by_every(negated, action, element_text, list_text)
+    }
+    var compared = shapes.as_binary(condition)
+    assert compared
+    return walk_by_find(compared, action, element_text, list_text)
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func template_walk_of(core: List<Syntax.Statements.Statement>, element_text: String, list_text: String): WalkPlan? {
+    if core.count() == 2 {
+        return walk_through_local(core, element_text, list_text)
+    }
+    assert core.count() == 1
+    var only = core.first()
+    crash only
+    switch only {
+        Syntax.Statements.ExpressionStatement: return walk_by_call(only, element_text, list_text)
+        Syntax.Statements.AssignmentStatement: return walk_by_sum(only, element_text, list_text)
+        Syntax.Statements.IfStatement: return walk_by_test(only, element_text, list_text)
+        _: return null
+    }
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func walked_element_type(walked_type: Analysis.SpiteType, plan: WalkPlan): Analysis.SpiteType? {
+    var listed = types.as_list(walked_type)
+    if listed {
+        return listed.element
+    }
+    var made = reporter()
+    var walked_class = made.class_behind(walked_type)
+    assert walked_class
+    var holds_items = walked_class.qualified_dotted == "Vector" or made.is_items_class(walked_class)
+    assert holds_items and not walked_class.codegen_types.is_empty()
+    assert plan.passed_functions.is_empty() and not plan.keeps_elements
+    return walked_class.codegen_types[0]
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func is_codegen_type_of(
+    class_information: Analysis.ClassInfo,
+    spite_type: Analysis.SpiteType,
+    expressions: ExpressionLowering,
+): Boolean {
+    var known = expressions.known()
+    var written = known.type_text(spite_type)
+    var index = 0
+    while index < class_information.codegen_types.count() {
+        var each_type = class_information.codegen_types[index]
+        if known.type_text(each_type) == written {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func template_walk_at(
+    statements: List<Syntax.Statements.Statement>,
+    position: Integer,
+    expressions: ExpressionLowering,
+) {
+    assert position > 0
+    var made = reporter()
+    var statement = statement_at(statements, position)
+    assert statement
+    var loop = shapes.as_while_statement(statement)
+    assert loop
+    var before = statement_at(statements, position - 1)
+    assert before
+    var counter_declaration = shapes.as_variable_declaration(before)
+    assert counter_declaration
+    var counter = counter_declaration.name
+    assert starts_at_zero(before, counter)
+    var list_expression = walked_list(loop, counter)
+    assert list_expression
+    var list_text = operand(list_expression)
+    assert loop.body.count() >= 2
+    var step = loop.body.last()
+    crash step
+    assert is_counter_step(step, counter)
+    var core = loop.body.copy()
+    core.remove_last()
+    var element_text = range_element(core, list_text, counter)
+    if element_text != "{list_text}[{counter}]" {
+        core.remove_first()
+        var mentioned = List<String>()
+        made.collect_block_names(core, mentioned)
+        assert not mentioned.contains(counter)
+    }
+    var plan = template_walk_of(core, element_text, list_text)
+    assert plan
+    assert not plan.value_names.contains(counter) and not plan.value_names.contains(element_text)
+    assert walk_fits_around(plan, statements, position, counter)
+    var probed = made.probed_type(list_expression, expressions.emitter.scope, expressions.lowered_class)
+    var walked_element = walked_element_type(probed, plan)
+    assert walked_element
+    var class_information = expressions.lowered_class
+    assert plan.members.is_empty() or not is_codegen_type_of(class_information, walked_element, expressions)
+    assert walked_members_exist(walked_element, plan.members)
+    assert passed_functions_fit(plan, expressions)
+    refuse_at(
+        loop.line,
+        "this 'while' walks every element of '{list_text}' only {plan.purpose}: write '{plan.replacement}'",
+    )
+}
+
+# ../../../../specs/control_flow.md#a-while-that-a-member-template-already-says
+func reporter(): Generation.Generator {
+    crash generator
+    return generator
+}

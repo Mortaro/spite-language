@@ -1,0 +1,692 @@
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+var generator: Generation.Generator? = null
+var shapes = Analysis.AstShape()
+var types = Analysis.TypeShape()
+var printer = Syntax.SourcePrinter()
+var saved_path = ""
+var saved_line = 0
+var saved_owner = ""
+var saved_function = ""
+
+func Failure(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func refuse(message: String) {
+    crash generator
+    var quiet = generator.nested_quiet
+    generator.nested_quiet = false
+    generator.report(message)
+    generator.nested_quiet = quiet
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func enter_declaration(path: String, line: Integer, owner: String) {
+    crash generator
+    saved_path = generator.current_path
+    saved_line = generator.current_line
+    saved_owner = generator.current_owner
+    saved_function = generator.current_function
+    generator.current_path = path
+    generator.current_line = line
+    generator.current_owner = owner
+    generator.current_function = ""
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func leave_declaration() {
+    crash generator
+    generator.current_path = saved_path
+    generator.current_line = saved_line
+    generator.current_owner = saved_owner
+    generator.current_function = saved_function
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func with_article(name: String): String {
+    var first_letter = name.slice(0, 1)
+    if "AEIOU".contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_opening(read_path: String, found_name: String): String {
+    var shown = with_article(found_name)
+    if read_path.is_empty() {
+        return "this value may be null (it is {shown})"
+    }
+    return "'{read_path}' may be missing, since every '[ ]' answers a 'T?' (this one is {shown})"
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_advice(read_path: String, bound: String): String {
+    if read_path.is_empty() {
+        return "narrow it first with 'if value \{ }', 'assert value' or 'crash value'"
+    }
+    return "narrow it first with 'crash {read_path}', 'assert {read_path}' or 'if {read_path} \{ }'{bound}"
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func read_bound(indexed: Syntax.Expressions.IndexExpression): String {
+    crash indexed.object
+    crash indexed.index
+    var object_side = indexed.object
+    var index_side = indexed.index
+    var object_text = printer.source_expression(object_side)
+    var literal = shapes.as_integer_literal(index_side)
+    if literal {
+        return ", or prove the count first, 'crash {object_text}.count() > {literal.value}'"
+    }
+    var index_text = printer.source_expression(index_side)
+    return ", or read it where a bound proves it, inside 'while {index_text} < {object_text}.count()'"
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_into(read_path: String, bound: String, found_name: String, wanted_name: String) {
+    var opening = null_opening(read_path, found_name)
+    var advice = null_advice(read_path, bound)
+    refuse("{opening}, but {with_article(wanted_name)} is needed: {advice}")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_read(read_path: String, bound: String, found_name: String, member: String) {
+    var opening = null_opening(read_path, found_name)
+    var advice = null_advice(read_path, bound)
+    refuse("{opening}, so '{member}' cannot be read from it yet: {advice}")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_called(read_path: String, bound: String, found_name: String, member: String) {
+    var opening = null_opening(read_path, found_name)
+    var advice = null_advice(read_path, bound)
+    refuse("{opening}, so '{member}' cannot be called on it yet: {advice}")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_assigned_through(read_path: String, bound: String, found_name: String, member: String) {
+    var opening = null_opening(read_path, found_name)
+    var advice = null_advice(read_path, bound)
+    refuse("{opening}, so '{member}' cannot be assigned through it yet: {advice}")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_operand(read_path: String, bound: String, found_name: String, symbol: String) {
+    var opening = null_opening(read_path, found_name)
+    var advice = null_advice(read_path, bound)
+    refuse("{opening}, so '{symbol}' cannot use it yet: {advice}")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func null_as_value() {
+    refuse(
+        "'null' is not a value to compare against or pass around: narrow the value instead, with 'if value \{ } else \{ }', 'assert value', 'crash value' or 'switch value \{ <Type>: ... Null: ... }'",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func maybe_boolean(used_by: String) {
+    refuse(
+        "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first ('crash index < flags.count()' proves 'flags[index]') or switch over it",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func read_inside_index(indexed: Syntax.Expressions.IndexExpression, inner: Syntax.Expressions.Expression) {
+    crash indexed.object
+    var object_side = indexed.object
+    var inner_text = printer.source_expression(inner)
+    var object_text = printer.source_expression(object_side)
+    refuse(
+        "'{inner_text}' is read inside the index of '{object_text}': compute it first into a named 'var' and pass the name",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func already_narrowed(path: String, site: String) {
+    refuse("'{path}' is already narrowed by {site}: remove this check")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func already_proven_condition(written: String, proof: String) {
+    refuse("'{written}' is already proven by {proof}: remove this check")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func already_proven_read(path: String, proof: String, keyword: String) {
+    refuse("'{path}' is already proven by {proof}, so this '{keyword}' proves nothing: remove it")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func already_checked(condition_text: String, line: Integer) {
+    refuse(
+        "'{condition_text}' was already checked on line {line}, and nothing between could change it: remove this check",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func cannot_be_null_here(type_name: String, keyword: String) {
+    refuse(
+        "this value cannot be null here (it is {with_article(type_name)}), so '{keyword}' on it proves nothing: remove the check",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func condition_not_boolean(keyword: String, type_name: String) {
+    refuse(
+        "the condition of '{keyword}' is {with_article(type_name)}, but it must be a Boolean: compare it with something, like 'count > 0' or 'name != \"\"'",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func decided_check(keyword: String, condition_text: String) {
+    refuse("'{keyword} {condition_text}' is decided while compiling and always holds here: remove it")
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func copy_to_narrow(name: String, source: String) {
+    refuse(
+        "'{name}' only copies '{source}' so it can be narrowed: narrow '{source}' itself ('assert {source}') and use it directly",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func proof_undone_in_loop(callee_text: String, crossed_text: String) {
+    refuse(
+        "'{callee_text}()' inside this loop may change '{crossed_text}', which undoes what was proven about it before the loop, and the next pass would read it unproven: prove it inside the loop instead",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func list_shrunk_in_loop(shrunk: String, name: String) {
+    refuse(
+        "'{shrunk}.{name}()' inside this loop undoes what was proven about '{shrunk}' before the loop, and the next pass would read it unproven: prove it inside the loop instead",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func assignment_undoes_in_loop(path: String, may_be_null: Boolean) {
+    if may_be_null {
+        refuse(
+            "assigning a value that may be null to '{path}' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead",
+        )
+        return
+    }
+    refuse(
+        "assigning to '{path}' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func lost_write(name: String, field: String, made_name: String) {
+    refuse(
+        "'{name}.{field}' is written here and '{name}' is never read after it: '{name}' is a '{made_name}' only this function holds, so the write is lost when it is let go. Use what was written, return '{name}', keep it in an attribute or a list, or drop the write",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func replaced_item_of_slot(name: String, slot: String, container: String, value_text: String) {
+    refuse(
+        "'{name}' was read from '{slot}', so assigning it here changes only '{name}', and nothing reads '{name}' after: '{container}' still holds the old item. Write '{slot} = {value_text}' to replace the item, or give the new value a 'var' of its own",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func replaced_item_of_call(name: String, slot: String, owner: String, call: String, writer: String, container: String) {
+    if writer.is_empty() {
+        refuse(
+            "'{name}' holds '{slot}' of '{owner}', answered by '{call}', so assigning it here changes only '{name}', and nothing reads '{name}' after: '{owner}' still holds the old item. Replace it through a function of '{owner}' that writes '{slot}', or give the new value a 'var' of its own",
+        )
+        return
+    }
+    refuse(
+        "'{name}' holds '{slot}' of '{owner}', answered by '{call}', so assigning it here changes only '{name}', and nothing reads '{name}' after: '{owner}' still holds the old item. Replace it through '{owner}.{writer}', which writes '{container}', or give the new value a 'var' of its own",
+    )
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func plain_get_at(path: String, line: Integer, owner: String, answered_name: String, answers_nothing: Boolean) {
+    var answered = "nothing"
+    var wanted = "the item's type followed by '?'"
+    if not answers_nothing {
+        answered = "'{answered_name}'"
+        wanted = "'{answered_name}?'"
+    }
+    enter_declaration(path, line, owner)
+    refuse(
+        "'get_at' answers {answered}, but it is what '[ ]' calls, and every '[ ]' answers a 'T?' that is narrowed before use: declare it to answer {wanted}, and answer null when nothing is at the index",
+    )
+    leave_declaration()
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func flipped_comparison(operator: Syntax.Expressions.BinaryOperator): Syntax.Expressions.BinaryOperator {
+    switch operator {
+        'equal': return 'not_equal'
+        'not_equal': return 'equal'
+        'less': return 'greater_equal'
+        'greater_equal': return 'less'
+        'greater': return 'less_equal'
+        'less_equal': return 'greater'
+        'logical_and': return 'logical_or'
+        'logical_or': return 'logical_and'
+        _: return operator
+    }
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func negated_condition(condition: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    var unary = shapes.as_unary(condition)
+    if unary and unary.operator == 'logical_not' {
+        crash unary.operand
+        return unary.operand
+    }
+    var binary = shapes.as_binary(condition)
+    if binary {
+        crash binary.left
+        crash binary.right
+        var flipped = flipped_comparison(binary.operator)
+        if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+            var left = negated_condition(binary.left)
+            var right = negated_condition(binary.right)
+            return Syntax.Expressions.BinaryExpression(flipped, left, right)
+        }
+        if flipped != binary.operator {
+            return Syntax.Expressions.BinaryExpression(flipped, binary.left, binary.right)
+        }
+    }
+    return Syntax.Expressions.UnaryExpression('logical_not', condition)
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func empty_collection_text(returned: Syntax.Expressions.Expression): String? {
+    var listed = shapes.as_list_literal(returned)
+    if listed {
+        assert listed.elements.is_empty()
+        return "[]"
+    }
+    var made = shapes.as_generic_call(returned)
+    assert made and made.arguments.is_empty()
+    crash made.callee
+    var made_name = printer.source_expression(made.callee)
+    assert made_name == "List" or made_name == "Dictionary" or made_name == "Vector" or made_name == "Items"
+    return printer.source_expression(returned)
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func returned_default(
+    if_statement: Syntax.Statements.IfStatement,
+    return_type: Analysis.SpiteType,
+    answers_nothing: Boolean,
+): String? {
+    assert not if_statement.has_else_branch and if_statement.then_branch.count() == 1
+    var only = shapes.as_return_statement(if_statement.then_branch[0])
+    assert only
+    if not only.value {
+        return ""
+    }
+    var returned = only.value
+    if types.as_nullable(return_type) {
+        if shapes.is_null_literal(returned) {
+            return "null"
+        }
+        return null
+    }
+    if answers_nothing {
+        return empty_collection_text(returned)
+    }
+    if shapes.is_false_literal(returned) {
+        return "false"
+    }
+    var text = shapes.as_string_literal(returned)
+    if text {
+        if text.value.is_empty() {
+            return "\"\""
+        }
+        return null
+    }
+    var integer = shapes.as_integer_literal(returned)
+    if integer {
+        if integer.value == 0 {
+            return "0"
+        }
+        return null
+    }
+    var fraction = shapes.as_float_literal(returned)
+    assert fraction
+    assert fraction.value == 0.0
+    return printer.source_expression(returned)
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func default_guard(
+    if_statement: Syntax.Statements.IfStatement,
+    return_type: Analysis.SpiteType,
+    answers_nothing: Boolean,
+    is_constructor: Boolean,
+) {
+    assert answers_nothing or is_constructor
+    var returned = returned_default(if_statement, return_type, answers_nothing)
+    assert returned
+    crash if_statement.condition
+    var negated = negated_condition(if_statement.condition)
+    var proven = printer.source_expression(negated)
+    if is_constructor {
+        refuse(
+            "this 'if' only leaves the constructor, and a constructor is setup, not logic: take already resolved values, or write 'crash {proven}' when this is a bug",
+        )
+        return
+    }
+    if returned.is_empty() {
+        refuse("this 'if' only returns: write 'assert {proven}' and let the rest run unindented")
+        return
+    }
+    refuse(
+        "this 'if' only returns the default '{returned}', which is how a guard is written: write 'assert {proven}' and let the rest run unindented",
+    )
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func terminal_if_of(body: List<Syntax.Statements.Statement>): Syntax.Statements.IfStatement? {
+    var last_statement = body.last()
+    assert last_statement
+    var last_if = shapes.as_if_statement(last_statement)
+    assert last_if
+    assert not last_if.has_else_branch
+    return last_if
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func terminal_if(
+    if_statement: Syntax.Statements.IfStatement,
+    body: List<Syntax.Statements.Statement>,
+    name: String,
+    type_name: String,
+    answers_nothing: Boolean,
+) {
+    assert not if_statement.has_else_branch
+    var last = terminal_if_of(body)
+    assert last == if_statement
+    if not answers_nothing {
+        refuse(
+            "this 'if' is the last thing the function does and has no 'else', so when '{name}' is null the function answers no {type_name} at all: give that case its own 'return' after the 'if', or make the result '{type_name}?' and write 'assert {name}'",
+        )
+        return
+    }
+    refuse(
+        "this 'if' is the last thing the function does and has no 'else', so it only checks that '{name}' is there: write 'assert {name}' and let the rest of the function run unindented",
+    )
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func assert_in_constructor() {
+    refuse(
+        "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
+    )
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func shown_default(return_type: Analysis.SpiteType): String {
+    var scalar = types.as_scalar(return_type)
+    if scalar {
+        return scalar_default(scalar.kind)
+    }
+    if types.as_string(return_type) {
+        return "\"\""
+    }
+    var enum_type = types.as_enum(return_type)
+    if enum_type {
+        var first_value = enum_type.values.first()
+        crash first_value
+        return "'{first_value}'"
+    }
+    return "an object with every attribute at its default"
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func scalar_default(kind: Analysis.Types.NumericKind): String {
+    if kind == 'boolean_kind' {
+        return "false"
+    }
+    if kind == 'float_kind' or kind == 'double_kind' {
+        return "0.0"
+    }
+    return "0"
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func example_answer(return_type: Analysis.SpiteType, made_answer: String): String {
+    var scalar = types.as_scalar(return_type)
+    if scalar {
+        if scalar.kind == 'boolean_kind' {
+            return "false"
+        }
+        if scalar.kind == 'float_kind' or scalar.kind == 'double_kind' {
+            return "-1.0"
+        }
+        return "-1"
+    }
+    if types.as_string(return_type) {
+        return "\"\""
+    }
+    var enum_type = types.as_enum(return_type)
+    if enum_type {
+        var first_value = enum_type.values.first()
+        crash first_value
+        return "'{first_value}'"
+    }
+    return made_answer
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func truth_written_out(
+    condition: Syntax.Expressions.Expression,
+    expressions: ExpressionLowering,
+): Syntax.Expressions.Expression {
+    var joined = shapes.as_binary(condition)
+    if joined and joined.operator == 'logical_and' {
+        crash joined.left
+        crash joined.right
+        var left_side = joined.left
+        var right_side = joined.right
+        var left = truth_written_out(left_side, expressions)
+        var right = truth_written_out(right_side, expressions)
+        return Syntax.Expressions.BinaryExpression('logical_and', left, right)
+    }
+    if not expressions.is_maybe_boolean(condition) {
+        return condition
+    }
+    var compared: Syntax.Expressions.Expression = Syntax.Expressions.TrueLiteral()
+    return Syntax.Expressions.BinaryExpression('equal', condition, compared)
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func default_answer(
+    statement: Syntax.Statements.AssertStatement,
+    return_type: Analysis.SpiteType,
+    type_name: String,
+    made_answer: String,
+    answers_nothing: Boolean,
+    expressions: ExpressionLowering,
+) {
+    assert not statement.is_crash
+    assert not answers_nothing
+    crash statement.value
+    var written = truth_written_out(statement.value, expressions)
+    var condition = printer.source_expression(written)
+    var negated = negated_condition(written)
+    var leaving = printer.source_expression(negated)
+    var answer = example_answer(return_type, made_answer)
+    var answer_choice = ""
+    if not answer.is_empty() {
+        answer_choice = " return a value ('if {leaving} \{ return {answer} }'),"
+    }
+    var nullable_choice = " make the result '{type_name}?',"
+    if answer == "false" {
+        nullable_choice = ""
+    }
+    var shown = shown_default(return_type)
+    refuse(
+        "this 'assert' would answer a default {type_name} ({shown}) that a caller cannot tell from a real one:{answer_choice}{nullable_choice} or 'crash {condition}' if this is a developer mistake",
+    )
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func falling_end(
+    function_name: String,
+    answered_name: String,
+    instance_text: String,
+    is_nullable: Boolean,
+    body: List<Syntax.Statements.Statement>,
+) {
+    var path = falling_path(body)
+    assert path
+    var reaches = "it reaches its end without a 'return'"
+    var ending = "end it with 'return <value>', or with 'crash' if it cannot get there"
+    if not path.is_empty() {
+        reaches = "{path} it reaches its end without a 'return'"
+        ending = "end that path with 'return <value>', or with 'crash' if it cannot happen"
+    }
+    var answered = with_article(answered_name)
+    var unwritten = answered
+    if is_nullable {
+        unwritten = "a null"
+    }
+    refuse(
+        "'{function_name}' answers {answered}{instance_text}, but {reaches}, so a caller would get {unwritten} nobody wrote: {ending}",
+    )
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func falling_path(statements: List<Syntax.Statements.Statement>): String? {
+    var last = statements.last()
+    if last {
+        return statement_falling_path(last)
+    }
+    return ""
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func statement_falling_path(statement: Syntax.Statements.Statement): String? {
+    switch statement {
+        Syntax.Statements.ReturnStatement: return null
+        Syntax.Statements.AssertStatement: return assert_falling_path(statement)
+        Syntax.Statements.IfStatement: return if_falling_path(statement)
+        Syntax.Statements.WhileStatement: return while_falling_path(statement)
+        Syntax.Statements.SwitchStatement: return switch_falling_path(statement)
+        _: return ""
+    }
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func assert_falling_path(statement: Syntax.Statements.AssertStatement): String? {
+    if statement.is_crash {
+        assert statement.value
+        assert not shapes.is_false_literal(statement.value)
+    }
+    return ""
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func while_falling_path(statement: Syntax.Statements.WhileStatement): String? {
+    crash statement.condition
+    assert not shapes.is_true_literal(statement.condition)
+    return "when the 'while' at line {statement.line} ends"
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func if_falling_path(if_statement: Syntax.Statements.IfStatement): String? {
+    crash if_statement.condition
+    var condition = printer.source_expression(if_statement.condition)
+    if not if_statement.has_else_branch {
+        return "when '{condition}' is false (line {if_statement.line}, an 'if' with no 'else')"
+    }
+    var then_path = falling_path(if_statement.then_branch)
+    if then_path {
+        return path_with_step("when '{condition}' is true (line {if_statement.line})", then_path)
+    }
+    var else_path = falling_path(if_statement.else_branch)
+    assert else_path
+    return path_with_step("when '{condition}' is false (line {if_statement.line})", else_path)
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func switch_falling_path(switch_statement: Syntax.Statements.SwitchStatement): String? {
+    var index = 0
+    while index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[index]
+        var case_path = falling_path(switch_case.body)
+        if case_path {
+            var label = case_label(switch_case)
+            var step = "in the case {label} of the 'switch' at line {switch_statement.line}"
+            return path_with_step(step, case_path)
+        }
+        index = index + 1
+    }
+    assert switch_statement.cases.is_empty()
+    return ""
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func case_label(switch_case: Syntax.Statements.SwitchCase): String {
+    if switch_case.value {
+        return printer.source_expression(switch_case.value)
+    }
+    crash switch_case.type_reference
+    return printer.source_type(switch_case.type_reference)
+}
+
+# ../../../../specs/failure.md#assert-is-control-flow
+func path_with_step(step: String, rest: String): String {
+    if rest.is_empty() {
+        return step
+    }
+    return "{step}, then {rest}"
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func operator_symbol(operator: Syntax.Expressions.BinaryOperator): String {
+    switch operator {
+        'add': return "+"
+        'subtract': return "-"
+        'multiply': return "*"
+        'divide': return "/"
+        'modulo': return "%"
+        'equal': return "=="
+        'not_equal': return "!="
+        'less': return "<"
+        'less_equal': return "<="
+        'greater': return ">"
+        'greater_equal': return ">="
+        'logical_and': return "and"
+        _: return "or"
+    }
+}
+
+# ../../../../specs/failure.md#nothing-fails-silently-the-rule
+func nullable_use(
+    object_expression: Syntax.Expressions.Expression,
+    found_name: String,
+    how: String,
+    name: String,
+    expressions: ExpressionLowering,
+) {
+    var read_path = ""
+    var bound = ""
+    var indexed = shapes.as_index(object_expression)
+    if indexed {
+        var made = expressions.front()
+        read_path = made.operand_text(object_expression)
+        if not read_path.is_empty() {
+            bound = read_bound(indexed)
+        }
+    }
+    switch how {
+        "read": null_read(read_path, bound, found_name, name)
+        "call": null_called(read_path, bound, found_name, name)
+        "store": null_assigned_through(read_path, bound, found_name, name)
+        _: null_operand(read_path, bound, found_name, name)
+    }
+}

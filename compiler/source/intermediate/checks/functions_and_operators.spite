@@ -1,0 +1,453 @@
+# ../../../../specs/functions_and_operators.md#functions
+var generator: Generation.Generator? = null
+var shapes = Analysis.AstShape()
+var printer = Syntax.SourcePrinter()
+var saved_path = ""
+var saved_line = 0
+var saved_owner = ""
+var saved_function = ""
+
+func FunctionsAndOperators(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func refuse(message: String) {
+    crash generator
+    var quiet = generator.nested_quiet
+    generator.nested_quiet = false
+    generator.report(message)
+    generator.nested_quiet = quiet
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func enter_declaration(path: String, line: Integer, owner: String, function_name: String) {
+    crash generator
+    saved_path = generator.current_path
+    saved_line = generator.current_line
+    saved_owner = generator.current_owner
+    saved_function = generator.current_function
+    generator.current_path = path
+    generator.current_line = line
+    generator.current_owner = owner
+    generator.current_function = function_name
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func leave_declaration() {
+    crash generator
+    generator.current_path = saved_path
+    generator.current_line = saved_line
+    generator.current_owner = saved_owner
+    generator.current_function = saved_function
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func with_article(name: String): String {
+    var first_letter = name.slice(0, 1)
+    if "AEIOU".contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func reserved_signature(name: String, class_name: String): String {
+    switch name {
+        "drop": return "func drop()"
+        "to_string": return "func to_string(): String"
+        "to_debug": return "func to_debug(): String"
+        "equals": return "func equals(other: {class_name}): Boolean"
+        "less_than": return "func less_than(other: {class_name}): Boolean"
+        "greater_than": return "func greater_than(other: {class_name}): Boolean"
+        _: return ""
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func reserved_use(name: String): String {
+    switch name {
+        "drop": return "when the last reference to an object goes"
+        "to_string": return "wherever the object is used as text"
+        "to_debug": return "wherever the object is shown for debugging"
+        "equals": return "for '==' and '!='"
+        "less_than": return "for '<' and '<='"
+        _: return "for '>' and '>='"
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func reserved_declared(
+    path: String,
+    line: Integer,
+    owner: String,
+    simple_name: String,
+    name: String,
+    parameter_count: Integer,
+    answered_name: String,
+) {
+    var wanted = reserved_signature(name, simple_name)
+    assert not wanted.is_empty()
+    var wanted_count = 1
+    var wanted_return = "Boolean"
+    if name == "drop" {
+        wanted_count = 0
+        wanted_return = ""
+    } else if name == "to_string" or name == "to_debug" {
+        wanted_count = 0
+        wanted_return = "String"
+    }
+    assert parameter_count != wanted_count or answered_name != wanted_return
+    var use = reserved_use(name)
+    enter_declaration(path, line, owner, "")
+    refuse("'{name}' is called by the compiler {use}, so it is declared exactly '{wanted}'")
+    leave_declaration()
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func declared_twice(path: String, line: Integer, owner: String, simple_name: String, name: String) {
+    enter_declaration(path, line, owner, "")
+    refuse(
+        "'{simple_name}' declares '{name}' twice: a later file may reopen a class and replace a function, but one file declares each name once",
+    )
+    leave_declaration()
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing(path: String, line: Integer, owner: String, function_name: String, what: String, name: String) {
+    enter_declaration(path, line, owner, function_name)
+    refuse(
+        "the {what} '{name}' has the name of a function of this class, and a function is a value passed by its name: give the {what} a name of its own",
+    )
+    leave_declaration()
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_names(path: String, owner: String, statements: List<Syntax.Statements.Statement>) {
+    var function_names = List<String>()
+    var index = 0
+    while index < statements.count() {
+        var declared_function = shapes.as_function_declaration(statements[index])
+        if declared_function {
+            function_names.append(declared_function.name)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < statements.count() {
+        shadowing_in_member(path, owner, statements[index], function_names)
+        index = index + 1
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_in_member(
+    path: String,
+    owner: String,
+    statement: Syntax.Statements.Statement,
+    function_names: List<String>,
+) {
+    var attribute = shapes.as_variable_declaration(statement)
+    if attribute {
+        var attribute_path = path
+        if not attribute.source_path.is_empty() {
+            attribute_path = attribute.source_path
+        }
+        shadowing_if_named(attribute_path, attribute.line, owner, "", "attribute", attribute.name, function_names)
+        return
+    }
+    var function = shapes.as_function_declaration(statement)
+    assert function
+    var function_path = path
+    if not function.source_path.is_empty() {
+        function_path = function.source_path
+    }
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter_name = function.parameters[index].name
+        shadowing_if_named(
+            function_path,
+            function.line,
+            owner,
+            function.name,
+            "parameter",
+            parameter_name,
+            function_names,
+        )
+        index = index + 1
+    }
+    shadowing_locals(function_path, owner, function.name, function.body, function_names)
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_if_named(
+    path: String,
+    line: Integer,
+    owner: String,
+    function_name: String,
+    what: String,
+    name: String,
+    function_names: List<String>,
+) {
+    assert function_names.contains(name)
+    shadowing(path, line, owner, function_name, what, name)
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_locals(
+    path: String,
+    owner: String,
+    function_name: String,
+    statements: List<Syntax.Statements.Statement>,
+    function_names: List<String>,
+) {
+    var index = 0
+    while index < statements.count() {
+        shadowing_in_statement(path, owner, function_name, statements[index], function_names)
+        index = index + 1
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_in_statement(
+    path: String,
+    owner: String,
+    function_name: String,
+    statement: Syntax.Statements.Statement,
+    function_names: List<String>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: shadowing_if_named(path, statement.line, owner, function_name, "variable", statement.name, function_names)
+        Syntax.Statements.IfStatement: shadowing_in_branches(path, owner, function_name, statement, function_names)
+        Syntax.Statements.WhileStatement: shadowing_locals(path, owner, function_name, statement.body, function_names)
+        Syntax.Statements.SwitchStatement: shadowing_in_cases(path, owner, function_name, statement, function_names)
+        _: return
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_in_branches(
+    path: String,
+    owner: String,
+    function_name: String,
+    statement: Syntax.Statements.IfStatement,
+    function_names: List<String>,
+) {
+    shadowing_locals(path, owner, function_name, statement.then_branch, function_names)
+    shadowing_locals(path, owner, function_name, statement.else_branch, function_names)
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func shadowing_in_cases(
+    path: String,
+    owner: String,
+    function_name: String,
+    statement: Syntax.Statements.SwitchStatement,
+    function_names: List<String>,
+) {
+    var index = 0
+    while index < statement.cases.count() {
+        var each_case = statement.cases[index]
+        shadowing_locals(path, owner, function_name, each_case.body, function_names)
+        index = index + 1
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func operator_missing(left_class: String, function_name: String) {
+    assert not function_name.is_empty()
+    refuse("this operator on a '{left_class}' needs it to define '{function_name}(other)'")
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func negate_missing(operand_class: String) {
+    refuse("'-' on a '{operand_class}' needs it to define 'negate()'")
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func index_read_missing(indexed_class: String) {
+    refuse("indexing a '{indexed_class}' needs it to define 'get_at(index)'")
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func index_write_missing(assigned_class: String) {
+    refuse("assigning through an index on a '{assigned_class}' needs it to define 'set_at(index, value)'")
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func read_only_attribute(name: String, class_name: String) {
+    refuse("'{name}' is read-only: '{class_name}' answers it through get_{name}() and has no set_{name}(value)")
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func no_attribute_to_assign(name: String, class_name: String) {
+    refuse("'{class_name}' has no attribute '{name}' to assign to")
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func may_call_an_operator(name: String, argument_count: Integer): Boolean {
+    switch name {
+        "get_at": return argument_count == 1
+        "set_at": return argument_count == 2
+        "negate": return argument_count == 0
+        _: return named_operator_takes(name, argument_count)
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func named_operator_takes(name: String, argument_count: Integer): Boolean {
+    var operators = ["sum", "subtract", "multiply", "divide", "remainder", "equals", "less_than", "greater_than"]
+    if operators.contains(name) {
+        return argument_count == 1
+    }
+    if name.length() <= 4 {
+        return false
+    }
+    if name.starts_with("get_") {
+        return argument_count == 0
+    }
+    if name.starts_with("set_") {
+        return argument_count == 1
+    }
+    return false
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func operator_written_for(name: String, receiver: String, arguments: List<String>): String {
+    if name == "negate" {
+        return "'negate' is what '-' calls: write '-{receiver}'"
+    }
+    if name.starts_with("get_") and name != "get_at" {
+        var name_length = name.length()
+        var attribute = name.slice(4, name_length)
+        return "'{name}' is what reading '{attribute}' calls: write '{receiver}.{attribute}'"
+    }
+    var first = arguments.first()
+    crash first
+    switch name {
+        "get_at": return "'get_at' is what '[]' calls: write '{receiver}[{first}]'"
+        "set_at": return "'set_at' is what '[] =' calls: write '{receiver}[{first}] = {second_argument(arguments)}'"
+        "sum": return "'sum' is what '+' calls: write '{receiver} + {first}'"
+        "subtract": return "'subtract' is what '-' calls: write '{receiver} - {first}'"
+        "multiply": return "'multiply' is what '*' calls: write '{receiver} * {first}'"
+        "divide": return "'divide' is what '/' calls: write '{receiver} / {first}'"
+        "remainder": return "'remainder' is what '%' calls: write '{receiver} % {first}'"
+        "equals": return "'equals' is what '==' calls: write '{receiver} == {first}', or '{receiver} != {first}' for 'not {receiver}.equals({first})'"
+        "less_than": return "'less_than' is what '<' calls: write '{receiver} < {first}'"
+        "greater_than": return "'greater_than' is what '>' calls: write '{receiver} > {first}'"
+        _: return setter_written_for(name, receiver, first)
+    }
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func second_argument(arguments: List<String>): String {
+    var second = arguments.last()
+    crash second
+    return second
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func setter_written_for(name: String, receiver: String, first: String): String {
+    var name_length = name.length()
+    var attribute = name.slice(4, name_length)
+    return "'{name}' is what writing '{attribute}' calls: write '{receiver}.{attribute} = {first}'"
+}
+
+# ../../../../specs/functions_and_operators.md#operators
+func operator_function_called(
+    member: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+    stands_in: Boolean,
+) {
+    assert stands_in
+    var argument_total = arguments.count()
+    assert may_call_an_operator(member.name, argument_total)
+    crash member.object
+    var receiver_expression = member.object
+    var receiver = printer.source_receiver(receiver_expression)
+    var written = List<String>()
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var argument_text = printer.source_expression(argument)
+        written.append(argument_text)
+        index = index + 1
+    }
+    var message = operator_written_for(member.name, receiver, written)
+    refuse(message)
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func class_function_as_value(class_name: String, member_name: String) {
+    var instance_name = snake_words(class_name)
+    refuse(
+        "'{class_name}.{member_name}' is not a function: '{class_name}' is the class's 'Spite.Class' object, which has no '{member_name}' (the function itself is '{class_name}.functions['{member_name}']'). A function value belongs to an instance: pass '{instance_name}.{member_name}', or ask each element of a list through its member template, such as 'filter_{member_name}()'",
+    )
+}
+
+# ../../../../specs/functions_and_operators.md#variadic-arguments-the-rules
+func call_arguments(given: Integer, wanted: Integer, variadic: Boolean) {
+    if variadic {
+        var fixed_count = wanted - 1
+        assert given < fixed_count
+        refuse("this call passes {given} argument(s), but at least {fixed_count} are expected")
+        return
+    }
+    assert given != wanted
+    refuse("this call passes {given} argument(s), but {wanted} are expected")
+}
+
+# ../../../../specs/functions_and_operators.md#variadic-arguments-the-rules
+func whole_list_passed(list_name: String) {
+    refuse(
+        "this call passes a whole {list_name}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
+    )
+}
+
+# ../../../../specs/functions_and_operators.md#variadic-arguments-the-rules
+func call_in_argument(call_text: String, called: String) {
+    refuse(
+        "'{call_text}' is called inside an argument of '{called}': compute it first into a named 'var' and pass the name",
+    )
+}
+
+# ../../../../specs/functions_and_operators.md#variadic-arguments-the-rules
+func constructed_in_argument(call_text: String, called: String, variable: String) {
+    refuse(
+        "'{call_text}' is constructed inside an argument of '{called}': a constructor call is never an argument, so make it first on a line of its own, 'var {variable} = {call_text}', and pass '{variable}'",
+    )
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func return_without_result(function_name: String) {
+    refuse(
+        "'{function_name}' returns nothing, so 'return' cannot carry a value here: declare what it returns, like 'func {function_name}(): Integer', or return without a value",
+    )
+}
+
+# ../../../../specs/functions_and_operators.md#functions
+func return_needs_value(function_name: String, answered_name: String) {
+    refuse("'{function_name}' returns {with_article(answered_name)}, so 'return' needs a value")
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func function_value_calls_with(name: String, given: Integer, wanted: Integer) {
+    refuse("'{name}' takes {wanted} argument(s), and this call passes {given}")
+}
+
+# ../../../../specs/functions_and_operators.md#functions-are-values-always-bound-to-an-instance
+func snake_words(pascal: String): String {
+    var words = ""
+    var index = 0
+    while index < pascal.length() {
+        var code = pascal.code_at(index)
+        var character = pascal.character_at(index)
+        if code >= 65 and code <= 90 and index > 0 {
+            words = "{words}_"
+        }
+        var lowered = character.lower_case()
+        words = words + lowered
+        index = index + 1
+    }
+    return words
+}
