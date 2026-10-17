@@ -1,0 +1,14 @@
+# ../../../../design/backend_x86_64_encoding.md#registers
+var kind: Kind = 'general_register'
+var number = 0
+var bits = 64
+
+func Register(starting_number: Integer, starting_bits: Integer) {
+    crash starting_number >= 0 and starting_number <= 15
+    crash starting_bits == 32 or starting_bits == 64 or starting_bits == 128
+    if starting_bits == 128 {
+        kind = 'floating_register'
+    }
+    number = starting_number
+    bits = starting_bits
+}

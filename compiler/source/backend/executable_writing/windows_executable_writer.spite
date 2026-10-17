@@ -1,4 +1,4 @@
-# ../../../design/backend_windows_executable_format.md#what-the-writer-is-given
+# ../../../../design/backend_windows_executable_format.md#what-the-writer-is-given
 var imported_names = List<String>()
 
 func WindowsExecutableWriter(starting_names: List<String>) {
@@ -33,7 +33,7 @@ func library_name(): String {
     return "kernel32.dll"
 }
 
-# ../../../design/backend_windows_executable_format.md#addressing-an-import
+# ../../../../design/backend_windows_executable_format.md#addressing-an-import
 func code_address(): Long {
     return image_base() + section_size()
 }
@@ -45,7 +45,7 @@ func address_of_import(name: String): Long {
     return image_base() + imports_address() + slot
 }
 
-# ../../../design/backend_windows_executable_format.md#the-import-section
+# ../../../../design/backend_windows_executable_format.md#the-import-section
 func descriptor_size(): Integer {
     return 40
 }
@@ -151,14 +151,14 @@ func append_zeros(bytes: Buffer, count: Integer) {
     }
 }
 
-# ../../../design/backend_windows_executable_format.md#the-dos-header
+# ../../../../design/backend_windows_executable_format.md#the-dos-header
 func append_dos_header(bytes: Buffer) {
     bytes.append_unsigned_short(23117)
     append_zeros(bytes, 58)
     bytes.append_unsigned_integer(64)
 }
 
-# ../../../design/backend_windows_executable_format.md#the-file-header
+# ../../../../design/backend_windows_executable_format.md#the-file-header
 func append_file_header(bytes: Buffer) {
     bytes.append_unsigned_integer(17744)
     bytes.append_unsigned_short(34404)
@@ -170,7 +170,7 @@ func append_file_header(bytes: Buffer) {
     bytes.append_unsigned_short(34)
 }
 
-# ../../../design/backend_windows_executable_format.md#the-optional-header
+# ../../../../design/backend_windows_executable_format.md#the-optional-header
 func append_optional_header(bytes: Buffer, code_size: Integer, imports_size: Integer) {
     var code_raw = raw_size(code_size)
     var imports_raw = raw_size(imports_size)
@@ -216,7 +216,7 @@ func append_optional_header(bytes: Buffer, code_size: Integer, imports_size: Int
     append_zeros(bytes, 112)
 }
 
-# ../../../design/backend_windows_executable_format.md#the-section-headers
+# ../../../../design/backend_windows_executable_format.md#the-section-headers
 func append_section_headers(bytes: Buffer, code_size: Integer, imports_size: Integer) {
     var code_raw = raw_size(code_size)
     var imports_raw = raw_size(imports_size)
@@ -262,7 +262,7 @@ func raw_size(size: Integer): Integer {
     return size
 }
 
-# ../../../design/backend_windows_executable_format.md#what-the-writer-is-given
+# ../../../../design/backend_windows_executable_format.md#what-the-writer-is-given
 func write(path: String, code: Buffer) {
     var code_size = code.count()
     crash not code.is_empty()

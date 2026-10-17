@@ -326,6 +326,23 @@ Decided by an agent under D509 (anything that can be changed later). Each is bui
   program's `Build` declares it, and a declared setting is a field. The cost to confirm: the regenerated benchmark
   C and the updated `unknown_compiler_flag` error, and whether the settings should stop being fields as part of
   D578.
+- **D616, where the executable writers and the encoder live**: `compiler/source/backend/executable_writing/` for the
+  writers (one folder, the class names unchanged) and `compiler/source/backend/x86/` for the encoder and its operand
+  classes, the namespace `X86`. Why: a `load` reads every file of the folder it names, and the high level IR walk
+  beside the writers names `Analysis.*`, `Syntax.*` and `Generation.*`, which only the compiler loads, so M0's program
+  could not be built (it had never run); and D588 wants no name prefix standing for a namespace. The alternative was to
+  move `backend/high_*.spite` into `backend/high/` first (the fix D588's own text suggests, and the TODO line names),
+  which touches the IR work in other branches. Say if you want the IR moved instead and the writers back at
+  `compiler/source/backend/windows_executable_writer.spite`.
+- **D617, the encoder's decisions**: the operand kinds and the refused forms (`compiler/source/backend/x86/`), one
+  function per instruction family that switches on its operands' kinds, a whole number register at 32 or 64 bits and an
+  SSE register at 128, a place carrying its width only where an instruction needs one of its own, `ud2` as
+  `illegal_instruction`, no accumulator short forms, and a `Float` or `Double` from a number refused because no
+  assembler here takes one. The table is 165 rows in `backend/x86_encoding`. Easy to change: the forms are one function
+  each, and adding a form never changes another.
+- **`check.sh` runs the backend programs**: `backend/hand_built_executable` and `backend/x86_encoding` run with
+  `spite backend/<folder>` and nothing in `check.sh` runs them yet (D558, D583), so a green run says nothing about the
+  backend's own programs. The step belongs on Windows alone, since M0's program writes a Windows executable.
 
 ## Open
 

@@ -1,0 +1,60 @@
+# ../../design/backend_x86_64_encoding.md#what-is-refused
+var console = Console()
+var program = Program()
+var encoder = Encoder(0)
+
+func X86EncodingRefusals() {
+    load "../../compiler/source/backend/x86"
+    var wanted = program.environment("REFUSAL")
+    crash wanted
+    switch wanted {
+        "floating_where_a_whole_number": {
+            var register = Register(0, 128)
+            var other = Register(1, 64)
+            encoder.add(register, other)
+        }
+        "whole_number_where_a_floating": {
+            var register = Register(0, 64)
+            var other = Register(1, 64)
+            encoder.add_float(register, other)
+        }
+        "number_where_none_is_taken": {
+            var number = Immediate(3)
+            encoder.divide_signed(number)
+        }
+        "place_where_a_register_must_be": {
+            var place = Place().at_register(7, 8)
+            var number = Immediate(0)
+            encoder.take_address_of(place, number)
+        }
+        "high_register_where_no_prefix_is_written": {
+            var register = Register(8, 64)
+            var other = Register(8, 64)
+            encoder.move(register, other)
+        }
+        "two_places": {
+            var one = Place().at_register(7, 8)
+            var other = Place().at_register(8, 8)
+            encoder.add(one, other)
+        }
+        "register_outside_the_sixteen": {
+            var outside = Register(16, 64)
+            encoder.jump_through(outside)
+        }
+        "scale_that_is_not_a_power_of_two": {
+            var place = Place().indexed_by(7, 6, 3, 0)
+            var register = Register(0, 64)
+            encoder.move(register, place)
+        }
+        "displacement_wider_than_thirty_two_bits": {
+            var place = Place().at_register(7, 4294967296)
+            var register = Register(0, 64)
+            encoder.move(register, place)
+        }
+        _: {
+            console.print("that is not a form this program refuses")
+            return
+        }
+    }
+    console.print("nothing refused that")
+}

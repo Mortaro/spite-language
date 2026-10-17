@@ -1,0 +1,7 @@
+# ../../../../design/backend_x86_64_encoding.md#immediates
+var kind: Kind = 'immediate'
+var value: Long = 0
+
+func Immediate(starting_value: Long) {
+    value = starting_value
+}

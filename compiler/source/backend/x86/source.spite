@@ -1,0 +1,5 @@
+union Source {
+    Register
+    Immediate
+    Place
+}
