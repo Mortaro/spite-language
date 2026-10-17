@@ -1,0 +1,4 @@
+union Destination {
+    Register
+    Place
+}

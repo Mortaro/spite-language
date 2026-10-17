@@ -1,0 +1,6 @@
+enum Kind {
+    'general_register'
+    'floating_register'
+    'memory'
+    'immediate'
+}

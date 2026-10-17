@@ -1,0 +1,57 @@
+# ../../../../design/backend_x86_64_encoding.md#a-place-in-memory
+var kind: Kind = 'memory'
+var bits = 0
+var base: Register? = null
+var index: Register? = null
+var scale = 1
+var displacement: Long = 0
+var from_instruction_pointer = false
+
+func at_register(given_base_number: Integer, given_displacement: Long): Place {
+    base = Register(given_base_number, 64)
+    displacement = given_displacement
+    return this
+}
+
+func indexed_by(
+    given_base_number: Integer,
+    given_index_number: Integer,
+    given_scale: Integer,
+    given_displacement: Long,
+): Place {
+    base = Register(given_base_number, 64)
+    index = Register(given_index_number, 64)
+    scale = given_scale
+    displacement = given_displacement
+    return this
+}
+
+func after_the_instruction(given_displacement: Long): Place {
+    from_instruction_pointer = true
+    displacement = given_displacement
+    return this
+}
+
+func at_the_address(given_displacement: Long): Place {
+    displacement = given_displacement
+    return this
+}
+
+func of_bits(given_bits: Integer): Place {
+    bits = given_bits
+    return this
+}
+
+func base_number(): Integer {
+    if not base {
+        return 5
+    }
+    return base.number
+}
+
+func index_number(): Integer {
+    if not index {
+        return 4
+    }
+    return index.number
+}

@@ -1,0 +1,518 @@
+# ../../design/backend_x86_64_encoding.md#the-table
+var console = Console()
+var encoder = Encoder(0)
+var rows_checked = 0
+
+func X86Encoding() {
+    load "../../compiler/source/backend/x86"
+    check_the_moves()
+    check_the_additions()
+    check_the_subtractions()
+    check_the_comparisons()
+    check_the_multiplications()
+    check_the_divisions()
+    check_the_conditional_jumps()
+    check_the_jumps()
+    check_the_calls()
+    check_the_returns()
+    check_the_pushes()
+    check_the_pops()
+    check_the_addresses()
+    check_the_floating_moves()
+    check_the_floating_arithmetic()
+    console.print("{rows_checked} rows pass")
+}
+
+func compare(assembly: String, expected: String) {
+    rows_checked = rows_checked + 1
+    var given = bytes_as_text(encoder.bytes)
+    console.print(assembly)
+    crash given == expected
+}
+
+func bytes_as_text(given: Buffer): String {
+    var digits = "0123456789ABCDEF"
+    var text = ""
+    var index = 0
+    while index < given.count() {
+        var one = given[index]
+        crash one
+        var wide: UnsignedInteger = one
+        text = "{text} {digits.character_at(wide / 16)}{digits.character_at(wide % 16)}"
+        index = index + 1
+    }
+    return text.trim()
+}
+
+func check_two(
+    assembly: String,
+    expected: String,
+    instruction: Spite.Function<Destination, Source, Nothing>,
+    destination: Destination,
+    source: Source,
+) {
+    encoder.clear()
+    instruction(destination, source)
+    compare(assembly, expected)
+}
+
+func check_one(assembly: String, expected: String, instruction: Spite.Function<Source, Nothing>, operand: Source) {
+    encoder.clear()
+    instruction(operand)
+    compare(assembly, expected)
+}
+
+func check_into(
+    assembly: String,
+    expected: String,
+    instruction: Spite.Function<Destination, Nothing>,
+    destination: Destination,
+) {
+    encoder.clear()
+    instruction(destination)
+    compare(assembly, expected)
+}
+
+func check_alone(assembly: String, expected: String, instruction: Spite.Function<Nothing>) {
+    encoder.clear()
+    instruction()
+    compare(assembly, expected)
+}
+
+func check_by(
+    assembly: String,
+    expected: String,
+    instruction: Spite.Function<Destination, Source, Immediate, Nothing>,
+    destination: Destination,
+    left: Source,
+    factor: Immediate,
+) {
+    encoder.clear()
+    instruction(destination, left, factor)
+    compare(assembly, expected)
+}
+
+func check_to(assembly: String, expected: String, instruction: Spite.Function<Integer, Nothing>, target: Integer) {
+    encoder.clear()
+    instruction(target)
+    compare(assembly, expected)
+}
+
+func check_if(assembly: String, expected: String, condition: Condition, target: Integer) {
+    encoder.clear()
+    encoder.jump_if(condition, target)
+    compare(assembly, expected)
+}
+
+func check_the_moves() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 64)
+    source = Register(3, 64)
+    check_two("mov rax, rbx", "48 89 D8", encoder.move, destination, source)
+    destination = Register(0, 32)
+    source = Register(3, 32)
+    check_two("mov eax, ebx", "89 D8", encoder.move, destination, source)
+    destination = Register(1, 64)
+    source = Immediate(42)
+    check_two("mov rcx, 42", "48 C7 C1 2A 00 00 00", encoder.move, destination, source)
+    destination = Register(1, 32)
+    check_two("mov ecx, 42", "B9 2A 00 00 00", encoder.move, destination, source)
+    destination = Register(0, 64)
+    source = Immediate(1234605616436508552)
+    check_two("mov rax, 0x1122334455667788", "48 B8 88 77 66 55 44 33 22 11", encoder.move, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("mov rax, [rdi + 8]", "48 8B 47 08", encoder.move, destination, source)
+    destination = Register(0, 32)
+    check_two("mov eax, [rdi + 8]", "8B 47 08", encoder.move, destination, source)
+    destination = Place().at_register(7, 8)
+    source = Register(0, 64)
+    check_two("mov [rdi + 8], rax", "48 89 47 08", encoder.move, destination, source)
+    source = Register(0, 32)
+    check_two("mov [rdi + 8], eax", "89 47 08", encoder.move, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(42)
+    check_two("mov dword ptr [rdi + 8], 42", "C7 47 08 2A 00 00 00", encoder.move, destination, source)
+    destination = Register(0, 64)
+    source = Place().at_register(7, 0)
+    check_two("mov rax, [rdi]", "48 8B 07", encoder.move, destination, source)
+    source = Place().indexed_by(7, 6, 4, 0)
+    check_two("mov rax, [rdi + rsi*4]", "48 8B 04 B7", encoder.move, destination, source)
+    source = Place().indexed_by(7, 6, 4, 8)
+    check_two("mov rax, [rdi + rsi*4 + 8]", "48 8B 44 B7 08", encoder.move, destination, source)
+    source = Place().indexed_by(7, 6, 8, 2048)
+    check_two("mov rax, [rdi + rsi*8 + 2048]", "48 8B 84 F7 00 08 00 00", encoder.move, destination, source)
+    source = Place().at_register(4, 16)
+    check_two("mov rax, [rsp + 16]", "48 8B 44 24 10", encoder.move, destination, source)
+    source = Place().at_register(5, 0)
+    check_two("mov rax, [rbp + 0]", "48 8B 45 00", encoder.move, destination, source)
+    source = Place().at_register(7, -8)
+    check_two("mov rax, [rdi - 8]", "48 8B 47 F8", encoder.move, destination, source)
+    source = Place().at_register(7, 127)
+    check_two("mov rax, [rdi + 127]", "48 8B 47 7F", encoder.move, destination, source)
+    source = Place().at_register(7, 128)
+    check_two("mov rax, [rdi + 128]", "48 8B 87 80 00 00 00", encoder.move, destination, source)
+    source = Place().after_the_instruction(4096)
+    check_two("mov rax, [rip + 4096]", "48 8B 05 00 10 00 00", encoder.move, destination, source)
+    source = Place().at_the_address(4210688)
+    check_two("mov rax, [0x404000]", "48 8B 04 25 00 40 40 00", encoder.move, destination, source)
+    source = Place().at_register(12, 8)
+    check_two("mov rax, [r12 + 8]", "49 8B 44 24 08", encoder.move, destination, source)
+    source = Place().indexed_by(7, 12, 2, 8)
+    check_two("mov rax, [rdi + r12*2 + 8]", "4A 8B 44 67 08", encoder.move, destination, source)
+}
+
+func check_the_additions() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 64)
+    source = Register(3, 64)
+    check_two("add rax, rbx", "48 01 D8", encoder.add, destination, source)
+    destination = Register(0, 32)
+    source = Register(3, 32)
+    check_two("add eax, ebx", "01 D8", encoder.add, destination, source)
+    destination = Register(0, 64)
+    source = Immediate(5)
+    check_two("add rax, 5", "48 83 C0 05", encoder.add, destination, source)
+    destination = Register(3, 64)
+    source = Immediate(5000)
+    check_two("add rbx, 5000", "48 81 C3 88 13 00 00", encoder.add, destination, source)
+    destination = Register(0, 32)
+    source = Immediate(5)
+    check_two("add eax, 5", "83 C0 05", encoder.add, destination, source)
+    destination = Register(0, 64)
+    source = Place().at_register(7, 8)
+    check_two("add rax, [rdi + 8]", "48 03 47 08", encoder.add, destination, source)
+    destination = Register(0, 32)
+    source = Place().at_register(7, 8)
+    check_two("add eax, [rdi + 8]", "03 47 08", encoder.add, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Register(0, 64)
+    check_two("add qword ptr [rdi + 8], rax", "48 01 47 08", encoder.add, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Register(0, 32)
+    check_two("add dword ptr [rdi + 8], eax", "01 47 08", encoder.add, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Immediate(5)
+    check_two("add qword ptr [rdi + 8], 5", "48 83 47 08 05", encoder.add, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Immediate(5000)
+    check_two("add qword ptr [rdi + 8], 5000", "48 81 47 08 88 13 00 00", encoder.add, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(5)
+    check_two("add dword ptr [rdi + 8], 5", "83 47 08 05", encoder.add, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(5000)
+    check_two("add dword ptr [rdi + 8], 5000", "81 47 08 88 13 00 00", encoder.add, destination, source)
+}
+
+func check_the_subtractions() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 64)
+    source = Register(3, 64)
+    check_two("sub rax, rbx", "48 29 D8", encoder.subtract, destination, source)
+    destination = Register(0, 32)
+    source = Register(3, 32)
+    check_two("sub eax, ebx", "29 D8", encoder.subtract, destination, source)
+    destination = Register(0, 64)
+    source = Immediate(5)
+    check_two("sub rax, 5", "48 83 E8 05", encoder.subtract, destination, source)
+    destination = Register(3, 64)
+    source = Immediate(5000)
+    check_two("sub rbx, 5000", "48 81 EB 88 13 00 00", encoder.subtract, destination, source)
+    destination = Register(0, 32)
+    source = Immediate(5)
+    check_two("sub eax, 5", "83 E8 05", encoder.subtract, destination, source)
+    destination = Register(0, 64)
+    source = Place().at_register(7, 8)
+    check_two("sub rax, [rdi + 8]", "48 2B 47 08", encoder.subtract, destination, source)
+    destination = Register(0, 32)
+    source = Place().at_register(7, 8)
+    check_two("sub eax, [rdi + 8]", "2B 47 08", encoder.subtract, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Register(0, 64)
+    check_two("sub qword ptr [rdi + 8], rax", "48 29 47 08", encoder.subtract, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Register(0, 32)
+    check_two("sub dword ptr [rdi + 8], eax", "29 47 08", encoder.subtract, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Immediate(5)
+    check_two("sub qword ptr [rdi + 8], 5", "48 83 6F 08 05", encoder.subtract, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Immediate(5000)
+    check_two("sub qword ptr [rdi + 8], 5000", "48 81 6F 08 88 13 00 00", encoder.subtract, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(5)
+    check_two("sub dword ptr [rdi + 8], 5", "83 6F 08 05", encoder.subtract, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(5000)
+    check_two("sub dword ptr [rdi + 8], 5000", "81 6F 08 88 13 00 00", encoder.subtract, destination, source)
+}
+
+func check_the_comparisons() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 64)
+    source = Register(3, 64)
+    check_two("cmp rax, rbx", "48 39 D8", encoder.compare, destination, source)
+    destination = Register(0, 32)
+    source = Register(3, 32)
+    check_two("cmp eax, ebx", "39 D8", encoder.compare, destination, source)
+    destination = Register(0, 64)
+    source = Immediate(5)
+    check_two("cmp rax, 5", "48 83 F8 05", encoder.compare, destination, source)
+    destination = Register(3, 64)
+    source = Immediate(5000)
+    check_two("cmp rbx, 5000", "48 81 FB 88 13 00 00", encoder.compare, destination, source)
+    destination = Register(0, 32)
+    source = Immediate(5)
+    check_two("cmp eax, 5", "83 F8 05", encoder.compare, destination, source)
+    destination = Register(0, 64)
+    source = Place().at_register(7, 8)
+    check_two("cmp rax, [rdi + 8]", "48 3B 47 08", encoder.compare, destination, source)
+    destination = Register(0, 32)
+    source = Place().at_register(7, 8)
+    check_two("cmp eax, [rdi + 8]", "3B 47 08", encoder.compare, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Register(0, 64)
+    check_two("cmp qword ptr [rdi + 8], rax", "48 39 47 08", encoder.compare, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Register(0, 32)
+    check_two("cmp dword ptr [rdi + 8], eax", "39 47 08", encoder.compare, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Immediate(5)
+    check_two("cmp qword ptr [rdi + 8], 5", "48 83 7F 08 05", encoder.compare, destination, source)
+    destination = Place().at_register(7, 8).of_bits(64)
+    source = Immediate(5000)
+    check_two("cmp qword ptr [rdi + 8], 5000", "48 81 7F 08 88 13 00 00", encoder.compare, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(5)
+    check_two("cmp dword ptr [rdi + 8], 5", "83 7F 08 05", encoder.compare, destination, source)
+    destination = Place().at_register(7, 8).of_bits(32)
+    source = Immediate(5000)
+    check_two("cmp dword ptr [rdi + 8], 5000", "81 7F 08 88 13 00 00", encoder.compare, destination, source)
+}
+
+func check_the_multiplications() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 64)
+    source = Register(3, 64)
+    check_two("imul rax, rbx", "48 0F AF C3", encoder.multiply_signed, destination, source)
+    destination = Register(0, 32)
+    source = Register(3, 32)
+    check_two("imul eax, ebx", "0F AF C3", encoder.multiply_signed, destination, source)
+    destination = Register(0, 64)
+    source = Place().at_register(7, 8)
+    check_two("imul rax, [rdi + 8]", "48 0F AF 47 08", encoder.multiply_signed, destination, source)
+    source = Register(3, 64)
+    var factor = Immediate(7)
+    check_by("imul rax, rbx, 7", "48 6B C3 07", encoder.multiply_signed_by, destination, source, factor)
+    factor = Immediate(5000)
+    check_by("imul rax, rbx, 5000", "48 69 C3 88 13 00 00", encoder.multiply_signed_by, destination, source, factor)
+    source = Place().at_register(7, 8)
+    factor = Immediate(7)
+    check_by("imul rax, [rdi + 8], 7", "48 6B 47 08 07", encoder.multiply_signed_by, destination, source, factor)
+    destination = Register(0, 32)
+    source = Register(3, 32)
+    factor = Immediate(7)
+    check_by("imul eax, ebx, 7", "6B C3 07", encoder.multiply_signed_by, destination, source, factor)
+    factor = Immediate(5000)
+    check_by("imul eax, ebx, 5000", "69 C3 88 13 00 00", encoder.multiply_signed_by, destination, source, factor)
+}
+
+func check_the_divisions() {
+    var divisor: Source = Register(3, 64)
+    check_one("idiv rbx", "48 F7 FB", encoder.divide_signed, divisor)
+    divisor = Register(3, 32)
+    check_one("idiv ebx", "F7 FB", encoder.divide_signed, divisor)
+    var place = Place().at_register(7, 8).of_bits(64)
+    check_one("idiv qword ptr [rdi + 8]", "48 F7 7F 08", encoder.divide_signed, place)
+    place = Place().at_register(7, 8).of_bits(32)
+    check_one("idiv dword ptr [rdi + 8]", "F7 7F 08", encoder.divide_signed, place)
+}
+
+func check_the_conditional_jumps() {
+    check_if("jo .L_after_overflow", "70 0D", 'overflow', 15)
+    check_if("jo .L_after_overflow_far", "0F 80 00 10 00 00", 'overflow', 4102)
+    check_if("jno .L_after_no_overflow", "71 0D", 'no_overflow', 15)
+    check_if("jno .L_after_no_overflow_far", "0F 81 00 10 00 00", 'no_overflow', 4102)
+    check_if("jb .L_after_below", "72 0D", 'below', 15)
+    check_if("jb .L_after_below_far", "0F 82 00 10 00 00", 'below', 4102)
+    check_if("jae .L_after_above_or_equal", "73 0D", 'above_or_equal', 15)
+    check_if("jae .L_after_above_or_equal_far", "0F 83 00 10 00 00", 'above_or_equal', 4102)
+    check_if("je .L_after_equal", "74 0D", 'equal', 15)
+    check_if("je .L_after_equal_far", "0F 84 00 10 00 00", 'equal', 4102)
+    check_if("jne .L_after_not_equal", "75 0D", 'not_equal', 15)
+    check_if("jne .L_after_not_equal_far", "0F 85 00 10 00 00", 'not_equal', 4102)
+    check_if("jbe .L_after_below_or_equal", "76 0D", 'below_or_equal', 15)
+    check_if("jbe .L_after_below_or_equal_far", "0F 86 00 10 00 00", 'below_or_equal', 4102)
+    check_if("ja .L_after_above", "77 0D", 'above', 15)
+    check_if("ja .L_after_above_far", "0F 87 00 10 00 00", 'above', 4102)
+    check_if("js .L_after_signed", "78 0D", 'signed', 15)
+    check_if("js .L_after_signed_far", "0F 88 00 10 00 00", 'signed', 4102)
+    check_if("jns .L_after_not_signed", "79 0D", 'not_signed', 15)
+    check_if("jns .L_after_not_signed_far", "0F 89 00 10 00 00", 'not_signed', 4102)
+    check_if("jp .L_after_even_parity", "7A 0D", 'even_parity', 15)
+    check_if("jp .L_after_even_parity_far", "0F 8A 00 10 00 00", 'even_parity', 4102)
+    check_if("jnp .L_after_odd_parity", "7B 0D", 'odd_parity', 15)
+    check_if("jnp .L_after_odd_parity_far", "0F 8B 00 10 00 00", 'odd_parity', 4102)
+    check_if("jl .L_after_less", "7C 0D", 'less', 15)
+    check_if("jl .L_after_less_far", "0F 8C 00 10 00 00", 'less', 4102)
+    check_if("jge .L_after_greater_or_equal", "7D 0D", 'greater_or_equal', 15)
+    check_if("jge .L_after_greater_or_equal_far", "0F 8D 00 10 00 00", 'greater_or_equal', 4102)
+    check_if("jle .L_after_less_or_equal", "7E 0D", 'less_or_equal', 15)
+    check_if("jle .L_after_less_or_equal_far", "0F 8E 00 10 00 00", 'less_or_equal', 4102)
+    check_if("jg .L_after_greater", "7F 0D", 'greater', 15)
+    check_if("jg .L_after_greater_far", "0F 8F 00 10 00 00", 'greater', 4102)
+}
+
+func check_the_jumps() {
+    check_to("jmp .L_after_jump_near", "EB 0D", encoder.jump_to, 15)
+    check_to("jmp .L_after_jump_far", "E9 00 10 00 00", encoder.jump_to, 4101)
+    var through: Source = Register(0, 64)
+    check_one("jmp rax", "FF E0", encoder.jump_through, through)
+    var place = Place().at_register(0, 0)
+    check_one("jmp [rax]", "FF 20", encoder.jump_through, place)
+}
+
+func check_the_calls() {
+    check_to("call .L_after_call_near", "E8 0D 00 00 00", encoder.call_to, 18)
+    var through: Source = Register(0, 64)
+    check_one("call rax", "FF D0", encoder.call_through, through)
+    var place = Place().at_register(0, 0)
+    check_one("call qword ptr [rax]", "FF 10", encoder.call_through, place)
+}
+
+func check_the_returns() {
+    check_alone("ret", "C3", encoder.return_to_caller)
+}
+
+func check_the_pushes() {
+    var pushed: Source = Register(5, 64)
+    check_one("push rbp", "55", encoder.push, pushed)
+    pushed = Place().at_register(7, 8)
+    check_one("push [rdi + 8]", "FF 77 08", encoder.push, pushed)
+    pushed = Immediate(42)
+    check_one("push 42", "6A 2A", encoder.push, pushed)
+}
+
+func check_the_pops() {
+    var popped: Destination = Register(5, 64)
+    check_into("pop rbp", "5D", encoder.pop, popped)
+    var place = Place().at_register(7, 8).of_bits(64)
+    check_into("pop qword ptr [rdi + 8]", "8F 47 08", encoder.pop, place)
+}
+
+func check_the_addresses() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 64)
+    source = Place().after_the_instruction(4096)
+    check_two("lea rax, [rip + 4096]", "48 8D 05 00 10 00 00", encoder.take_address_of, destination, source)
+    source = Place().indexed_by(7, 6, 4, 8)
+    check_two("lea rax, [rdi + rsi*4 + 8]", "48 8D 44 B7 08", encoder.take_address_of, destination, source)
+    destination = Register(0, 32)
+    source = Place().at_register(7, 8)
+    check_two("lea eax, [rdi + 8]", "8D 47 08", encoder.take_address_of, destination, source)
+}
+
+func check_the_floating_moves() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 128)
+    source = Register(1, 128)
+    check_two("movss xmm0, xmm1", "F3 0F 10 C1", encoder.move_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("movss xmm0, [rdi + 8]", "F3 0F 10 47 08", encoder.move_float, destination, source)
+    destination = Place().at_register(7, 8)
+    source = Register(0, 128)
+    check_two("movss [rdi + 8], xmm0", "F3 0F 11 47 08", encoder.move_float, destination, source)
+    destination = Register(0, 128)
+    source = Register(1, 128)
+    check_two("movsd xmm0, xmm1", "F2 0F 10 C1", encoder.move_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("movsd xmm0, [rdi + 8]", "F2 0F 10 47 08", encoder.move_double, destination, source)
+    destination = Place().at_register(4, 16)
+    source = Register(1, 128)
+    check_two("movsd [rsp + 16], xmm1", "F2 0F 11 4C 24 10", encoder.move_double, destination, source)
+}
+
+func check_the_floating_arithmetic() {
+    var destination: Destination? = null
+    var source: Source? = null
+    destination = Register(0, 128)
+    source = Register(1, 128)
+    check_two("addss xmm0, xmm1", "F3 0F 58 C1", encoder.add_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("addss xmm0, [rdi + 8]", "F3 0F 58 47 08", encoder.add_float, destination, source)
+    source = Register(1, 128)
+    check_two("addsd xmm0, xmm1", "F2 0F 58 C1", encoder.add_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("addsd xmm0, [rdi + 8]", "F2 0F 58 47 08", encoder.add_double, destination, source)
+    source = Register(1, 128)
+    check_two("subss xmm0, xmm1", "F3 0F 5C C1", encoder.subtract_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("subss xmm0, [rdi + 8]", "F3 0F 5C 47 08", encoder.subtract_float, destination, source)
+    source = Register(1, 128)
+    check_two("subsd xmm0, xmm1", "F2 0F 5C C1", encoder.subtract_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("subsd xmm0, [rdi + 8]", "F2 0F 5C 47 08", encoder.subtract_double, destination, source)
+    source = Register(1, 128)
+    check_two("mulss xmm0, xmm1", "F3 0F 59 C1", encoder.multiply_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("mulss xmm0, [rdi + 8]", "F3 0F 59 47 08", encoder.multiply_float, destination, source)
+    source = Register(1, 128)
+    check_two("mulsd xmm0, xmm1", "F2 0F 59 C1", encoder.multiply_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("mulsd xmm0, [rdi + 8]", "F2 0F 59 47 08", encoder.multiply_double, destination, source)
+    source = Register(1, 128)
+    check_two("divss xmm0, xmm1", "F3 0F 5E C1", encoder.divide_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("divss xmm0, [rdi + 8]", "F3 0F 5E 47 08", encoder.divide_float, destination, source)
+    source = Register(1, 128)
+    check_two("divsd xmm0, xmm1", "F2 0F 5E C1", encoder.divide_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("divsd xmm0, [rdi + 8]", "F2 0F 5E 47 08", encoder.divide_double, destination, source)
+    source = Register(1, 128)
+    check_two("minss xmm0, xmm1", "F3 0F 5D C1", encoder.minimum_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("minss xmm0, [rdi + 8]", "F3 0F 5D 47 08", encoder.minimum_float, destination, source)
+    source = Register(1, 128)
+    check_two("minsd xmm0, xmm1", "F2 0F 5D C1", encoder.minimum_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("minsd xmm0, [rdi + 8]", "F2 0F 5D 47 08", encoder.minimum_double, destination, source)
+    source = Register(1, 128)
+    check_two("maxss xmm0, xmm1", "F3 0F 5F C1", encoder.maximum_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("maxss xmm0, [rdi + 8]", "F3 0F 5F 47 08", encoder.maximum_float, destination, source)
+    source = Register(1, 128)
+    check_two("maxsd xmm0, xmm1", "F2 0F 5F C1", encoder.maximum_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("maxsd xmm0, [rdi + 8]", "F2 0F 5F 47 08", encoder.maximum_double, destination, source)
+    source = Register(1, 128)
+    check_two("comiss xmm0, xmm1", "0F 2F C1", encoder.compare_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("comiss xmm0, [rdi + 8]", "0F 2F 47 08", encoder.compare_float, destination, source)
+    source = Register(1, 128)
+    check_two("comisd xmm0, xmm1", "66 0F 2F C1", encoder.compare_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("comisd xmm0, [rdi + 8]", "66 0F 2F 47 08", encoder.compare_double, destination, source)
+    source = Register(1, 128)
+    check_two("sqrtss xmm0, xmm1", "F3 0F 51 C1", encoder.square_root_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("sqrtss xmm0, [rdi + 8]", "F3 0F 51 47 08", encoder.square_root_float, destination, source)
+    source = Register(1, 128)
+    check_two("sqrtsd xmm0, xmm1", "F2 0F 51 C1", encoder.square_root_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("sqrtsd xmm0, [rdi + 8]", "F2 0F 51 47 08", encoder.square_root_double, destination, source)
+    source = Register(1, 128)
+    check_two("cvtss2sd xmm0, xmm1", "F3 0F 5A C1", encoder.convert_float_to_double, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("cvtss2sd xmm0, [rdi + 8]", "F3 0F 5A 47 08", encoder.convert_float_to_double, destination, source)
+    source = Register(1, 128)
+    check_two("cvtsd2ss xmm0, xmm1", "F2 0F 5A C1", encoder.convert_double_to_float, destination, source)
+    source = Place().at_register(7, 8)
+    check_two("cvtsd2ss xmm0, [rdi + 8]", "F2 0F 5A 47 08", encoder.convert_double_to_float, destination, source)
+}

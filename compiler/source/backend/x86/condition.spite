@@ -1,0 +1,18 @@
+enum Condition {
+    'overflow'
+    'no_overflow'
+    'below'
+    'above_or_equal'
+    'equal'
+    'not_equal'
+    'below_or_equal'
+    'above'
+    'signed'
+    'not_signed'
+    'even_parity'
+    'odd_parity'
+    'less'
+    'greater_or_equal'
+    'less_or_equal'
+    'greater'
+}
