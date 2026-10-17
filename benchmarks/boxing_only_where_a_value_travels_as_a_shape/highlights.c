@@ -40,7 +40,7 @@ void Naive_add_value___held_0(Naive* self, List_Console_Printable* values_, int3
 
 SpiteString Console_Printable___call_to_string(Console_Printable self) {
     if (((self).tag == 0) && ((self).plain == 0)) return SpiteString_to_string((((SpiteBox_SpiteString*)(self).value.object)->value));
-    if ((self).tag == 153) return SpiteLong_to_string(SPITE_TAGGED_VALUE(self, int64_t));
+    if ((self).tag == 151) return SpiteLong_to_string(SPITE_TAGGED_VALUE(self, int64_t));
     if ((self).tag == 169) return SpiteInteger_to_string(SPITE_TAGGED_VALUE(self, int32_t));
     if ((self).tag == 170) return SpiteBoolean_to_string(SPITE_TAGGED_VALUE(self, bool));
     fputs("spite.crash\tPrintable.to_string was called on a value of a class it was not compiled for\n", stderr);

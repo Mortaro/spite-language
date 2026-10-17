@@ -320,6 +320,28 @@ func in_repository_tests(entry_path: String): Boolean {
     return false
 }
 
+func in_repository_fast_reload(entry_path: String): Boolean {
+    var all = program_segments(entry_path)
+    all.remove_last()
+    var folders = all.copy()
+    while folders.count() > 1 {
+        var root = folders.join("/")
+        if File("{root}/launcher/launcher.spite").exists() {
+            var root_depth = folders.count()
+            if all.count() <= root_depth + 2 {
+                return false
+            }
+            var internal_folder = all[root_depth]
+            var reload_folder = all[root_depth + 1]
+            crash internal_folder
+            crash reload_folder
+            return internal_folder == ".spite" and reload_folder.starts_with("check_") and reload_folder.ends_with("_fast_reload")
+        }
+        folders.remove_last()
+    }
+    return false
+}
+
 func names_test_folder(all: List<String>, root_depth: Integer): Boolean {
     if all.count() <= root_depth {
         return false
@@ -424,7 +446,8 @@ func discover_program(entry_path: String, entry_source: String) {
     }
     check_comments(entry_path, lexer.tokens)
     assert not has_error
-    internal_allowed = part_of_the_compiler(entry_path) or in_repository_tests(entry_path)
+    var entry_directory = directory_of(entry_path)
+    internal_allowed = part_of_the_compiler(entry_path) or in_repository_tests(entry_path) or in_repository_fast_reload(entry_path) or in_final_classes(entry_directory)
     refuse_internal_names(entry_path, lexer.tokens, 0)
     assert not has_error
     var parser = Syntax.Parser(lexer.tokens)

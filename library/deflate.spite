@@ -492,13 +492,7 @@ func _emit_run(value: Integer, repeat: Integer): Integer {
     return 1
 }
 
-func _build_code(
-    frequencies: Integer,
-    symbol_count: Integer,
-    limit: Integer,
-    lengths: Integer,
-    codes: Integer,
-) {
+func _build_code(frequencies: Integer, symbol_count: Integer, limit: Integer, lengths: Integer, codes: Integer) {
     _fill(lengths, symbol_count, 0)
     _fill(codes, symbol_count, 0)
     var used = List<Integer>()
@@ -661,7 +655,7 @@ func _assign_codes(lengths: Integer, symbol_count: Integer, limit: Integer, code
     var code = 0
     var bits = 1
     while bits <= limit {
-        var shorter = _entry(counts, (bits - 1))
+        var shorter = _entry(counts, bits - 1)
         var counted_code = code + shorter
         code = counted_code.shifted_left(1)
         next[bits] = code

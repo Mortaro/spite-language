@@ -296,11 +296,9 @@ typedef struct Duration Duration;
 typedef struct DynamicLibrary DynamicLibrary;
 typedef struct File File;
 typedef struct List List;
-typedef struct Lock Lock;
 typedef struct Scheduler Scheduler;
 typedef struct SchedulerLoop SchedulerLoop;
 typedef struct Socket Socket;
-typedef struct ThreadSlot ThreadSlot;
 typedef struct TimeText TimeText;
 typedef struct Memory_Arena Memory_Arena;
 typedef struct Memory_Heap Memory_Heap;
@@ -309,6 +307,8 @@ typedef struct Spite_AttributeDeclaration Spite_AttributeDeclaration;
 typedef struct Spite_Class Spite_Class;
 typedef struct Spite_Function Spite_Function;
 typedef struct Spite_Namespace Spite_Namespace;
+typedef struct Spite_Internal_Lock Spite_Internal_Lock;
+typedef struct Spite_Internal_ThreadSlot Spite_Internal_ThreadSlot;
 typedef struct Naive Naive;
 typedef struct List_String List_String;
 typedef struct TypedMemory__String TypedMemory__String;
@@ -346,7 +346,7 @@ typedef struct TypedMemory__Memory_Address TypedMemory__Memory_Address;
 static Scheduler* spite_singleton_Scheduler_cache = 0;
 static bool spite_singleton_Scheduler_destroyed = false;
 static int32_t spite_singleton_Scheduler_lock = 0;
-typedef struct ThreadLocal__SchedulerLoop ThreadLocal__SchedulerLoop;
+typedef struct Spite_Internal_ThreadLocal__SchedulerLoop Spite_Internal_ThreadLocal__SchedulerLoop;
 typedef struct TypedMemory__SchedulerLoop TypedMemory__SchedulerLoop;
 typedef struct List_SchedulerLoop List_SchedulerLoop;
 static SpiteString spite_symbol_1 = { (int64_t)0x0064656d616e6e75ULL, (int64_t)0x0800000000000000ULL };
@@ -374,8 +374,8 @@ Build* build_;
 typedef struct List_Console_Printable List_Console_Printable;
 typedef struct TypedMemory__Console_Printable TypedMemory__Console_Printable;
 typedef struct SpiteBox_SpiteLong { SpiteHeader header; int64_t value; } SpiteBox_SpiteLong;
-#define SPITE_FRAMED_COUNT 1073741824
 typedef struct { bool has_value; int64_t value; } Nullable_Long;
+#define SPITE_FRAMED_COUNT 1073741824
 static SpiteString spite_lit_8 = SPITE_STATIC_STRING("true", 4);
 static SpiteString spite_lit_9 = SPITE_STATIC_STRING("false", 5);
 struct Build {
@@ -485,15 +485,6 @@ __atomic_store_n(&spite_described_owner, 0, __ATOMIC_RELEASE);
 #define SpiteInteger_to_unsigned_integer(self) ((uint32_t)(self))
 #define SpiteInteger_to_byte(self) ((uint8_t)(self))
 #define SpiteInteger_to_float(self) ((float)(self))
-struct Lock {
-SpiteHeader header;
-Memory_Heap* _heap_;
-int64_t _handle_;
-DynamicLibrary* _kernel_;
-};
-static void* spite_foreign_1_34 = 0;
-static void* spite_foreign_1_35 = 0;
-static void* spite_foreign_1_36 = 0;
 static SpiteString spite_lit_15 = SPITE_STATIC_STRING("0", 1);
 #define spite_site_7() "library/long.spite:17 in Long.to_string"
 #define spite_site_8() "library/long.spite:18 in Long.to_string"
@@ -501,8 +492,8 @@ static SpiteString spite_lit_15 = SPITE_STATIC_STRING("0", 1);
 #define spite_site_10() "library/long.spite:26 in Long.to_string"
 #define SpiteLong_to_unsigned_integer(self) ((uint32_t)(self))
 #define SpiteLong_to_unsigned_long(self) ((uint64_t)(self))
-static void* spite_foreign_1_45 = 0;
-static void* spite_foreign_1_46 = 0;
+static void* spite_foreign_1_42 = 0;
+static void* spite_foreign_1_43 = 0;
 struct Scheduler {
 SpiteHeader header;
 bool started_;
@@ -514,9 +505,9 @@ bool answering_in_wait_;
 Spite_Function* commands_;
 Spite_Function* reloads_;
 bool paused_;
-ThreadLocal__SchedulerLoop* _loops_;
+Spite_Internal_ThreadLocal__SchedulerLoop* _loops_;
 List_SchedulerLoop* _every_loop_;
-Lock* _loops_lock_;
+Spite_Internal_Lock* _loops_lock_;
 DynamicLibrary* kernel_;
 };
 #define spite_site_11() "spite.crash\t7062279b"
@@ -536,9 +527,9 @@ DynamicLibrary* kernel_;
 #define spite_site_25() "library/scheduler.spite:350 in Scheduler.timeout"
 #define spite_site_26() "library/scheduler.spite:353 in Scheduler.timeout"
 #define spite_site_27() "library/scheduler.spite:362 in Scheduler.timeout"
-static void* spite_foreign_1_47 = 0;
-static void* spite_foreign_1_48 = 0;
-static void* spite_foreign_1_49 = 0;
+static void* spite_foreign_1_44 = 0;
+static void* spite_foreign_1_45 = 0;
+static void* spite_foreign_1_46 = 0;
 struct SchedulerLoop {
 SpiteHeader header;
 bool started_;
@@ -568,22 +559,15 @@ bool nonblocking_;
 };
 #define spite_site_28() "library/string.spite:5 in String.length"
 #define SpiteString_code_at(self, index) spite_string_code_at(&(self), (index))
-struct ThreadSlot {
-SpiteHeader header;
-int64_t _key_;
-DynamicLibrary* _kernel_;
-};
-static void* spite_foreign_1_72 = 0;
-#define spite_site_29() "spite.crash\t3df2aa50"
-static void* spite_foreign_1_73 = 0;
-static void* spite_foreign_1_74 = 0;
-static void* spite_foreign_1_75 = 0;
+static void* spite_foreign_1_65 = 0;
+static void* spite_foreign_1_66 = 0;
+static void* spite_foreign_1_67 = 0;
 struct TimeText {
 SpiteHeader header;
 };
 #define SpiteTiny_to_long(self) ((int64_t)(self))
-#define SpiteUnsignedInteger_to_long(self) ((int64_t)(self))
 #define SpiteUnsignedInteger_to_float(self) ((float)(self))
+#define SpiteUnsignedInteger_to_long(self) ((int64_t)(self))
 #define SpiteUnsignedShort_to_integer(self) ((int32_t)(self))
 #define SpiteUnsignedShort_to_long(self) ((int64_t)(self))
 #define SpiteUnsignedShort_to_unsigned_integer(self) ((uint32_t)(self))
@@ -639,11 +623,11 @@ int64_t _end_;
 int64_t _used_;
 Memory_Heap* heap_;
 };
-#define spite_site_30() "library/memory/arena.spite:12 in Memory.Arena.allocate"
-#define spite_site_31() "library/memory/arena.spite:13 in Memory.Arena.allocate"
-#define spite_site_32() "library/memory/arena.spite:17 in Memory.Arena.allocate"
-#define spite_site_33() "library/memory/arena.spite:25 in Memory.Arena.start_block"
-#define spite_site_34() "library/memory/arena.spite:26 in Memory.Arena.start_block"
+#define spite_site_29() "library/memory/arena.spite:12 in Memory.Arena.allocate"
+#define spite_site_30() "library/memory/arena.spite:13 in Memory.Arena.allocate"
+#define spite_site_31() "library/memory/arena.spite:17 in Memory.Arena.allocate"
+#define spite_site_32() "library/memory/arena.spite:25 in Memory.Arena.start_block"
+#define spite_site_33() "library/memory/arena.spite:26 in Memory.Arena.start_block"
 struct Memory_Heap {
 SpiteHeader header;
 };
@@ -708,6 +692,22 @@ List_Spite_Namespace* _namespaces_;
 List_Spite_Class* _enums_;
 List_String* _source_paths_;
 };
+struct Spite_Internal_Lock {
+SpiteHeader header;
+Memory_Heap* _heap_;
+int64_t _handle_;
+DynamicLibrary* _kernel_;
+};
+struct Spite_Internal_ThreadSlot {
+SpiteHeader header;
+int64_t _key_;
+DynamicLibrary* _kernel_;
+};
+static void* spite_foreign_1_76 = 0;
+#define spite_site_34() "spite.crash\t78f4a1aa"
+static void* spite_foreign_1_77 = 0;
+static void* spite_foreign_1_78 = 0;
+static void* spite_foreign_1_79 = 0;
 struct Naive {
 SpiteHeader header;
 Console* console_;
@@ -771,10 +771,10 @@ typedef struct { bool has_value; int64_t value; } Nullable_Memory_Address;
 struct TypedMemory__Memory_Address {
 SpiteHeader header;
 };
-struct ThreadLocal__SchedulerLoop {
+struct Spite_Internal_ThreadLocal__SchedulerLoop {
 SpiteHeader header;
-ThreadSlot* _slot_;
-Lock* _lock_;
+Spite_Internal_ThreadSlot* _slot_;
+Spite_Internal_Lock* _lock_;
 Memory_Heap* _heap_;
 TypedMemory__SchedulerLoop* _values_;
 int64_t _published_;
@@ -913,14 +913,14 @@ SpiteHeader header;
 #define spite_site_49() "library/list.spite:453 in List._grow"
 #define spite_site_50() "library/list.spite:471 in List.move_items"
 #define spite_site_51() "library/list.spite:472 in List.move_items"
-#define spite_site_52() "library/thread_local.spite:20 in ThreadLocal.get"
-#define spite_site_53() "library/thread_local.spite:29 in ThreadLocal.set"
-#define spite_site_54() "library/thread_local.spite:33 in ThreadLocal.set"
-#define spite_site_55() "library/thread_local.spite:34 in ThreadLocal.set"
-#define spite_site_56() "library/thread_local.spite:42 in ThreadLocal._make_room"
-#define spite_site_57() "library/thread_local.spite:47 in ThreadLocal._make_room"
-#define spite_site_58() "library/thread_local.spite:49 in ThreadLocal._make_room"
-#define spite_site_59() "spite.crash\t3d65dd5b"
+#define spite_site_52() "library/spite/internal/thread_local.spite:20 in Spite.Internal.ThreadLocal.get"
+#define spite_site_53() "library/spite/internal/thread_local.spite:29 in Spite.Internal.ThreadLocal.set"
+#define spite_site_54() "library/spite/internal/thread_local.spite:33 in Spite.Internal.ThreadLocal.set"
+#define spite_site_55() "library/spite/internal/thread_local.spite:34 in Spite.Internal.ThreadLocal.set"
+#define spite_site_56() "library/spite/internal/thread_local.spite:42 in Spite.Internal.ThreadLocal._make_room"
+#define spite_site_57() "library/spite/internal/thread_local.spite:47 in Spite.Internal.ThreadLocal._make_room"
+#define spite_site_58() "library/spite/internal/thread_local.spite:49 in Spite.Internal.ThreadLocal._make_room"
+#define spite_site_59() "spite.crash\t026d4f74"
 #define spite_site_60() "library/benchmark.spite:11 in Benchmark.Benchmark"
 #define spite_site_61() "spite.crash\t058a607d"
 #define spite_site_62() "spite.crash\t53d916b5"
@@ -1045,20 +1045,6 @@ int64_t File_read_into(File* self, int64_t buffer_, int64_t bytes_, int64_t hand
 int64_t File_write_text(File* self, SpiteString text_, int64_t handle_);
 bool File_remove(File* self);
 SpiteString SpiteInteger_to_string(int32_t self);
-void Lock___init(Lock* self);
-Lock* Lock___allocate(void);
-Lock* Lock___make(void);
-static inline void Lock___release(Lock* self);
-void Lock___free(Lock* self);
-void Lock_drop(Lock* self);
-void Lock_Lock(Lock* self);
-void Lock_lock(Lock* self);
-void Lock_unlock(Lock* self);
-void Lock_drop(Lock* self);
-int64_t Lock_create_lock(Lock* self);
-void Lock_acquire(Lock* self, int64_t held_);
-void Lock_release_lock(Lock* self, int64_t held_);
-void Lock_destroy_lock(Lock* self, int64_t held_);
 SpiteString SpiteLong_to_string(int64_t self);
 void Scheduler___init(Scheduler* self);
 Scheduler* Scheduler___allocate(void);
@@ -1120,21 +1106,6 @@ SpiteString spite_string_join(int32_t count, const SpiteString* pieces);
 static int64_t spite_long_digits(char* digits, int64_t value);
 static SpiteStringBlock* spite_string_block(int64_t length);
 static SpiteString spite_string_held(SpiteStringBlock* block, int64_t length);
-void ThreadSlot___init(ThreadSlot* self);
-ThreadSlot* ThreadSlot___allocate(void);
-ThreadSlot* ThreadSlot___make(void);
-static inline void ThreadSlot___release(ThreadSlot* self);
-void ThreadSlot___free(ThreadSlot* self);
-void ThreadSlot_drop(ThreadSlot* self);
-void ThreadSlot_ThreadSlot(ThreadSlot* self);
-int64_t ThreadSlot_read(ThreadSlot* self);
-void ThreadSlot_write(ThreadSlot* self, int64_t value_);
-void ThreadSlot_drop(ThreadSlot* self);
-int64_t ThreadSlot_create_key(ThreadSlot* self);
-int64_t ThreadSlot_read_key(ThreadSlot* self, int64_t key_);
-void ThreadSlot_write_key(ThreadSlot* self, int64_t key_, int64_t value_);
-void ThreadSlot_delete_key(ThreadSlot* self, int64_t key_);
-static SPITE_CRASH_REPORT void spite_failed_5(int64_t created_, ThreadSlot* self);
 void TimeText___release(TimeText* self);
 SpiteString SpiteMemory_Address_text(int64_t self, int64_t length_);
 SpiteString SpiteMemory_Address_to_string(int64_t self);
@@ -1163,6 +1134,35 @@ void Spite_Function___free(Spite_Function* self);
 void Spite_Function_Function(Spite_Function* self, SpiteString starting_name_, Spite_Class* starting_returns_);
 static inline void Spite_Namespace___release(Spite_Namespace* self);
 void Spite_Namespace___free(Spite_Namespace* self);
+void Spite_Internal_Lock___init(Spite_Internal_Lock* self);
+Spite_Internal_Lock* Spite_Internal_Lock___allocate(void);
+Spite_Internal_Lock* Spite_Internal_Lock___make(void);
+static inline void Spite_Internal_Lock___release(Spite_Internal_Lock* self);
+void Spite_Internal_Lock___free(Spite_Internal_Lock* self);
+void Spite_Internal_Lock_drop(Spite_Internal_Lock* self);
+void Spite_Internal_Lock_Lock(Spite_Internal_Lock* self);
+void Spite_Internal_Lock_lock(Spite_Internal_Lock* self);
+void Spite_Internal_Lock_unlock(Spite_Internal_Lock* self);
+void Spite_Internal_Lock_drop(Spite_Internal_Lock* self);
+int64_t Spite_Internal_Lock_create_lock(Spite_Internal_Lock* self);
+void Spite_Internal_Lock_acquire(Spite_Internal_Lock* self, int64_t held_);
+void Spite_Internal_Lock_release_lock(Spite_Internal_Lock* self, int64_t held_);
+void Spite_Internal_Lock_destroy_lock(Spite_Internal_Lock* self, int64_t held_);
+void Spite_Internal_ThreadSlot___init(Spite_Internal_ThreadSlot* self);
+Spite_Internal_ThreadSlot* Spite_Internal_ThreadSlot___allocate(void);
+Spite_Internal_ThreadSlot* Spite_Internal_ThreadSlot___make(void);
+static inline void Spite_Internal_ThreadSlot___release(Spite_Internal_ThreadSlot* self);
+void Spite_Internal_ThreadSlot___free(Spite_Internal_ThreadSlot* self);
+void Spite_Internal_ThreadSlot_drop(Spite_Internal_ThreadSlot* self);
+void Spite_Internal_ThreadSlot_ThreadSlot(Spite_Internal_ThreadSlot* self);
+int64_t Spite_Internal_ThreadSlot_read(Spite_Internal_ThreadSlot* self);
+void Spite_Internal_ThreadSlot_write(Spite_Internal_ThreadSlot* self, int64_t value_);
+void Spite_Internal_ThreadSlot_drop(Spite_Internal_ThreadSlot* self);
+int64_t Spite_Internal_ThreadSlot_create_key(Spite_Internal_ThreadSlot* self);
+int64_t Spite_Internal_ThreadSlot_read_key(Spite_Internal_ThreadSlot* self, int64_t key_);
+void Spite_Internal_ThreadSlot_write_key(Spite_Internal_ThreadSlot* self, int64_t key_, int64_t value_);
+void Spite_Internal_ThreadSlot_delete_key(Spite_Internal_ThreadSlot* self, int64_t key_);
+static SPITE_CRASH_REPORT void spite_failed_5(int64_t created_, Spite_Internal_ThreadSlot* self);
 void Naive___init(Naive* self);
 Naive* Naive___allocate(void);
 static inline Naive* Naive___retain(Naive* self);
@@ -1248,17 +1248,17 @@ int64_t TypedMemory__Memory_Address_read_value(TypedMemory__Memory_Address* self
 void TypedMemory__Memory_Address_write_value(TypedMemory__Memory_Address* self, int64_t address_, int32_t index_, int64_t value_);
 void TypedMemory__Memory_Address_release_value(TypedMemory__Memory_Address* self, int64_t address_, int32_t index_);
 int64_t TypedMemory__Memory_Address_value_bytes(TypedMemory__Memory_Address* self);
-void ThreadLocal__SchedulerLoop___init(ThreadLocal__SchedulerLoop* self);
-ThreadLocal__SchedulerLoop* ThreadLocal__SchedulerLoop___allocate(void);
-ThreadLocal__SchedulerLoop* ThreadLocal__SchedulerLoop___make(void);
-static inline void ThreadLocal__SchedulerLoop___release(ThreadLocal__SchedulerLoop* self);
-void ThreadLocal__SchedulerLoop___free(ThreadLocal__SchedulerLoop* self);
-void ThreadLocal__SchedulerLoop_drop(ThreadLocal__SchedulerLoop* self);
-void ThreadLocal__SchedulerLoop_ThreadLocal(ThreadLocal__SchedulerLoop* self);
-SchedulerLoop* ThreadLocal__SchedulerLoop_get(ThreadLocal__SchedulerLoop* self);
-void ThreadLocal__SchedulerLoop_set(ThreadLocal__SchedulerLoop* self, SchedulerLoop* value_);
-int64_t ThreadLocal__SchedulerLoop__make_room(ThreadLocal__SchedulerLoop* self);
-void ThreadLocal__SchedulerLoop_drop(ThreadLocal__SchedulerLoop* self);
+void Spite_Internal_ThreadLocal__SchedulerLoop___init(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+Spite_Internal_ThreadLocal__SchedulerLoop* Spite_Internal_ThreadLocal__SchedulerLoop___allocate(void);
+Spite_Internal_ThreadLocal__SchedulerLoop* Spite_Internal_ThreadLocal__SchedulerLoop___make(void);
+static inline void Spite_Internal_ThreadLocal__SchedulerLoop___release(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+void Spite_Internal_ThreadLocal__SchedulerLoop___free(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+void Spite_Internal_ThreadLocal__SchedulerLoop_drop(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+void Spite_Internal_ThreadLocal__SchedulerLoop_ThreadLocal(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+SchedulerLoop* Spite_Internal_ThreadLocal__SchedulerLoop_get(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+void Spite_Internal_ThreadLocal__SchedulerLoop_set(Spite_Internal_ThreadLocal__SchedulerLoop* self, SchedulerLoop* value_);
+int64_t Spite_Internal_ThreadLocal__SchedulerLoop__make_room(Spite_Internal_ThreadLocal__SchedulerLoop* self);
+void Spite_Internal_ThreadLocal__SchedulerLoop_drop(Spite_Internal_ThreadLocal__SchedulerLoop* self);
 void TypedMemory__SchedulerLoop___release(TypedMemory__SchedulerLoop* self);
 SchedulerLoop* TypedMemory__SchedulerLoop_read_value(TypedMemory__SchedulerLoop* self, int64_t address_, int32_t index_);
 void TypedMemory__SchedulerLoop_write_value(TypedMemory__SchedulerLoop* self, int64_t address_, int32_t index_, SchedulerLoop* value_);
@@ -1384,7 +1384,7 @@ void TypedMemory__Nullable_String_release_value(TypedMemory__Nullable_String* se
 int64_t TypedMemory__Nullable_String_value_bytes(TypedMemory__Nullable_String* self);
 static SPITE_CRASH_REPORT void spite_failed_8(int32_t index_, List_Long* self);
 static SPITE_CRASH_REPORT void spite_failed_9(int32_t index_, List_Long* self);
-static SPITE_CRASH_REPORT void spite_failed_10(int64_t items_, ThreadLocal__SchedulerLoop* self);
+static SPITE_CRASH_REPORT void spite_failed_10(int64_t items_, Spite_Internal_ThreadLocal__SchedulerLoop* self);
 static SPITE_CRASH_REPORT void spite_failed_11(bool spite_crash_set_1, int32_t spite_crash_value_1, Concurrent__Nullable_String* self);
 static SPITE_CRASH_REPORT void spite_failed_12(bool waits_for_its_own_caller_, Concurrent__Nullable_String* self);
 static void* Naive_all_reads___begin(Naive* self);
@@ -1420,7 +1420,6 @@ void spite_singleton_made(void);
 #define SPITE_ALLOCATOR_List_String(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Long(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Integer(object, heap) ((void)(object), ((Spite_Allocator)heap()))
-#define SPITE_ALLOCATOR_List_Buffer_ByteOrder(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Memory_Address(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Socket(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Spite_Attribute(object, heap) ((void)(object), ((Spite_Allocator)heap()))
@@ -1435,6 +1434,7 @@ void spite_singleton_made(void);
 #define SPITE_ALLOCATOR_List_Console_Printable(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Console_Debuggable(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Directory_Entry(object, heap) ((void)(object), ((Spite_Allocator)heap()))
+#define SPITE_ALLOCATOR_List_Byte(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_File(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Symbol(object, heap) ((void)(object), ((Spite_Allocator)heap()))
 #define SPITE_ALLOCATOR_List_Spite_Access(object, heap) ((void)(object), ((Spite_Allocator)heap()))
@@ -1541,7 +1541,7 @@ static inline void Benchmark__Long___pool_give(Benchmark__Long* self) {
 Benchmark__Long___pool_free = self;
 }
 Memory_Heap* spite_singleton_Memory_Heap(void) {
-static Memory_Heap spite_object = { { 1, 97 } };
+static Memory_Heap spite_object = { { 1, 93 } };
 return &spite_object;
 }
 TypedMemory__String* spite_singleton_TypedMemory__String(void) {
@@ -1555,7 +1555,7 @@ if (self.plain == 0 && self.value.object != 0) SPITE_COUNT_UP(((SpiteHeader*)sel
 return self;
 }
 Build* spite_singleton_Build(void) {
-static Build spite_object = { { 1, 14 } };
+static Build spite_object = { { 1, 13 } };
 return &spite_object;
 }
 static void spite_singleton_Console_teardown(void) {
@@ -1585,7 +1585,7 @@ static TypedMemory__Long spite_object = { { 1, 122 } };
 return &spite_object;
 }
 TimeText* spite_singleton_TimeText(void) {
-static TimeText spite_object = { { 1, 78 } };
+static TimeText spite_object = { { 1, 74 } };
 return &spite_object;
 }
 static void spite_singleton_Clock_teardown(void) {
@@ -1611,7 +1611,7 @@ SPITE_UNLOCK(spite_singleton_Clock_lock);
 return spite_singleton_Clock_cache;
 }
 TypedMemory__Memory_Address* spite_singleton_TypedMemory__Memory_Address(void) {
-static TypedMemory__Memory_Address spite_object = { { 1, 128 } };
+static TypedMemory__Memory_Address spite_object = { { 1, 126 } };
 return &spite_object;
 }
 static void spite_singleton_Scheduler_teardown(void) {
@@ -1637,19 +1637,19 @@ SPITE_UNLOCK(spite_singleton_Scheduler_lock);
 return spite_singleton_Scheduler_cache;
 }
 TypedMemory__SchedulerLoop* spite_singleton_TypedMemory__SchedulerLoop(void) {
-static TypedMemory__SchedulerLoop spite_object = { { 1, 135 } };
+static TypedMemory__SchedulerLoop spite_object = { { 1, 133 } };
 return &spite_object;
 }
 TypedMemory__Spite_AttributeDeclaration* spite_singleton_TypedMemory__Spite_AttributeDeclaration(void) {
-static TypedMemory__Spite_AttributeDeclaration spite_object = { { 1, 142 } };
+static TypedMemory__Spite_AttributeDeclaration spite_object = { { 1, 140 } };
 return &spite_object;
 }
 TypedMemory__Spite_Function* spite_singleton_TypedMemory__Spite_Function(void) {
-static TypedMemory__Spite_Function spite_object = { { 1, 144 } };
+static TypedMemory__Spite_Function spite_object = { { 1, 142 } };
 return &spite_object;
 }
 TypedMemory__Spite_Argument* spite_singleton_TypedMemory__Spite_Argument(void) {
-static TypedMemory__Spite_Argument spite_object = { { 1, 146 } };
+static TypedMemory__Spite_Argument spite_object = { { 1, 144 } };
 return &spite_object;
 }
 void Launcher___init(Launcher* self) {
@@ -1686,13 +1686,13 @@ fprintf(stderr, "spite: '%s' does not fit in %s (%lld %s %lld), at %s\n", operat
 exit(1);
 }
 TypedMemory__Console_Printable* spite_singleton_TypedMemory__Console_Printable(void) {
-static TypedMemory__Console_Printable spite_object = { { 1, 152 } };
+static TypedMemory__Console_Printable spite_object = { { 1, 150 } };
 return &spite_object;
 }
 static List_Console_Printable* List_Console_Printable___framed(List_Console_Printable* self, int64_t items, int32_t count) {
 List_Console_Printable___init(self);
 self->header.ref_count = 2;
-self->header.class_id = 151;
+self->header.class_id = 149;
 self->items_ = items;
 self->item_count_ = count;
 self->capacity_ = count;
@@ -1714,7 +1714,7 @@ SPITE_FREE(box);
 }
 static inline SpiteTagged spite_tagged_SpiteLong(int64_t value) {
 SpiteTagged tagged;
-tagged.tag = 153;
+tagged.tag = 151;
 tagged.plain = 1;
 tagged.value.bits = 0;
 memcpy(&tagged.value, &value, sizeof(value));
@@ -1744,7 +1744,7 @@ self->_ticks_per_second_ = SpiteInteger_to_long(1);
 Clock* Clock___allocate(void) {
 Clock* self = (Clock*)SPITE_MALLOC(sizeof(Clock));
 self->header.ref_count = 1;
-self->header.class_id = 15;
+self->header.class_id = 14;
 Clock___init(self);
 #ifdef SPITE_TRACKS_Clock
 spite_track_Clock(self);
@@ -1781,7 +1781,7 @@ self->input_ = SpiteInteger_to_long(0);
 Console* Console___allocate(void) {
 Console* self = (Console*)SPITE_MALLOC(sizeof(Console));
 self->header.ref_count = 1;
-self->header.class_id = 19;
+self->header.class_id = 18;
 Console___init(self);
 #ifdef SPITE_TRACKS_Console
 spite_track_Console(self);
@@ -1817,7 +1817,7 @@ self->_nanoseconds_ = 0;
 Duration* Duration___allocate(void) {
 Duration* self = Duration___pool_take();
 self->header.ref_count = 1;
-self->header.class_id = 28;
+self->header.class_id = 27;
 Duration___init(self);
 #ifdef SPITE_TRACKS_Duration
 spite_track_Duration(self);
@@ -1852,7 +1852,7 @@ self->handle_ = SpiteInteger_to_long(0);
 DynamicLibrary* DynamicLibrary___allocate(void) {
 DynamicLibrary* self = (DynamicLibrary*)SPITE_MALLOC(sizeof(DynamicLibrary));
 self->header.ref_count = 1;
-self->header.class_id = 29;
+self->header.class_id = 28;
 DynamicLibrary___init(self);
 #ifdef SPITE_TRACKS_DynamicLibrary
 spite_track_DynamicLibrary(self);
@@ -1890,7 +1890,7 @@ self->kernel_ = spite_foreign_library_1();
 File* File___allocate(void) {
 File* self = (File*)SPITE_MALLOC(sizeof(File));
 self->header.ref_count = 1;
-self->header.class_id = 32;
+self->header.class_id = 31;
 File___init(self);
 #ifdef SPITE_TRACKS_File
 spite_track_File(self);
@@ -1924,43 +1924,6 @@ spite_weak_object_freed(self);
 #endif
 SPITE_FREE(self);
 }
-void Lock___init(Lock* self) {
-self->_heap_ = spite_singleton_Memory_Heap();
-self->_handle_ = SpiteInteger_to_long(0);
-self->_kernel_ = spite_foreign_library_1();
-}
-Lock* Lock___allocate(void) {
-Lock* self = (Lock*)SPITE_MALLOC(sizeof(Lock));
-self->header.ref_count = 1;
-self->header.class_id = 50;
-Lock___init(self);
-#ifdef SPITE_TRACKS_Lock
-spite_track_Lock(self);
-#endif
-return self;
-}
-Lock* Lock___make(void) {
-Lock* self = Lock___allocate();
-Lock_Lock(self);
-return self;
-}
-static inline void Lock___release(Lock* self) {
-if (self == 0) return;
-if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
-Lock___free(self);
-}
-void Lock___free(Lock* self) {
-Lock_drop(self);
-spite_folded_Memory_Heap___release(self->_heap_);
-DynamicLibrary___release(self->_kernel_);
-#ifdef SPITE_TRACKS_Lock
-spite_untrack_Lock(self);
-#endif
-#ifdef SPITE_WEAK_Lock
-spite_weak_object_freed(self);
-#endif
-SPITE_FREE(self);
-}
 void Scheduler___init(Scheduler* self) {
 self->started_ = false;
 self->scheduler_thread_ = SpiteInteger_to_long(0);
@@ -1971,15 +1934,15 @@ self->answering_in_wait_ = false;
 self->commands_ = 0;
 self->reloads_ = 0;
 self->paused_ = false;
-self->_loops_ = ThreadLocal__SchedulerLoop___make();
+self->_loops_ = Spite_Internal_ThreadLocal__SchedulerLoop___make();
 self->_every_loop_ = List_SchedulerLoop___make();
-self->_loops_lock_ = Lock___make();
+self->_loops_lock_ = Spite_Internal_Lock___make();
 self->kernel_ = spite_foreign_library_1();
 }
 Scheduler* Scheduler___allocate(void) {
 Scheduler* self = (Scheduler*)SPITE_MALLOC(sizeof(Scheduler));
 self->header.ref_count = 1;
-self->header.class_id = 68;
+self->header.class_id = 66;
 Scheduler___init(self);
 #ifdef SPITE_TRACKS_Scheduler
 spite_track_Scheduler(self);
@@ -2000,9 +1963,9 @@ void Scheduler___discard(Scheduler* self) {
 if (self == 0) return;
 Spite_Function___release(self->commands_);
 Spite_Function___release(self->reloads_);
-ThreadLocal__SchedulerLoop___release(self->_loops_);
+Spite_Internal_ThreadLocal__SchedulerLoop___release(self->_loops_);
 List_SchedulerLoop___release(self->_every_loop_);
-Lock___release(self->_loops_lock_);
+Spite_Internal_Lock___release(self->_loops_lock_);
 DynamicLibrary___release(self->kernel_);
 #ifdef SPITE_TRACKS_Scheduler
 spite_untrack_Scheduler(self);
@@ -2029,7 +1992,7 @@ self->wake_signal_ = SpiteInteger_to_long(0);
 SchedulerLoop* SchedulerLoop___allocate(void) {
 SchedulerLoop* self = (SchedulerLoop*)SPITE_MALLOC(sizeof(SchedulerLoop));
 self->header.ref_count = 1;
-self->header.class_id = 69;
+self->header.class_id = 67;
 SchedulerLoop___init(self);
 #ifdef SPITE_TRACKS_SchedulerLoop
 spite_track_SchedulerLoop(self);
@@ -2124,41 +2087,6 @@ if (block != 0) return spite_string_held(block, total);
 ((char*)&made)[15] = (char)(SPITE_STRING_INLINE - total);
 return made;
 }
-void ThreadSlot___init(ThreadSlot* self) {
-self->_key_ = SpiteInteger_to_long((-(1)));
-self->_kernel_ = spite_foreign_library_1();
-}
-ThreadSlot* ThreadSlot___allocate(void) {
-ThreadSlot* self = (ThreadSlot*)SPITE_MALLOC(sizeof(ThreadSlot));
-self->header.ref_count = 1;
-self->header.class_id = 76;
-ThreadSlot___init(self);
-#ifdef SPITE_TRACKS_ThreadSlot
-spite_track_ThreadSlot(self);
-#endif
-return self;
-}
-ThreadSlot* ThreadSlot___make(void) {
-ThreadSlot* self = ThreadSlot___allocate();
-ThreadSlot_ThreadSlot(self);
-return self;
-}
-static inline void ThreadSlot___release(ThreadSlot* self) {
-if (self == 0) return;
-if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
-ThreadSlot___free(self);
-}
-void ThreadSlot___free(ThreadSlot* self) {
-ThreadSlot_drop(self);
-DynamicLibrary___release(self->_kernel_);
-#ifdef SPITE_TRACKS_ThreadSlot
-spite_untrack_ThreadSlot(self);
-#endif
-#ifdef SPITE_WEAK_ThreadSlot
-spite_weak_object_freed(self);
-#endif
-SPITE_FREE(self);
-}
 void TimeText___release(TimeText* self) { (void)self; }
 static inline void Spite_Argument___release(Spite_Argument* self) {
 if (self == 0) return;
@@ -2211,7 +2139,7 @@ self->_unbound_functions_ = 0;
 Spite_Class* Spite_Class___allocate(void) {
 Spite_Class* self = (Spite_Class*)SPITE_MALLOC(sizeof(Spite_Class));
 self->header.ref_count = 1;
-self->header.class_id = 103;
+self->header.class_id = 99;
 Spite_Class___init(self);
 #ifdef SPITE_TRACKS_Spite_Class
 spite_track_Spite_Class(self);
@@ -2269,7 +2197,7 @@ self->spite_arguments_lock = 0;
 static Spite_Function* Spite_Function___allocate_constructed(void) {
 Spite_Function* self = (Spite_Function*)SPITE_MALLOC(sizeof(Spite_Function));
 self->header.ref_count = 1;
-self->header.class_id = 107;
+self->header.class_id = 103;
 Spite_Function___init_constructed(self);
 #ifdef SPITE_TRACKS_Spite_Function
 spite_track_Spite_Function(self);
@@ -2324,6 +2252,78 @@ List_String___release(self->_source_paths_);
 spite_untrack_Spite_Namespace(self);
 #endif
 #ifdef SPITE_WEAK_Spite_Namespace
+spite_weak_object_freed(self);
+#endif
+SPITE_FREE(self);
+}
+void Spite_Internal_Lock___init(Spite_Internal_Lock* self) {
+self->_heap_ = spite_singleton_Memory_Heap();
+self->_handle_ = SpiteInteger_to_long(0);
+self->_kernel_ = spite_foreign_library_1();
+}
+Spite_Internal_Lock* Spite_Internal_Lock___allocate(void) {
+Spite_Internal_Lock* self = (Spite_Internal_Lock*)SPITE_MALLOC(sizeof(Spite_Internal_Lock));
+self->header.ref_count = 1;
+self->header.class_id = 107;
+Spite_Internal_Lock___init(self);
+#ifdef SPITE_TRACKS_Spite_Internal_Lock
+spite_track_Spite_Internal_Lock(self);
+#endif
+return self;
+}
+Spite_Internal_Lock* Spite_Internal_Lock___make(void) {
+Spite_Internal_Lock* self = Spite_Internal_Lock___allocate();
+Spite_Internal_Lock_Lock(self);
+return self;
+}
+static inline void Spite_Internal_Lock___release(Spite_Internal_Lock* self) {
+if (self == 0) return;
+if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
+Spite_Internal_Lock___free(self);
+}
+void Spite_Internal_Lock___free(Spite_Internal_Lock* self) {
+Spite_Internal_Lock_drop(self);
+spite_folded_Memory_Heap___release(self->_heap_);
+DynamicLibrary___release(self->_kernel_);
+#ifdef SPITE_TRACKS_Spite_Internal_Lock
+spite_untrack_Spite_Internal_Lock(self);
+#endif
+#ifdef SPITE_WEAK_Spite_Internal_Lock
+spite_weak_object_freed(self);
+#endif
+SPITE_FREE(self);
+}
+void Spite_Internal_ThreadSlot___init(Spite_Internal_ThreadSlot* self) {
+self->_key_ = SpiteInteger_to_long((-(1)));
+self->_kernel_ = spite_foreign_library_1();
+}
+Spite_Internal_ThreadSlot* Spite_Internal_ThreadSlot___allocate(void) {
+Spite_Internal_ThreadSlot* self = (Spite_Internal_ThreadSlot*)SPITE_MALLOC(sizeof(Spite_Internal_ThreadSlot));
+self->header.ref_count = 1;
+self->header.class_id = 109;
+Spite_Internal_ThreadSlot___init(self);
+#ifdef SPITE_TRACKS_Spite_Internal_ThreadSlot
+spite_track_Spite_Internal_ThreadSlot(self);
+#endif
+return self;
+}
+Spite_Internal_ThreadSlot* Spite_Internal_ThreadSlot___make(void) {
+Spite_Internal_ThreadSlot* self = Spite_Internal_ThreadSlot___allocate();
+Spite_Internal_ThreadSlot_ThreadSlot(self);
+return self;
+}
+static inline void Spite_Internal_ThreadSlot___release(Spite_Internal_ThreadSlot* self) {
+if (self == 0) return;
+if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
+Spite_Internal_ThreadSlot___free(self);
+}
+void Spite_Internal_ThreadSlot___free(Spite_Internal_ThreadSlot* self) {
+Spite_Internal_ThreadSlot_drop(self);
+DynamicLibrary___release(self->_kernel_);
+#ifdef SPITE_TRACKS_Spite_Internal_ThreadSlot
+spite_untrack_Spite_Internal_ThreadSlot(self);
+#endif
+#ifdef SPITE_WEAK_Spite_Internal_ThreadSlot
 spite_weak_object_freed(self);
 #endif
 SPITE_FREE(self);
@@ -2489,7 +2489,7 @@ self->capacity_ = 0;
 List_Memory_Address* List_Memory_Address___allocate(void) {
 List_Memory_Address* self = (List_Memory_Address*)SPITE_MALLOC(sizeof(List_Memory_Address));
 self->header.ref_count = 1;
-self->header.class_id = 127;
+self->header.class_id = 125;
 List_Memory_Address___init(self);
 #ifdef SPITE_TRACKS_List_Memory_Address
 spite_track_List_Memory_Address(self);
@@ -2517,9 +2517,9 @@ spite_weak_object_freed(self);
 #endif
 SPITE_FREE(self);
 }
-void ThreadLocal__SchedulerLoop___init(ThreadLocal__SchedulerLoop* self) {
-self->_slot_ = ThreadSlot___make();
-self->_lock_ = Lock___make();
+void Spite_Internal_ThreadLocal__SchedulerLoop___init(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
+self->_slot_ = Spite_Internal_ThreadSlot___make();
+self->_lock_ = Spite_Internal_Lock___make();
 self->_heap_ = spite_singleton_Memory_Heap();
 self->_values_ = spite_singleton_TypedMemory__SchedulerLoop();
 self->_published_ = Memory_Heap_allocate(self->_heap_, SpiteInteger_to_long(8));
@@ -2527,37 +2527,37 @@ self->_count_ = 0;
 self->_capacity_ = 0;
 self->_retired_ = List_Memory_Address___make();
 }
-ThreadLocal__SchedulerLoop* ThreadLocal__SchedulerLoop___allocate(void) {
-ThreadLocal__SchedulerLoop* self = (ThreadLocal__SchedulerLoop*)SPITE_MALLOC(sizeof(ThreadLocal__SchedulerLoop));
+Spite_Internal_ThreadLocal__SchedulerLoop* Spite_Internal_ThreadLocal__SchedulerLoop___allocate(void) {
+Spite_Internal_ThreadLocal__SchedulerLoop* self = (Spite_Internal_ThreadLocal__SchedulerLoop*)SPITE_MALLOC(sizeof(Spite_Internal_ThreadLocal__SchedulerLoop));
 self->header.ref_count = 1;
-self->header.class_id = 134;
-ThreadLocal__SchedulerLoop___init(self);
-#ifdef SPITE_TRACKS_ThreadLocal__SchedulerLoop
-spite_track_ThreadLocal__SchedulerLoop(self);
+self->header.class_id = 132;
+Spite_Internal_ThreadLocal__SchedulerLoop___init(self);
+#ifdef SPITE_TRACKS_Spite_Internal_ThreadLocal__SchedulerLoop
+spite_track_Spite_Internal_ThreadLocal__SchedulerLoop(self);
 #endif
 return self;
 }
-ThreadLocal__SchedulerLoop* ThreadLocal__SchedulerLoop___make(void) {
-ThreadLocal__SchedulerLoop* self = ThreadLocal__SchedulerLoop___allocate();
-ThreadLocal__SchedulerLoop_ThreadLocal(self);
+Spite_Internal_ThreadLocal__SchedulerLoop* Spite_Internal_ThreadLocal__SchedulerLoop___make(void) {
+Spite_Internal_ThreadLocal__SchedulerLoop* self = Spite_Internal_ThreadLocal__SchedulerLoop___allocate();
+Spite_Internal_ThreadLocal__SchedulerLoop_ThreadLocal(self);
 return self;
 }
-static inline void ThreadLocal__SchedulerLoop___release(ThreadLocal__SchedulerLoop* self) {
+static inline void Spite_Internal_ThreadLocal__SchedulerLoop___release(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
-ThreadLocal__SchedulerLoop___free(self);
+Spite_Internal_ThreadLocal__SchedulerLoop___free(self);
 }
-void ThreadLocal__SchedulerLoop___free(ThreadLocal__SchedulerLoop* self) {
-ThreadLocal__SchedulerLoop_drop(self);
-ThreadSlot___release(self->_slot_);
-Lock___release(self->_lock_);
+void Spite_Internal_ThreadLocal__SchedulerLoop___free(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
+Spite_Internal_ThreadLocal__SchedulerLoop_drop(self);
+Spite_Internal_ThreadSlot___release(self->_slot_);
+Spite_Internal_Lock___release(self->_lock_);
 spite_folded_Memory_Heap___release(self->_heap_);
 spite_folded_TypedMemory__SchedulerLoop___release(self->_values_);
 List_Memory_Address___release(self->_retired_);
-#ifdef SPITE_TRACKS_ThreadLocal__SchedulerLoop
-spite_untrack_ThreadLocal__SchedulerLoop(self);
+#ifdef SPITE_TRACKS_Spite_Internal_ThreadLocal__SchedulerLoop
+spite_untrack_Spite_Internal_ThreadLocal__SchedulerLoop(self);
 #endif
-#ifdef SPITE_WEAK_ThreadLocal__SchedulerLoop
+#ifdef SPITE_WEAK_Spite_Internal_ThreadLocal__SchedulerLoop
 spite_weak_object_freed(self);
 #endif
 SPITE_FREE(self);
@@ -2572,7 +2572,7 @@ self->capacity_ = 0;
 List_SchedulerLoop* List_SchedulerLoop___allocate(void) {
 List_SchedulerLoop* self = (List_SchedulerLoop*)SPITE_MALLOC(sizeof(List_SchedulerLoop));
 self->header.ref_count = 1;
-self->header.class_id = 136;
+self->header.class_id = 134;
 List_SchedulerLoop___init(self);
 #ifdef SPITE_TRACKS_List_SchedulerLoop
 spite_track_List_SchedulerLoop(self);
@@ -2610,7 +2610,7 @@ self->capacity_ = 0;
 List_Spite_AttributeDeclaration* List_Spite_AttributeDeclaration___allocate(void) {
 List_Spite_AttributeDeclaration* self = (List_Spite_AttributeDeclaration*)SPITE_MALLOC(sizeof(List_Spite_AttributeDeclaration));
 self->header.ref_count = 1;
-self->header.class_id = 141;
+self->header.class_id = 139;
 List_Spite_AttributeDeclaration___init(self);
 #ifdef SPITE_TRACKS_List_Spite_AttributeDeclaration
 spite_track_List_Spite_AttributeDeclaration(self);
@@ -2648,7 +2648,7 @@ self->capacity_ = 0;
 List_Spite_Function* List_Spite_Function___allocate(void) {
 List_Spite_Function* self = (List_Spite_Function*)SPITE_MALLOC(sizeof(List_Spite_Function));
 self->header.ref_count = 1;
-self->header.class_id = 143;
+self->header.class_id = 141;
 List_Spite_Function___init(self);
 #ifdef SPITE_TRACKS_List_Spite_Function
 spite_track_List_Spite_Function(self);
@@ -2686,7 +2686,7 @@ self->capacity_ = 0;
 List_Spite_Argument* List_Spite_Argument___allocate(void) {
 List_Spite_Argument* self = (List_Spite_Argument*)SPITE_MALLOC(sizeof(List_Spite_Argument));
 self->header.ref_count = 1;
-self->header.class_id = 145;
+self->header.class_id = 143;
 List_Spite_Argument___init(self);
 #ifdef SPITE_TRACKS_List_Spite_Argument
 spite_track_List_Spite_Argument(self);
@@ -2935,7 +2935,7 @@ if (((self).tag == 0) && ((self).plain == 0)) { spite_string_box_release(self.va
 }
 SpiteString Console_Printable___call_to_string(Console_Printable self) {
 if (((self).tag == 0) && ((self).plain == 0)) return SpiteString_to_string((((SpiteBox_SpiteString*)(self).value.object)->value));
-if ((self).tag == 153) return SpiteLong_to_string(SPITE_TAGGED_VALUE(self, int64_t));
+if ((self).tag == 151) return SpiteLong_to_string(SPITE_TAGGED_VALUE(self, int64_t));
 if ((self).tag == 169) return SpiteBoolean_to_string(SPITE_TAGGED_VALUE(self, bool));
 fputs("spite.crash\tPrintable.to_string was called on a value of a class it was not compiled for\n", stderr);
 abort();
@@ -2974,27 +2974,27 @@ spite_foreign_1_24 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteSt
 
 
 
-spite_foreign_1_34 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("InitializeSRWLock", 17)), ((SpiteString)SPITE_STATIC_STRING("Lock.create_lock", 16)));
-spite_foreign_1_35 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("AcquireSRWLockExclusive", 23)), ((SpiteString)SPITE_STATIC_STRING("Lock.acquire", 12)));
-spite_foreign_1_36 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("ReleaseSRWLockExclusive", 23)), ((SpiteString)SPITE_STATIC_STRING("Lock.release_lock", 17)));
 
 
 
-spite_foreign_1_45 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("CreateThread", 12)), ((SpiteString)SPITE_STATIC_STRING("ReadEvaluatePrintLoop.start_thread", 34)));
-spite_foreign_1_46 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("WaitForSingleObject", 19)), ((SpiteString)SPITE_STATIC_STRING("ReadEvaluatePrintLoop.join_thread", 33)));
-spite_foreign_1_47 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("GetCurrentThreadId", 18)), ((SpiteString)SPITE_STATIC_STRING("Scheduler.current_thread", 24)));
-spite_foreign_1_48 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("SetEvent", 8)), ((SpiteString)SPITE_STATIC_STRING("Scheduler.signal_event", 22)));
-spite_foreign_1_49 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("GetTickCount64", 14)), ((SpiteString)SPITE_STATIC_STRING("Scheduler.clock", 15)));
+spite_foreign_1_42 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("CreateThread", 12)), ((SpiteString)SPITE_STATIC_STRING("ReadEvaluatePrintLoop.start_thread", 34)));
+spite_foreign_1_43 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("WaitForSingleObject", 19)), ((SpiteString)SPITE_STATIC_STRING("ReadEvaluatePrintLoop.join_thread", 33)));
+spite_foreign_1_44 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("GetCurrentThreadId", 18)), ((SpiteString)SPITE_STATIC_STRING("Scheduler.current_thread", 24)));
+spite_foreign_1_45 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("SetEvent", 8)), ((SpiteString)SPITE_STATIC_STRING("Scheduler.signal_event", 22)));
+spite_foreign_1_46 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("GetTickCount64", 14)), ((SpiteString)SPITE_STATIC_STRING("Scheduler.clock", 15)));
+
+spite_foreign_1_65 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("InitializeSRWLock", 17)), ((SpiteString)SPITE_STATIC_STRING("ThreadPool.create_lock", 22)));
+spite_foreign_1_66 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("AcquireSRWLockExclusive", 23)), ((SpiteString)SPITE_STATIC_STRING("ThreadPool.lock_queue", 21)));
+spite_foreign_1_67 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("ReleaseSRWLockExclusive", 23)), ((SpiteString)SPITE_STATIC_STRING("ThreadPool.unlock_queue", 23)));
 
 
 
 
 
-spite_foreign_1_72 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsAlloc", 8)), ((SpiteString)SPITE_STATIC_STRING("ThreadSlot.create_key", 21)));
-spite_foreign_1_73 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsGetValue", 11)), ((SpiteString)SPITE_STATIC_STRING("ThreadSlot.read_key", 19)));
-spite_foreign_1_74 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsSetValue", 11)), ((SpiteString)SPITE_STATIC_STRING("ThreadSlot.write_key", 20)));
-spite_foreign_1_75 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsFree", 7)), ((SpiteString)SPITE_STATIC_STRING("ThreadSlot.delete_key", 21)));
-
+spite_foreign_1_76 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsAlloc", 8)), ((SpiteString)SPITE_STATIC_STRING("Spite.Internal.ThreadSlot.create_key", 36)));
+spite_foreign_1_77 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsGetValue", 11)), ((SpiteString)SPITE_STATIC_STRING("Spite.Internal.ThreadSlot.read_key", 34)));
+spite_foreign_1_78 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsSetValue", 11)), ((SpiteString)SPITE_STATIC_STRING("Spite.Internal.ThreadSlot.write_key", 35)));
+spite_foreign_1_79 = (void*)(intptr_t)DynamicLibrary_find_symbol(made, ((SpiteString)SPITE_STATIC_STRING("TlsFree", 7)), ((SpiteString)SPITE_STATIC_STRING("Spite.Internal.ThreadSlot.delete_key", 36)));
 SPITE_SINGLETON_PUBLISH(spite_foreign_library_1_cache, made);
 }
 SPITE_UNLOCK(spite_foreign_library_1_lock);
@@ -3406,46 +3406,16 @@ int64_t wide_ = SpiteInteger_to_long(self);
 SpiteString spite_temp_111 = SpiteLong_to_string(wide_);
 return spite_temp_111;
 }
-void Lock_Lock(Lock* self) {
-self->_handle_ = Lock_create_lock(self);
-}
-void Lock_lock(Lock* self) {
-Lock_acquire(self, self->_handle_);
-}
-void Lock_unlock(Lock* self) {
-Lock_release_lock(self, self->_handle_);
-}
-void Lock_drop(Lock* self) {
-if (!(((self->_handle_ != SpiteInteger_to_long(0))))) {
-return;
-}
-Lock_destroy_lock(self, self->_handle_);
-}
-int64_t Lock_create_lock(Lock* self) {
-int64_t created_ = Memory_Heap_allocate(self->_heap_, SpiteInteger_to_long(8));
-(void)(({ spite_last_foreign_call = "InitializeSRWLock\tlibrary=kernel32.dll\tfrom=library/windows/lock.spite:5"; int32_t spite_temp_112 = ((int32_t (*)(int64_t))spite_foreign_1_34)((int64_t)(created_));  int32_t spite_foreign_result = spite_temp_112;  (void)spite_foreign_result; spite_temp_112; }));
-int64_t spite_temp_113 = SpiteMemory_Address_to_long(created_);
-return spite_temp_113;
-}
-void Lock_acquire(Lock* self, int64_t held_) {
-(void)(({ spite_last_foreign_call = "AcquireSRWLockExclusive\tlibrary=kernel32.dll\tfrom=library/windows/lock.spite:10"; int32_t spite_temp_114 = ((int32_t (*)(int64_t))spite_foreign_1_35)((int64_t)(held_));  int32_t spite_foreign_result = spite_temp_114;  (void)spite_foreign_result; spite_temp_114; }));
-}
-void Lock_release_lock(Lock* self, int64_t held_) {
-(void)(({ spite_last_foreign_call = "ReleaseSRWLockExclusive\tlibrary=kernel32.dll\tfrom=library/windows/lock.spite:14"; int32_t spite_temp_115 = ((int32_t (*)(int64_t))spite_foreign_1_36)((int64_t)(held_));  int32_t spite_foreign_result = spite_temp_115;  (void)spite_foreign_result; spite_temp_115; }));
-}
-void Lock_destroy_lock(Lock* self, int64_t held_) {
-Memory_Heap_free(self->_heap_, ((int64_t)(held_)));
-}
 SpiteString SpiteLong_to_string(int64_t self) {
 if (((self == SpiteInteger_to_long(0)))) {
-SpiteString spite_temp_116 = spite_lit_15;
-return spite_temp_116;
+SpiteString spite_temp_112 = spite_lit_15;
+return spite_temp_112;
 }
 Memory_Heap* heap_ = spite_singleton_Memory_Heap();
 int64_t buffer_bytes_ = SpiteInteger_to_long(24);
-int64_t spite_temp_117[32];
-int64_t spite_temp_118 = buffer_bytes_;
-int64_t address_ = spite_temp_118 <= 256 ? (int64_t)(intptr_t)spite_temp_117 : Memory_Heap_allocate(heap_, spite_temp_118);
+int64_t spite_temp_113[32];
+int64_t spite_temp_114 = buffer_bytes_;
+int64_t address_ = spite_temp_114 <= 256 ? (int64_t)(intptr_t)spite_temp_113 : Memory_Heap_allocate(heap_, spite_temp_114);
 int64_t position_ = buffer_bytes_;
 int64_t rest_ = self;
 while (((rest_ != SpiteInteger_to_long(0)))) {
@@ -3453,39 +3423,39 @@ int64_t digit_ = (rest_ % SpiteInteger_to_long(10));
 if (((digit_ < SpiteInteger_to_long(0)))) {
 digit_ = (-(digit_));
 }
-position_ = ({ int64_t spite_temp_119 = position_; int64_t spite_temp_120 = SpiteInteger_to_long(1); int64_t spite_temp_121; if (__builtin_expect(__builtin_sub_overflow(spite_temp_119, spite_temp_120, &spite_temp_121), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_119, (int64_t)spite_temp_120, spite_site_7()); spite_temp_121; });
-SpiteMemory_Address_write_byte(address_, position_, ({ int64_t spite_temp_122 = (digit_ + SpiteInteger_to_long(48)); if (__builtin_expect(spite_temp_122 < 0 || spite_temp_122 > UINT8_MAX, 0)) spite_narrowed((int64_t)spite_temp_122, "a Long", "a Byte", spite_site_8()); (uint8_t)spite_temp_122; }));
+position_ = ({ int64_t spite_temp_115 = position_; int64_t spite_temp_116 = SpiteInteger_to_long(1); int64_t spite_temp_117; if (__builtin_expect(__builtin_sub_overflow(spite_temp_115, spite_temp_116, &spite_temp_117), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_115, (int64_t)spite_temp_116, spite_site_7()); spite_temp_117; });
+SpiteMemory_Address_write_byte(address_, position_, ({ int64_t spite_temp_118 = (digit_ + SpiteInteger_to_long(48)); if (__builtin_expect(spite_temp_118 < 0 || spite_temp_118 > UINT8_MAX, 0)) spite_narrowed((int64_t)spite_temp_118, "a Long", "a Byte", spite_site_8()); (uint8_t)spite_temp_118; }));
 rest_ = (rest_ / SpiteInteger_to_long(10));
 }
 if (((self < SpiteInteger_to_long(0)))) {
-position_ = ({ int64_t spite_temp_123 = position_; int64_t spite_temp_124 = SpiteInteger_to_long(1); int64_t spite_temp_125; if (__builtin_expect(__builtin_sub_overflow(spite_temp_123, spite_temp_124, &spite_temp_125), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_123, (int64_t)spite_temp_124, spite_site_9()); spite_temp_125; });
+position_ = ({ int64_t spite_temp_119 = position_; int64_t spite_temp_120 = SpiteInteger_to_long(1); int64_t spite_temp_121; if (__builtin_expect(__builtin_sub_overflow(spite_temp_119, spite_temp_120, &spite_temp_121), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_119, (int64_t)spite_temp_120, spite_site_9()); spite_temp_121; });
 SpiteMemory_Address_write_byte(address_, position_, SpiteInteger_to_byte(45));
 }
 int64_t first_digit_ = (address_ + ((int64_t)(position_)));
-SpiteString text_ = SpiteMemory_Address_text(first_digit_, ({ int64_t spite_temp_126 = buffer_bytes_; int64_t spite_temp_127 = position_; int64_t spite_temp_128; if (__builtin_expect(__builtin_sub_overflow(spite_temp_126, spite_temp_127, &spite_temp_128), 0)) spite_overflowed("buffer_bytes - position", "a Long", "-", (int64_t)spite_temp_126, (int64_t)spite_temp_127, spite_site_10()); spite_temp_128; }));
-if (address_ != (int64_t)(intptr_t)spite_temp_117) Memory_Heap_free(heap_, address_);
-SpiteString spite_temp_129 = SpiteString___retain(text_);
+SpiteString text_ = SpiteMemory_Address_text(first_digit_, ({ int64_t spite_temp_122 = buffer_bytes_; int64_t spite_temp_123 = position_; int64_t spite_temp_124; if (__builtin_expect(__builtin_sub_overflow(spite_temp_122, spite_temp_123, &spite_temp_124), 0)) spite_overflowed("buffer_bytes - position", "a Long", "-", (int64_t)spite_temp_122, (int64_t)spite_temp_123, spite_site_10()); spite_temp_124; }));
+if (address_ != (int64_t)(intptr_t)spite_temp_113) Memory_Heap_free(heap_, address_);
+SpiteString spite_temp_125 = SpiteString___retain(text_);
 SpiteString___release(text_);
 spite_folded_Memory_Heap___release(heap_);
-return spite_temp_129;
+return spite_temp_125;
 }
 SchedulerLoop* Scheduler_loop(Scheduler* self) {
-SchedulerLoop* found_ = ThreadLocal__SchedulerLoop_get(self->_loops_);
+SchedulerLoop* found_ = Spite_Internal_ThreadLocal__SchedulerLoop_get(self->_loops_);
 if (((found_) != 0)) {
-SchedulerLoop* spite_temp_130 = SchedulerLoop___retain(found_);
+SchedulerLoop* spite_temp_126 = SchedulerLoop___retain(found_);
 SchedulerLoop___release(found_);
-return spite_temp_130;
+return spite_temp_126;
 }
 SchedulerLoop* made_ = SchedulerLoop___make();
 (made_)->thread_ = Scheduler_current_thread(self);
-ThreadLocal__SchedulerLoop_set(self->_loops_, SchedulerLoop___retain(made_));
-Lock_lock(self->_loops_lock_);
+Spite_Internal_ThreadLocal__SchedulerLoop_set(self->_loops_, SchedulerLoop___retain(made_));
+Spite_Internal_Lock_lock(self->_loops_lock_);
 List_SchedulerLoop_append(self->_every_loop_, SchedulerLoop___retain(made_));
-Lock_unlock(self->_loops_lock_);
-SchedulerLoop* spite_temp_131 = SchedulerLoop___retain(made_);
+Spite_Internal_Lock_unlock(self->_loops_lock_);
+SchedulerLoop* spite_temp_127 = SchedulerLoop___retain(made_);
 SchedulerLoop___release(made_);
 SchedulerLoop___release(found_);
-return spite_temp_131;
+return spite_temp_127;
 }
 void Scheduler_start(Scheduler* self) {
 SchedulerLoop* here_ = Scheduler_loop(self);
@@ -3500,20 +3470,20 @@ self->scheduler_thread_ = (here_)->thread_;
 SchedulerLoop___release(here_);
 }
 bool Scheduler_on_main_thread(Scheduler* self) {
-bool spite_temp_132 = ((self->started_) && ((Scheduler_current_thread(self) == self->scheduler_thread_)));
-return spite_temp_132;
+bool spite_temp_128 = ((self->started_) && ((Scheduler_current_thread(self) == self->scheduler_thread_)));
+return spite_temp_128;
 }
 bool Scheduler_waits_here(Scheduler* self) {
 SchedulerLoop* here_ = Scheduler_loop(self);
 bool serves_here_ = ((self->serving_) && (Scheduler_on_main_thread(self)));
 if (!(!(((!((here_)->started_)))) && !((self->paused_)) && !((((((List_Long_is_empty((here_)->tasks_)) || ((here_)->resumes_when_asked_))) && ((!(serves_here_)))))))) {
-bool spite_temp_133 = false;
+bool spite_temp_129 = false;
 SchedulerLoop___release(here_);
-return spite_temp_133;
+return spite_temp_129;
 }
-bool spite_temp_134 = true;
+bool spite_temp_130 = true;
 SchedulerLoop___release(here_);
-return spite_temp_134;
+return spite_temp_130;
 }
 void Scheduler_begin(Scheduler* self, int64_t frame_) {
 Scheduler_start(self);
@@ -3539,21 +3509,21 @@ Scheduler_release_work(self, SpiteMemory_Address_to_long(frame_));
 else {
 SpiteMemory_Address_write_integer(frame_, SpiteInteger_to_long(12), 0);
 }
-bool spite_temp_135 = done_;
+bool spite_temp_131 = done_;
 SchedulerLoop___release(here_);
-return spite_temp_135;
+return spite_temp_131;
 }
 bool Scheduler_frame_done(Scheduler* self, int64_t frame_) {
-bool spite_temp_136 = (SpiteMemory_Address_read_integer(frame_, SpiteInteger_to_long(12)) == 2);
-return spite_temp_136;
+bool spite_temp_132 = (SpiteMemory_Address_read_integer(frame_, SpiteInteger_to_long(12)) == 2);
+return spite_temp_132;
 }
 bool Scheduler_joins(Scheduler* self, int64_t frame_) {
 SchedulerLoop* here_ = Scheduler_loop(self);
 if ((Scheduler_frame_done(self, ((int64_t)(frame_))))) {
 Scheduler_forget_wait(self, (here_)->stepping_);
-bool spite_temp_137 = true;
+bool spite_temp_133 = true;
 SchedulerLoop___release(here_);
-return spite_temp_137;
+return spite_temp_133;
 }
 Scheduler_forget_wait(self, (here_)->stepping_);
 List_Long_append((here_)->waiting_frames_, (here_)->stepping_);
@@ -3566,38 +3536,38 @@ if (!(((!(joins_a_concurrent_that_waits_for_this_one_))))) {
 spite_failed_1(joins_a_concurrent_that_waits_for_this_one_, frame_, awaited_, hops_, self);
 }
 awaited_ = Scheduler_awaited_by(self, awaited_);
-hops_ = ({ int32_t spite_temp_138 = hops_; int32_t spite_temp_139 = 1; int32_t spite_temp_140; if (__builtin_expect(__builtin_add_overflow(spite_temp_138, spite_temp_139, &spite_temp_140), 0)) spite_overflowed("hops + 1", "an Integer", "+", (int64_t)spite_temp_138, (int64_t)spite_temp_139, spite_site_12()); spite_temp_140; });
+hops_ = ({ int32_t spite_temp_134 = hops_; int32_t spite_temp_135 = 1; int32_t spite_temp_136; if (__builtin_expect(__builtin_add_overflow(spite_temp_134, spite_temp_135, &spite_temp_136), 0)) spite_overflowed("hops + 1", "an Integer", "+", (int64_t)spite_temp_134, (int64_t)spite_temp_135, spite_site_12()); spite_temp_136; });
 }
-bool spite_temp_141 = false;
+bool spite_temp_137 = false;
 SchedulerLoop___release(here_);
-return spite_temp_141;
+return spite_temp_137;
 }
 static SPITE_CRASH_REPORT void spite_failed_1(bool joins_a_concurrent_that_waits_for_this_one_, int64_t frame_, int64_t awaited_, int32_t hops_, Scheduler* self) {
 spite_crash_begin();
 fflush(stdout);
 fputs(spite_site_11(), stderr);
 fputs("\tjoins_a_concurrent_that_waits_for_this_one=", stderr);
-{ SpiteString spite_temp_142 = SpiteBoolean_to_string(joins_a_concurrent_that_waits_for_this_one_); fwrite(spite_string_bytes(&spite_temp_142), 1, (size_t)spite_string_length(spite_temp_142), stderr); SpiteString___release(spite_temp_142); }
+{ SpiteString spite_temp_138 = SpiteBoolean_to_string(joins_a_concurrent_that_waits_for_this_one_); fwrite(spite_string_bytes(&spite_temp_138), 1, (size_t)spite_string_length(spite_temp_138), stderr); SpiteString___release(spite_temp_138); }
 fputs("\tframe=", stderr);
-{ SpiteString spite_temp_143 = SpiteLong_to_string(frame_); spite_crash_text(spite_string_bytes(&spite_temp_143), spite_string_length(spite_temp_143)); SpiteString___release(spite_temp_143); }
+{ SpiteString spite_temp_139 = SpiteLong_to_string(frame_); spite_crash_text(spite_string_bytes(&spite_temp_139), spite_string_length(spite_temp_139)); SpiteString___release(spite_temp_139); }
 fputs("\tawaited=", stderr);
-{ SpiteString spite_temp_144 = SpiteLong_to_string(awaited_); spite_crash_text(spite_string_bytes(&spite_temp_144), spite_string_length(spite_temp_144)); SpiteString___release(spite_temp_144); }
+{ SpiteString spite_temp_140 = SpiteLong_to_string(awaited_); spite_crash_text(spite_string_bytes(&spite_temp_140), spite_string_length(spite_temp_140)); SpiteString___release(spite_temp_140); }
 fputs("\thops=", stderr);
-{ SpiteString spite_temp_145 = SpiteInteger_to_string(hops_); spite_crash_text(spite_string_bytes(&spite_temp_145), spite_string_length(spite_temp_145)); SpiteString___release(spite_temp_145); }
+{ SpiteString spite_temp_141 = SpiteInteger_to_string(hops_); spite_crash_text(spite_string_bytes(&spite_temp_141), spite_string_length(spite_temp_141)); SpiteString___release(spite_temp_141); }
 fputs("\tstarted=", stderr);
-{ SpiteString spite_temp_146 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_146), spite_string_length(spite_temp_146)); SpiteString___release(spite_temp_146); }
+{ SpiteString spite_temp_142 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_142), spite_string_length(spite_temp_142)); SpiteString___release(spite_temp_142); }
 fputs("\tscheduler_thread=", stderr);
-{ SpiteString spite_temp_147 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_147), spite_string_length(spite_temp_147)); SpiteString___release(spite_temp_147); }
+{ SpiteString spite_temp_143 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_143), spite_string_length(spite_temp_143)); SpiteString___release(spite_temp_143); }
 fputs("\tserving=", stderr);
-{ SpiteString spite_temp_148 = SpiteBoolean_to_string(self->serving_); spite_crash_text(spite_string_bytes(&spite_temp_148), spite_string_length(spite_temp_148)); SpiteString___release(spite_temp_148); }
+{ SpiteString spite_temp_144 = SpiteBoolean_to_string(self->serving_); spite_crash_text(spite_string_bytes(&spite_temp_144), spite_string_length(spite_temp_144)); SpiteString___release(spite_temp_144); }
 fputs("\twaits_begun=", stderr);
-{ SpiteString spite_temp_149 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_149), spite_string_length(spite_temp_149)); SpiteString___release(spite_temp_149); }
+{ SpiteString spite_temp_145 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_145), spite_string_length(spite_temp_145)); SpiteString___release(spite_temp_145); }
 fputs("\tcheck_points_passed=", stderr);
-{ SpiteString spite_temp_150 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_150), spite_string_length(spite_temp_150)); SpiteString___release(spite_temp_150); }
+{ SpiteString spite_temp_146 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_146), spite_string_length(spite_temp_146)); SpiteString___release(spite_temp_146); }
 fputs("\tanswering_in_wait=", stderr);
-{ SpiteString spite_temp_151 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_151), spite_string_length(spite_temp_151)); SpiteString___release(spite_temp_151); }
+{ SpiteString spite_temp_147 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_147), spite_string_length(spite_temp_147)); SpiteString___release(spite_temp_147); }
 fputs("\tpaused=", stderr);
-{ SpiteString spite_temp_152 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_152), spite_string_length(spite_temp_152)); SpiteString___release(spite_temp_152); }
+{ SpiteString spite_temp_148 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_148), spite_string_length(spite_temp_148)); SpiteString___release(spite_temp_148); }
 fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
@@ -3606,19 +3576,19 @@ int64_t Scheduler_awaited_by(Scheduler* self, int64_t frame_) {
 SchedulerLoop* here_ = Scheduler_loop(self);
 int32_t index_ = 0;
 while (((index_ < spite_folded_List_Long_count((here_)->waiting_frames_)))) {
-if (((({ Nullable_Long spite_temp_153 = List_Long_get_at((here_)->waiting_frames_, index_); if (__builtin_expect(!spite_temp_153.has_value, 0)) spite_outside_list("here.waiting_frames[index]", spite_site_13()); spite_temp_153.value; }) == frame_))) {
+if (((({ Nullable_Long spite_temp_149 = List_Long_get_at((here_)->waiting_frames_, index_); if (__builtin_expect(!spite_temp_149.has_value, 0)) spite_outside_list("here.waiting_frames[index]", spite_site_13()); spite_temp_149.value; }) == frame_))) {
 if (!(((List_Long_get_at((here_)->awaited_frames_, index_)).has_value))) {
 spite_failed_2(index_, here_, frame_, self);
 }
-int64_t spite_temp_154 = (List_Long_get_at((here_)->awaited_frames_, index_)).value;
+int64_t spite_temp_150 = (List_Long_get_at((here_)->awaited_frames_, index_)).value;
 SchedulerLoop___release(here_);
-return spite_temp_154;
+return spite_temp_150;
 }
 index_ = (index_ + 1);
 }
-int64_t spite_temp_155 = SpiteInteger_to_long(0);
+int64_t spite_temp_151 = SpiteInteger_to_long(0);
 SchedulerLoop___release(here_);
-return spite_temp_155;
+return spite_temp_151;
 }
 static SPITE_CRASH_REPORT void spite_failed_2(int32_t index_, SchedulerLoop* here_, int64_t frame_, Scheduler* self) {
 spite_crash_begin();
@@ -3626,26 +3596,26 @@ fflush(stdout);
 fputs(spite_site_14(), stderr);
 {
 fputs("\there.awaited_frames[index] is missing: index ", stderr);
-{ SpiteString spite_temp_156 = SpiteInteger_to_string(index_); fwrite(spite_string_bytes(&spite_temp_156), 1, (size_t)spite_string_length(spite_temp_156), stderr); SpiteString___release(spite_temp_156); }
+{ SpiteString spite_temp_152 = SpiteInteger_to_string(index_); fwrite(spite_string_bytes(&spite_temp_152), 1, (size_t)spite_string_length(spite_temp_152), stderr); SpiteString___release(spite_temp_152); }
 fputs(", count ", stderr);
-{ SpiteString spite_temp_157 = SpiteInteger_to_string((((here_)->awaited_frames_)->item_count_)); fwrite(spite_string_bytes(&spite_temp_157), 1, (size_t)spite_string_length(spite_temp_157), stderr); SpiteString___release(spite_temp_157); }
+{ SpiteString spite_temp_153 = SpiteInteger_to_string((((here_)->awaited_frames_)->item_count_)); fwrite(spite_string_bytes(&spite_temp_153), 1, (size_t)spite_string_length(spite_temp_153), stderr); SpiteString___release(spite_temp_153); }
 }
 fputs("\tframe=", stderr);
-{ SpiteString spite_temp_158 = SpiteLong_to_string(frame_); spite_crash_text(spite_string_bytes(&spite_temp_158), spite_string_length(spite_temp_158)); SpiteString___release(spite_temp_158); }
+{ SpiteString spite_temp_154 = SpiteLong_to_string(frame_); spite_crash_text(spite_string_bytes(&spite_temp_154), spite_string_length(spite_temp_154)); SpiteString___release(spite_temp_154); }
 fputs("\tstarted=", stderr);
-{ SpiteString spite_temp_159 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_159), spite_string_length(spite_temp_159)); SpiteString___release(spite_temp_159); }
+{ SpiteString spite_temp_155 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_155), spite_string_length(spite_temp_155)); SpiteString___release(spite_temp_155); }
 fputs("\tscheduler_thread=", stderr);
-{ SpiteString spite_temp_160 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_160), spite_string_length(spite_temp_160)); SpiteString___release(spite_temp_160); }
+{ SpiteString spite_temp_156 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_156), spite_string_length(spite_temp_156)); SpiteString___release(spite_temp_156); }
 fputs("\tserving=", stderr);
-{ SpiteString spite_temp_161 = SpiteBoolean_to_string(self->serving_); spite_crash_text(spite_string_bytes(&spite_temp_161), spite_string_length(spite_temp_161)); SpiteString___release(spite_temp_161); }
+{ SpiteString spite_temp_157 = SpiteBoolean_to_string(self->serving_); spite_crash_text(spite_string_bytes(&spite_temp_157), spite_string_length(spite_temp_157)); SpiteString___release(spite_temp_157); }
 fputs("\twaits_begun=", stderr);
-{ SpiteString spite_temp_162 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_162), spite_string_length(spite_temp_162)); SpiteString___release(spite_temp_162); }
+{ SpiteString spite_temp_158 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_158), spite_string_length(spite_temp_158)); SpiteString___release(spite_temp_158); }
 fputs("\tcheck_points_passed=", stderr);
-{ SpiteString spite_temp_163 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_163), spite_string_length(spite_temp_163)); SpiteString___release(spite_temp_163); }
+{ SpiteString spite_temp_159 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_159), spite_string_length(spite_temp_159)); SpiteString___release(spite_temp_159); }
 fputs("\tanswering_in_wait=", stderr);
-{ SpiteString spite_temp_164 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_164), spite_string_length(spite_temp_164)); SpiteString___release(spite_temp_164); }
+{ SpiteString spite_temp_160 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_160), spite_string_length(spite_temp_160)); SpiteString___release(spite_temp_160); }
 fputs("\tpaused=", stderr);
-{ SpiteString spite_temp_165 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_165), spite_string_length(spite_temp_165)); SpiteString___release(spite_temp_165); }
+{ SpiteString spite_temp_161 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_161), spite_string_length(spite_temp_161)); SpiteString___release(spite_temp_161); }
 fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
@@ -3654,7 +3624,7 @@ void Scheduler_forget_wait(Scheduler* self, int64_t frame_) {
 SchedulerLoop* here_ = Scheduler_loop(self);
 int32_t index_ = 0;
 while (((index_ < spite_folded_List_Long_count((here_)->waiting_frames_)))) {
-if (((({ Nullable_Long spite_temp_166 = List_Long_get_at((here_)->waiting_frames_, index_); if (__builtin_expect(!spite_temp_166.has_value, 0)) spite_outside_list("here.waiting_frames[index]", spite_site_15()); spite_temp_166.value; }) == frame_))) {
+if (((({ Nullable_Long spite_temp_162 = List_Long_get_at((here_)->waiting_frames_, index_); if (__builtin_expect(!spite_temp_162.has_value, 0)) spite_outside_list("here.waiting_frames[index]", spite_site_15()); spite_temp_162.value; }) == frame_))) {
 List_Long_remove_at((here_)->waiting_frames_, index_);
 List_Long_remove_at((here_)->awaited_frames_, index_);
 SchedulerLoop___release(here_);
@@ -3669,34 +3639,34 @@ SchedulerLoop* here_ = Scheduler_loop(self);
 int32_t finished_ = 0;
 int32_t index_ = 0;
 while (((index_ < spite_folded_List_Long_count((here_)->tasks_)))) {
-int64_t frame_ = ((int64_t)(({ Nullable_Long spite_temp_167 = List_Long_get_at((here_)->tasks_, index_); if (__builtin_expect(!spite_temp_167.has_value, 0)) spite_outside_list("here.tasks[index]", spite_site_16()); spite_temp_167.value; })));
+int64_t frame_ = ((int64_t)(({ Nullable_Long spite_temp_163 = List_Long_get_at((here_)->tasks_, index_); if (__builtin_expect(!spite_temp_163.has_value, 0)) spite_outside_list("here.tasks[index]", spite_site_16()); spite_temp_163.value; })));
 if ((((SpiteMemory_Address_read_integer(frame_, SpiteInteger_to_long(12)) == 0))) && ((Scheduler_run_frame(self, frame_)))) {
 Scheduler_remove_one(self, List_Long___retain((here_)->tasks_), SpiteMemory_Address_to_long(frame_));
-finished_ = ({ int32_t spite_temp_168 = finished_; int32_t spite_temp_169 = 1; int32_t spite_temp_170; if (__builtin_expect(__builtin_add_overflow(spite_temp_168, spite_temp_169, &spite_temp_170), 0)) spite_overflowed("finished + 1", "an Integer", "+", (int64_t)spite_temp_168, (int64_t)spite_temp_169, spite_site_17()); spite_temp_170; });
+finished_ = ({ int32_t spite_temp_164 = finished_; int32_t spite_temp_165 = 1; int32_t spite_temp_166; if (__builtin_expect(__builtin_add_overflow(spite_temp_164, spite_temp_165, &spite_temp_166), 0)) spite_overflowed("finished + 1", "an Integer", "+", (int64_t)spite_temp_164, (int64_t)spite_temp_165, spite_site_17()); spite_temp_166; });
 }
 else {
 index_ = (index_ + 1);
 }
 }
-int32_t spite_temp_171 = finished_;
+int32_t spite_temp_167 = finished_;
 SchedulerLoop___release(here_);
-return spite_temp_171;
+return spite_temp_167;
 }
 bool Scheduler_wait_for(Scheduler* self, int64_t frame_) {
 if ((Scheduler_frame_done(self, ((int64_t)(frame_))))) {
-bool spite_temp_172 = true;
-return spite_temp_172;
+bool spite_temp_168 = true;
+return spite_temp_168;
 }
 if ((Scheduler_runs_below(self, ((int64_t)(frame_))))) {
-bool spite_temp_173 = false;
-return spite_temp_173;
+bool spite_temp_169 = false;
+return spite_temp_169;
 }
 Scheduler_begin_wait(self);
 while (((!(Scheduler_joins(self, frame_))))) {
 Scheduler_idle_stepping(self, true);
 }
-bool spite_temp_174 = true;
-return spite_temp_174;
+bool spite_temp_170 = true;
+return spite_temp_170;
 }
 void Scheduler_finish_concurrents(Scheduler* self) {
 SchedulerLoop* here_ = Scheduler_loop(self);
@@ -3707,13 +3677,13 @@ SchedulerLoop___release(here_);
 }
 bool Scheduler_runs_below(Scheduler* self, int64_t frame_) {
 SchedulerLoop* here_ = Scheduler_loop(self);
-bool spite_temp_175 = (((SpiteMemory_Address_read_integer(frame_, SpiteInteger_to_long(12)) == 1)) && ((here_)->started_));
+bool spite_temp_171 = (((SpiteMemory_Address_read_integer(frame_, SpiteInteger_to_long(12)) == 1)) && ((here_)->started_));
 SchedulerLoop___release(here_);
-return spite_temp_175;
+return spite_temp_171;
 }
 void Scheduler_remove_one(Scheduler* self, List_Long* values_, int64_t value_) {
 int32_t index_ = 0;
-while (((((index_ < spite_folded_List_Long_count(values_))) && ((({ int32_t spite_temp_176 = index_; if (__builtin_expect(spite_temp_176 >= (values_)->item_count_, 0)) spite_outside_list("values[index]", spite_site_18()); ((int64_t*)(intptr_t)(values_)->items_)[spite_temp_176]; }) != value_))))) {
+while (((((index_ < spite_folded_List_Long_count(values_))) && ((({ int32_t spite_temp_172 = index_; if (__builtin_expect(spite_temp_172 >= (values_)->item_count_, 0)) spite_outside_list("values[index]", spite_site_18()); ((int64_t*)(intptr_t)(values_)->items_)[spite_temp_172]; }) != value_))))) {
 index_ = (index_ + 1);
 }
 if (((index_ < spite_folded_List_Long_count(values_)))) {
@@ -3727,8 +3697,8 @@ int64_t thread_ = Scheduler_offload_start(self, call_, entry_);
 while (((!(Scheduler_offload_over(self, call_, thread_))))) {
 Scheduler_idle(self);
 }
-bool spite_temp_177 = true;
-return spite_temp_177;
+bool spite_temp_173 = true;
+return spite_temp_173;
 }
 int64_t Scheduler_offload_start(Scheduler* self, int64_t call_, int64_t entry_) {
 int64_t thread_ = Scheduler_start_thread(self, entry_, SpiteMemory_Address_to_long(call_));
@@ -3736,50 +3706,50 @@ if (!(((thread_ != SpiteInteger_to_long(0))))) {
 spite_failed_3(thread_, call_, entry_, self);
 }
 SchedulerLoop* here_ = Scheduler_loop(self);
-(here_)->offloads_running_ = ({ int32_t spite_temp_178 = (here_)->offloads_running_; int32_t spite_temp_179 = 1; int32_t spite_temp_180; if (__builtin_expect(__builtin_add_overflow(spite_temp_178, spite_temp_179, &spite_temp_180), 0)) spite_overflowed("here.offloads_running + 1", "an Integer", "+", (int64_t)spite_temp_178, (int64_t)spite_temp_179, spite_site_20()); spite_temp_180; });
-int64_t spite_temp_181 = thread_;
+(here_)->offloads_running_ = ({ int32_t spite_temp_174 = (here_)->offloads_running_; int32_t spite_temp_175 = 1; int32_t spite_temp_176; if (__builtin_expect(__builtin_add_overflow(spite_temp_174, spite_temp_175, &spite_temp_176), 0)) spite_overflowed("here.offloads_running + 1", "an Integer", "+", (int64_t)spite_temp_174, (int64_t)spite_temp_175, spite_site_20()); spite_temp_176; });
+int64_t spite_temp_177 = thread_;
 SchedulerLoop___release(here_);
-return spite_temp_181;
+return spite_temp_177;
 }
 static SPITE_CRASH_REPORT void spite_failed_3(int64_t thread_, int64_t call_, int64_t entry_, Scheduler* self) {
 spite_crash_begin();
 fflush(stdout);
 fputs(spite_site_19(), stderr);
 fputs("\tthread=", stderr);
-{ SpiteString spite_temp_182 = SpiteLong_to_string(thread_); fwrite(spite_string_bytes(&spite_temp_182), 1, (size_t)spite_string_length(spite_temp_182), stderr); SpiteString___release(spite_temp_182); }
+{ SpiteString spite_temp_178 = SpiteLong_to_string(thread_); fwrite(spite_string_bytes(&spite_temp_178), 1, (size_t)spite_string_length(spite_temp_178), stderr); SpiteString___release(spite_temp_178); }
 fputs("\tcall=", stderr);
-{ SpiteString spite_temp_183 = SpiteMemory_Address_to_string(call_); spite_crash_text(spite_string_bytes(&spite_temp_183), spite_string_length(spite_temp_183)); SpiteString___release(spite_temp_183); }
+{ SpiteString spite_temp_179 = SpiteMemory_Address_to_string(call_); spite_crash_text(spite_string_bytes(&spite_temp_179), spite_string_length(spite_temp_179)); SpiteString___release(spite_temp_179); }
 fputs("\tentry=", stderr);
-{ SpiteString spite_temp_184 = SpiteLong_to_string(entry_); spite_crash_text(spite_string_bytes(&spite_temp_184), spite_string_length(spite_temp_184)); SpiteString___release(spite_temp_184); }
+{ SpiteString spite_temp_180 = SpiteLong_to_string(entry_); spite_crash_text(spite_string_bytes(&spite_temp_180), spite_string_length(spite_temp_180)); SpiteString___release(spite_temp_180); }
 fputs("\tstarted=", stderr);
-{ SpiteString spite_temp_185 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_185), spite_string_length(spite_temp_185)); SpiteString___release(spite_temp_185); }
+{ SpiteString spite_temp_181 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_181), spite_string_length(spite_temp_181)); SpiteString___release(spite_temp_181); }
 fputs("\tscheduler_thread=", stderr);
-{ SpiteString spite_temp_186 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_186), spite_string_length(spite_temp_186)); SpiteString___release(spite_temp_186); }
+{ SpiteString spite_temp_182 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_182), spite_string_length(spite_temp_182)); SpiteString___release(spite_temp_182); }
 fputs("\tserving=", stderr);
-{ SpiteString spite_temp_187 = SpiteBoolean_to_string(self->serving_); spite_crash_text(spite_string_bytes(&spite_temp_187), spite_string_length(spite_temp_187)); SpiteString___release(spite_temp_187); }
+{ SpiteString spite_temp_183 = SpiteBoolean_to_string(self->serving_); spite_crash_text(spite_string_bytes(&spite_temp_183), spite_string_length(spite_temp_183)); SpiteString___release(spite_temp_183); }
 fputs("\twaits_begun=", stderr);
-{ SpiteString spite_temp_188 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_188), spite_string_length(spite_temp_188)); SpiteString___release(spite_temp_188); }
+{ SpiteString spite_temp_184 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_184), spite_string_length(spite_temp_184)); SpiteString___release(spite_temp_184); }
 fputs("\tcheck_points_passed=", stderr);
-{ SpiteString spite_temp_189 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_189), spite_string_length(spite_temp_189)); SpiteString___release(spite_temp_189); }
+{ SpiteString spite_temp_185 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_185), spite_string_length(spite_temp_185)); SpiteString___release(spite_temp_185); }
 fputs("\tanswering_in_wait=", stderr);
-{ SpiteString spite_temp_190 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_190), spite_string_length(spite_temp_190)); SpiteString___release(spite_temp_190); }
+{ SpiteString spite_temp_186 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_186), spite_string_length(spite_temp_186)); SpiteString___release(spite_temp_186); }
 fputs("\tpaused=", stderr);
-{ SpiteString spite_temp_191 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_191), spite_string_length(spite_temp_191)); SpiteString___release(spite_temp_191); }
+{ SpiteString spite_temp_187 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_187), spite_string_length(spite_temp_187)); SpiteString___release(spite_temp_187); }
 fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
 bool Scheduler_offload_over(Scheduler* self, int64_t call_, int64_t thread_) {
 if (((SpiteMemory_Address_read_long_atomically(call_, SpiteInteger_to_long(0)) != SpiteInteger_to_long(1)))) {
-bool spite_temp_192 = false;
-return spite_temp_192;
+bool spite_temp_188 = false;
+return spite_temp_188;
 }
 Scheduler_end_thread(self, thread_);
 SchedulerLoop* here_ = Scheduler_loop(self);
-(here_)->offloads_running_ = ({ int32_t spite_temp_193 = (here_)->offloads_running_; int32_t spite_temp_194 = 1; int32_t spite_temp_195; if (__builtin_expect(__builtin_sub_overflow(spite_temp_193, spite_temp_194, &spite_temp_195), 0)) spite_overflowed("here.offloads_running - 1", "an Integer", "-", (int64_t)spite_temp_193, (int64_t)spite_temp_194, spite_site_21()); spite_temp_195; });
-bool spite_temp_196 = true;
+(here_)->offloads_running_ = ({ int32_t spite_temp_189 = (here_)->offloads_running_; int32_t spite_temp_190 = 1; int32_t spite_temp_191; if (__builtin_expect(__builtin_sub_overflow(spite_temp_189, spite_temp_190, &spite_temp_191), 0)) spite_overflowed("here.offloads_running - 1", "an Integer", "-", (int64_t)spite_temp_189, (int64_t)spite_temp_190, spite_site_21()); spite_temp_191; });
+bool spite_temp_192 = true;
 SchedulerLoop___release(here_);
-return spite_temp_196;
+return spite_temp_192;
 }
 void Scheduler_offload_done(Scheduler* self, int64_t call_) {
 SpiteMemory_Address_write_long_atomically(call_, SpiteInteger_to_long(0), SpiteInteger_to_long(1));
@@ -3787,22 +3757,22 @@ Scheduler_signal(self);
 }
 void Scheduler_begin_wait(Scheduler* self) {
 if (((self->serving_)) && ((Scheduler_on_main_thread(self)))) {
-self->waits_begun_ = ({ int32_t spite_temp_197 = self->waits_begun_; int32_t spite_temp_198 = 1; int32_t spite_temp_199; if (__builtin_expect(__builtin_add_overflow(spite_temp_197, spite_temp_198, &spite_temp_199), 0)) spite_overflowed("waits_begun + 1", "an Integer", "+", (int64_t)spite_temp_197, (int64_t)spite_temp_198, spite_site_22()); spite_temp_199; });
+self->waits_begun_ = ({ int32_t spite_temp_193 = self->waits_begun_; int32_t spite_temp_194 = 1; int32_t spite_temp_195; if (__builtin_expect(__builtin_add_overflow(spite_temp_193, spite_temp_194, &spite_temp_195), 0)) spite_overflowed("waits_begun + 1", "an Integer", "+", (int64_t)spite_temp_193, (int64_t)spite_temp_194, spite_site_22()); spite_temp_195; });
 }
 }
 void Scheduler_signal(Scheduler* self) {
 Scheduler___release(self);
-Lock_lock(self->_loops_lock_);
+Spite_Internal_Lock_lock(self->_loops_lock_);
 int32_t index_ = 0;
 while (((index_ < spite_folded_List_SchedulerLoop_count(self->_every_loop_)))) {
-SchedulerLoop* each_loop_ = ({ SchedulerLoop* spite_temp_200 = List_SchedulerLoop_get_at(self->_every_loop_, index_); if (__builtin_expect(!(((spite_temp_200) != 0)), 0)) spite_outside_list("_every_loop[index]", spite_site_23()); spite_temp_200; });
+SchedulerLoop* each_loop_ = ({ SchedulerLoop* spite_temp_196 = List_SchedulerLoop_get_at(self->_every_loop_, index_); if (__builtin_expect(!(((spite_temp_196) != 0)), 0)) spite_outside_list("_every_loop[index]", spite_site_23()); spite_temp_196; });
 if (((each_loop_)->started_)) {
 Scheduler_signal_event(self, SchedulerLoop___retain(each_loop_));
 }
 index_ = (index_ + 1);
 SchedulerLoop___release(each_loop_);
 }
-Lock_unlock(self->_loops_lock_);
+Spite_Internal_Lock_unlock(self->_loops_lock_);
 }
 void Scheduler_idle(Scheduler* self) {
 SchedulerLoop* here_ = Scheduler_loop(self);
@@ -3813,11 +3783,11 @@ void Scheduler_idle_stepping(Scheduler* self, bool steps_) {
 bool main_ = Scheduler_on_main_thread(self);
 if ((((self->commands_) != 0)) && ((main_))) {
 self->answering_in_wait_ = true;
-({ Spite_Function* spite_temp_201 = self->commands_; ((void (*)(void*))spite_temp_201->spite_typed_call)(spite_temp_201->spite_owner); });
+({ Spite_Function* spite_temp_197 = self->commands_; ((void (*)(void*))spite_temp_197->spite_typed_call)(spite_temp_197->spite_owner); });
 self->answering_in_wait_ = false;
 }
 if ((((self->reloads_) != 0)) && ((main_))) {
-({ Spite_Function* spite_temp_202 = self->reloads_; ((void (*)(void*))spite_temp_202->spite_typed_call)(spite_temp_202->spite_owner); });
+({ Spite_Function* spite_temp_198 = self->reloads_; ((void (*)(void*))spite_temp_198->spite_typed_call)(spite_temp_198->spite_owner); });
 }
 int32_t finished_ = 0;
 if ((steps_)) {
@@ -3839,31 +3809,31 @@ spite_crash_begin();
 fflush(stdout);
 fputs(spite_site_24(), stderr);
 fputs("\twait_limit=", stderr);
-{ SpiteString spite_temp_203 = SpiteInteger_to_string(wait_limit_); fwrite(spite_string_bytes(&spite_temp_203), 1, (size_t)spite_string_length(spite_temp_203), stderr); SpiteString___release(spite_temp_203); }
+{ SpiteString spite_temp_199 = SpiteInteger_to_string(wait_limit_); fwrite(spite_string_bytes(&spite_temp_199), 1, (size_t)spite_string_length(spite_temp_199), stderr); SpiteString___release(spite_temp_199); }
 fputs("\there.offloads_running=", stderr);
-{ SpiteString spite_temp_204 = SpiteInteger_to_string((here_)->offloads_running_); fwrite(spite_string_bytes(&spite_temp_204), 1, (size_t)spite_string_length(spite_temp_204), stderr); SpiteString___release(spite_temp_204); }
+{ SpiteString spite_temp_200 = SpiteInteger_to_string((here_)->offloads_running_); fwrite(spite_string_bytes(&spite_temp_200), 1, (size_t)spite_string_length(spite_temp_200), stderr); SpiteString___release(spite_temp_200); }
 fputs("\tserving=", stderr);
-{ SpiteString spite_temp_205 = SpiteBoolean_to_string(self->serving_); fwrite(spite_string_bytes(&spite_temp_205), 1, (size_t)spite_string_length(spite_temp_205), stderr); SpiteString___release(spite_temp_205); }
+{ SpiteString spite_temp_201 = SpiteBoolean_to_string(self->serving_); fwrite(spite_string_bytes(&spite_temp_201), 1, (size_t)spite_string_length(spite_temp_201), stderr); SpiteString___release(spite_temp_201); }
 if (spite_crash_reached_1) {
 fputs("\tmain=", stderr);
-{ SpiteString spite_temp_206 = SpiteBoolean_to_string(main_); fwrite(spite_string_bytes(&spite_temp_206), 1, (size_t)spite_string_length(spite_temp_206), stderr); SpiteString___release(spite_temp_206); }
+{ SpiteString spite_temp_202 = SpiteBoolean_to_string(main_); fwrite(spite_string_bytes(&spite_temp_202), 1, (size_t)spite_string_length(spite_temp_202), stderr); SpiteString___release(spite_temp_202); }
 }
 fputs("\tsteps=", stderr);
-{ SpiteString spite_temp_207 = SpiteBoolean_to_string(steps_); spite_crash_text(spite_string_bytes(&spite_temp_207), spite_string_length(spite_temp_207)); SpiteString___release(spite_temp_207); }
+{ SpiteString spite_temp_203 = SpiteBoolean_to_string(steps_); spite_crash_text(spite_string_bytes(&spite_temp_203), spite_string_length(spite_temp_203)); SpiteString___release(spite_temp_203); }
 fputs("\tfinished=", stderr);
-{ SpiteString spite_temp_208 = SpiteInteger_to_string(finished_); spite_crash_text(spite_string_bytes(&spite_temp_208), spite_string_length(spite_temp_208)); SpiteString___release(spite_temp_208); }
+{ SpiteString spite_temp_204 = SpiteInteger_to_string(finished_); spite_crash_text(spite_string_bytes(&spite_temp_204), spite_string_length(spite_temp_204)); SpiteString___release(spite_temp_204); }
 fputs("\tstarted=", stderr);
-{ SpiteString spite_temp_209 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_209), spite_string_length(spite_temp_209)); SpiteString___release(spite_temp_209); }
+{ SpiteString spite_temp_205 = SpiteBoolean_to_string(self->started_); spite_crash_text(spite_string_bytes(&spite_temp_205), spite_string_length(spite_temp_205)); SpiteString___release(spite_temp_205); }
 fputs("\tscheduler_thread=", stderr);
-{ SpiteString spite_temp_210 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_210), spite_string_length(spite_temp_210)); SpiteString___release(spite_temp_210); }
+{ SpiteString spite_temp_206 = SpiteLong_to_string(self->scheduler_thread_); spite_crash_text(spite_string_bytes(&spite_temp_206), spite_string_length(spite_temp_206)); SpiteString___release(spite_temp_206); }
 fputs("\twaits_begun=", stderr);
-{ SpiteString spite_temp_211 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_211), spite_string_length(spite_temp_211)); SpiteString___release(spite_temp_211); }
+{ SpiteString spite_temp_207 = SpiteInteger_to_string(self->waits_begun_); spite_crash_text(spite_string_bytes(&spite_temp_207), spite_string_length(spite_temp_207)); SpiteString___release(spite_temp_207); }
 fputs("\tcheck_points_passed=", stderr);
-{ SpiteString spite_temp_212 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_212), spite_string_length(spite_temp_212)); SpiteString___release(spite_temp_212); }
+{ SpiteString spite_temp_208 = SpiteInteger_to_string(self->check_points_passed_); spite_crash_text(spite_string_bytes(&spite_temp_208), spite_string_length(spite_temp_208)); SpiteString___release(spite_temp_208); }
 fputs("\tanswering_in_wait=", stderr);
-{ SpiteString spite_temp_213 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_213), spite_string_length(spite_temp_213)); SpiteString___release(spite_temp_213); }
+{ SpiteString spite_temp_209 = SpiteBoolean_to_string(self->answering_in_wait_); spite_crash_text(spite_string_bytes(&spite_temp_209), spite_string_length(spite_temp_209)); SpiteString___release(spite_temp_209); }
 fputs("\tpaused=", stderr);
-{ SpiteString spite_temp_214 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_214), spite_string_length(spite_temp_214)); SpiteString___release(spite_temp_214); }
+{ SpiteString spite_temp_210 = SpiteBoolean_to_string(self->paused_); spite_crash_text(spite_string_bytes(&spite_temp_210), spite_string_length(spite_temp_210)); SpiteString___release(spite_temp_210); }
 fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
@@ -3871,59 +3841,59 @@ exit(1);
 int32_t Scheduler_timeout(Scheduler* self) {
 SchedulerLoop* here_ = Scheduler_loop(self);
 if ((List_Long_is_empty((here_)->deadlines_))) {
-int32_t spite_temp_215 = (-(1));
+int32_t spite_temp_211 = (-(1));
 SchedulerLoop___release(here_);
-return spite_temp_215;
+return spite_temp_211;
 }
 int64_t now_ = Scheduler_clock(self);
-int64_t earliest_ = ({ Nullable_Long spite_temp_216 = List_Long_get_at((here_)->deadlines_, 0); if (__builtin_expect(!spite_temp_216.has_value, 0)) spite_outside_list("here.deadlines[0]", spite_site_25()); spite_temp_216.value; });
+int64_t earliest_ = ({ Nullable_Long spite_temp_212 = List_Long_get_at((here_)->deadlines_, 0); if (__builtin_expect(!spite_temp_212.has_value, 0)) spite_outside_list("here.deadlines[0]", spite_site_25()); spite_temp_212.value; });
 int32_t index_ = 1;
 while (((index_ < spite_folded_List_Long_count((here_)->deadlines_)))) {
-int64_t deadline_ = ({ Nullable_Long spite_temp_217 = List_Long_get_at((here_)->deadlines_, index_); if (__builtin_expect(!spite_temp_217.has_value, 0)) spite_outside_list("here.deadlines[index]", spite_site_26()); spite_temp_217.value; });
+int64_t deadline_ = ({ Nullable_Long spite_temp_213 = List_Long_get_at((here_)->deadlines_, index_); if (__builtin_expect(!spite_temp_213.has_value, 0)) spite_outside_list("here.deadlines[index]", spite_site_26()); spite_temp_213.value; });
 if (((deadline_ < earliest_))) {
 earliest_ = deadline_;
 }
 index_ = (index_ + 1);
 }
 if (((earliest_ <= now_))) {
-int32_t spite_temp_218 = 0;
+int32_t spite_temp_214 = 0;
 SchedulerLoop___release(here_);
-return spite_temp_218;
+return spite_temp_214;
 }
-int32_t spite_temp_219 = ({ int64_t spite_temp_220 = ({ int64_t spite_temp_221 = earliest_; int64_t spite_temp_222 = now_; int64_t spite_temp_223; if (__builtin_expect(__builtin_sub_overflow(spite_temp_221, spite_temp_222, &spite_temp_223), 0)) spite_overflowed("earliest - now", "a Long", "-", (int64_t)spite_temp_221, (int64_t)spite_temp_222, spite_site_27()); spite_temp_223; }); if (__builtin_expect(spite_temp_220 < INT32_MIN || spite_temp_220 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_220, "a Long", "an Integer", spite_site_27()); (int32_t)spite_temp_220; });
+int32_t spite_temp_215 = ({ int64_t spite_temp_216 = ({ int64_t spite_temp_217 = earliest_; int64_t spite_temp_218 = now_; int64_t spite_temp_219; if (__builtin_expect(__builtin_sub_overflow(spite_temp_217, spite_temp_218, &spite_temp_219), 0)) spite_overflowed("earliest - now", "a Long", "-", (int64_t)spite_temp_217, (int64_t)spite_temp_218, spite_site_27()); spite_temp_219; }); if (__builtin_expect(spite_temp_216 < INT32_MIN || spite_temp_216 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_216, "a Long", "an Integer", spite_site_27()); (int32_t)spite_temp_216; });
 SchedulerLoop___release(here_);
-return spite_temp_219;
+return spite_temp_215;
 }
 int64_t Scheduler_current_thread(Scheduler* self) {
-int64_t spite_temp_224 = ({ spite_last_foreign_call = "GetCurrentThreadId\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:4"; int64_t spite_temp_225 = ((int64_t (*)(void))spite_foreign_1_47)();  int64_t spite_foreign_result = spite_temp_225;  (void)spite_foreign_result; spite_temp_225; });
-return spite_temp_224;
+int64_t spite_temp_220 = ({ spite_last_foreign_call = "GetCurrentThreadId\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:4"; int64_t spite_temp_221 = ((int64_t (*)(void))spite_foreign_1_44)();  int64_t spite_foreign_result = spite_temp_221;  (void)spite_foreign_result; spite_temp_221; });
+return spite_temp_220;
 }
 void Scheduler_create_event(Scheduler* self, SchedulerLoop* event_loop_) {
 int64_t no_value_ = SpiteInteger_to_long(0);
-(event_loop_)->wake_ = ({ spite_last_foreign_call = "CreateEventA\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:9"; int64_t spite_temp_226 = ((int64_t (*)(int64_t, int64_t, int64_t, int64_t))spite_foreign_1_24)((int64_t)(no_value_), (int64_t)(0), (int64_t)(0), (int64_t)(no_value_));  int64_t spite_foreign_result = spite_temp_226;  (void)spite_foreign_result; spite_temp_226; });
+(event_loop_)->wake_ = ({ spite_last_foreign_call = "CreateEventA\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:9"; int64_t spite_temp_222 = ((int64_t (*)(int64_t, int64_t, int64_t, int64_t))spite_foreign_1_24)((int64_t)(no_value_), (int64_t)(0), (int64_t)(0), (int64_t)(no_value_));  int64_t spite_foreign_result = spite_temp_222;  (void)spite_foreign_result; spite_temp_222; });
 (event_loop_)->wake_signal_ = (event_loop_)->wake_;
 SchedulerLoop___release(event_loop_);
 }
 void Scheduler_signal_event(Scheduler* self, SchedulerLoop* event_loop_) {
-(void)(({ spite_last_foreign_call = "SetEvent\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:14"; int32_t spite_temp_227 = ((int32_t (*)(int64_t))spite_foreign_1_48)((int64_t)((event_loop_)->wake_signal_));  int32_t spite_foreign_result = spite_temp_227;  (void)spite_foreign_result; spite_temp_227; }));
+(void)(({ spite_last_foreign_call = "SetEvent\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:14"; int32_t spite_temp_223 = ((int32_t (*)(int64_t))spite_foreign_1_45)((int64_t)((event_loop_)->wake_signal_));  int32_t spite_foreign_result = spite_temp_223;  (void)spite_foreign_result; spite_temp_223; }));
 SchedulerLoop___release(event_loop_);
 }
 void Scheduler_wait_event(Scheduler* self, SchedulerLoop* event_loop_, int32_t milliseconds_) {
-(void)(({ spite_last_foreign_call = "WaitForSingleObject\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:18"; int32_t spite_temp_228 = ((int32_t (*)(int64_t, int64_t))spite_foreign_1_46)((int64_t)((event_loop_)->wake_), (int64_t)(milliseconds_));  int32_t spite_foreign_result = spite_temp_228;  (void)spite_foreign_result; spite_temp_228; }));
+(void)(({ spite_last_foreign_call = "WaitForSingleObject\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:18"; int32_t spite_temp_224 = ((int32_t (*)(int64_t, int64_t))spite_foreign_1_43)((int64_t)((event_loop_)->wake_), (int64_t)(milliseconds_));  int32_t spite_foreign_result = spite_temp_224;  (void)spite_foreign_result; spite_temp_224; }));
 SchedulerLoop___release(event_loop_);
 }
 int64_t Scheduler_clock(Scheduler* self) {
-int64_t spite_temp_229 = ({ spite_last_foreign_call = "GetTickCount64\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:22"; int64_t spite_temp_230 = ((int64_t (*)(void))spite_foreign_1_49)();  int64_t spite_foreign_result = spite_temp_230;  (void)spite_foreign_result; spite_temp_230; });
-return spite_temp_229;
+int64_t spite_temp_225 = ({ spite_last_foreign_call = "GetTickCount64\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:22"; int64_t spite_temp_226 = ((int64_t (*)(void))spite_foreign_1_46)();  int64_t spite_foreign_result = spite_temp_226;  (void)spite_foreign_result; spite_temp_226; });
+return spite_temp_225;
 }
 int64_t Scheduler_start_thread(Scheduler* self, int64_t entry_, int64_t argument_) {
 int64_t no_value_ = SpiteInteger_to_long(0);
-int64_t spite_temp_231 = ({ spite_last_foreign_call = "CreateThread\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:27"; int64_t spite_temp_232 = ((int64_t (*)(int64_t, int64_t, int64_t, int64_t, int64_t, int64_t))spite_foreign_1_45)((int64_t)(no_value_), (int64_t)(no_value_), (int64_t)(entry_), (int64_t)(argument_), (int64_t)(0), (int64_t)(no_value_));  int64_t spite_foreign_result = spite_temp_232;  (void)spite_foreign_result; spite_temp_232; });
-return spite_temp_231;
+int64_t spite_temp_227 = ({ spite_last_foreign_call = "CreateThread\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:27"; int64_t spite_temp_228 = ((int64_t (*)(int64_t, int64_t, int64_t, int64_t, int64_t, int64_t))spite_foreign_1_42)((int64_t)(no_value_), (int64_t)(no_value_), (int64_t)(entry_), (int64_t)(argument_), (int64_t)(0), (int64_t)(no_value_));  int64_t spite_foreign_result = spite_temp_228;  (void)spite_foreign_result; spite_temp_228; });
+return spite_temp_227;
 }
 void Scheduler_end_thread(Scheduler* self, int64_t thread_) {
-(void)(({ spite_last_foreign_call = "WaitForSingleObject\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:31"; int32_t spite_temp_233 = ((int32_t (*)(int64_t, int64_t))spite_foreign_1_46)((int64_t)(thread_), (int64_t)((-(1))));  int32_t spite_foreign_result = spite_temp_233;  (void)spite_foreign_result; spite_temp_233; }));
-(void)(({ spite_last_foreign_call = "CloseHandle\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:32"; int32_t spite_temp_234 = ((int32_t (*)(int64_t))spite_foreign_1_22)((int64_t)(thread_));  int32_t spite_foreign_result = spite_temp_234;  (void)spite_foreign_result; spite_temp_234; }));
+(void)(({ spite_last_foreign_call = "WaitForSingleObject\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:31"; int32_t spite_temp_229 = ((int32_t (*)(int64_t, int64_t))spite_foreign_1_43)((int64_t)(thread_), (int64_t)((-(1))));  int32_t spite_foreign_result = spite_temp_229;  (void)spite_foreign_result; spite_temp_229; }));
+(void)(({ spite_last_foreign_call = "CloseHandle\tlibrary=kernel32.dll\tfrom=library/windows/scheduler.spite:32"; int32_t spite_temp_230 = ((int32_t (*)(int64_t))spite_foreign_1_22)((int64_t)(thread_));  int32_t spite_foreign_result = spite_temp_230;  (void)spite_foreign_result; spite_temp_230; }));
 }
 bool Scheduler_step_frame(Scheduler* self, int64_t frame_) {
 return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);
@@ -3932,83 +3902,37 @@ void Scheduler_release_work(Scheduler* self, int64_t frame_) {
 void** spite_slot = (void**)((char*)(intptr_t)frame_ + 16); Spite_Function* spite_work = (Spite_Function*)*spite_slot; *spite_slot = 0; Spite_Function___release(spite_work);
 }
 int32_t SpiteString_length(SpiteString self) {
-int32_t spite_temp_235 = ({ int64_t spite_temp_236 = spite_string_length(self); if (__builtin_expect(spite_temp_236 < INT32_MIN || spite_temp_236 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_236, "a Long", "an Integer", spite_site_28()); (int32_t)spite_temp_236; });
-return spite_temp_235;
+int32_t spite_temp_231 = ({ int64_t spite_temp_232 = spite_string_length(self); if (__builtin_expect(spite_temp_232 < INT32_MIN || spite_temp_232 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_232, "a Long", "an Integer", spite_site_28()); (int32_t)spite_temp_232; });
+return spite_temp_231;
 }
 SpiteString SpiteString_to_string(SpiteString self) {
-SpiteString spite_temp_237 = SpiteString___retain(self);
-return spite_temp_237;
-}
-void ThreadSlot_ThreadSlot(ThreadSlot* self) {
-self->_key_ = ThreadSlot_create_key(self);
-}
-int64_t ThreadSlot_read(ThreadSlot* self) {
-int64_t spite_temp_238 = ThreadSlot_read_key(self, self->_key_);
-return spite_temp_238;
-}
-void ThreadSlot_write(ThreadSlot* self, int64_t value_) {
-ThreadSlot_write_key(self, self->_key_, value_);
-}
-void ThreadSlot_drop(ThreadSlot* self) {
-if (!(((self->_key_ != SpiteInteger_to_long((-(1))))))) {
-return;
-}
-ThreadSlot_delete_key(self, self->_key_);
-}
-int64_t ThreadSlot_create_key(ThreadSlot* self) {
-int64_t created_ = ({ spite_last_foreign_call = "TlsAlloc\tlibrary=kernel32.dll\tfrom=library/windows/thread_slot.spite:4"; int64_t spite_temp_239 = ((int64_t (*)(void))spite_foreign_1_72)();  int64_t spite_foreign_result = spite_temp_239;  (void)spite_foreign_result; spite_temp_239; });
-if (!(((created_ != 4294967295)))) {
-spite_failed_5(created_, self);
-}
-int64_t spite_temp_240 = created_;
-return spite_temp_240;
-}
-static SPITE_CRASH_REPORT void spite_failed_5(int64_t created_, ThreadSlot* self) {
-spite_crash_begin();
-fflush(stdout);
-fputs(spite_site_29(), stderr);
-fputs("\tcreated=", stderr);
-{ SpiteString spite_temp_241 = SpiteLong_to_string(created_); fwrite(spite_string_bytes(&spite_temp_241), 1, (size_t)spite_string_length(spite_temp_241), stderr); SpiteString___release(spite_temp_241); }
-fputs("\t_key=", stderr);
-{ SpiteString spite_temp_242 = SpiteLong_to_string(self->_key_); spite_crash_text(spite_string_bytes(&spite_temp_242), spite_string_length(spite_temp_242)); SpiteString___release(spite_temp_242); }
-fputs("\n", stderr);
-spite_report_assert_trace();
-exit(1);
-}
-int64_t ThreadSlot_read_key(ThreadSlot* self, int64_t key_) {
-int64_t spite_temp_243 = ({ spite_last_foreign_call = "TlsGetValue\tlibrary=kernel32.dll\tfrom=library/windows/thread_slot.spite:10"; int64_t spite_temp_244 = ((int64_t (*)(int64_t))spite_foreign_1_73)((int64_t)(key_));  int64_t spite_foreign_result = spite_temp_244;  (void)spite_foreign_result; spite_temp_244; });
-return spite_temp_243;
-}
-void ThreadSlot_write_key(ThreadSlot* self, int64_t key_, int64_t value_) {
-(void)(({ spite_last_foreign_call = "TlsSetValue\tlibrary=kernel32.dll\tfrom=library/windows/thread_slot.spite:14"; int32_t spite_temp_245 = ((int32_t (*)(int64_t, int64_t))spite_foreign_1_74)((int64_t)(key_), (int64_t)(value_));  int32_t spite_foreign_result = spite_temp_245;  (void)spite_foreign_result; spite_temp_245; }));
-}
-void ThreadSlot_delete_key(ThreadSlot* self, int64_t key_) {
-(void)(({ spite_last_foreign_call = "TlsFree\tlibrary=kernel32.dll\tfrom=library/windows/thread_slot.spite:18"; int32_t spite_temp_246 = ((int32_t (*)(int64_t))spite_foreign_1_75)((int64_t)(key_));  int32_t spite_foreign_result = spite_temp_246;  (void)spite_foreign_result; spite_temp_246; }));
+SpiteString spite_temp_233 = SpiteString___retain(self);
+return spite_temp_233;
 }
 SpiteString SpiteMemory_Address_text(int64_t self, int64_t length_) {
 return spite_string_from_bytes((const char*)(intptr_t)self, length_);
 }
 SpiteString SpiteMemory_Address_to_string(int64_t self) {
 int64_t number_ = SpiteMemory_Address_to_long(self);
-SpiteString spite_temp_247 = SpiteLong_to_string(number_);
-return spite_temp_247;
+SpiteString spite_temp_234 = SpiteLong_to_string(number_);
+return spite_temp_234;
 }
 int64_t Memory_Arena_allocate(Memory_Arena* self, int64_t bytes_) {
-int64_t rounded_ = ({ int64_t spite_temp_248 = (({ int64_t spite_temp_249 = bytes_; int64_t spite_temp_250 = SpiteInteger_to_long(15); int64_t spite_temp_251; if (__builtin_expect(__builtin_add_overflow(spite_temp_249, spite_temp_250, &spite_temp_251), 0)) spite_overflowed("bytes + 15", "a Long", "+", (int64_t)spite_temp_249, (int64_t)spite_temp_250, spite_site_30()); spite_temp_251; }) / SpiteInteger_to_long(16)); int64_t spite_temp_252 = SpiteInteger_to_long(16); int64_t spite_temp_253; if (__builtin_expect(__builtin_mul_overflow(spite_temp_248, spite_temp_252, &spite_temp_253), 0)) spite_overflowed("(bytes + 15) / 16 * 16", "a Long", "*", (int64_t)spite_temp_248, (int64_t)spite_temp_252, spite_site_30()); spite_temp_253; });
-if (((((self->_block_ == ((int64_t)(0)))) || ((({ int64_t spite_temp_254 = self->_used_; int64_t spite_temp_255 = rounded_; int64_t spite_temp_256; if (__builtin_expect(__builtin_add_overflow(spite_temp_254, spite_temp_255, &spite_temp_256), 0)) spite_overflowed("_used + rounded", "a Long", "+", (int64_t)spite_temp_254, (int64_t)spite_temp_255, spite_site_31()); spite_temp_256; }) > self->_end_))))) {
+int64_t rounded_ = ({ int64_t spite_temp_235 = (({ int64_t spite_temp_236 = bytes_; int64_t spite_temp_237 = SpiteInteger_to_long(15); int64_t spite_temp_238; if (__builtin_expect(__builtin_add_overflow(spite_temp_236, spite_temp_237, &spite_temp_238), 0)) spite_overflowed("bytes + 15", "a Long", "+", (int64_t)spite_temp_236, (int64_t)spite_temp_237, spite_site_29()); spite_temp_238; }) / SpiteInteger_to_long(16)); int64_t spite_temp_239 = SpiteInteger_to_long(16); int64_t spite_temp_240; if (__builtin_expect(__builtin_mul_overflow(spite_temp_235, spite_temp_239, &spite_temp_240), 0)) spite_overflowed("(bytes + 15) / 16 * 16", "a Long", "*", (int64_t)spite_temp_235, (int64_t)spite_temp_239, spite_site_29()); spite_temp_240; });
+if (((((self->_block_ == ((int64_t)(0)))) || ((({ int64_t spite_temp_241 = self->_used_; int64_t spite_temp_242 = rounded_; int64_t spite_temp_243; if (__builtin_expect(__builtin_add_overflow(spite_temp_241, spite_temp_242, &spite_temp_243), 0)) spite_overflowed("_used + rounded", "a Long", "+", (int64_t)spite_temp_241, (int64_t)spite_temp_242, spite_site_30()); spite_temp_243; }) > self->_end_))))) {
 Memory_Arena_start_block(self, rounded_);
 }
 int64_t address_ = (self->_block_ + ((int64_t)(self->_used_)));
-self->_used_ = ({ int64_t spite_temp_257 = self->_used_; int64_t spite_temp_258 = rounded_; int64_t spite_temp_259; if (__builtin_expect(__builtin_add_overflow(spite_temp_257, spite_temp_258, &spite_temp_259), 0)) spite_overflowed("_used + rounded", "a Long", "+", (int64_t)spite_temp_257, (int64_t)spite_temp_258, spite_site_32()); spite_temp_259; });
-int64_t spite_temp_260 = address_;
-return spite_temp_260;
+self->_used_ = ({ int64_t spite_temp_244 = self->_used_; int64_t spite_temp_245 = rounded_; int64_t spite_temp_246; if (__builtin_expect(__builtin_add_overflow(spite_temp_244, spite_temp_245, &spite_temp_246), 0)) spite_overflowed("_used + rounded", "a Long", "+", (int64_t)spite_temp_244, (int64_t)spite_temp_245, spite_site_31()); spite_temp_246; });
+int64_t spite_temp_247 = address_;
+return spite_temp_247;
 }
 void Memory_Arena_free(Memory_Arena* self, int64_t _address_) {
 }
 void Memory_Arena_start_block(Memory_Arena* self, int64_t at_least_) {
 int64_t size_ = self->_block_bytes_;
-if (((({ int64_t spite_temp_261 = at_least_; int64_t spite_temp_262 = SpiteInteger_to_long(16); int64_t spite_temp_263; if (__builtin_expect(__builtin_add_overflow(spite_temp_261, spite_temp_262, &spite_temp_263), 0)) spite_overflowed("at_least + 16", "a Long", "+", (int64_t)spite_temp_261, (int64_t)spite_temp_262, spite_site_33()); spite_temp_263; }) > size_))) {
-size_ = ({ int64_t spite_temp_264 = at_least_; int64_t spite_temp_265 = SpiteInteger_to_long(16); int64_t spite_temp_266; if (__builtin_expect(__builtin_add_overflow(spite_temp_264, spite_temp_265, &spite_temp_266), 0)) spite_overflowed("at_least + 16", "a Long", "+", (int64_t)spite_temp_264, (int64_t)spite_temp_265, spite_site_34()); spite_temp_266; });
+if (((({ int64_t spite_temp_248 = at_least_; int64_t spite_temp_249 = SpiteInteger_to_long(16); int64_t spite_temp_250; if (__builtin_expect(__builtin_add_overflow(spite_temp_248, spite_temp_249, &spite_temp_250), 0)) spite_overflowed("at_least + 16", "a Long", "+", (int64_t)spite_temp_248, (int64_t)spite_temp_249, spite_site_32()); spite_temp_250; }) > size_))) {
+size_ = ({ int64_t spite_temp_251 = at_least_; int64_t spite_temp_252 = SpiteInteger_to_long(16); int64_t spite_temp_253; if (__builtin_expect(__builtin_add_overflow(spite_temp_251, spite_temp_252, &spite_temp_253), 0)) spite_overflowed("at_least + 16", "a Long", "+", (int64_t)spite_temp_251, (int64_t)spite_temp_252, spite_site_33()); spite_temp_253; });
 }
 int64_t block_ = Memory_Heap_allocate(self->heap_, size_);
 SpiteMemory_Address_write_long(block_, SpiteInteger_to_long(0), SpiteMemory_Address_to_long(self->_block_));
@@ -4026,20 +3950,96 @@ void Memory_Heap_free(Memory_Heap* self, int64_t address_) {
 SPITE_FREE((void*)(intptr_t)address_);
 }
 void Spite_Class_Class(Spite_Class* self, SpiteString starting_name_) {
-SpiteString spite_temp_267 = SpiteString___retain(starting_name_);
+SpiteString spite_temp_254 = SpiteString___retain(starting_name_);
 SpiteString___release(self->_name_);
-self->_name_ = spite_temp_267;
+self->_name_ = spite_temp_254;
 SpiteString___release(starting_name_);
 }
 void Spite_Function_Function(Spite_Function* self, SpiteString starting_name_, Spite_Class* starting_returns_) {
-SpiteString spite_temp_268 = SpiteString___retain(starting_name_);
+SpiteString spite_temp_255 = SpiteString___retain(starting_name_);
 SpiteString___release(self->_name_);
-self->_name_ = spite_temp_268;
-Spite_Class* spite_temp_269 = Spite_Class___retain(starting_returns_);
+self->_name_ = spite_temp_255;
+Spite_Class* spite_temp_256 = Spite_Class___retain(starting_returns_);
 Spite_Class___release(self->_returns_);
-self->_returns_ = spite_temp_269;
+self->_returns_ = spite_temp_256;
 Spite_Class___release(starting_returns_);
 SpiteString___release(starting_name_);
+}
+void Spite_Internal_Lock_Lock(Spite_Internal_Lock* self) {
+self->_handle_ = Spite_Internal_Lock_create_lock(self);
+}
+void Spite_Internal_Lock_lock(Spite_Internal_Lock* self) {
+Spite_Internal_Lock_acquire(self, self->_handle_);
+}
+void Spite_Internal_Lock_unlock(Spite_Internal_Lock* self) {
+Spite_Internal_Lock_release_lock(self, self->_handle_);
+}
+void Spite_Internal_Lock_drop(Spite_Internal_Lock* self) {
+if (!(((self->_handle_ != SpiteInteger_to_long(0))))) {
+return;
+}
+Spite_Internal_Lock_destroy_lock(self, self->_handle_);
+}
+int64_t Spite_Internal_Lock_create_lock(Spite_Internal_Lock* self) {
+int64_t created_ = Memory_Heap_allocate(self->_heap_, SpiteInteger_to_long(8));
+(void)(({ spite_last_foreign_call = "InitializeSRWLock\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/lock.spite:5"; int32_t spite_temp_257 = ((int32_t (*)(int64_t))spite_foreign_1_65)((int64_t)(created_));  int32_t spite_foreign_result = spite_temp_257;  (void)spite_foreign_result; spite_temp_257; }));
+int64_t spite_temp_258 = SpiteMemory_Address_to_long(created_);
+return spite_temp_258;
+}
+void Spite_Internal_Lock_acquire(Spite_Internal_Lock* self, int64_t held_) {
+(void)(({ spite_last_foreign_call = "AcquireSRWLockExclusive\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/lock.spite:10"; int32_t spite_temp_259 = ((int32_t (*)(int64_t))spite_foreign_1_66)((int64_t)(held_));  int32_t spite_foreign_result = spite_temp_259;  (void)spite_foreign_result; spite_temp_259; }));
+}
+void Spite_Internal_Lock_release_lock(Spite_Internal_Lock* self, int64_t held_) {
+(void)(({ spite_last_foreign_call = "ReleaseSRWLockExclusive\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/lock.spite:14"; int32_t spite_temp_260 = ((int32_t (*)(int64_t))spite_foreign_1_67)((int64_t)(held_));  int32_t spite_foreign_result = spite_temp_260;  (void)spite_foreign_result; spite_temp_260; }));
+}
+void Spite_Internal_Lock_destroy_lock(Spite_Internal_Lock* self, int64_t held_) {
+Memory_Heap_free(self->_heap_, ((int64_t)(held_)));
+}
+void Spite_Internal_ThreadSlot_ThreadSlot(Spite_Internal_ThreadSlot* self) {
+self->_key_ = Spite_Internal_ThreadSlot_create_key(self);
+}
+int64_t Spite_Internal_ThreadSlot_read(Spite_Internal_ThreadSlot* self) {
+int64_t spite_temp_261 = Spite_Internal_ThreadSlot_read_key(self, self->_key_);
+return spite_temp_261;
+}
+void Spite_Internal_ThreadSlot_write(Spite_Internal_ThreadSlot* self, int64_t value_) {
+Spite_Internal_ThreadSlot_write_key(self, self->_key_, value_);
+}
+void Spite_Internal_ThreadSlot_drop(Spite_Internal_ThreadSlot* self) {
+if (!(((self->_key_ != SpiteInteger_to_long((-(1))))))) {
+return;
+}
+Spite_Internal_ThreadSlot_delete_key(self, self->_key_);
+}
+int64_t Spite_Internal_ThreadSlot_create_key(Spite_Internal_ThreadSlot* self) {
+int64_t created_ = ({ spite_last_foreign_call = "TlsAlloc\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/thread_slot.spite:4"; int64_t spite_temp_262 = ((int64_t (*)(void))spite_foreign_1_76)();  int64_t spite_foreign_result = spite_temp_262;  (void)spite_foreign_result; spite_temp_262; });
+if (!(((created_ != 4294967295)))) {
+spite_failed_5(created_, self);
+}
+int64_t spite_temp_263 = created_;
+return spite_temp_263;
+}
+static SPITE_CRASH_REPORT void spite_failed_5(int64_t created_, Spite_Internal_ThreadSlot* self) {
+spite_crash_begin();
+fflush(stdout);
+fputs(spite_site_34(), stderr);
+fputs("\tcreated=", stderr);
+{ SpiteString spite_temp_264 = SpiteLong_to_string(created_); fwrite(spite_string_bytes(&spite_temp_264), 1, (size_t)spite_string_length(spite_temp_264), stderr); SpiteString___release(spite_temp_264); }
+fputs("\t_key=", stderr);
+{ SpiteString spite_temp_265 = SpiteLong_to_string(self->_key_); spite_crash_text(spite_string_bytes(&spite_temp_265), spite_string_length(spite_temp_265)); SpiteString___release(spite_temp_265); }
+fputs("\n", stderr);
+spite_report_assert_trace();
+exit(1);
+}
+int64_t Spite_Internal_ThreadSlot_read_key(Spite_Internal_ThreadSlot* self, int64_t key_) {
+int64_t spite_temp_266 = ({ spite_last_foreign_call = "TlsGetValue\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/thread_slot.spite:10"; int64_t spite_temp_267 = ((int64_t (*)(int64_t))spite_foreign_1_77)((int64_t)(key_));  int64_t spite_foreign_result = spite_temp_267;  (void)spite_foreign_result; spite_temp_267; });
+return spite_temp_266;
+}
+void Spite_Internal_ThreadSlot_write_key(Spite_Internal_ThreadSlot* self, int64_t key_, int64_t value_) {
+(void)(({ spite_last_foreign_call = "TlsSetValue\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/thread_slot.spite:14"; int32_t spite_temp_268 = ((int32_t (*)(int64_t, int64_t))spite_foreign_1_78)((int64_t)(key_), (int64_t)(value_));  int32_t spite_foreign_result = spite_temp_268;  (void)spite_foreign_result; spite_temp_268; }));
+}
+void Spite_Internal_ThreadSlot_delete_key(Spite_Internal_ThreadSlot* self, int64_t key_) {
+(void)(({ spite_last_foreign_call = "TlsFree\tlibrary=kernel32.dll\tfrom=library/windows/spite/internal/thread_slot.spite:18"; int32_t spite_temp_269 = ((int32_t (*)(int64_t))spite_foreign_1_79)((int64_t)(key_));  int32_t spite_foreign_result = spite_temp_269;  (void)spite_foreign_result; spite_temp_269; }));
 }
 void Naive_Naive(Naive* self) {
 Naive_make_files(self);
@@ -4209,7 +4209,7 @@ return spite_temp_312;
 void List_String_drop(List_String* self) {
 List_String_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_316 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_317 = self->items_; if (((SpiteHeader*)(spite_temp_316))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_316), spite_temp_317); } else if (((SpiteHeader*)(spite_temp_316))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_316), spite_temp_317); } });
+({ Spite_Allocator spite_temp_316 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_317 = self->items_; if (((SpiteHeader*)(spite_temp_316))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_316), spite_temp_317); } else if (((SpiteHeader*)(spite_temp_316))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_316), spite_temp_317); } });
 }
 }
 void List_String_make_room(List_String* self) {
@@ -4227,14 +4227,14 @@ self->items_ = List_String__resized(self, ({ int64_t spite_temp_321 = bytes_; in
 self->capacity_ = grown_;
 }
 int64_t List_String__resized(List_String* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_327 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); bool spite_temp_328 = (((SpiteHeader*)(spite_temp_327))->class_id == 97); spite_temp_328; }))) {
+if ((({ Spite_Allocator spite_temp_327 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); bool spite_temp_328 = (((SpiteHeader*)(spite_temp_327))->class_id == 93); spite_temp_328; }))) {
 int64_t spite_temp_329 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
 return spite_temp_329;
 }
-int64_t moved_ = ({ Spite_Allocator spite_temp_330 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_331 = new_bytes_; int64_t spite_temp_332 = 0; if (((SpiteHeader*)(spite_temp_330))->class_id == 96) { spite_temp_332 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_330), spite_temp_331); } else if (((SpiteHeader*)(spite_temp_330))->class_id == 97) { spite_temp_332 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_330), spite_temp_331); } spite_temp_332; });
+int64_t moved_ = ({ Spite_Allocator spite_temp_330 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_331 = new_bytes_; int64_t spite_temp_332 = 0; if (((SpiteHeader*)(spite_temp_330))->class_id == 92) { spite_temp_332 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_330), spite_temp_331); } else if (((SpiteHeader*)(spite_temp_330))->class_id == 93) { spite_temp_332 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_330), spite_temp_331); } spite_temp_332; });
 if (((self->items_ != ((int64_t)(0))))) {
 SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_333 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_334 = self->items_; if (((SpiteHeader*)(spite_temp_333))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_333), spite_temp_334); } else if (((SpiteHeader*)(spite_temp_333))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_333), spite_temp_334); } });
+({ Spite_Allocator spite_temp_333 = SPITE_ALLOCATOR_List_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_334 = self->items_; if (((SpiteHeader*)(spite_temp_333))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_333), spite_temp_334); } else if (((SpiteHeader*)(spite_temp_333))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_333), spite_temp_334); } });
 }
 int64_t spite_temp_335 = moved_;
 return spite_temp_335;
@@ -4322,7 +4322,7 @@ self->item_count_ = 0;
 void List_Long_drop(List_Long* self) {
 List_Long_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_359 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); int64_t spite_temp_360 = self->items_; if (((SpiteHeader*)(spite_temp_359))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_359), spite_temp_360); } else if (((SpiteHeader*)(spite_temp_359))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_359), spite_temp_360); } });
+({ Spite_Allocator spite_temp_359 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); int64_t spite_temp_360 = self->items_; if (((SpiteHeader*)(spite_temp_359))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_359), spite_temp_360); } else if (((SpiteHeader*)(spite_temp_359))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_359), spite_temp_360); } });
 }
 }
 void List_Long_make_room(List_Long* self) {
@@ -4340,14 +4340,14 @@ self->items_ = List_Long__resized(self, ({ int64_t spite_temp_364 = bytes_; int6
 self->capacity_ = grown_;
 }
 int64_t List_Long__resized(List_Long* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_370 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); bool spite_temp_371 = (((SpiteHeader*)(spite_temp_370))->class_id == 97); spite_temp_371; }))) {
+if ((({ Spite_Allocator spite_temp_370 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); bool spite_temp_371 = (((SpiteHeader*)(spite_temp_370))->class_id == 93); spite_temp_371; }))) {
 int64_t spite_temp_372 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
 return spite_temp_372;
 }
-int64_t moved_ = ({ Spite_Allocator spite_temp_373 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); int64_t spite_temp_374 = new_bytes_; int64_t spite_temp_375 = 0; if (((SpiteHeader*)(spite_temp_373))->class_id == 96) { spite_temp_375 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_373), spite_temp_374); } else if (((SpiteHeader*)(spite_temp_373))->class_id == 97) { spite_temp_375 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_373), spite_temp_374); } spite_temp_375; });
+int64_t moved_ = ({ Spite_Allocator spite_temp_373 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); int64_t spite_temp_374 = new_bytes_; int64_t spite_temp_375 = 0; if (((SpiteHeader*)(spite_temp_373))->class_id == 92) { spite_temp_375 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_373), spite_temp_374); } else if (((SpiteHeader*)(spite_temp_373))->class_id == 93) { spite_temp_375 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_373), spite_temp_374); } spite_temp_375; });
 if (((self->items_ != ((int64_t)(0))))) {
 SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_376 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); int64_t spite_temp_377 = self->items_; if (((SpiteHeader*)(spite_temp_376))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_376), spite_temp_377); } else if (((SpiteHeader*)(spite_temp_376))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_376), spite_temp_377); } });
+({ Spite_Allocator spite_temp_376 = SPITE_ALLOCATOR_List_Long(self, spite_singleton_Memory_Heap); int64_t spite_temp_377 = self->items_; if (((SpiteHeader*)(spite_temp_376))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_376), spite_temp_377); } else if (((SpiteHeader*)(spite_temp_376))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_376), spite_temp_377); } });
 }
 int64_t spite_temp_378 = moved_;
 return spite_temp_378;
@@ -4377,7 +4377,7 @@ self->item_count_ = ({ int32_t spite_temp_388 = self->item_count_; int32_t spite
 void List_Memory_Address_drop(List_Memory_Address* self) {
 spite_folded_List_Memory_Address_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_391 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); int64_t spite_temp_392 = self->items_; if (((SpiteHeader*)(spite_temp_391))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_391), spite_temp_392); } else if (((SpiteHeader*)(spite_temp_391))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_391), spite_temp_392); } });
+({ Spite_Allocator spite_temp_391 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); int64_t spite_temp_392 = self->items_; if (((SpiteHeader*)(spite_temp_391))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_391), spite_temp_392); } else if (((SpiteHeader*)(spite_temp_391))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_391), spite_temp_392); } });
 }
 }
 void List_Memory_Address_make_room(List_Memory_Address* self) {
@@ -4395,23 +4395,23 @@ self->items_ = List_Memory_Address__resized(self, ({ int64_t spite_temp_396 = by
 self->capacity_ = grown_;
 }
 int64_t List_Memory_Address__resized(List_Memory_Address* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_402 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); bool spite_temp_403 = (((SpiteHeader*)(spite_temp_402))->class_id == 97); spite_temp_403; }))) {
+if ((({ Spite_Allocator spite_temp_402 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); bool spite_temp_403 = (((SpiteHeader*)(spite_temp_402))->class_id == 93); spite_temp_403; }))) {
 int64_t spite_temp_404 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
 return spite_temp_404;
 }
-int64_t moved_ = ({ Spite_Allocator spite_temp_405 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); int64_t spite_temp_406 = new_bytes_; int64_t spite_temp_407 = 0; if (((SpiteHeader*)(spite_temp_405))->class_id == 96) { spite_temp_407 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_405), spite_temp_406); } else if (((SpiteHeader*)(spite_temp_405))->class_id == 97) { spite_temp_407 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_405), spite_temp_406); } spite_temp_407; });
+int64_t moved_ = ({ Spite_Allocator spite_temp_405 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); int64_t spite_temp_406 = new_bytes_; int64_t spite_temp_407 = 0; if (((SpiteHeader*)(spite_temp_405))->class_id == 92) { spite_temp_407 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_405), spite_temp_406); } else if (((SpiteHeader*)(spite_temp_405))->class_id == 93) { spite_temp_407 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_405), spite_temp_406); } spite_temp_407; });
 if (((self->items_ != ((int64_t)(0))))) {
 SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_408 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); int64_t spite_temp_409 = self->items_; if (((SpiteHeader*)(spite_temp_408))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_408), spite_temp_409); } else if (((SpiteHeader*)(spite_temp_408))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_408), spite_temp_409); } });
+({ Spite_Allocator spite_temp_408 = SPITE_ALLOCATOR_List_Memory_Address(self, spite_singleton_Memory_Heap); int64_t spite_temp_409 = self->items_; if (((SpiteHeader*)(spite_temp_408))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_408), spite_temp_409); } else if (((SpiteHeader*)(spite_temp_408))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_408), spite_temp_409); } });
 }
 int64_t spite_temp_410 = moved_;
 return spite_temp_410;
 }
-void ThreadLocal__SchedulerLoop_ThreadLocal(ThreadLocal__SchedulerLoop* self) {
+void Spite_Internal_ThreadLocal__SchedulerLoop_ThreadLocal(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
 SpiteMemory_Address_write_long_atomically(self->_published_, SpiteInteger_to_long(0), SpiteInteger_to_long(0));
 }
-SchedulerLoop* ThreadLocal__SchedulerLoop_get(ThreadLocal__SchedulerLoop* self) {
-int64_t position_ = ThreadSlot_read(self->_slot_);
+SchedulerLoop* Spite_Internal_ThreadLocal__SchedulerLoop_get(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
+int64_t position_ = Spite_Internal_ThreadSlot_read(self->_slot_);
 if (!(((position_ != SpiteInteger_to_long(0))))) {
 return 0;
 }
@@ -4419,24 +4419,24 @@ int64_t items_ = ((int64_t)(SpiteMemory_Address_read_long_atomically(self->_publ
 SchedulerLoop* spite_temp_411 = TypedMemory__SchedulerLoop_read_value(self->_values_, items_, ({ int64_t spite_temp_412 = ({ int64_t spite_temp_413 = position_; int64_t spite_temp_414 = SpiteInteger_to_long(1); int64_t spite_temp_415; if (__builtin_expect(__builtin_sub_overflow(spite_temp_413, spite_temp_414, &spite_temp_415), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_413, (int64_t)spite_temp_414, spite_site_52()); spite_temp_415; }); if (__builtin_expect(spite_temp_412 < INT32_MIN || spite_temp_412 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_412, "a Long", "an Integer", spite_site_52()); (int32_t)spite_temp_412; }));
 return spite_temp_411;
 }
-void ThreadLocal__SchedulerLoop_set(ThreadLocal__SchedulerLoop* self, SchedulerLoop* value_) {
-int64_t position_ = ThreadSlot_read(self->_slot_);
-Lock_lock(self->_lock_);
+void Spite_Internal_ThreadLocal__SchedulerLoop_set(Spite_Internal_ThreadLocal__SchedulerLoop* self, SchedulerLoop* value_) {
+int64_t position_ = Spite_Internal_ThreadSlot_read(self->_slot_);
+Spite_Internal_Lock_lock(self->_lock_);
 if (((position_ == SpiteInteger_to_long(0)))) {
-int64_t items_ = ThreadLocal__SchedulerLoop__make_room(self);
+int64_t items_ = Spite_Internal_ThreadLocal__SchedulerLoop__make_room(self);
 TypedMemory__SchedulerLoop_write_value(self->_values_, items_, self->_count_, SchedulerLoop___retain(value_));
 self->_count_ = ({ int32_t spite_temp_416 = self->_count_; int32_t spite_temp_417 = 1; int32_t spite_temp_418; if (__builtin_expect(__builtin_add_overflow(spite_temp_416, spite_temp_417, &spite_temp_418), 0)) spite_overflowed("_count + 1", "an Integer", "+", (int64_t)spite_temp_416, (int64_t)spite_temp_417, spite_site_53()); spite_temp_418; });
-ThreadSlot_write(self->_slot_, SpiteInteger_to_long(self->_count_));
+Spite_Internal_ThreadSlot_write(self->_slot_, SpiteInteger_to_long(self->_count_));
 }
 else {
 int64_t items_ = ((int64_t)(SpiteMemory_Address_read_long_atomically(self->_published_, SpiteInteger_to_long(0))));
 TypedMemory__SchedulerLoop_release_value(self->_values_, items_, ({ int64_t spite_temp_419 = ({ int64_t spite_temp_420 = position_; int64_t spite_temp_421 = SpiteInteger_to_long(1); int64_t spite_temp_422; if (__builtin_expect(__builtin_sub_overflow(spite_temp_420, spite_temp_421, &spite_temp_422), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_420, (int64_t)spite_temp_421, spite_site_54()); spite_temp_422; }); if (__builtin_expect(spite_temp_419 < INT32_MIN || spite_temp_419 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_419, "a Long", "an Integer", spite_site_54()); (int32_t)spite_temp_419; }));
 TypedMemory__SchedulerLoop_write_value(self->_values_, items_, ({ int64_t spite_temp_423 = ({ int64_t spite_temp_424 = position_; int64_t spite_temp_425 = SpiteInteger_to_long(1); int64_t spite_temp_426; if (__builtin_expect(__builtin_sub_overflow(spite_temp_424, spite_temp_425, &spite_temp_426), 0)) spite_overflowed("position - 1", "a Long", "-", (int64_t)spite_temp_424, (int64_t)spite_temp_425, spite_site_55()); spite_temp_426; }); if (__builtin_expect(spite_temp_423 < INT32_MIN || spite_temp_423 > INT32_MAX, 0)) spite_narrowed((int64_t)spite_temp_423, "a Long", "an Integer", spite_site_55()); (int32_t)spite_temp_423; }), SchedulerLoop___retain(value_));
 }
-Lock_unlock(self->_lock_);
+Spite_Internal_Lock_unlock(self->_lock_);
 SchedulerLoop___release(value_);
 }
-int64_t ThreadLocal__SchedulerLoop__make_room(ThreadLocal__SchedulerLoop* self) {
+int64_t Spite_Internal_ThreadLocal__SchedulerLoop__make_room(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
 int64_t items_ = ((int64_t)(SpiteMemory_Address_read_long_atomically(self->_published_, SpiteInteger_to_long(0))));
 if (((self->_count_ == self->_capacity_))) {
 int32_t grown_ = ({ int32_t spite_temp_427 = self->_capacity_; int32_t spite_temp_428 = 2; int32_t spite_temp_429; if (__builtin_expect(__builtin_mul_overflow(spite_temp_427, spite_temp_428, &spite_temp_429), 0)) spite_overflowed("_capacity * 2", "an Integer", "*", (int64_t)spite_temp_427, (int64_t)spite_temp_428, spite_site_56()); spite_temp_429; });
@@ -4456,7 +4456,7 @@ items_ = larger_;
 int64_t spite_temp_436 = items_;
 return spite_temp_436;
 }
-void ThreadLocal__SchedulerLoop_drop(ThreadLocal__SchedulerLoop* self) {
+void Spite_Internal_ThreadLocal__SchedulerLoop_drop(Spite_Internal_ThreadLocal__SchedulerLoop* self) {
 int64_t items_ = ((int64_t)(SpiteMemory_Address_read_long_atomically(self->_published_, SpiteInteger_to_long(0))));
 if (((items_ != ((int64_t)(0))))) {
 int32_t index_ = 0;
@@ -4475,7 +4475,7 @@ Memory_Heap_free(self->_heap_, (old_items_).value);
 }
 Memory_Heap_free(self->_heap_, self->_published_);
 }
-static SPITE_CRASH_REPORT void spite_failed_10(int64_t items_, ThreadLocal__SchedulerLoop* self) {
+static SPITE_CRASH_REPORT void spite_failed_10(int64_t items_, Spite_Internal_ThreadLocal__SchedulerLoop* self) {
 spite_crash_begin();
 fflush(stdout);
 fputs(spite_site_59(), stderr);
@@ -4521,7 +4521,7 @@ return spite_temp_445;
 void List_SchedulerLoop_drop(List_SchedulerLoop* self) {
 List_SchedulerLoop_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_446 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); int64_t spite_temp_447 = self->items_; if (((SpiteHeader*)(spite_temp_446))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_446), spite_temp_447); } else if (((SpiteHeader*)(spite_temp_446))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_446), spite_temp_447); } });
+({ Spite_Allocator spite_temp_446 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); int64_t spite_temp_447 = self->items_; if (((SpiteHeader*)(spite_temp_446))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_446), spite_temp_447); } else if (((SpiteHeader*)(spite_temp_446))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_446), spite_temp_447); } });
 }
 }
 void List_SchedulerLoop_make_room(List_SchedulerLoop* self) {
@@ -4539,14 +4539,14 @@ self->items_ = List_SchedulerLoop__resized(self, ({ int64_t spite_temp_451 = byt
 self->capacity_ = grown_;
 }
 int64_t List_SchedulerLoop__resized(List_SchedulerLoop* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_457 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); bool spite_temp_458 = (((SpiteHeader*)(spite_temp_457))->class_id == 97); spite_temp_458; }))) {
+if ((({ Spite_Allocator spite_temp_457 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); bool spite_temp_458 = (((SpiteHeader*)(spite_temp_457))->class_id == 93); spite_temp_458; }))) {
 int64_t spite_temp_459 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
 return spite_temp_459;
 }
-int64_t moved_ = ({ Spite_Allocator spite_temp_460 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); int64_t spite_temp_461 = new_bytes_; int64_t spite_temp_462 = 0; if (((SpiteHeader*)(spite_temp_460))->class_id == 96) { spite_temp_462 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_460), spite_temp_461); } else if (((SpiteHeader*)(spite_temp_460))->class_id == 97) { spite_temp_462 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_460), spite_temp_461); } spite_temp_462; });
+int64_t moved_ = ({ Spite_Allocator spite_temp_460 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); int64_t spite_temp_461 = new_bytes_; int64_t spite_temp_462 = 0; if (((SpiteHeader*)(spite_temp_460))->class_id == 92) { spite_temp_462 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_460), spite_temp_461); } else if (((SpiteHeader*)(spite_temp_460))->class_id == 93) { spite_temp_462 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_460), spite_temp_461); } spite_temp_462; });
 if (((self->items_ != ((int64_t)(0))))) {
 SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_463 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); int64_t spite_temp_464 = self->items_; if (((SpiteHeader*)(spite_temp_463))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_463), spite_temp_464); } else if (((SpiteHeader*)(spite_temp_463))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_463), spite_temp_464); } });
+({ Spite_Allocator spite_temp_463 = SPITE_ALLOCATOR_List_SchedulerLoop(self, spite_singleton_Memory_Heap); int64_t spite_temp_464 = self->items_; if (((SpiteHeader*)(spite_temp_463))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_463), spite_temp_464); } else if (((SpiteHeader*)(spite_temp_463))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_463), spite_temp_464); } });
 }
 int64_t spite_temp_465 = moved_;
 return spite_temp_465;
@@ -4554,31 +4554,31 @@ return spite_temp_465;
 void List_Spite_AttributeDeclaration_drop(List_Spite_AttributeDeclaration* self) {
 List_Spite_AttributeDeclaration_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_466 = SPITE_ALLOCATOR_List_Spite_AttributeDeclaration(self, spite_singleton_Memory_Heap); int64_t spite_temp_467 = self->items_; if (((SpiteHeader*)(spite_temp_466))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_466), spite_temp_467); } else if (((SpiteHeader*)(spite_temp_466))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_466), spite_temp_467); } });
+({ Spite_Allocator spite_temp_466 = SPITE_ALLOCATOR_List_Spite_AttributeDeclaration(self, spite_singleton_Memory_Heap); int64_t spite_temp_467 = self->items_; if (((SpiteHeader*)(spite_temp_466))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_466), spite_temp_467); } else if (((SpiteHeader*)(spite_temp_466))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_466), spite_temp_467); } });
 }
 }
 void List_Spite_Function_drop(List_Spite_Function* self) {
 List_Spite_Function_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_468 = SPITE_ALLOCATOR_List_Spite_Function(self, spite_singleton_Memory_Heap); int64_t spite_temp_469 = self->items_; if (((SpiteHeader*)(spite_temp_468))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_468), spite_temp_469); } else if (((SpiteHeader*)(spite_temp_468))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_468), spite_temp_469); } });
+({ Spite_Allocator spite_temp_468 = SPITE_ALLOCATOR_List_Spite_Function(self, spite_singleton_Memory_Heap); int64_t spite_temp_469 = self->items_; if (((SpiteHeader*)(spite_temp_468))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_468), spite_temp_469); } else if (((SpiteHeader*)(spite_temp_468))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_468), spite_temp_469); } });
 }
 }
 void List_Spite_Argument_drop(List_Spite_Argument* self) {
 List_Spite_Argument_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_470 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); int64_t spite_temp_471 = self->items_; if (((SpiteHeader*)(spite_temp_470))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_470), spite_temp_471); } else if (((SpiteHeader*)(spite_temp_470))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_470), spite_temp_471); } });
+({ Spite_Allocator spite_temp_470 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); int64_t spite_temp_471 = self->items_; if (((SpiteHeader*)(spite_temp_470))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_470), spite_temp_471); } else if (((SpiteHeader*)(spite_temp_470))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_470), spite_temp_471); } });
 }
 }
 void List_Spite_Class_drop(List_Spite_Class* self) {
 List_Spite_Class_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_472 = SPITE_ALLOCATOR_List_Spite_Class(self, spite_singleton_Memory_Heap); int64_t spite_temp_473 = self->items_; if (((SpiteHeader*)(spite_temp_472))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_472), spite_temp_473); } else if (((SpiteHeader*)(spite_temp_472))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_472), spite_temp_473); } });
+({ Spite_Allocator spite_temp_472 = SPITE_ALLOCATOR_List_Spite_Class(self, spite_singleton_Memory_Heap); int64_t spite_temp_473 = self->items_; if (((SpiteHeader*)(spite_temp_472))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_472), spite_temp_473); } else if (((SpiteHeader*)(spite_temp_472))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_472), spite_temp_473); } });
 }
 }
 void List_Spite_Namespace_drop(List_Spite_Namespace* self) {
 List_Spite_Namespace_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_474 = SPITE_ALLOCATOR_List_Spite_Namespace(self, spite_singleton_Memory_Heap); int64_t spite_temp_475 = self->items_; if (((SpiteHeader*)(spite_temp_474))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_474), spite_temp_475); } else if (((SpiteHeader*)(spite_temp_474))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_474), spite_temp_475); } });
+({ Spite_Allocator spite_temp_474 = SPITE_ALLOCATOR_List_Spite_Namespace(self, spite_singleton_Memory_Heap); int64_t spite_temp_475 = self->items_; if (((SpiteHeader*)(spite_temp_474))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_474), spite_temp_475); } else if (((SpiteHeader*)(spite_temp_474))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_474), spite_temp_475); } });
 }
 }
 Console_Printable List_Console_Printable_get_at(List_Console_Printable* self, int32_t index_) {
@@ -4592,7 +4592,7 @@ return spite_temp_477;
 void List_Console_Printable_drop(List_Console_Printable* self) {
 List_Console_Printable_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_478 = SPITE_ALLOCATOR_List_Console_Printable(self, spite_singleton_Memory_Heap); int64_t spite_temp_479 = self->items_; if (((SpiteHeader*)(spite_temp_478))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_478), spite_temp_479); } else if (((SpiteHeader*)(spite_temp_478))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_478), spite_temp_479); } });
+({ Spite_Allocator spite_temp_478 = SPITE_ALLOCATOR_List_Console_Printable(self, spite_singleton_Memory_Heap); int64_t spite_temp_479 = self->items_; if (((SpiteHeader*)(spite_temp_478))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_478), spite_temp_479); } else if (((SpiteHeader*)(spite_temp_478))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_478), spite_temp_479); } });
 }
 }
 Console_Printable TypedMemory__Console_Printable_read_value(TypedMemory__Console_Printable* self, int64_t address_, int32_t index_) {
@@ -4601,7 +4601,7 @@ return Console_Printable___retain(((Console_Printable*)(intptr_t)address_)[index
 void List_Symbol_drop(List_Symbol* self) {
 spite_folded_List_Symbol_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_480 = SPITE_ALLOCATOR_List_Symbol(self, spite_singleton_Memory_Heap); int64_t spite_temp_481 = self->items_; if (((SpiteHeader*)(spite_temp_480))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_480), spite_temp_481); } else if (((SpiteHeader*)(spite_temp_480))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_480), spite_temp_481); } });
+({ Spite_Allocator spite_temp_480 = SPITE_ALLOCATOR_List_Symbol(self, spite_singleton_Memory_Heap); int64_t spite_temp_481 = self->items_; if (((SpiteHeader*)(spite_temp_480))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_480), spite_temp_481); } else if (((SpiteHeader*)(spite_temp_480))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_480), spite_temp_481); } });
 }
 }
 void Benchmark__Long_Benchmark(Benchmark__Long* self, Spite_Function* work_) {
@@ -4725,7 +4725,7 @@ SpiteString___release(value_);
 void List_Nullable_String_drop(List_Nullable_String* self) {
 spite_folded_List_Nullable_String_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_502 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_503 = self->items_; if (((SpiteHeader*)(spite_temp_502))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_502), spite_temp_503); } else if (((SpiteHeader*)(spite_temp_502))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_502), spite_temp_503); } });
+({ Spite_Allocator spite_temp_502 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_503 = self->items_; if (((SpiteHeader*)(spite_temp_502))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_502), spite_temp_503); } else if (((SpiteHeader*)(spite_temp_502))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_502), spite_temp_503); } });
 }
 }
 void List_Nullable_String_make_room(List_Nullable_String* self) {
@@ -4743,14 +4743,14 @@ self->items_ = List_Nullable_String__resized(self, ({ int64_t spite_temp_507 = b
 self->capacity_ = grown_;
 }
 int64_t List_Nullable_String__resized(List_Nullable_String* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_513 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); bool spite_temp_514 = (((SpiteHeader*)(spite_temp_513))->class_id == 97); spite_temp_514; }))) {
+if ((({ Spite_Allocator spite_temp_513 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); bool spite_temp_514 = (((SpiteHeader*)(spite_temp_513))->class_id == 93); spite_temp_514; }))) {
 int64_t spite_temp_515 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
 return spite_temp_515;
 }
-int64_t moved_ = ({ Spite_Allocator spite_temp_516 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_517 = new_bytes_; int64_t spite_temp_518 = 0; if (((SpiteHeader*)(spite_temp_516))->class_id == 96) { spite_temp_518 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_516), spite_temp_517); } else if (((SpiteHeader*)(spite_temp_516))->class_id == 97) { spite_temp_518 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_516), spite_temp_517); } spite_temp_518; });
+int64_t moved_ = ({ Spite_Allocator spite_temp_516 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_517 = new_bytes_; int64_t spite_temp_518 = 0; if (((SpiteHeader*)(spite_temp_516))->class_id == 92) { spite_temp_518 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_516), spite_temp_517); } else if (((SpiteHeader*)(spite_temp_516))->class_id == 93) { spite_temp_518 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_516), spite_temp_517); } spite_temp_518; });
 if (((self->items_ != ((int64_t)(0))))) {
 SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_519 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_520 = self->items_; if (((SpiteHeader*)(spite_temp_519))->class_id == 96) { Memory_Arena_free(((Memory_Arena*)spite_temp_519), spite_temp_520); } else if (((SpiteHeader*)(spite_temp_519))->class_id == 97) { Memory_Heap_free(((Memory_Heap*)spite_temp_519), spite_temp_520); } });
+({ Spite_Allocator spite_temp_519 = SPITE_ALLOCATOR_List_Nullable_String(self, spite_singleton_Memory_Heap); int64_t spite_temp_520 = self->items_; if (((SpiteHeader*)(spite_temp_519))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_519), spite_temp_520); } else if (((SpiteHeader*)(spite_temp_519))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_519), spite_temp_520); } });
 }
 int64_t spite_temp_521 = moved_;
 return spite_temp_521;
@@ -5203,11 +5203,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&File___retain, "-\t-", "File___retain", 0},
 {(const void*)&File___release, "-\t-", "File___release", 0},
 {(const void*)&File___free, "-\t-", "File___free", 0},
-{(const void*)&Lock___init, "-\t-", "Lock___init", 0},
-{(const void*)&Lock___allocate, "-\t-", "Lock___allocate", 0},
-{(const void*)&Lock___make, "-\t-", "Lock___make", 0},
-{(const void*)&Lock___release, "-\t-", "Lock___release", 0},
-{(const void*)&Lock___free, "-\t-", "Lock___free", 0},
 {(const void*)&Scheduler___init, "-\t-", "Scheduler___init", 0},
 {(const void*)&Scheduler___allocate, "-\t-", "Scheduler___allocate", 0},
 {(const void*)&Scheduler___make, "-\t-", "Scheduler___make", 0},
@@ -5226,11 +5221,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&SpiteString___release, "-\t-", "SpiteString___release", 0},
 {(const void*)&spite_string_from_bytes, "-\t-", "spite_string_from_bytes", 0},
 {(const void*)&spite_string_join, "-\t-", "spite_string_join", 0},
-{(const void*)&ThreadSlot___init, "-\t-", "ThreadSlot___init", 0},
-{(const void*)&ThreadSlot___allocate, "-\t-", "ThreadSlot___allocate", 0},
-{(const void*)&ThreadSlot___make, "-\t-", "ThreadSlot___make", 0},
-{(const void*)&ThreadSlot___release, "-\t-", "ThreadSlot___release", 0},
-{(const void*)&ThreadSlot___free, "-\t-", "ThreadSlot___free", 0},
 {(const void*)&Spite_Argument___release, "-\t-", "Spite_Argument___release", 0},
 {(const void*)&Spite_Argument___free, "-\t-", "Spite_Argument___free", 0},
 {(const void*)&Spite_AttributeDeclaration___release, "-\t-", "Spite_AttributeDeclaration___release", 0},
@@ -5249,6 +5239,16 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Spite_Function___free, "-\t-", "Spite_Function___free", 0},
 {(const void*)&Spite_Namespace___release, "-\t-", "Spite_Namespace___release", 0},
 {(const void*)&Spite_Namespace___free, "-\t-", "Spite_Namespace___free", 0},
+{(const void*)&Spite_Internal_Lock___init, "-\t-", "Spite_Internal_Lock___init", 0},
+{(const void*)&Spite_Internal_Lock___allocate, "-\t-", "Spite_Internal_Lock___allocate", 0},
+{(const void*)&Spite_Internal_Lock___make, "-\t-", "Spite_Internal_Lock___make", 0},
+{(const void*)&Spite_Internal_Lock___release, "-\t-", "Spite_Internal_Lock___release", 0},
+{(const void*)&Spite_Internal_Lock___free, "-\t-", "Spite_Internal_Lock___free", 0},
+{(const void*)&Spite_Internal_ThreadSlot___init, "-\t-", "Spite_Internal_ThreadSlot___init", 0},
+{(const void*)&Spite_Internal_ThreadSlot___allocate, "-\t-", "Spite_Internal_ThreadSlot___allocate", 0},
+{(const void*)&Spite_Internal_ThreadSlot___make, "-\t-", "Spite_Internal_ThreadSlot___make", 0},
+{(const void*)&Spite_Internal_ThreadSlot___release, "-\t-", "Spite_Internal_ThreadSlot___release", 0},
+{(const void*)&Spite_Internal_ThreadSlot___free, "-\t-", "Spite_Internal_ThreadSlot___free", 0},
 {(const void*)&Naive___init, "-\t-", "Naive___init", 0},
 {(const void*)&Naive___allocate, "-\t-", "Naive___allocate", 0},
 {(const void*)&Naive___retain, "-\t-", "Naive___retain", 0},
@@ -5276,11 +5276,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Memory_Address___make, "-\t-", "List_Memory_Address___make", 0},
 {(const void*)&List_Memory_Address___release, "-\t-", "List_Memory_Address___release", 0},
 {(const void*)&List_Memory_Address___free, "-\t-", "List_Memory_Address___free", 0},
-{(const void*)&ThreadLocal__SchedulerLoop___init, "-\t-", "ThreadLocal__SchedulerLoop___init", 0},
-{(const void*)&ThreadLocal__SchedulerLoop___allocate, "-\t-", "ThreadLocal__SchedulerLoop___allocate", 0},
-{(const void*)&ThreadLocal__SchedulerLoop___make, "-\t-", "ThreadLocal__SchedulerLoop___make", 0},
-{(const void*)&ThreadLocal__SchedulerLoop___release, "-\t-", "ThreadLocal__SchedulerLoop___release", 0},
-{(const void*)&ThreadLocal__SchedulerLoop___free, "-\t-", "ThreadLocal__SchedulerLoop___free", 0},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop___init, "-\t-", "Spite_Internal_ThreadLocal__SchedulerLoop___init", 0},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop___allocate, "-\t-", "Spite_Internal_ThreadLocal__SchedulerLoop___allocate", 0},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop___make, "-\t-", "Spite_Internal_ThreadLocal__SchedulerLoop___make", 0},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop___release, "-\t-", "Spite_Internal_ThreadLocal__SchedulerLoop___release", 0},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop___free, "-\t-", "Spite_Internal_ThreadLocal__SchedulerLoop___free", 0},
 {(const void*)&List_SchedulerLoop___init, "-\t-", "List_SchedulerLoop___init", 0},
 {(const void*)&List_SchedulerLoop___allocate, "-\t-", "List_SchedulerLoop___allocate", 0},
 {(const void*)&List_SchedulerLoop___make, "-\t-", "List_SchedulerLoop___make", 0},
@@ -5377,14 +5377,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&File_write_text___waiting, "library/windows/file.spite\tFile", "write_text", 28},
 {(const void*)&File_remove, "library/windows/file.spite\tFile", "remove", 43},
 {(const void*)&SpiteInteger_to_string, "library/integer.spite\tInteger", "to_string", 3},
-{(const void*)&Lock_Lock, "library/lock.spite\tLock", "Lock", 4},
-{(const void*)&Lock_lock, "library/lock.spite\tLock", "lock", 8},
-{(const void*)&Lock_unlock, "library/lock.spite\tLock", "unlock", 12},
-{(const void*)&Lock_drop, "library/lock.spite\tLock", "drop", 22},
-{(const void*)&Lock_create_lock, "library/windows/lock.spite\tLock", "create_lock", 3},
-{(const void*)&Lock_acquire, "library/windows/lock.spite\tLock", "acquire", 9},
-{(const void*)&Lock_release_lock, "library/windows/lock.spite\tLock", "release_lock", 13},
-{(const void*)&Lock_destroy_lock, "library/windows/lock.spite\tLock", "destroy_lock", 17},
 {(const void*)&SpiteLong_to_string, "library/long.spite\tLong", "to_string", 3},
 {(const void*)&Scheduler_loop, "library/scheduler.spite\tScheduler", "loop", 16},
 {(const void*)&Scheduler_start, "library/scheduler.spite\tScheduler", "start", 30},
@@ -5425,15 +5417,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Scheduler_release_work, "compiler/source/generation/prelude.spite\tScheduler", "release_work", 2},
 {(const void*)&SpiteString_length, "library/string.spite\tString", "length", 4},
 {(const void*)&SpiteString_to_string, "library/string.spite\tString", "to_string", 184},
-{(const void*)&ThreadSlot_ThreadSlot, "library/thread_slot.spite\tThreadSlot", "ThreadSlot", 3},
-{(const void*)&ThreadSlot_read, "library/thread_slot.spite\tThreadSlot", "read", 7},
-{(const void*)&ThreadSlot_write, "library/thread_slot.spite\tThreadSlot", "write", 11},
-{(const void*)&ThreadSlot_drop, "library/thread_slot.spite\tThreadSlot", "drop", 15},
-{(const void*)&ThreadSlot_create_key, "library/windows/thread_slot.spite\tThreadSlot", "create_key", 3},
-{(const void*)&spite_failed_5, "-\t-", "spite_failed_5", 0},
-{(const void*)&ThreadSlot_read_key, "library/windows/thread_slot.spite\tThreadSlot", "read_key", 9},
-{(const void*)&ThreadSlot_write_key, "library/windows/thread_slot.spite\tThreadSlot", "write_key", 13},
-{(const void*)&ThreadSlot_delete_key, "library/windows/thread_slot.spite\tThreadSlot", "delete_key", 17},
 {(const void*)&SpiteMemory_Address_text, "library/memory/address.spite\tMemory.Address", "text", 3},
 {(const void*)&SpiteMemory_Address_to_string, "library/memory/address.spite\tMemory.Address", "to_string", 13},
 {(const void*)&Memory_Arena_allocate, "library/memory/arena.spite\tMemory.Arena", "allocate", 11},
@@ -5444,6 +5427,23 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Memory_Heap_free, "compiler/source/generation/prelude.spite\tMemory.Heap", "free", 3},
 {(const void*)&Spite_Class_Class, "library/spite/class.spite\tSpite.Class", "Class", 16},
 {(const void*)&Spite_Function_Function, "library/spite/function.spite\tSpite.Function", "Function", 11},
+{(const void*)&Spite_Internal_Lock_Lock, "library/spite/internal/lock.spite\tSpite.Internal.Lock", "Lock", 4},
+{(const void*)&Spite_Internal_Lock_lock, "library/spite/internal/lock.spite\tSpite.Internal.Lock", "lock", 8},
+{(const void*)&Spite_Internal_Lock_unlock, "library/spite/internal/lock.spite\tSpite.Internal.Lock", "unlock", 12},
+{(const void*)&Spite_Internal_Lock_drop, "library/spite/internal/lock.spite\tSpite.Internal.Lock", "drop", 22},
+{(const void*)&Spite_Internal_Lock_create_lock, "library/windows/spite/internal/lock.spite\tSpite.Internal.Lock", "create_lock", 3},
+{(const void*)&Spite_Internal_Lock_acquire, "library/windows/spite/internal/lock.spite\tSpite.Internal.Lock", "acquire", 9},
+{(const void*)&Spite_Internal_Lock_release_lock, "library/windows/spite/internal/lock.spite\tSpite.Internal.Lock", "release_lock", 13},
+{(const void*)&Spite_Internal_Lock_destroy_lock, "library/windows/spite/internal/lock.spite\tSpite.Internal.Lock", "destroy_lock", 17},
+{(const void*)&Spite_Internal_ThreadSlot_ThreadSlot, "library/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "ThreadSlot", 3},
+{(const void*)&Spite_Internal_ThreadSlot_read, "library/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "read", 7},
+{(const void*)&Spite_Internal_ThreadSlot_write, "library/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "write", 11},
+{(const void*)&Spite_Internal_ThreadSlot_drop, "library/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "drop", 15},
+{(const void*)&Spite_Internal_ThreadSlot_create_key, "library/windows/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "create_key", 3},
+{(const void*)&spite_failed_5, "-\t-", "spite_failed_5", 0},
+{(const void*)&Spite_Internal_ThreadSlot_read_key, "library/windows/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "read_key", 9},
+{(const void*)&Spite_Internal_ThreadSlot_write_key, "library/windows/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "write_key", 13},
+{(const void*)&Spite_Internal_ThreadSlot_delete_key, "library/windows/spite/internal/thread_slot.spite\tSpite.Internal.ThreadSlot", "delete_key", 17},
 {(const void*)&Naive_Naive, "benchmarks/reads_in_a_row_overlap/naive/naive.spite\tNaive", "Naive", 5},
 {(const void*)&Naive_make_files, "benchmarks/reads_in_a_row_overlap/naive/naive.spite\tNaive", "make_files", 15},
 {(const void*)&Naive_all_reads, "benchmarks/reads_in_a_row_overlap/naive/naive.spite\tNaive", "all_reads", 22},
@@ -5487,11 +5487,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Memory_Address_make_room, "library/list.spite\tList", "make_room", 441},
 {(const void*)&List_Memory_Address__grow, "library/list.spite\tList", "_grow", 447},
 {(const void*)&List_Memory_Address__resized, "library/list.spite\tList", "_resized", 457},
-{(const void*)&ThreadLocal__SchedulerLoop_ThreadLocal, "library/thread_local.spite\tThreadLocal", "ThreadLocal", 12},
-{(const void*)&ThreadLocal__SchedulerLoop_get, "library/thread_local.spite\tThreadLocal", "get", 16},
-{(const void*)&ThreadLocal__SchedulerLoop_set, "library/thread_local.spite\tThreadLocal", "set", 23},
-{(const void*)&ThreadLocal__SchedulerLoop__make_room, "library/thread_local.spite\tThreadLocal", "_make_room", 39},
-{(const void*)&ThreadLocal__SchedulerLoop_drop, "library/thread_local.spite\tThreadLocal", "drop", 59},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop_ThreadLocal, "library/spite/internal/thread_local.spite\tSpite.Internal.ThreadLocal", "ThreadLocal", 12},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop_get, "library/spite/internal/thread_local.spite\tSpite.Internal.ThreadLocal", "get", 16},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop_set, "library/spite/internal/thread_local.spite\tSpite.Internal.ThreadLocal", "set", 23},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop__make_room, "library/spite/internal/thread_local.spite\tSpite.Internal.ThreadLocal", "_make_room", 39},
+{(const void*)&Spite_Internal_ThreadLocal__SchedulerLoop_drop, "library/spite/internal/thread_local.spite\tSpite.Internal.ThreadLocal", "drop", 59},
 {(const void*)&spite_failed_10, "-\t-", "spite_failed_10", 0},
 {(const void*)&TypedMemory__SchedulerLoop_read_value, "compiler/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
 {(const void*)&TypedMemory__SchedulerLoop_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},

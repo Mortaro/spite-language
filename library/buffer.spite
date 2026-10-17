@@ -241,7 +241,11 @@ func append_unsigned_integer_order(order: Spite.AttributeDeclaration<ByteOrder>,
     item_count = item_count + 4
 }
 
-func write_unsigned_integer_order_at(order: Spite.AttributeDeclaration<ByteOrder>, at: Integer, value: UnsignedInteger) {
+func write_unsigned_integer_order_at(
+    order: Spite.AttributeDeclaration<ByteOrder>,
+    at: Integer,
+    value: UnsignedInteger,
+) {
     crash _inside(at, 4)
     _store_unsigned_integer(at, value, order.name == "big_endian")
 }

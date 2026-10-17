@@ -62,7 +62,11 @@ func read_unsigned_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteO
     return _load_unsigned_short(position, order.name == "big_endian")
 }
 
-func write_unsigned_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: UnsignedShort) {
+func write_unsigned_short_order_at(
+    order: Spite.AttributeDeclaration<Buffer.ByteOrder>,
+    position: Long,
+    value: UnsignedShort,
+) {
     crash _inside(position, 2)
     _store_unsigned_short(position, value, order.name == "big_endian")
 }
@@ -77,12 +81,19 @@ func write_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>,
     _store_integer(position, value, order.name == "big_endian")
 }
 
-func read_unsigned_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): UnsignedInteger? {
+func read_unsigned_integer_order_at(
+    order: Spite.AttributeDeclaration<Buffer.ByteOrder>,
+    position: Long,
+): UnsignedInteger? {
     assert _inside(position, 4)
     return _load_unsigned_integer(position, order.name == "big_endian")
 }
 
-func write_unsigned_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: UnsignedInteger) {
+func write_unsigned_integer_order_at(
+    order: Spite.AttributeDeclaration<Buffer.ByteOrder>,
+    position: Long,
+    value: UnsignedInteger,
+) {
     crash _inside(position, 4)
     _store_unsigned_integer(position, value, order.name == "big_endian")
 }
@@ -102,7 +113,11 @@ func read_unsigned_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOr
     return _load_unsigned_long(position, order.name == "big_endian")
 }
 
-func write_unsigned_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long, value: UnsignedLong) {
+func write_unsigned_long_order_at(
+    order: Spite.AttributeDeclaration<Buffer.ByteOrder>,
+    position: Long,
+    value: UnsignedLong,
+) {
     crash _inside(position, 8)
     _store_unsigned_long(position, value, order.name == "big_endian")
 }
