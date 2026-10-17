@@ -15,6 +15,7 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
 
 ## To confirm
 
+- **D619, the low IR's details** (`compiler/low_ir.md`): machine types `i8` to `i64`, `f32`, `f64` and `address`, a Boolean an `i8`; SSA virtual registers in flat arrays; a check spelled as an overflow result and a branch to a halt at its site; counts, frame slots and the state machines of waits lowered there; and the C printer reading the low IR, so C and machine code come from the same place. Each is easy to change before the low IR is built.
 - **D609, the fixpoint check.** Until Spite has its own backend, `check.sh` keeps requiring generation 2 equal to
   generation 3 byte for byte, since Mortaro's note says binaries need not be identical in the end. Keep it until
   the own backend, or drop it now and rely on the tests passing?
