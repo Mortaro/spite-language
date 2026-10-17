@@ -68,8 +68,11 @@ func appends_in_place(
 func drop_empty_pieces(function: Function, uses: Facts.Uses, operation: Operation) {
     var index = operation.operands.count() - 1
     while index >= 0 and operation.operands.count() > 1 {
-        var defining = uses.definition_of(operation.operands[index])
-        if defining and defining.kind == "constant" and defining.literal.is_empty() and is_text(function.value_at(operation.operands[index]).spite_type) {
+        var piece = operation.operands[index]
+        crash piece
+        var defining = uses.definition_of(piece)
+        var described = function.value_at(piece)
+        if defining and defining.kind == "constant" and defining.literal.is_empty() and is_text(described.spite_type) {
             operation.operands.remove_at(index)
         }
         index = index - 1

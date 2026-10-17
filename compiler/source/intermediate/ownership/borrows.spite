@@ -460,6 +460,7 @@ func lending_memory(value: Integer, depth: Integer): String {
         crash inner
         return lending_memory(inner, depth + 1)
     }
+    crash kinds.lowered
     var callee = kinds.lowered.function_named(defining.callee)
     if not callee {
         return ""
@@ -471,11 +472,11 @@ func lending_memory(value: Integer, depth: Integer): String {
         }
         return ""
     }
-    var list = kinds.lowered.layout_named(callee.owner)
-    if not list or list.qualified != "List" {
+    var container = kinds.lowered.layout_named(callee.owner)
+    if not container or container.qualified != "List" {
         return ""
     }
-    var held = list.field_named("values")
+    var held = container.field_named("values")
     if not held {
         return ""
     }

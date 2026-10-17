@@ -60,8 +60,9 @@ func adds(other: Summary): Boolean {
     var typed = other.typed_memory.keys()
     index = 0
     while index < typed.count() {
-        if not typed_memory.has(typed[index]) {
-            typed_memory[typed[index]] = true
+        var key = typed[index]
+        if not typed_memory.has(key) {
+            typed_memory[key] = true
             changed = true
         }
         index = index + 1
