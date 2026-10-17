@@ -386,6 +386,32 @@ pass's name. It refuses a value that is used but never defined, a use that its d
 path (by dominance), and a jump whose arguments do not match the target block's parameters. The first ten problems become
 `error: the high IR is not valid: ...`, each naming the pass that made the IR invalid, so the pass to fix is known.
 
+## The front end (D618): the target, built directly
+
+The flow is `source -> syntax tree -> high IR, with every name resolved and every check made while it is built ->
+passes -> printer`. Nothing else resolves or checks: `compiler/source/generation/` does not exist in the final form,
+and neither does any reader of C text. This is built as the final form, not migrated question by question.
+
+| Piece | Owns | Files |
+|---|---|---|
+| Parser | text to syntax tree, and the errors of spelling, layout and naming it already raises | `syntax/`, `discovery/` (unchanged) |
+| Program model | every class, union, enum, function, field and generic instance of the program, built from the syntax tree and `analysis/`: lookups by name and by qualified name, generic and template instantiation, getters and setters, values folded while compiling, reflection makers | `intermediate/model/` (new), replacing every `generator.` call, `front()`, and every `Generation.` type the lowering uses |
+| Checks | every compile error, raised by the lowering at the place it builds the operation the error is about, with the exact text its `specs/` page gives; the first error stops the compile, as today | `intermediate/checks/<spec page>.spite`, one file per page of `specs/`, called from the lowering |
+| Lowering | building the IR from the syntax tree through the model, calling the checks | `lowering.spite`, `expression_lowering.spite`, `statement_lowering.spite`, `reflection_lowering.spite`, `instances.spite` |
+| Passes, printer | unchanged | as above |
+
+`compiler.spite` runs discovery, then `Pipeline`; there is no generator pass and no `writes_from_intermediate` switch.
+The cut deletes `generation/`, the C readers (`overlap_facts`, `tree_shaker`, `count_sharing`, `class_pools`,
+`function_folder`, `configured_copies`, `nested_lists`, the C splitting of `hot_reload_library`, `state_machine`) and
+the older walk in `backend/high_*.spite` in one change.
+
+**What proves it:** every program in `diagnostics/` gives its exact `expected_errors.txt`, every conformance program,
+example and documentation program its exact output with balanced memory, the benchmarks allocate no more and run no
+slower than the generator's C, and the compiler builds itself to a fixpoint.
+
+**Where an error's rule is:** its `specs/` page is normative (D511). `generation/generator.spite` is only a reference
+for how the rule was implemented; read it for the cases the spec page states, and when the two disagree the spec wins.
+
 ## Where it stands
 
 The pipeline is built whole: lowering, the eight passes and the printer all exist, and a pipeline compiler compiles
