@@ -114,7 +114,13 @@ func release_contained(function: Function) {
     }
 }
 
-func container_releases_dominated(function: Function, uses: Facts.Uses, flow: Facts.Flow, child: Integer, container: Integer): Boolean {
+func container_releases_dominated(
+    function: Function,
+    uses: Facts.Uses,
+    flow: Facts.Flow,
+    child: Integer,
+    container: Integer,
+): Boolean {
     var made = uses.place_of(child)
     var reached = uses.uses_of(container)
     var releases = 0
@@ -277,7 +283,13 @@ func place_object(
     framed[operation.result] = true
 }
 
-func container_can_hold(function: Function, uses: Facts.Uses, flow: Facts.Flow, child: Integer, container: Integer): Boolean {
+func container_can_hold(
+    function: Function,
+    uses: Facts.Uses,
+    flow: Facts.Flow,
+    child: Integer,
+    container: Integer,
+): Boolean {
     crash kinds
     var container_value = function.value_at(container)
     var layout = kinds.layout_of(container_value.spite_type)
