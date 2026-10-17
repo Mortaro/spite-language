@@ -1,0 +1,413 @@
+# ../../../../specs/classes_and_files.md#singleton-rules
+var raise = Raise()
+var shape = Analysis.AstShape()
+var emitter = Emitter()
+var generator: Generation.Generator? = null
+var using_class = Analysis.ClassInfo("", "", "", "", 0)
+var attribute: Syntax.Statements.VariableDeclaration? = null
+
+func class_declarations(information: Analysis.ClassInfo) {
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        empty_constructor(information, function)
+        singleton_function(information, function)
+        declared_twice(information, function, index)
+        index = index + 1
+    }
+}
+
+func empty_constructor(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert function.is_constructor and function.parameters.is_empty() and function.body.is_empty()
+    assert function.line > 0
+    raise.in_function(
+        information,
+        function,
+        "'{function.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
+    )
+}
+
+func singleton_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert function.name == "is_singleton" and information.qualified_dotted != "Spite.Class"
+    assert function.line > 0
+    raise.in_function(
+        information,
+        function,
+        "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
+    )
+}
+
+func declared_twice(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, position: Integer) {
+    assert function.line > 0 and function.specialised_from.is_empty() and function.symbol_name.is_empty()
+    var earlier = 0
+    while earlier < position {
+        var other = information.declared_functions[earlier]
+        crash other
+        if other.name == function.name and other.line > 0 and other.source_path == function.source_path {
+            raise.in_function(
+                information,
+                function,
+                "'{information.simple_name}' declares '{function.name}' twice: a later file may reopen a class and replace a function, but one file declares each name once",
+            )
+            return
+        }
+        earlier = earlier + 1
+    }
+}
+
+func private_member(
+    starting_emitter: Emitter,
+    target: Analysis.ClassInfo?,
+    name: String,
+    walked: Boolean,
+    using_information: Analysis.ClassInfo,
+) {
+    assert target
+    assert not walked
+    assert name.starts_with("_") and target.c_name != using_information.c_name
+    var name_length = name.length()
+    var public_name = name.slice(1, name_length)
+    if target.find_function("get_{public_name}") {
+        raise.in_body(
+            starting_emitter,
+            "'{name}' is private to '{target.simple_name}': a name starting with '_' is used only inside its own class, and '{public_name}' reads it from outside",
+        )
+        return
+    }
+    raise.in_body(
+        starting_emitter,
+        "'{name}' is private to '{target.simple_name}': a name starting with '_' is used only inside its own class",
+    )
+}
+
+func singleton_arguments(
+    starting_emitter: Emitter,
+    target: Analysis.ClassInfo,
+    arguments: List<Syntax.Expressions.Expression>,
+) {
+    var printer = Syntax.SourcePrinter()
+    var index = 0
+    while index < arguments.count() {
+        if not is_singleton_key_literal(arguments[index]) {
+            var argument_text = printer.source_expression(arguments[index])
+            raise.in_body(
+                starting_emitter,
+                "'{argument_text}' is not a literal: a singleton's arguments are literals the compiler reads, because each distinct argument list is its own instance of '{target.simple_name}', made the first time it is asked for",
+            )
+            return
+        }
+        index = index + 1
+    }
+}
+
+func is_singleton_key_literal(argument: Syntax.Expressions.Expression): Boolean {
+    var negated = shape.as_unary(argument)
+    if negated {
+        crash negated.operand
+        var negated_integer = shape.as_integer_literal(negated.operand)
+        var negated_float = shape.as_float_literal(negated.operand)
+        return negated.operator == 'negate' and (negated_integer or negated_float)
+    }
+    if shape.as_integer_literal(argument) or shape.as_float_literal(argument) {
+        return true
+    }
+    if shape.as_string_literal(argument) or shape.as_enum_literal(argument) {
+        return true
+    }
+    return shape.is_true_literal(argument) or shape.is_false_literal(argument)
+}
+
+func singleton_circle(information: Analysis.ClassInfo, path: List<Analysis.ClassInfo>, line: Integer) {
+    var parts = List<String>()
+    var index = 0
+    while index < path.count() {
+        var step = path[index]
+        var verb = "makes"
+        if step.is_singleton {
+            verb = "binds"
+        }
+        var shown = "{verb} '{step.simple_name}'"
+        if index > 0 {
+            shown = "which {shown}"
+        }
+        parts.append(shown)
+        index = index + 1
+    }
+    raise.in_class(
+        information,
+        line,
+        "singleton '{information.simple_name}' {parts.join(", ")}: singletons initialise each other in a circle, so one of them has to reach the other some other way, such as by binding it in the class that uses both",
+    )
+}
+
+func statement(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    checked: Syntax.Statements.Statement,
+    using_information: Analysis.ClassInfo,
+) {
+    emitter = starting_emitter
+    generator = made
+    using_class = using_information
+    attribute = null
+    switch checked {
+        Syntax.Statements.VariableDeclaration: {
+            crash checked.value
+            singletons_in_declared(checked.value)
+            local_singleton(checked)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash checked.target
+            crash checked.value
+            inline_singletons(checked.target)
+            crash checked.value
+            inline_singletons(checked.value)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash checked.value
+            inline_singletons(checked.value)
+            crash checked.value
+            dropped_construction(checked.value)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if checked.value {
+                inline_singletons(checked.value)
+            }
+        }
+        Syntax.Statements.AssertStatement: {
+            crash checked.value
+            inline_singletons(checked.value)
+        }
+        Syntax.Statements.IfStatement: {
+            crash checked.condition
+            inline_singletons(checked.condition)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash checked.condition
+            inline_singletons(checked.condition)
+        }
+        Syntax.Statements.SwitchStatement: {
+            crash checked.subject
+            inline_singletons(checked.subject)
+        }
+        _: return
+    }
+}
+
+func attribute_default(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    declaration: Syntax.Statements.VariableDeclaration,
+    using_information: Analysis.ClassInfo,
+) {
+    emitter = starting_emitter
+    generator = made
+    using_class = using_information
+    attribute = declaration
+    crash declaration.value
+    singletons_in_declared(declaration.value)
+}
+
+func fail(text: String) {
+    if attribute {
+        raise.in_attribute(using_class, attribute, text)
+        return
+    }
+    raise.in_body(emitter, text)
+}
+
+func dropped_construction(expression: Syntax.Expressions.Expression) {
+    var callee = constructor_callee(expression)
+    assert callee
+    crash generator
+    var constructed = generator.try_resolve_static_path(callee, using_class.qualified_dotted)
+    assert constructed
+    assert not constructed.is_singleton
+    var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(expression)
+    var name = constructed.simple_name
+    fail(
+        "'{written}' makes a '{name}' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead; turn '{name}' into a function of the class that needs it, or keep the object in a variable that is read",
+    )
+}
+
+func constructor_callee(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var call = shape.as_call(expression)
+    if call {
+        return call.callee
+    }
+    var generic_call = shape.as_generic_call(expression)
+    assert generic_call
+    return generic_call.callee
+}
+
+func singletons_in_declared(value: Syntax.Expressions.Expression) {
+    var singleton = constructed_singleton(value)
+    if singleton {
+        singleton_arguments_inline(value)
+        return
+    }
+    inline_singletons(value)
+}
+
+func has_no_attribute_to_spare(information: Analysis.ClassInfo): Boolean {
+    var collections = ["List", "Vector", "Items", "Dictionary"]
+    return information.is_value_class or collections.contains(information.qualified_dotted)
+}
+
+func local_singleton(declaration: Syntax.Statements.VariableDeclaration) {
+    assert not has_no_attribute_to_spare(using_class)
+    crash declaration.value
+    var singleton = constructed_singleton(declaration.value)
+    assert singleton
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(declaration.value)
+    assert not construction_text.contains(".class") and not construction_text.contains("$")
+    fail(
+        "'{singleton.qualified_dotted}' is a singleton, bound here as a local: bind it once beside the attributes, 'var {declaration.name} = {construction_text}', so every singleton the class uses is at the top of its file",
+    )
+}
+
+func inline_singletons(expression: Syntax.Expressions.Expression) {
+    var singleton = constructed_singleton(expression)
+    if singleton {
+        unbound_singleton(singleton, expression, "")
+        singleton_arguments_inline(expression)
+        return
+    }
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            inline_singletons(expression.callee)
+            inline_singletons_each(expression.arguments)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            inline_singletons(expression.callee)
+            inline_singletons_each(expression.arguments)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            var receiver = constructed_singleton(expression.object)
+            if receiver {
+                if not made_from_walked_class(expression.object) {
+                    crash expression.object
+                    unbound_singleton(receiver, expression.object, expression.name)
+                }
+                crash expression.object
+                singleton_arguments_inline(expression.object)
+                return
+            }
+            crash expression.object
+            inline_singletons(expression.object)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            inline_singletons(expression.left)
+            crash expression.right
+            inline_singletons(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            inline_singletons(expression.operand)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            inline_singletons(expression.object)
+            crash expression.index
+            inline_singletons(expression.index)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                inline_singletons(element_value)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                inline_singletons(field_value)
+                index = index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func inline_singletons_each(expressions: List<Syntax.Expressions.Expression>) {
+    expressions.each(inline_singletons)
+}
+
+func singleton_arguments_inline(construction: Syntax.Expressions.Expression) {
+    var call = shape.as_call(construction)
+    if call {
+        inline_singletons_each(call.arguments)
+        return
+    }
+    var generic_call = shape.as_generic_call(construction)
+    assert generic_call
+    inline_singletons_each(generic_call.arguments)
+}
+
+func constructed_singleton(expression: Syntax.Expressions.Expression): Analysis.ClassInfo? {
+    var call = shape.as_call(expression)
+    if call {
+        crash call.callee
+        return singleton_named(call.callee)
+    }
+    var generic_call = shape.as_generic_call(expression)
+    if generic_call {
+        crash generic_call.callee
+        return singleton_named(generic_call.callee)
+    }
+    return null
+}
+
+func singleton_named(callee: Syntax.Expressions.Expression): Analysis.ClassInfo? {
+    crash generator
+    var named_class = generator.try_resolve_static_path(callee, using_class.qualified_dotted)
+    assert named_class
+    assert named_class.is_singleton
+    return named_class
+}
+
+func made_from_walked_class(construction: Syntax.Expressions.Expression): Boolean {
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(construction)
+    return construction_text.contains(".class>") or construction_text.contains(".class,")
+}
+
+func unbound_singleton(singleton: Analysis.ClassInfo, construction: Syntax.Expressions.Expression, member: String) {
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(construction)
+    var variable = variable_name_for(singleton.simple_name)
+    var use = variable
+    if not member.is_empty() {
+        use = "{variable}.{member}"
+    }
+    fail(
+        "'{singleton.simple_name}' is a singleton: bind it once beside the attributes, 'var {variable} = {construction_text}', and use '{use}'",
+    )
+}
+
+func variable_name_for(class_name: String): String {
+    var name = ""
+    var index = 0
+    while index < class_name.length() {
+        var letter = class_name.slice(index, index + 1)
+        var lower = letter.lower_case()
+        if index > 0 and lower != letter {
+            name = "{name}_"
+        }
+        name = name + lower
+        index = index + 1
+    }
+    return name
+}

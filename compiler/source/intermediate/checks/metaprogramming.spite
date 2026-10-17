@@ -1,0 +1,279 @@
+# ../../../../specs/metaprogramming.md#codegen-values-
+var raise = Raise()
+
+func folded_crash(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    checked: Syntax.Statements.AssertStatement,
+    condition: String,
+    using_information: Analysis.ClassInfo,
+) {
+    assert checked.is_crash
+    var instance = made.instance_description(using_information)
+    crash_always_halts(starting_emitter, condition, instance, made.writes_reasons)
+}
+
+func crash_always_halts(starting_emitter: Emitter, condition: String, instance: String, reasons: List<String>) {
+    var message = "'crash {condition}' always halts{instance}: its condition is decided while compiling and is false, so the program would stop here every time this function runs: call it only where the condition holds, or change what the condition asks"
+    if condition.is_empty() {
+        message = "this 'crash' always halts{instance}, and this function is called: take the call out"
+    }
+    if not reasons.is_empty() {
+        message = "{message}; {reasons.join("; ")}"
+    }
+    raise.in_body(starting_emitter, message)
+}
+
+func codegen_value_without_line(starting_emitter: Emitter, class_name: String, name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{class_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment, so reopen it in environment.spite with 'var {name} = ...' and read it through 'var environment = Environment()' as 'environment.{name}'",
+    )
+}
+
+func codegen_type_used_as_value(starting_emitter: Emitter, name: String) {
+    raise.in_body(starting_emitter, "'${name}' is a type here, so it cannot be used as a value")
+}
+
+func codegen_value_used_as_type(starting_emitter: Emitter, name: String) {
+    raise.in_body(starting_emitter, "'${name}' is a value here, so it cannot be used as a type")
+}
+
+func codegen_type_without_line(starting_emitter: Emitter, name: String) {
+    raise.in_body(starting_emitter, "this class has no 'generic ${name}' line, so '${name}' cannot be used as a type")
+}
+
+func codegen_type_without_line_in_class(information: Analysis.ClassInfo, line: Integer, name: String) {
+    raise.in_class(information, line, "this class has no 'generic ${name}' line, so '${name}' cannot be used as a type")
+}
+
+func codegen_count(starting_emitter: Emitter, template: Analysis.ClassInfo, given: Integer) {
+    assert given != template.codegen_names.count()
+    raise.in_body(
+        starting_emitter,
+        "'{template.simple_name}' takes {template.codegen_names.count()} codegen value(s), in this order: ${template.codegen_names.join(", $")}, but {given} were given",
+    )
+}
+
+func codegen_values_not_inferred(starting_emitter: Emitter, target: Analysis.ClassInfo) {
+    raise.in_body(
+        starting_emitter,
+        "'{target.simple_name}' takes {target.codegen_names.count()} codegen value(s), in this order: ${target.codegen_names.join(", $")}. Write them between < and > before the arguments",
+    )
+}
+
+func generic_class_takes_none(starting_emitter: Emitter, class_name: String) {
+    raise.in_body(starting_emitter, "'{class_name}' takes no codegen values: write '{class_name}(...)' without '<...>'")
+}
+
+func no_generic_class(starting_emitter: Emitter, callee_text: String) {
+    raise.in_body(
+        starting_emitter,
+        "there is no generic class '{callee_text}' here: a name is looked up in this class's own namespace, its folder, each parent folder, then the whole program",
+    )
+}
+
+func generic_construction(
+    starting_emitter: Emitter,
+    callee_text: String,
+    template: Analysis.ClassInfo?,
+    given: Integer,
+) {
+    if not template {
+        no_generic_class(starting_emitter, callee_text)
+        return
+    }
+    if not template.is_generic_template {
+        generic_class_takes_none(starting_emitter, template.simple_name)
+        return
+    }
+    if given != template.codegen_names.count() {
+        codegen_count(starting_emitter, template, given)
+    }
+}
+
+func constraint_not_a_type(information: Analysis.ClassInfo, line: Integer, bare_name: String, shown: String) {
+    raise.in_class(
+        information,
+        line,
+        "'${bare_name}' is constrained by '{shown}', which is not a 'type': a constraint names a 'type' the class given must fit, like 'generic ${bare_name}: Printable'",
+    )
+}
+
+func instance_constraints(starting_emitter: Emitter, made: Generation.Generator, instance: Analysis.ClassInfo) {
+    var index = 0
+    while index < instance.codegen_constraints.count() and index < instance.codegen_types.count() {
+        var constraint_name = instance.codegen_constraints[index]
+        if not constraint_name.is_empty() {
+            constraint_unfit(starting_emitter, made, instance, index, constraint_name)
+        }
+        index = index + 1
+    }
+}
+
+func constraint_unfit(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    instance: Analysis.ClassInfo,
+    position: Integer,
+    constraint_name: String,
+) {
+    var constrained = made.find_union_by_c_name(constraint_name)
+    crash constrained
+    crash instance.codegen_names[position]
+    var constrained_name = instance.codegen_names[position]
+    var given = instance.codegen_types[position]
+    crash given
+    var problem = made.constraint_problem(constrained, given)
+    assert not problem.is_empty()
+    raise.in_body(
+        starting_emitter,
+        "'{made.type_display_name(given)}' does not fit type '{constrained.simple_name}', which '{instance.simple_name}' requires of ${constrained_name}: {problem}",
+    )
+}
+
+func function_shape_default(
+    information: Analysis.ClassInfo,
+    line: Integer,
+    attribute_name: String,
+    shape_name: String,
+    required_name: String,
+) {
+    raise.in_class(
+        information,
+        line,
+        "'{attribute_name}' is {with_article(shape_name)}, a type that requires the function '{required_name}', so '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with a '?', and narrow it before use, or give it a real object in the constructor",
+    )
+}
+
+func with_article(name: String): String {
+    var vowels = ["A", "E", "I", "O", "U"]
+    var first_letter = name.slice(0, 1)
+    if vowels.contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+func attribute_parameter(
+    information: Analysis.ClassInfo,
+    declaration: Syntax.Statements.FunctionDeclaration,
+    parameter_name: String,
+) {
+    raise.error_at(
+        information.source_path,
+        declaration.line,
+        information.qualified_dotted,
+        "",
+        "'{parameter_name}: Spite.Attribute<...>' would be bound to one instance, and a template is made once for each member of the class, with the instance as its own argument: write '{parameter_name}: Spite.AttributeDeclaration<...>'",
+    )
+}
+
+func plain_symbol_on_list(
+    information: Analysis.ClassInfo,
+    declaration: Syntax.Statements.FunctionDeclaration,
+    symbol_parameter: String,
+) {
+    raise.error_at(
+        information.source_path,
+        declaration.line,
+        information.qualified_dotted,
+        declaration.name,
+        "'{declaration.name}' is a template on List, whose own attributes are its buffer, so a plain 'Symbol' answers nothing: write '{symbol_parameter}: Symbol<$element_type>' to name a member of the element",
+    )
+}
+
+func singular_collection(
+    information: Analysis.ClassInfo,
+    declaration: Syntax.Statements.FunctionDeclaration,
+    symbol_parameter: String,
+    renamed: String,
+) {
+    raise.error_at(
+        information.source_path,
+        declaration.line,
+        information.qualified_dotted,
+        declaration.name,
+        "'{declaration.name}' answers every '{symbol_parameter}' of the element, a 'List<{symbol_parameter}.class>', so its name holds the member in the plural: '{renamed}'",
+    )
+}
+
+func template_clash(
+    information: Analysis.ClassInfo,
+    template_name: String,
+    attribute_name: String,
+    range_owner: String,
+    clashing: Analysis.FunctionInfo,
+) {
+    raise.in_declared(
+        information,
+        clashing,
+        "the template '{template_name}' makes '{clashing.name}' for the attribute '{attribute_name}' of '{range_owner}', which is already a function of '{information.simple_name}': rename the function or the template",
+    )
+}
+
+func every_attribute_returns(starting_emitter: Emitter, call_name: String, template_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{call_name}' calls '{template_name}' once for every attribute, so '{template_name}' has to return nothing",
+    )
+}
+
+func every_argument_returns(
+    starting_emitter: Emitter,
+    template: Analysis.TemplateInfo,
+    template_name: String,
+    ranged_function: String,
+) {
+    raise.in_body(
+        starting_emitter,
+        "'{template.prefix}{template.symbol_parameter}s{template.suffix}' makes one value for each argument of '{ranged_function}', so it can only be the whole argument list of a call to '{ranged_function}', as in '{ranged_function}({template.prefix}{template.symbol_parameter}s{template.suffix}())', or else '{template_name}' has to return nothing",
+    )
+}
+
+func no_codegen_value_named(starting_emitter: Emitter, held_with_article: String, segment: String) {
+    raise.in_body(
+        starting_emitter,
+        "{held_with_article} has no codegen value named '{segment}': List<$element_type>, Dictionary<$key_type, $value_type> and $value_type? name theirs, and a generic class names its own",
+    )
+}
+
+func no_codegen_values_declared(starting_emitter: Emitter, generic_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'${generic_name}' is not a type declared on this class's constructor, so it has no codegen values to read",
+    )
+}
+
+func plural_member_problem(
+    starting_emitter: Emitter,
+    template: Analysis.TemplateInfo,
+    name: String,
+    element_label: String,
+    found: List<String>,
+    word: String,
+    singular: String,
+    plural_word: String,
+    names_the_word: Boolean,
+) {
+    if found.count() > 1 {
+        raise.in_body(
+            starting_emitter,
+            "'{name}' could collect '{found.join("' or '")}' of '{element_label}', since each is '{word}' in the plural: rename one of them",
+        )
+        return
+    }
+    if found.count() == 1 {
+        var member_name = found[0]
+        raise.in_body(
+            starting_emitter,
+            "'{name}' would collect '{member_name}', but its plural '{word}' gives back '{singular}', not '{member_name}': add the word to the irregulars by reopening 'String.Inflection', or rename '{member_name}'",
+        )
+        return
+    }
+    assert names_the_word and plural_word != word
+    raise.in_body(
+        starting_emitter,
+        "'{name}' answers every '{word}', so it is written in the plural: '{template.prefix}{plural_word}{template.suffix}'",
+    )
+}

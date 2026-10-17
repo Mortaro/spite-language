@@ -1,0 +1,742 @@
+# ../../../../specs/style.md#one-call-per-line-and-nothing-said-twice
+var raise = Raise()
+var shape = Analysis.AstShape()
+var emitter = Emitter()
+var generator: Generation.Generator? = null
+var using_class = Analysis.ClassInfo("", "", "", "", 0)
+var attribute: Syntax.Statements.VariableDeclaration? = null
+
+func class_declarations(information: Analysis.ClassInfo) {
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field = information.fields[field_index]
+        attribute_name(information, field)
+        field_index = field_index + 1
+    }
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        function_names(information, function)
+        index = index + 1
+    }
+}
+
+func attribute_name(information: Analysis.ClassInfo, field: Analysis.FieldInfo) {
+    assert field.line > 0
+    var problem = value_name_problem(field.name, "attribute")
+    assert not problem.is_empty()
+    raise.in_class(information, field.line, problem)
+}
+
+func function_names(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert function.line > 0 and function.specialised_from.is_empty() and function.symbol_name.is_empty()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_problem = value_name_problem(parameter.name, "parameter")
+        if not parameter_problem.is_empty() {
+            raise.in_function(information, function, parameter_problem)
+            return
+        }
+        index = index + 1
+    }
+    var is_conversion = information.is_value_class and function.name.starts_with("to_")
+    assert not function.is_constructor and not is_conversion and function.has_body
+    var problem = value_name_problem(function.name, "function")
+    assert not problem.is_empty()
+    raise.in_function(information, function, problem)
+}
+
+func value_name_problem(name: String, what: String): String {
+    var bare = name
+    if bare.starts_with("_") {
+        var bare_length = bare.length()
+        bare = bare.slice(1, bare_length)
+    }
+    if not is_lowercase_name(bare) {
+        return "the {what} '{name}' must be written in snake_case: lowercase words joined by underscores"
+    }
+    if bare.starts_with("_") or bare.ends_with("_") or bare.contains("__") {
+        return "the {what} '{name}' must be written in snake_case: lowercase words joined by one underscore each, with at most one '_' in front to make it private"
+    }
+    if bare.length() == 1 and not is_axis_name(bare) {
+        return "the {what} '{name}' is a single letter: give it a name that says what it holds"
+    }
+    return abbreviation_problem(bare)
+}
+
+func type_name_problem(name: String, what: String): String {
+    if not is_pascal_name(name) {
+        return "the {what} '{name}' must be written in PascalCase: capitalised words with no underscores"
+    }
+    return abbreviation_problem(name)
+}
+
+func abbreviation_problem(name: String): String {
+    var short_words = abbreviated_words()
+    var full_words = unabbreviated_words()
+    var first = abbreviation_in(name, short_words, full_words)
+    if not first.is_empty() {
+        return first
+    }
+    var spelled_short_words = spelled_out_abbreviations()
+    var spelled_full_words = spelled_out_words()
+    return abbreviation_in(name, spelled_short_words, spelled_full_words)
+}
+
+func abbreviation_in(name: String, short_words: List<String>, full_words: List<String>): String {
+    var words = words_of(name)
+    var index = 0
+    while index < words.count() {
+        var position = 0
+        while position < short_words.count() {
+            if short_words[position] == words[index] {
+                crash full_words[position]
+                return "'{name}' abbreviates: write '{full_words[position]}' instead of '{words[index]}'. Spite has no abbreviations outside its own keywords"
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func is_axis_name(name: String): Boolean {
+    return name == "x" or name == "y" or name == "z" or name == "w"
+}
+
+func is_lowercase_name(name: String): Boolean {
+    var index = 0
+    while index < name.length() {
+        var code = name.code_at(index)
+        var is_lower = code >= 97 and code <= 122
+        var is_digit = code >= 48 and code <= 57
+        if not is_lower and not is_digit and code != 95 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_pascal_name(name: String): Boolean {
+    if name.is_empty() {
+        return false
+    }
+    var first = name.code_at(0)
+    if first < 65 or first > 90 {
+        return false
+    }
+    return not name.contains("_")
+}
+
+func words_of(name: String): List<String> {
+    var words = List<String>()
+    var current = ""
+    var index = 0
+    while index < name.length() {
+        var code = name.code_at(index)
+        var is_upper = code >= 65 and code <= 90
+        if code == 95 or is_upper {
+            if not current.is_empty() {
+                words.append(current)
+            }
+            current = ""
+        }
+        if code != 95 {
+            current = current + name.character_at(index).lower_case()
+        }
+        index = index + 1
+    }
+    if not current.is_empty() {
+        words.append(current)
+    }
+    return words
+}
+
+func unread_name(starting_emitter: Emitter, name: String, is_parameter: Boolean) {
+    if not is_parameter {
+        raise.in_body(starting_emitter, "'{name}' is never read: remove it")
+        return
+    }
+    assert not name.starts_with("_")
+    raise.in_body(
+        starting_emitter,
+        "the parameter '{name}' is never read: remove it, or name it '_{name}' if the signature needs it",
+    )
+}
+
+func underscore_read(starting_emitter: Emitter, name: String) {
+    assert name.starts_with("_")
+    raise.in_body(
+        starting_emitter,
+        "'{name}' is read, so it must not start with an underscore: only a parameter the body ignores is named that way",
+    )
+}
+
+func unread_attribute(information: Analysis.ClassInfo, line: Integer, name: String) {
+    raise.in_class(information, line, "the attribute '{name}' is never read: remove it")
+}
+
+func repeated_branch_call(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    checked: Syntax.Statements.IfStatement,
+) {
+    assert not checked.follows_else
+    var narrowed = List<String>()
+    var ends_in_else = made.collect_chain_narrowed_names(checked, narrowed)
+    assert ends_in_else
+    var first_calls = List<String>()
+    made.collect_branch_calls(checked.then_branch, narrowed, first_calls)
+    var shared = made.keep_shared_calls(checked, narrowed, first_calls)
+    var repeated = shared.first()
+    assert repeated
+    var branch_words = "both branches"
+    if made.chained_if(checked) {
+        branch_words = "every branch"
+    }
+    raise.in_body(starting_emitter, "'{repeated}' is computed in {branch_words}: compute it once before the 'if'")
+}
+
+func statement(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    checked: Syntax.Statements.Statement,
+    using_information: Analysis.ClassInfo,
+) {
+    emitter = starting_emitter
+    generator = made
+    using_class = using_information
+    attribute = null
+    switch checked {
+        Syntax.Statements.VariableDeclaration: {
+            variable_name(checked)
+            crash checked.value
+            nested_calls_in(checked.value)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash checked.target
+            crash checked.value
+            nested_calls_in(checked.target)
+            crash checked.value
+            nested_calls_in(checked.value)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash checked.value
+            nested_calls_in(checked.value)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if checked.value {
+                nested_calls_in(checked.value)
+            }
+        }
+        Syntax.Statements.AssertStatement: {
+            crash checked.value
+            nested_calls_in(checked.value)
+        }
+        Syntax.Statements.IfStatement: {
+            crash checked.condition
+            nested_calls_in(checked.condition)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash checked.condition
+            nested_calls_in(checked.condition)
+        }
+        Syntax.Statements.SwitchStatement: {
+            crash checked.subject
+            nested_calls_in(checked.subject)
+        }
+        _: return
+    }
+}
+
+func attribute_default(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    declaration: Syntax.Statements.VariableDeclaration,
+    using_information: Analysis.ClassInfo,
+) {
+    emitter = starting_emitter
+    generator = made
+    using_class = using_information
+    attribute = declaration
+    crash declaration.value
+    nested_calls_in(declaration.value)
+}
+
+func fail(text: String) {
+    if attribute {
+        raise.in_attribute(using_class, attribute, text)
+        return
+    }
+    raise.in_body(emitter, text)
+}
+
+func variable_name(declaration: Syntax.Statements.VariableDeclaration) {
+    var problem = value_name_problem(declaration.name, "variable")
+    assert not problem.is_empty()
+    fail(problem)
+}
+
+func nested_calls_in(expression: Syntax.Expressions.Expression) {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            nested_calls_in(expression.callee)
+            crash expression.callee
+            argument_calls(expression.callee, expression.arguments)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            nested_calls_in(expression.callee)
+            crash expression.callee
+            argument_calls(expression.callee, expression.arguments)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            nested_calls_in(expression.left)
+            crash expression.right
+            nested_calls_in(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            nested_calls_in(expression.operand)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            nested_calls_in(expression.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            nested_calls_in(expression.object)
+            crash expression.index
+            nested_calls_in(expression.index)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                nested_calls_in(element_value)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                nested_calls_in(field_value)
+                index = index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func argument_calls(callee: Syntax.Expressions.Expression, arguments: List<Syntax.Expressions.Expression>) {
+    crash generator
+    var spread = generator.spread_template(arguments, using_class)
+    assert not spread
+    crash generator
+    var misnamed = generator.misnamed_plural_argument(arguments, using_class)
+    assert misnamed.is_empty()
+    var printer = Syntax.SourcePrinter()
+    var called = printer.source_expression(callee)
+    var index = 0
+    while index < arguments.count() {
+        calls_in_argument(arguments[index], called)
+        index = index + 1
+    }
+}
+
+func calls_in_argument(expression: Syntax.Expressions.Expression, called: String) {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            call_in_argument(expression, expression.callee, called)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            call_in_argument(expression, expression.callee, called)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if expression.is_text_join {
+                nested_calls_in(expression.left)
+                crash expression.right
+                nested_calls_in(expression.right)
+                return
+            }
+            crash expression.left
+            calls_in_argument(expression.left, called)
+            crash expression.right
+            calls_in_argument(expression.right, called)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            calls_in_argument(expression.operand, called)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            calls_in_argument(expression.object, called)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            calls_in_argument(expression.object, called)
+            crash expression.index
+            calls_in_argument(expression.index, called)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                calls_in_argument(element_value, called)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                calls_in_argument(field_value, called)
+                index = index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func call_in_argument(call: Syntax.Expressions.Expression, callee: Syntax.Expressions.Expression, called: String) {
+    var printer = Syntax.SourcePrinter()
+    var call_text = printer.source_expression(call)
+    var constructed = constructor_name(callee)
+    if constructed.is_empty() {
+        fail(
+            "'{call_text}' is called inside an argument of '{called}': compute it first into a named 'var' and pass the name",
+        )
+        return
+    }
+    assert not constructs_singleton(call)
+    var variable = variable_name_for(constructed)
+    fail(
+        "'{call_text}' is constructed inside an argument of '{called}': a constructor call is never an argument, so make it first on a line of its own, 'var {variable} = {call_text}', and pass '{variable}'",
+    )
+}
+
+func constructs_singleton(construction: Syntax.Expressions.Expression): Boolean {
+    crash generator
+    var plain = shape.as_call(construction)
+    if plain {
+        crash plain.callee
+        var named = generator.try_resolve_static_path(plain.callee, using_class.qualified_dotted)
+        if not named {
+            return false
+        }
+        return named.is_singleton
+    }
+    var generic_call = shape.as_generic_call(construction)
+    if not generic_call {
+        return false
+    }
+    crash generic_call.callee
+    var generic_named = generator.try_resolve_static_path(generic_call.callee, using_class.qualified_dotted)
+    if not generic_named {
+        return false
+    }
+    return generic_named.is_singleton
+}
+
+func constructor_name(callee: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(callee)
+    if identifier {
+        if starts_upper_case(identifier.name) {
+            return identifier.name
+        }
+        return ""
+    }
+    var member = shape.as_member(callee)
+    if member {
+        if starts_upper_case(member.name) {
+            return member.name
+        }
+    }
+    return ""
+}
+
+func starts_upper_case(name: String): Boolean {
+    var first_letter = name.slice(0, 1)
+    return first_letter.upper_case() == first_letter and first_letter.lower_case() != first_letter
+}
+
+func variable_name_for(class_name: String): String {
+    var name = ""
+    var index = 0
+    while index < class_name.length() {
+        var letter = class_name.slice(index, index + 1)
+        var lower = letter.lower_case()
+        if index > 0 and lower != letter {
+            name = "{name}_"
+        }
+        name = name + lower
+        index = index + 1
+    }
+    return name
+}
+
+func abbreviated_words(): List<String> {
+    return [
+        "expr"
+        "stmt"
+        "param"
+        "params"
+        "arg"
+        "args"
+        "idx"
+        "ctx"
+        "cfg"
+        "conf"
+        "tmp"
+        "temp"
+        "str"
+        "num"
+        "len"
+        "btn"
+        "msg"
+        "req"
+        "res"
+        "resp"
+        "err"
+        "val"
+        "obj"
+        "fn"
+        "ptr"
+        "src"
+        "dst"
+        "dest"
+        "dir"
+        "pos"
+        "prev"
+        "cur"
+        "curr"
+        "max"
+        "min"
+        "init"
+        "calc"
+        "attr"
+        "attrs"
+        "elem"
+        "char"
+        "info"
+        "spec"
+        "env"
+        "db"
+        "auth"
+        "impl"
+        "util"
+        "utils"
+        "lib"
+        "pkg"
+        "cmd"
+        "desc"
+        "doc"
+        "docs"
+        "func"
+        "var"
+        "int"
+        "bool"
+    ]
+}
+
+func spelled_out_abbreviations(): List<String> {
+    return [
+        "cnt"
+        "buf"
+        "addr"
+        "mgr"
+        "evt"
+        "img"
+        "hdr"
+        "arr"
+        "vec"
+        "dict"
+        "coord"
+        "coords"
+        "opt"
+        "opts"
+        "ext"
+        "seq"
+        "sep"
+        "avg"
+        "fmt"
+        "proc"
+        "tbl"
+        "pwd"
+        "usr"
+        "repo"
+        "qty"
+        "amt"
+        "cb"
+        "sz"
+        "lst"
+        "rect"
+        "dbg"
+        "ver"
+        "lang"
+        "nav"
+        "wnd"
+        "ctrl"
+        "nums"
+        "vals"
+        "msgs"
+        "strs"
+        "ptrs"
+        "bufs"
+        "elems"
+        "objs"
+        "dirs"
+        "exprs"
+        "stmts"
+        "errs"
+        "cmds"
+        "funcs"
+        "fns"
+        "vars"
+        "btns"
+        "imgs"
+        "evts"
+        "idxs"
+    ]
+}
+
+func unabbreviated_words(): List<String> {
+    return [
+        "expression"
+        "statement"
+        "parameter"
+        "parameters"
+        "argument"
+        "arguments"
+        "index"
+        "context"
+        "configuration"
+        "configuration"
+        "temporary"
+        "temporary"
+        "string"
+        "number"
+        "length"
+        "button"
+        "message"
+        "request"
+        "response"
+        "response"
+        "error"
+        "value"
+        "object"
+        "function"
+        "pointer"
+        "source"
+        "destination"
+        "destination"
+        "directory"
+        "position"
+        "previous"
+        "current"
+        "current"
+        "maximum"
+        "minimum"
+        "initialize"
+        "calculate"
+        "attribute"
+        "attributes"
+        "element"
+        "character"
+        "information"
+        "specification"
+        "environment"
+        "database"
+        "authentication"
+        "implementation"
+        "utilities"
+        "utilities"
+        "library"
+        "package"
+        "command"
+        "description"
+        "documentation"
+        "documentation"
+        "function"
+        "variable"
+        "integer"
+        "boolean"
+    ]
+}
+
+func spelled_out_words(): List<String> {
+    return [
+        "count"
+        "buffer"
+        "address"
+        "manager"
+        "event"
+        "image"
+        "header"
+        "array"
+        "vector"
+        "dictionary"
+        "coordinate"
+        "coordinates"
+        "option"
+        "options"
+        "extension"
+        "sequence"
+        "separator"
+        "average"
+        "format"
+        "process"
+        "table"
+        "password"
+        "user"
+        "repository"
+        "quantity"
+        "amount"
+        "callback"
+        "size"
+        "list"
+        "rectangle"
+        "debug"
+        "version"
+        "language"
+        "navigation"
+        "window"
+        "control"
+        "numbers"
+        "values"
+        "messages"
+        "strings"
+        "pointers"
+        "buffers"
+        "elements"
+        "objects"
+        "directories"
+        "expressions"
+        "statements"
+        "errors"
+        "commands"
+        "functions"
+        "functions"
+        "variables"
+        "buttons"
+        "images"
+        "events"
+        "indices"
+    ]
+}

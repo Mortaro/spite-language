@@ -1,0 +1,166 @@
+# ../../../../specs/json.md#json-is-reflection-not-a-library
+var raise = Raise()
+var types = Analysis.TypeShape()
+var generator: Generation.Generator? = null
+
+func class_declarations(information: Analysis.ClassInfo) {
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        json_key_function(information, function)
+        index = index + 1
+    }
+}
+
+func json_key_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert function.name.starts_with("json_key_") and function.has_body
+    var name_length = function.name.length()
+    var attribute_name = function.name.slice(9, name_length)
+    assert information.find_field(attribute_name)
+    raise.in_declared(
+        information,
+        function,
+        "'{information.simple_name}.{function.name}' would name the JSON key of '{attribute_name}', and JsonReader and JsonWriter do not read a function for it: a key that is not an attribute's name is given to the serializer in a map keyed by the attribute, '\{{information.simple_name}.attributes['{attribute_name}']: \"...\"}'",
+    )
+}
+
+func old_name(starting_emitter: Emitter, name: String): Boolean {
+    if name != "Json" {
+        return false
+    }
+    raise.in_body(
+        starting_emitter,
+        "there is no 'Json': it is two classes, 'JsonWriter<T>()' whose 'write(value)' makes the text, and 'JsonReader<T>()' whose 'read(text)' answers a 'T?'",
+    )
+    return true
+}
+
+func is_serialiser(template: Analysis.ClassInfo): Boolean {
+    var name = template.qualified_dotted
+    return name == "JsonWriter" or name == "JsonReader" or name == "BinaryWriter" or name == "BinaryReader"
+}
+
+func serialiser_instance(
+    starting_emitter: Emitter,
+    made: Generation.Generator,
+    template: Analysis.ClassInfo,
+    instance: Analysis.ClassInfo,
+) {
+    assert is_serialiser(template) and not starting_emitter.path.starts_with("library/")
+    var written = instance.codegen_types.first()
+    assert written
+    generator = made
+    var format = "binary"
+    if template.qualified_dotted.starts_with("Json") {
+        format = "JSON"
+    }
+    var verb = "write"
+    if template.qualified_dotted.ends_with("Reader") {
+        verb = "read"
+    }
+    var visited = List<String>()
+    var problem = unwritable_json(written, "", visited, format)
+    assert not problem.is_empty()
+    var serialised_type = made.type_display_name(written)
+    var serialiser = template.qualified_dotted
+    raise.in_body(
+        starting_emitter,
+        "{serialiser} cannot {verb} '{serialised_type}': {problem}. {serialiser} handles classes, lists, dictionaries, enums, Symbols, numbers, Boolean, String and 'T?', so keep what it sees to those, or give it a class of its own that holds only them",
+    )
+}
+
+func unwritable_key(key_type: Analysis.SpiteType, path: String, format: String): String {
+    crash generator
+    var named = "its dictionary"
+    if not path.is_empty() {
+        named = "the dictionary '{path}'"
+    }
+    var shown = generator.type_display_name(key_type)
+    if types.as_class_ref(key_type) {
+        return "{named} is keyed by '{shown}' objects, each key one object's identity, which has no {format} form"
+    }
+    var textual = types.as_string(key_type) or generator.is_whole_number_type(key_type) or generator.is_enum_type(key_type)
+    if format == "JSON" and not textual {
+        return "{named} is keyed by '{shown}', and a JSON key is text: key it by a String, a whole number or an enum value"
+    }
+    return ""
+}
+
+func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List<String>, format: String): String {
+    crash generator
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.inner
+        return unwritable_json(inner, path, visited, format)
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        var element = listed.element
+        return unwritable_json(element, path, visited, format)
+    }
+    var mapped = types.as_dictionary(spite_type)
+    if mapped {
+        var mapped_key = mapped.key
+        var key_problem = unwritable_key(mapped_key, path, format)
+        if not key_problem.is_empty() {
+            return key_problem
+        }
+        var entry = mapped.element
+        return unwritable_json(entry, path, visited, format)
+    }
+    var shown = generator.type_display_name(spite_type)
+    var named = "it"
+    if not path.is_empty() {
+        named = "'{path}'"
+    }
+    if types.as_union(spite_type) {
+        return unwritable_union(spite_type, named, shown, format)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if not class_ref {
+        return ""
+    }
+    if class_ref.has_signature or class_ref.c_name == "Spite_Function" {
+        return "{named} is a function value, {shown}, which has no {format} form"
+    }
+    if visited.contains(class_ref.c_name) {
+        return ""
+    }
+    visited.append(class_ref.c_name)
+    var information = generator.find_class_by_c_name(class_ref.c_name)
+    if not information {
+        return ""
+    }
+    if information.is_value_class or information.is_generic_template {
+        return ""
+    }
+    return unwritable_attribute(information, visited, format)
+}
+
+func unwritable_union(spite_type: Analysis.SpiteType, named: String, shown: String, format: String): String {
+    crash generator
+    if generator.is_shape_type(spite_type) {
+        return "{named} is typed as the 'type' {shown}, which says what it has, not what it is, so there is no class to read it back into"
+    }
+    if format == "JSON" {
+        return "{named} is the union {shown}, and JSON does not say which member a value is"
+    }
+    return "{named} is the union {shown}, and the bytes do not say which member a value is"
+}
+
+func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>, format: String): String {
+    crash generator
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not field.name.starts_with("_") and not generator.singleton_type(field.type) {
+            var field_type = field.type
+            var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited, format)
+            if not problem.is_empty() {
+                return problem
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}

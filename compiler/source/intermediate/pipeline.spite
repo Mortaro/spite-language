@@ -8,6 +8,7 @@ var optimized = false
 var lowers_only = false
 var placed_allocators = List<String>()
 var hot_manifest = ""
+var checks = Checks.Raise()
 
 func Pipeline(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -33,6 +34,10 @@ func prepare() {
     crash generator
     var lowering = Lowering(generator)
     lowered = lowering.lower()
+    if checks.raised() {
+        error_message = checks.message
+        return
+    }
     settle_settings()
     settle_layouts()
     lowered.runtime_roots = roots_of_runtime()

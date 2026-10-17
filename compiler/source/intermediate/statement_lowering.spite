@@ -47,6 +47,8 @@ func lower_statement(statement: Syntax.Statements.Statement) {
         emitter.line = statement.line
     }
     var made = front()
+    Checks.ClassesAndFiles().statement(emitter, made, statement, lowered_class)
+    Checks.Style().statement(emitter, made, statement, lowered_class)
     if not made.breakpoint_sites.is_empty() {
         breakpoint(statement)
     }
@@ -283,6 +285,7 @@ func store_member(
     assigned: Syntax.Expressions.Expression,
 ) {
     var made = front()
+    Checks.ClassesAndFiles().private_member(emitter, target, member.name, member.walked, lowered_class)
     var setter = made.find_setter(target, member.name, lowered_class)
     if setter {
         var arguments = [assigned]
@@ -305,6 +308,8 @@ func store_member(
 }
 
 func if_statement(statement: Syntax.Statements.IfStatement) {
+    var checked_with = front()
+    Checks.Style().repeated_branch_call(emitter, checked_with, statement)
     crash statement.condition
     lowering().restore_bindings()
     var made = front()
@@ -461,6 +466,7 @@ func note_assigned(target: Syntax.Expressions.Expression?, assigned: List<String
 
 func assert_statement(statement: Syntax.Statements.AssertStatement) {
     if not statement.value {
+        folded_crash(statement, statement.condition_text)
         fail_check(statement, statement.condition_text)
         return
     }
@@ -484,6 +490,7 @@ func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expr
     var decided = made.folded_check(side, emitter.scope, lowered_class)
     assert decided != true
     if decided == false {
+        folded_crash(statement, side_text)
         fail_check(statement, side_text)
         return
     }
@@ -497,6 +504,11 @@ func assert_side(statement: Syntax.Statements.AssertStatement, side: Syntax.Expr
     emitter.enter_block(pass_block)
     lowering().apply(condition.when_true, condition.true_types)
     made.narrow_proven_indices(side, emitter.scope, lowered_class)
+}
+
+func folded_crash(statement: Syntax.Statements.AssertStatement, text: String) {
+    var made = front()
+    Checks.Metaprogramming().folded_crash(emitter, made, statement, text, lowered_class)
 }
 
 func fail_check(statement: Syntax.Statements.AssertStatement, text: String) {

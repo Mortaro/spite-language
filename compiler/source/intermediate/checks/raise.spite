@@ -1,0 +1,47 @@
+# ../README.md#the-front-end-d618-the-target-built-directly
+singleton
+
+var message = ""
+
+func raised(): Boolean {
+    return not message.is_empty()
+}
+
+func error_at(path: String, line: Integer, owner: String, function_name: String, text: String) {
+    assert message.is_empty()
+    message = "{path}:{line}: error: {text} (in {owner}.{function_name})"
+}
+
+func in_body(emitter: Emitter, text: String) {
+    error_at(emitter.path, emitter.line, emitter.owner_name, emitter.function_name, text)
+    emitter.fail_lowering(message)
+}
+
+func in_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, text: String) {
+    var path = path_of(information, function)
+    error_at(path, function.line, information.qualified_dotted, "", text)
+}
+
+func in_declared(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, text: String) {
+    var path = path_of(information, function)
+    error_at(path, function.line, information.qualified_dotted, function.name, text)
+}
+
+func path_of(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    if function.source_path.is_empty() {
+        return information.source_path
+    }
+    return function.source_path
+}
+
+func in_attribute(information: Analysis.ClassInfo, declaration: Syntax.Statements.VariableDeclaration, text: String) {
+    var path = declaration.source_path
+    if path.is_empty() {
+        path = information.source_path
+    }
+    error_at(path, declaration.line, information.qualified_dotted, "", text)
+}
+
+func in_class(information: Analysis.ClassInfo, line: Integer, text: String) {
+    error_at(information.source_path, line, information.qualified_dotted, "", text)
+}

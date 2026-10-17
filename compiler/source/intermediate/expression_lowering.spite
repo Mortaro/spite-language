@@ -156,10 +156,12 @@ func codegen_value(identifier: Syntax.Expressions.GenericIdentifierExpression): 
     var bare = made.without_dollar(identifier.name)
     var bound = made.codegen_index(lowered_class, bare)
     if bound < 0 {
+        Checks.Metaprogramming().codegen_value_without_line(emitter, lowered_class.simple_name, bare)
         return not_lowered(null, "the codegen value '${bare}' with no binding")
     }
     crash lowered_class.codegen_codes[bound]
     if lowered_class.codegen_codes[bound].is_empty() {
+        Checks.Metaprogramming().codegen_type_used_as_value(emitter, bare)
         return not_lowered(null, "the codegen type '${bare}' read as a value")
     }
     var result = made.generate_codegen_value(bare, lowered_class)
@@ -946,6 +948,7 @@ func class_member(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberE
     if reflecting and not own_getter and not target.find_field(member.name) {
         return reflection_read(member, object)
     }
+    Checks.ClassesAndFiles().private_member(emitter, target, member.name, member.walked, lowered_class)
     var getter = made.find_getter(target, member.name, lowered_class)
     if getter {
         var operands = [object]
@@ -1226,6 +1229,9 @@ func generic_construction(call: Syntax.Expressions.GenericCallExpression): Integ
     }
     crash call.callee
     var template = made.try_resolve_static_path(call.callee, namespace)
+    var callee_text = source_text(call.callee)
+    var given = call.type_arguments.count()
+    Checks.Metaprogramming().generic_construction(emitter, callee_text, template, given)
     if not template {
         return not_lowered(null, "a generic class this lowering cannot find")
     }
@@ -1233,6 +1239,8 @@ func generic_construction(call: Syntax.Expressions.GenericCallExpression): Integ
     if not instance {
         return not_lowered(null, "a generic class with codegen values this lowering cannot bind")
     }
+    Checks.Json().serialiser_instance(emitter, made, template, instance)
+    Checks.Metaprogramming().instance_constraints(emitter, made, instance)
     return construct(instance, call.arguments)
 }
 
@@ -1263,6 +1271,7 @@ func construct(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Ex
     if target.is_generic_template {
         var inferred = made.inferred_instance(target, arguments, emitter.scope, lowered_class)
         if not inferred {
+            Checks.Metaprogramming().codegen_values_not_inferred(emitter, target)
             return not_lowered(null, "a generic class whose codegen values come from its arguments")
         }
         return construct(inferred, arguments)
@@ -1278,6 +1287,7 @@ func construct(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Ex
 }
 
 func singleton(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Expression>): Integer {
+    Checks.ClassesAndFiles().singleton_arguments(emitter, target, arguments)
     var key = ""
     if not arguments.is_empty() {
         key = singleton_key(arguments)
@@ -1363,6 +1373,9 @@ func store_default(target: Analysis.ClassInfo, object: Integer, field: Analysis.
     var field_type = field.type
     var stored = -1
     if declaration {
+        var made = front()
+        Checks.ClassesAndFiles().attribute_default(emitter, made, declaration, target)
+        Checks.Style().attribute_default(emitter, made, declaration, target)
         stored = declared_default(declaration, field_type)
     } else {
         stored = default_of(field_type)
@@ -1817,6 +1830,11 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     }
     crash member.object
     var object = lower(member.object)
+    if not made.is_implicit_join(member) {
+        var receiver_type = type_of(object)
+        var receiver_class = made.class_of_type(receiver_type)
+        Checks.ClassesAndFiles().private_member(emitter, receiver_class, member.name, member.walked, lowered_class)
+    }
     return call_on_value(name, object, arguments)
 }
 
