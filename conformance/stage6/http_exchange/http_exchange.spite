@@ -22,7 +22,9 @@ func serve_three(): Integer {
         crash request
         var response = HttpResponse()
         if request.path == "/hello" {
-            response.body = "hello there"
+            var host = request.header("host")
+            crash host
+            response.body = "hello there at {host}"
         } else if request.path == "/echo" and request.method == "POST" {
             var kind = request.header("Content-Type")
             crash kind

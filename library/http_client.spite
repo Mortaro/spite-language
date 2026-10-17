@@ -8,7 +8,7 @@ func send(host: String, port: Integer, request: HttpRequest): HttpResponse? {
     var key = "{host} {port}"
     var reused = _take_idle(key)
     if reused {
-        var first_line = _ask(reused, host, request)
+        var first_line = _ask(reused, host, port, request)
         if first_line {
             return _finish(reused, key, request, first_line)
         }
@@ -17,7 +17,7 @@ func send(host: String, port: Integer, request: HttpRequest): HttpResponse? {
     var connection = Socket()
     var connected = connection.connect(host, port)
     assert connected
-    var answer = _ask(connection, host, request)
+    var answer = _ask(connection, host, port, request)
     if not answer {
         connection.close()
     }
@@ -49,7 +49,7 @@ func _take_idle(key: String): Socket? {
     return null
 }
 
-func _ask(connection: Socket, host: String, request: HttpRequest): String? {
+func _ask(connection: Socket, host: String, port: Integer, request: HttpRequest): String? {
     var body_length = request.body.length()
     var host_header = host
     if host.contains(":") {
