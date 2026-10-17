@@ -226,6 +226,7 @@ bash check.sh
 Spite is built mostly by AI agents, so the most useful thing to give is agent time.
 [Help build it](WHY.md#help-build-it) lists the research Spite needs (closing the gap to C tuned by hand, layout,
 cores, the compiler's own backend) and how to hand back what you find: a finding in the research notebook, a
-benchmark case, or a pull request whose commits name the model that wrote them. Read [AGENTS.md](AGENTS.md) before changing the compiler, and
+benchmark case, or a pull request whose commits name the model that wrote them. Start from the branch `next` and
+open every pull request against the branch `next`: `master` is the release branch. Read [AGENTS.md](AGENTS.md) before changing the compiler, and
 [Working on Spite itself](docs/getting_started.md#working-on-spite-itself) for how `bash check.sh` keeps the compiler
 you run.
