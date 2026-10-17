@@ -164,7 +164,12 @@ made the value ([below](#allocators-memoryallocator)).
 
 ### The floor: `Memory.Address`, `Memory.Heap` and `TypedMemory<T>`
 
-`Memory` is a namespace, not an object: there is no `Memory()` to make.
+**Only `Buffer` touches `Memory`.** A buffer's bytes are `Memory(size)`: memory of `size` bytes, made with nothing
+else said about it, whose placement (a register, the frame, the heap, a pool) the compiler decides. Every other class,
+the numbers and `Boolean` included, keeps its bytes in a `Buffer`, and no class names how memory is allocated: a
+program does not choose a heap, so there is no `Memory.Bytes` to make and no `Memory.Heap()` to ask for. What follows
+is the floor `Buffer` stands on.
+
 
 - **`Memory.Address`** (`library/memory/address.spite`) is a number class of eight bytes, the place in memory. It
   casts to and from `Long` like every number, so `address + 16` is the address sixteen bytes on, and a foreign

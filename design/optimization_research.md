@@ -211,6 +211,12 @@ Questions to research:
 - **Removal without holes**: swap-remove where order is never read (L5), tombstones with compaction scheduled at a
   compile-time-chosen point.
 - **SIMD** over the arrays of a structure of arrays (L7), including masked passes for `if` inside a loop.
+- **Classes split into sub-structs that always vectorise** (Mortaro, 2026-10-17): a class whose objects a loop walks is
+  broken by the compiler into sub-structs laid out so the walk is always SIMD, with no hint from the program and no
+  idea of SIMD needed to write it, so systems over many objects run much faster.
+- **Fields packed as bit flags** (Mortaro, 2026-10-17): where a class's fields can be merged (several Booleans, small
+  enums, numbers proven small), the compiler stores them as bits of one word and turns tests and updates into single
+  mask operations, while the source keeps them as separate readable fields.
 - **Prefetch hints** for loops that walk an index list into another list (gathers).
 - **Loop tiling** for nested loops over two lists, sized to the target's cache.
 - **Branch layout**: cold paths (crashes, built) and rare branches moved out of the hot code; branchless selects

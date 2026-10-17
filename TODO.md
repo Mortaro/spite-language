@@ -54,6 +54,7 @@ What keeps `next` from being released to `master` (D620): work that is in `next`
 
 ## Memory and the internal namespace
 
+- Only `Buffer` touches `Memory`: a buffer's bytes are `Memory(size)`, placed by the compiler; `Memory.Bytes` and `Memory.Heap()` go, and the numbers and `Boolean` keep their bytes in a `Buffer` (D621)
 - `.memory` read-only: assigning `.memory.allocator` is an error, and the allocator-setting rules, their diagnostics (`allocator_after_use`), the docs programs and the benchmark case `an_allocator_set_after_construction_is_where_the_object_is_made` go (D611)
 - The memory floor, `Concurrent`, `Parallel` and `ThreadPool` move into `Spite.Internal`, in the order `ThreadPool` and `Parallel`, then `Concurrent` and `Scheduler`, the memory floor last; `Atomic`, `Lock`, `ThreadLocal` and `ThreadSlot` have moved (D566, D600)
 - The library above the floor (`BinaryReader`, JSON, codecs, `Benchmark`) moves off `Memory` onto `Buffer` and plain values (D566, D590)
@@ -151,6 +152,8 @@ What keeps `next` from being released to `master` (D620): work that is in `next`
 
 ## Optimisations and proofs
 
+- Research: a class a loop walks split into sub-structs that always vectorise, with no hint from the program (D622)
+- Research: fields that can merge stored as bit flags, tests and updates as single mask operations, the source unchanged (D622)
 - The library above the memory floor (Sha256, Deflate, Argon2) is 1.2 to 1.8 times slower and counts more allocations than its raw-memory form (`--optimized`: Sha256 128 to 158 ms, Zlib 37 to 56, Argon2 193 to 283), for three reasons the compiler can remove: a library function takes its list or buffer argument counted (`List_Long___retain` per call: the held-argument copy covers only a program's own functions); a local `Buffer(n)` or reserved `List` that never leaves its function is not placed in the frame (raw `heap.allocate` blocks were uncounted, each Buffer or List is 2 allocations), which D602's small-buffer placement would cover; and `list[base + counter]` (a table base plus a loop counter, a hash-chain index) is checked on every access, since the counted-loop proof takes only the counter plus a literal window of up to 63
 - Naive programs reach hand-written speed (D506, D507, D508, D550)
 - Independent loops written as a `while`, and reductions, run at once (D506)
