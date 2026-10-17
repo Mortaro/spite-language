@@ -222,7 +222,12 @@ func holds_type_of(spite_type: Analysis.SpiteType?, target: String): Boolean {
     return holds_type(spite_type, target, seen, 0)
 }
 
-func holds_type(spite_type: Analysis.SpiteType?, target: String, seen: Dictionary<String, Boolean>, depth: Integer): Boolean {
+func holds_type(
+    spite_type: Analysis.SpiteType?,
+    target: String,
+    seen: Dictionary<String, Boolean>,
+    depth: Integer,
+): Boolean {
     if not spite_type or not is_counted(spite_type) {
         return false
     }

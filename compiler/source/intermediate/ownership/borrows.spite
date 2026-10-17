@@ -514,11 +514,13 @@ func replaces_holder(summary: Facts.Summary, container: String): Boolean {
         if not dot {
             return true
         }
-        var owner = kinds.lowered.layout_named(key.slice(0, dot))
+        var owner_name = key.slice(0, dot)
+        var owner = kinds.lowered.layout_named(owner_name)
         if not owner {
             return true
         }
-        var field = owner.field_named(key.slice(dot + 1, key.length()))
+        var field_name = key.slice(dot + 1, key.length())
+        var field = owner.field_named(field_name)
         if not field or kinds.holds_type_of(field.spite_type, container) {
             return true
         }

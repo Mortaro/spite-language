@@ -11,6 +11,7 @@ var dropped_count = 0
 var tracked_classes = Dictionary<String, Boolean>()
 var loop_objects: LoopObjects? = null
 var waiting: Facts.Effects? = null
+var contained = Dictionary<Integer, Integer>()
 
 func run(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -49,6 +50,7 @@ func place_function(function: Function) {
     var uses = Facts.Uses(function)
     var flow = Facts.Flow(function)
     var framed = Dictionary<Integer, Boolean>()
+    contained = Dictionary<Integer, Integer>()
     var placed = results.slots.keys()
     var placed_index = 0
     while placed_index < placed.count() {
@@ -75,6 +77,82 @@ func place_function(function: Function) {
     }
     assert framed.count() > 0 or dropped_count > 0
     mark_frame_releases(function, framed)
+    release_contained(function)
+}
+
+# ../../../../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame
+func release_contained(function: Function) {
+    assert contained.count() > 0
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var kept = List<Operation>()
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            var container = operation.operands.first()
+            if operation.kind == "release" and operation.form == "frame" and container {
+                var children = contained.keys()
+                var child_index = 0
+                while child_index < children.count() {
+                    var child = children[child_index]
+                    if contained[child] == container {
+                        var freed = Operation("release", operation.line)
+                        freed.takes(child)
+                        freed.spite_type = function.value_at(child).spite_type
+                        freed.form = "frame"
+                        kept.append(freed)
+                    }
+                    child_index = child_index + 1
+                }
+            }
+            kept.append(operation)
+            index = index + 1
+        }
+        block.operations = kept
+        block_index = block_index + 1
+    }
+}
+
+func container_releases_dominated(function: Function, uses: Facts.Uses, flow: Facts.Flow, child: Integer, container: Integer): Boolean {
+    var made = uses.place_of(child)
+    var reached = uses.uses_of(container)
+    var releases = 0
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.position >= 0 {
+            var block = function.block_at(place.block)
+            crash block.operations[place.position]
+            var operation = block.operations[place.position]
+            if operation.kind == "release" {
+                releases = releases + 1
+                var after = place.block == made.block and place.position > made.position
+                if not after and not (place.block != made.block and flow.dominates(made.block, place.block)) {
+                    return false
+                }
+            }
+        }
+        index = index + 1
+    }
+    return releases > 0
+}
+
+func has_own_count(function: Function, uses: Facts.Uses, child: Integer): Boolean {
+    var reached = uses.uses_of(child)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.position >= 0 {
+            var block = function.block_at(place.block)
+            crash block.operations[place.position]
+            if block.operations[place.position].kind == "release" {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 # ../../../../docs/proofs.md#objects-that-never-leave-their-function-live-in-the-frame
@@ -170,13 +248,24 @@ func place_object(
     var layout_name = operation.layout
     assert kinds.class_is_counted(layout_name)
     assert not tracked_classes.has(layout_name)
-    assert not escape.escapes(function, operation.result)
+    var held_by = -1
+    if escape.escapes(function, operation.result) {
+        held_by = escape.container_of(function, operation.result, framed)
+        assert held_by >= 0
+        assert container_can_hold(function, uses, flow, operation.result, held_by)
+    }
     crash waiting
     var made_value = function.value_at(operation.result)
     var visited = Dictionary<String, Boolean>()
     assert not waiting.drop_waits(made_value.spite_type, visited)
-    var capacity = list_capacity(function, uses, flow, operation)
+    var capacity = -1
+    if held_by < 0 {
+        capacity = list_capacity(function, uses, flow, operation)
+    }
     assert capacity != -2
+    if held_by >= 0 {
+        contained[operation.result] = held_by
+    }
     operation.form = "frame"
     if capacity >= 0 {
         operation.literal = capacity
@@ -186,6 +275,19 @@ func place_object(
         framed_objects = framed_objects + 1
     }
     framed[operation.result] = true
+}
+
+func container_can_hold(function: Function, uses: Facts.Uses, flow: Facts.Flow, child: Integer, container: Integer): Boolean {
+    crash kinds
+    var container_value = function.value_at(container)
+    var layout = kinds.layout_of(container_value.spite_type)
+    if not layout or kinds.class_may_run_drop(layout.c_name) {
+        return false
+    }
+    if has_own_count(function, uses, child) {
+        return false
+    }
+    return container_releases_dominated(function, uses, flow, child, container)
 }
 
 func drop_list_defaults(function: Function, list: Integer) {
