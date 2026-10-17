@@ -344,6 +344,11 @@ and the values it carries, beside the line that refuses it. Nothing is written w
 | a number where an instruction takes none (`idiv`, `jmp`, `call`, every floating point form) | `kind=immediate` |
 | a register pushed or popped at less than 64 bits | `bits` |
 
+[`backend/x86_encoding_refusals`](../backend/x86_encoding_refusals) is the proof: `REFUSAL=<form> spite
+backend/x86_encoding_refusals` asks the encoder for one refused form and stops with the report above, so every row in
+this table is a form that halts rather than one that was read off the code. The nine it asks for are the ones a code
+generator reaches first.
+
 What is not encoded at all, and is left to the milestone whose lowering needs it: the sign extension of `idiv`'s
 dividend (`cqo` and `cdq`), the shifts, the eight- and sixteen-bit forms of the whole-number instructions, and the
 conversions between a `Float` or a `Double` and a whole number.

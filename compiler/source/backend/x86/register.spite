@@ -12,11 +12,3 @@ func Register(starting_number: Integer, starting_bits: Integer) {
     number = starting_number
     bits = starting_bits
 }
-
-func is_the_frame_pointer(): Boolean {
-    return kind == 'general_register' and number == 5
-}
-
-func needs_a_byte_holding_base(): Boolean {
-    return kind == 'general_register' and number == 4
-}
