@@ -1,0 +1,17 @@
+var console = Console()
+
+func HeldByFramedContainer() {
+    var keeper = make_keeper()
+    var again = make_keeper()
+    var first_size = keeper.size()
+    var first_value = keeper.first_value()
+    var second_size = again.size()
+    console.print(first_size, first_value, second_size)
+}
+
+func make_keeper(): Keeper {
+    var holder = Holder(7)
+    holder.add(8)
+    var shared = holder.list()
+    return Keeper(shared)
+}

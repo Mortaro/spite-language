@@ -1,0 +1,14 @@
+var kept = List<Integer>()
+
+func Keeper(starting: List<Integer>) {
+    kept = starting
+}
+
+func size(): Integer {
+    return kept.count()
+}
+
+func first_value(): Integer {
+    crash kept.count() > 0
+    return kept[0]
+}
