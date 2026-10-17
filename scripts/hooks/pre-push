@@ -12,11 +12,21 @@ remote="$1"
 # The helper is read from beside this hook, not from the checkout being pushed: every worktree runs these hooks,
 # and a branch older than the releases has no scripts/release/.
 . "$(dirname "$0")/../release/compiler_inputs.sh" || exit 1
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *) exit 0 ;; esac
+windows=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows=1 ;; esac
 no_commit=0000000000000000000000000000000000000000
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$remote_ref" == "refs/heads/master" ] && [ "$local_sha" != "$no_commit" ] || continue
+  # TODO.md: master takes no work with something left to do (D624).
+  left=$(git show "$local_sha:TODO.md" 2>/dev/null | sed -n '/^## Missing/,$p' | grep '^- ')
+  if [ -n "$left" ]; then
+    echo "push refused: master takes no work with something left to do, and TODO.md still lists:" >&2
+    echo "$left" | sed 's/^/  /' >&2
+    echo "Fix each, or open an issue labelled before-master for it, delete its line, and push again." >&2
+    exit 1
+  fi
+  [ "$windows" == 1 ] || continue
   git fetch -q --tags "$remote" 2>/dev/null
   inputs=$(commit_inputs "$local_sha")
   last_tag=$(git tag -l 'v0.0.*' --sort=-v:refname | head -1)

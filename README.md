@@ -219,7 +219,7 @@ bash check.sh
 - [`WHY.md`](WHY.md) and [`llms.txt`](llms.txt): why to use Spite, for people and for
   language models.
 - [The GitHub issues](https://github.com/Mortaro/spite-language/issues): what is decided and not built yet, one issue each, with a prompt any agent can be
-  given. [`TODO.md`](TODO.md) holds only what keeps `next` from being merged into `master`.
+  given. [`TODO.md`](TODO.md) holds only what the branch still lacks before it moves to `master`.
 - [`examples/`](examples/): idiomatic sample programs the end-to-end test suite also runs.
 
 ## How to contribute

@@ -28,7 +28,9 @@ else disagrees with the specification, the specification wins; a docs page that 
 
 - The [GitHub issues](https://github.com/Mortaro/spite-language/issues) are the to-do list: one issue per thing decided (or wished for by Mortaro) and not built,
   with its decision numbers and a prompt any agent can be given, and one per bug that fails silently (D244).
-- [`TODO.md`](TODO.md) holds only the section "Before master": what keeps `next` from being merged into `master`.
+- [`TODO.md`](TODO.md) is what the branch it is on still lacks before it may move to `master`: write a line there for
+  every shortcoming your work leaves (a slowdown against `master`, a fix no program proves yet, a step not finished),
+  and before the branch moves to `master` every line is fixed or opened as an issue and deleted (D624).
 - [`DECISIONS.md`](DECISIONS.md) is the append-only decision log: every decision, with its date, who made it and
   why.
 - `docs/` is documentation for people learning Spite, and nothing else. It holds no notes to AI writers, no
@@ -72,7 +74,7 @@ D623). They are how Mortaro sees what is missing, and a second list would drift 
 - a bug that fails silently (D244) and is not fixed now opens an issue labelled `bug`;
 - a decision that supersedes another rewrites or closes the old one's issue;
 - an issue that changes the language's design (hiding memory or threads, say) is labelled `priority`, and one that
-  keeps `next` from `master` is labelled `before-master` and has its line in `TODO.md`.
+  keeps a branch from `master` is labelled `before-master` and has its line in that branch's `TODO.md`.
 
 A decision that is not built yet is still described on its page as the language; its issue is the one place that
 says it is not built. Issues cover only the language and what this repository builds (the compiler, the library,
@@ -123,7 +125,7 @@ git config core.hooksPath scripts/hooks
 
 **Every change starts from `next` and goes back into `next`** (Mortaro, 2026-10-17, D620). `next` holds all the work that is done: branch from it, merge your work into it, and pull it before you start, so nobody builds on outdated code. **Every pull request is against `next`**, never `master`. Never branch from `master` and never push work to it directly.
 
-`master` is the release branch. `next` is merged into `master` only when the section "Before master" of `TODO.md` on `next` is empty (what in `next` is slower than `master`, or not yet proven) and a full check passes on exactly what is merged. Work that is finished but has such a shortcoming still goes into `next`, with its line in that section, and fixing those lines comes before new work.
+`master` is the release branch. `next` is merged into `master` only when its `TODO.md` lists nothing under "Missing" (what in `next` is slower than `master`, or not yet proven) and a full check passes on exactly what is merged; the `pre-push` hook refuses a push to `master` while a line is left. Work that is finished but has such a shortcoming still goes into `next`, with its line in `TODO.md`, and clearing those lines comes before new work.
 
 ## Releases are automatic
 
@@ -227,7 +229,7 @@ plan and the notes have been lost to a whole-file overwrite once already.
   `check.sh` runs too (`scripts/docs_corpus` writes them out), so a page cannot drift from the compiler without
   failing. A program for something not built yet carries no title.
 - `specs/`: the language, normative: one page per docs page with that part's rules in full.
-- The GitHub issues: what is decided and not built yet, one issue each; `TODO.md`: only what keeps `next` from `master`.
+- The GitHub issues: what is decided and not built yet, one issue each; `TODO.md`: only what this branch still lacks before `master`.
 - `DECISIONS.md`: every decision, with its date and why.
 - `design/`: open questions, proposals and known issues (above).
 - `compiler/`: the compiler, written in Spite; `compiler/compiler.spite` is its entry class and
