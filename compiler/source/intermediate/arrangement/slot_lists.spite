@@ -163,7 +163,7 @@ func outer_use_allowed(
         return false
     }
     if operation.kind == "store" {
-        return operation.operands.first() != value and is_fresh_store(uses, operation)
+        return operation.operands.first() == value or is_fresh_store(uses, operation)
     }
     if operation.kind == "retain" or operation.kind == "release" or operation.kind == "load" {
         return true

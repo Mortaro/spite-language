@@ -134,22 +134,26 @@ func use_keeps_container_closed(
     safe: List<String>,
     depth: Integer,
 ): Boolean {
+    switch operation.kind {
+        "retain": return true
+        "release": return true
+        "store": return operation.operands.last() != container
+        "load": return not escapes_through(function, uses, operation.result, depth + 1)
+        "call value": return operation.operands.first() == container and occurrences(operation.operands, container) == 1
+        "call": return call_keeps_container_closed(function, uses, operation, container, safe, depth)
+        _: return false
+    }
+}
+
+func call_keeps_container_closed(
+    function: Function,
+    uses: Facts.Uses,
+    operation: Operation,
+    container: Integer,
+    safe: List<String>,
+    depth: Integer,
+): Boolean {
     crash consumption
-    if operation.kind == "retain" or operation.kind == "release" {
-        return true
-    }
-    if operation.kind == "store" {
-        return operation.operands.last() != container
-    }
-    if operation.kind == "load" {
-        return not escapes_through(function, uses, operation.result, depth + 1)
-    }
-    if operation.kind == "call value" {
-        return operation.operands.first() == container and occurrences(operation.operands, container) == 1
-    }
-    if operation.kind != "call" {
-        return false
-    }
     if consumption.is_projection(operation) or consumption.is_wrap(operation) {
         return operation.result >= 0 and container_closed(function, uses, operation.result, depth + 1)
     }
