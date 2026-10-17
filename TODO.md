@@ -129,7 +129,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - The per-element-type functions and `deep_copy` the compiler still writes, written once by the generic class (D147)
 - Spite's own backend, stage 1: no C runtime, the library calling the operating system directly and number formatting, memory, text and maths written in Spite (D397)
 - Own backend M1: the Linux executable writer, a static executable that exits with 42 (D558)
-- Own backend M2: the x86-64 encoder, each instruction checked against bytes taken once from an assembler (D558)
+- `check.sh` runs the backend programs (`backend/hand_built_executable`, `backend/x86_encoding`), on Windows alone (D558, D583)
 - Own backend M4: mixed builds, our COFF linker joining our objects with clang's, the whole conformance suite identical with `--backend=own` (D558)
 - Own backend M5: reference counts, fields, list items, texts and library calls lowered to machine code, one family per commit (D558)
 - Own backend M6: hot reload written into the running program's function slots by our linker, under 100 ms a function (D558)
