@@ -5,6 +5,8 @@ var consumption: Ownership.Consumption? = null
 var keeps_receiver = Dictionary<String, Boolean>()
 var keeps_parameter = Dictionary<String, Boolean>()
 var studying = Dictionary<String, Boolean>()
+var closed_parameter = Dictionary<String, Boolean>()
+var closing = Dictionary<String, Boolean>()
 
 func Escape(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -92,7 +94,132 @@ func container_of(function: Function, value: Integer, framed: Dictionary<Integer
         }
         index = index + 1
     }
+    if found >= 0 and not container_closed(function, uses, found, 0) {
+        return -1
+    }
     return found
+}
+
+# ../../../../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame
+func container_closed(function: Function, uses: Facts.Uses, container: Integer, depth: Integer): Boolean {
+    crash consumption
+    crash intrinsics
+    if depth > 8 {
+        return false
+    }
+    var safe = ["Function.bind", "Function.add_arguments", "Union.tag", "Nullable.has"]
+    var reached = uses.uses_of(container)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() {
+            return false
+        }
+        var block = function.block_at(place.block)
+        crash block.operations[place.position]
+        var operation = block.operations[place.position]
+        if not use_keeps_container_closed(function, uses, operation, container, safe, depth) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func use_keeps_container_closed(
+    function: Function,
+    uses: Facts.Uses,
+    operation: Operation,
+    container: Integer,
+    safe: List<String>,
+    depth: Integer,
+): Boolean {
+    switch operation.kind {
+        "retain": return true
+        "release": return true
+        "store": return operation.operands.last() != container
+        "load": return not escapes_through(function, uses, operation.result, depth + 1)
+        "call value": return operation.operands.first() == container and occurrences(operation.operands, container) == 1
+        "call": return call_keeps_container_closed(function, uses, operation, container, safe, depth)
+        _: return false
+    }
+}
+
+func call_keeps_container_closed(
+    function: Function,
+    uses: Facts.Uses,
+    operation: Operation,
+    container: Integer,
+    safe: List<String>,
+    depth: Integer,
+): Boolean {
+    crash consumption
+    if consumption.is_projection(operation) or consumption.is_wrap(operation) {
+        return operation.result >= 0 and container_closed(function, uses, operation.result, depth + 1)
+    }
+    if safe.contains(operation.callee) and operation.operands.first() == container {
+        return true
+    }
+    crash intrinsics
+    if intrinsics.is_dotted(operation.callee) {
+        return false
+    }
+    var index = 0
+    while index < operation.operands.count() {
+        if operation.operands[index] == container and not callee_closed(operation, index) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func occurrences(values: List<Integer>, wanted: Integer): Integer {
+    var found = 0
+    var index = 0
+    while index < values.count() {
+        if values[index] == wanted {
+            found = found + 1
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func callee_closed(operation: Operation, position: Integer): Boolean {
+    crash lowered
+    crash consumption
+    var callee = lowered.function_named(operation.callee)
+    if not callee or callee.is_intrinsic() or callee.blocks.is_empty() {
+        return false
+    }
+    var slot = position - 1
+    if callee.receiver < 0 {
+        slot = position
+    }
+    var key = "{operation.callee}#{slot}"
+    if closed_parameter.has(key) {
+        return closed_parameter[key] == true
+    }
+    if closing.has(key) {
+        return false
+    }
+    var value = callee.receiver
+    if slot >= 0 {
+        value = parameter_value(callee, slot)
+    }
+    if value < 0 {
+        return false
+    }
+    closing[key] = true
+    var previous = consumption.current
+    consumption.current = callee
+    var inside = Facts.Uses(callee)
+    var answer = container_closed(callee, inside, value, 1)
+    consumption.current = previous
+    closing.remove(key)
+    closed_parameter[key] = answer
+    return answer
 }
 
 func escapes_but_jumps(function: Function, value: Integer): Boolean {
@@ -163,7 +290,7 @@ func stored_into_borrowing_row(function: Function, uses: Facts.Uses, operation: 
     if not defining or defining.kind != "make" or not consumption.is_row_value(function, target) {
         return false
     }
-    return not escapes_through(function, uses, target, depth + 1)
+    return not escapes_through(function, uses, target, depth + 1) and container_closed(function, uses, target, depth + 1)
 }
 
 func value_kept_by_call_value(operation: Operation, value: Integer): Boolean {

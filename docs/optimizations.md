@@ -3705,7 +3705,7 @@ and a list do. Four places use it:
   and so does any other object put into a union or a nullable.
 - **Items of a row.** An object stored into a row (a system's row, whose items are borrowed and uncounted) that itself
   stays in the frame is framed too, as long as nothing else lets it go.
-- **An object a framed object holds.** An object stored into another object that lives in the frame (the empty list of
+- **An object a library object in the frame holds.** An object stored into a library object that lives in the frame (the empty list of
   arguments inside a function value) is framed too when nothing else lets it go, the container has no `drop`, and the
   container is released on every path after the held object is made; the held object is let go of just before its
   container.

@@ -1,0 +1,13 @@
+var items = List<Integer>()
+
+func Holder(first: Integer) {
+    items.append(first)
+}
+
+func add(value: Integer) {
+    items.append(value)
+}
+
+func list(): List<Integer> {
+    return items
+}

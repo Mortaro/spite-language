@@ -293,7 +293,7 @@ func container_can_hold(
     crash kinds
     var container_value = function.value_at(container)
     var layout = kinds.layout_of(container_value.spite_type)
-    if not layout or kinds.class_may_run_drop(layout.c_name) {
+    if not layout or kinds.class_may_run_drop(layout.c_name) or not kinds.is_library_layout(layout.c_name) {
         return false
     }
     if has_own_count(function, uses, child) {
