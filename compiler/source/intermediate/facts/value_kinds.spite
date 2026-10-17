@@ -171,6 +171,76 @@ func is_library_layout(c_name: String): Boolean {
     return path.starts_with("library/") or path.starts_with("launcher/")
 }
 
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func holds(from: String, target: String): Boolean {
+    var seen = Dictionary<String, Boolean>()
+    return holds_through(from, target, seen, 0)
+}
+
+func holds_through(from: String, target: String, seen: Dictionary<String, Boolean>, depth: Integer): Boolean {
+    crash lowered
+    if from == "*" or from == target or depth > 12 {
+        return true
+    }
+    if seen.has(from) {
+        return false
+    }
+    seen[from] = true
+    var layout = lowered.layout_named(from)
+    if not layout {
+        return true
+    }
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        if holds_type(field.spite_type, target, seen, depth) {
+            return true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.members.count() {
+        if holds_through(layout.members[index], target, seen, depth + 1) {
+            return true
+        }
+        index = index + 1
+    }
+    if layout.information {
+        index = 0
+        while index < layout.information.codegen_types.count() {
+            if holds_type(layout.information.codegen_types[index], target, seen, depth) {
+                return true
+            }
+            index = index + 1
+        }
+    }
+    return false
+}
+
+func holds_type_of(spite_type: Analysis.SpiteType?, target: String): Boolean {
+    var seen = Dictionary<String, Boolean>()
+    return holds_type(spite_type, target, seen, 0)
+}
+
+func holds_type(
+    spite_type: Analysis.SpiteType?,
+    target: String,
+    seen: Dictionary<String, Boolean>,
+    depth: Integer,
+): Boolean {
+    if not spite_type or not is_counted(spite_type) {
+        return false
+    }
+    if types.as_string(spite_type) or types.is_symbol(spite_type) {
+        return false
+    }
+    var layout = layout_of(spite_type)
+    if not layout {
+        return true
+    }
+    return holds_through(layout.c_name, target, seen, depth + 1)
+}
+
 func element_of_list(spite_type: Analysis.SpiteType?): Analysis.SpiteType? {
     assert spite_type
     var listed = types.as_list(spite_type)

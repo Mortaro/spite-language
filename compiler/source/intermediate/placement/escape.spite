@@ -58,6 +58,40 @@ func escapes(function: Function, value: Integer): Boolean {
     return escapes_through(function, uses, value, 0)
 }
 
+# ../../../../docs/optimizations.md#objects-that-never-leave-their-function-live-in-the-frame
+func container_of(function: Function, value: Integer, framed: Dictionary<Integer, Boolean>): Integer {
+    crash consumption
+    consumption.current = function
+    var uses = Facts.Uses(function)
+    var reached = uses.uses_of(value)
+    var found = -1
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() {
+            return -1
+        }
+        var block = function.block_at(place.block)
+        crash block.operations[place.position]
+        var operation = block.operations[place.position]
+        var stored = operation.kind == "store" and operation.operands.last() == value and operation.operands.first() != value
+        if stored {
+            var target = operation.operands.first()
+            crash target
+            var defining = uses.definition_of(target)
+            var inside = framed.has(target) and defining and defining.kind == "make"
+            if not inside or found >= 0 and found != target {
+                return -1
+            }
+            found = target
+        } else if escapes_at(function, uses, place, value, 0) {
+            return -1
+        }
+        index = index + 1
+    }
+    return found
+}
+
 func escapes_but_jumps(function: Function, value: Integer): Boolean {
     crash consumption
     consumption.current = function

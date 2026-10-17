@@ -91,7 +91,7 @@ func study(function: Function) {
     while index < function.values.count() {
         var value_type = function.value_at(index).spite_type
         var outer = is_outer(value_type)
-        if not outer.is_empty() {
+        if not outer.is_empty() and function.owner != outer {
             study_outer(function, uses, flow, index, outer)
         }
         index = index + 1

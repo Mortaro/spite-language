@@ -3705,6 +3705,10 @@ and a list do. Four places use it:
   and so does any other object put into a union or a nullable.
 - **Items of a row.** An object stored into a row (a system's row, whose items are borrowed and uncounted) that itself
   stays in the frame is framed too, as long as nothing else lets it go.
+- **An object a framed object holds.** An object stored into another object that lives in the frame (the empty list of
+  arguments inside a function value) is framed too when nothing else lets it go, the container has no `drop`, and the
+  container is released on every path after the held object is made; the held object is let go of just before its
+  container.
 - **A function value.** `apply(scorer.score, value)` builds one `Spite.Function` holding the object and its function; when the
   callee only calls it (`change(value)`) and keeps it nowhere, the function value itself lives in the frame
   instead of on the heap (its list of arguments is still made).
