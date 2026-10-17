@@ -111,6 +111,12 @@ runs once:
 git config core.hooksPath scripts/hooks
 ```
 
+## Work from `next`; `master` is the release
+
+**Every change starts from `next` and goes back into `next`** (Mortaro, 2026-10-17, D620). `next` holds all the work that is done: branch from it, merge your work into it, and pull it before you start, so nobody builds on outdated code. **Every pull request is against `next`**, never `master`. Never branch from `master` and never push work to it directly.
+
+`master` is the release branch. `next` is merged into `master` only when the section "Before master" of `TODO.md` on `next` is empty (what in `next` is slower than `master`, or not yet proven) and a full check passes on exactly what is merged. Work that is finished but has such a shortcoming still goes into `next`, with its line in that section, and fixing those lines comes before new work.
+
 ## Releases are automatic
 
 A `check.sh` run that passes keeps the compiler it built (with `-O3`), and the next run starts from it, in every
