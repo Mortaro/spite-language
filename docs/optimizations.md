@@ -2859,6 +2859,9 @@ of one class, lets them all go and then makes a million of another holds room fo
 own somewhere on the heap, and reading `groups[length]` reads a pointer from the outer list's block and then the
 inner list's object behind it. When nothing in the program ever names an inner list except through its slot, the
 compiler keeps each inner list's whole object inside the outer list's block instead: the slot is the list.
+When a fresh inner list is appended to a `slots` list and has no other use, the compiler builds it as a temporary
+frame value and copies it into the slot. The temporary costs no heap allocation. The slot still owns any item buffer
+the inner list grows, and clearing the outer list releases the items in each slot.
 
 ```gdscript title=words_by_length/words_by_length.spite entry
 var console = Console()
