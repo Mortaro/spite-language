@@ -10,5 +10,6 @@ push to `master` while a line is left (D624). What is decided and not built belo
 
 ## Missing
 
-- The codecs and hashes on `Buffer` (Sha256, Deflate, Argon2) run 23 to 50% slower than on `master` until the compiler passes a list argument it only reads without counting it, keeps a local `Buffer(n)` in the frame, and proves `list[base + counter]` in bounds; time them with `bash benchmarks/run.sh` before and after (D590, issue 230)
-- `Process.run` reads the pipe in binary mode on Windows so a byte 0x1A no longer ends the output, but no program proves it yet: running a child process that writes 0x1A through `Process` hung in a test, which needs finding too (issue 123)
+- Buffer Part 2 codec performance is unverified against master: measure codecs and hashes with compilers built from both revisions, then fix any slowdown in read-only list arguments, frame-local `Buffer(n)`, or `list[base + counter]` bounds proofs (D590, issue 230)
+- Regenerate the 102 benchmark C snapshots that the current compiler writes differently before the full check can pass
+- Fix hot-reload and final-classes source tracking so recompiled standard-library code keeps access to Spite.Internal.Lock and ThreadLocal under D601

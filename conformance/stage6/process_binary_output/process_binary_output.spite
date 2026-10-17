@@ -1,0 +1,23 @@
+var console = Console()
+var build = Build()
+
+func ProcessBinaryOutput() {
+    var child = Process("", [])
+    if build.target_operating_system == "windows" {
+        child = Process(
+            "powershell",
+            ["-NoProfile", "-NonInteractive", "-Command", "[Console]::OpenStandardOutput().Write([byte[]](65,26,66),0,3)"],
+        )
+    } else {
+        child = Process("printf", ["A\\032B"])
+    }
+    var status = child.run()
+    var output = child.output()
+    var expected = Buffer(3)
+    expected.append(65)
+    expected.append(26)
+    expected.append(66)
+    var bytes = expected.text(0, 3)
+    crash bytes
+    console.print(status == 0 and output == bytes)
+}
