@@ -79,7 +79,10 @@ func container_of(function: Function, value: Integer, framed: Dictionary<Integer
             var target = operation.operands.first()
             crash target
             var defining = uses.definition_of(target)
-            var inside = framed.has(target) and defining and defining.kind == "make"
+            var inside = false
+            if defining and defining.kind == "make" {
+                inside = framed.has(target)
+            }
             if not inside or found >= 0 and found != target {
                 return -1
             }
