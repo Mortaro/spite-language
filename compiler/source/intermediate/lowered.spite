@@ -30,6 +30,9 @@ var analysis_lines = List<String>()
 var enum_numbers = Dictionary<String, Integer>()
 var removed_enum_values = List<String>()
 var symbol_names = List<String>()
+var errors = List<String>()
+var parallel_sites = List<Checks.ParallelSite>()
+var errors_seen = Dictionary<String, Boolean>()
 
 func add_layout(layout: Layout) {
     crash not layouts_by_name.has(layout.c_name)
@@ -71,4 +74,16 @@ func proves_ranges(): Boolean {
 
 func is_inspectable(): Boolean {
     return hot_reload or read_evaluate_print_loop or remote_loop or development
+}
+
+# ../../../specs/compiler.md#how-many-errors-are-listed
+func refuse(path: String, line: Integer, owner: String, function: String, message: String) {
+    var written = "{path}:{line}: error: {message} (in {owner}.{function})"
+    assert not errors_seen.has(written)
+    errors_seen[written] = true
+    errors.append(written)
+}
+
+func has_errors(): Boolean {
+    return not errors.is_empty()
 }

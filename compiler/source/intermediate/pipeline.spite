@@ -33,6 +33,7 @@ func prepare() {
     crash generator
     var lowering = Lowering(generator)
     lowered = lowering.lower()
+    settle_errors()
     settle_settings()
     settle_layouts()
     lowered.runtime_roots = roots_of_runtime()
@@ -43,6 +44,7 @@ func prepare() {
     }
     var passes = Passes()
     passes.run(lowered)
+    settle_errors()
     if not passes.verifier.problems.is_empty() {
         var written = passes.verifier.problems.join("\n")
         error_message = "error: the high IR is not valid: {written}"
@@ -55,6 +57,7 @@ func prepare() {
 
 # ../../../design/proposals/desugared_high_ir.md#caching-the-high-ir-d569
 func note_unlowered() {
+    assert not has_error()
     var refused = List<String>()
     var index = 0
     while index < lowered.concrete_functions.count() {
@@ -119,6 +122,12 @@ func settle_waiting_kind(function: Function) {
     var owner = lowered.layout_named(function.owner)
     assert function.source and owner and owner.information
     function.waiting_kind = generator.waiting_kind(owner.information, function.source)
+}
+
+# ../../../specs/compiler.md#how-many-errors-are-listed
+func settle_errors() {
+    assert lowered.has_errors()
+    error_message = lowered.errors.join("\n")
 }
 
 func has_error(): Boolean {

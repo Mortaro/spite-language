@@ -5,6 +5,8 @@ var lowered_class = Analysis.ClassInfo("", "", "", "", 0)
 var shapes = Analysis.AstShape()
 var types = Analysis.TypeShape()
 var site_ordinal = 0
+var concurrency_checks = Checks.Concurrency()
+var memory_checks = Checks.Memory()
 
 func StatementLowering(starting_expressions: ExpressionLowering) {
     expressions = starting_expressions
@@ -88,6 +90,7 @@ func typed_declaration(
     initial: Syntax.Expressions.Expression,
 ) {
     var made = front()
+    concurrency_checks.written_handle_type(emitter, declared)
     var resolved = made.resolve_type(type_reference, lowered_class.qualified_dotted)
     if not resolved {
         emitter.fail_lowering("the type of '{declared.name}', which this lowering cannot read")
@@ -361,6 +364,7 @@ func while_statement(statement: Syntax.Statements.WhileStatement) {
     crash statement.condition
     lowering().restore_bindings()
     var made = front()
+    concurrency_checks.unstepped_poll(emitter, made, statement)
     var constant = made.constant_condition(statement.condition, emitter.scope, lowered_class)
     assert constant != false
     var count = emitter.locals.count()
@@ -404,6 +408,7 @@ func while_statement(statement: Syntax.Statements.WhileStatement) {
 }
 
 func endless_loop(statement: Syntax.Statements.WhileStatement, header: Integer, carried: List<Integer>) {
+    concurrency_checks.note_endless_loop(emitter, statement, lowered_class.simple_name)
     emitter.push_frame()
     emitter.scope.is_loop = true
     lower_statements(statement.body)
@@ -975,8 +980,26 @@ func place_with_allocator(member: Syntax.Expressions.MemberExpression, assigned:
         return
     }
     crash memory.object
+    var made = front()
     var object = lowering().lower(memory.object)
     var allocator = lowering().lower(assigned)
+    var previous: Syntax.Statements.Statement? = null
+    if made.borrow_index > 0 and made.borrow_index <= made.borrow_statements.count() {
+        previous = made.borrow_statements[made.borrow_index - 1]
+    }
+    var allocator_type = lowering().type_of(allocator)
+    var held_type = lowering().type_of(object)
+    crash memory.object
+    var allowed = memory_checks.allocator_set(
+        emitter,
+        made,
+        previous,
+        memory.object,
+        assigned,
+        allocator_type,
+        held_type,
+    )
+    assert allowed
     var operands = [object, allocator]
     emitter.emit_call("Object.place", operands, null)
 }

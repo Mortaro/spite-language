@@ -9,6 +9,7 @@ var made_reflections = 0
 var loop_written = false
 var made_accessed = 0
 var started_noted = false
+var memory_checks = Checks.Memory()
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -257,6 +258,10 @@ func write_layout(instances: Instances, information: Analysis.ClassInfo) {
     layout.information = information
     layout.is_value = information.is_value_class
     layout.is_singleton = information.is_singleton
+    if information.is_value_class and information.c_name != "SpiteString" {
+        crash generator
+        memory_checks.number_memory(lowered, generator, instances, information)
+    }
     var index = 0
     while index < information.fields.count() {
         var declared = information.fields[index]

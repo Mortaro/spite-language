@@ -1,0 +1,664 @@
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+var shapes = Analysis.AstShape()
+var types = Analysis.TypeShape()
+var printer = Syntax.SourcePrinter()
+var noted_sites = Dictionary<String, Boolean>()
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func written_handle_type(emitter: Emitter, declaration: Syntax.Statements.VariableDeclaration) {
+    assert declaration.type_reference and declaration.value
+    var written = shapes.as_named_type(declaration.type_reference)
+    assert written
+    var written_kind = written.path.last()
+    assert written.path.count() == 1 and (written_kind == "Parallel" or written_kind == "Concurrent")
+    var started = shapes.as_call(declaration.value)
+    assert started
+    crash started.callee
+    var starter = shapes.as_identifier(started.callee)
+    assert starter
+    assert starter.name == "Parallel" or starter.name == "Concurrent"
+    var construction_text = printer.source_expression(declaration.value)
+    emitter.refuse_at(
+        declaration.line,
+        "the type of a '{starter.name}' handle is never written: it is worked out from the function it runs, so write 'var {declaration.name} = {construction_text}'",
+    )
+}
+
+# ../../../../specs/concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame
+func unstepped_poll(emitter: Emitter, model: Generation.Generator, loop: Syntax.Statements.WhileStatement) {
+    crash loop.condition
+    var handles = List<String>()
+    var index = 0
+    while index < emitter.locals.count() {
+        var held = emitter.local_at(index)
+        if concurrent_handle(model, held.declared) {
+            handles.append(held.name)
+        }
+        index = index + 1
+    }
+    assert not handles.is_empty()
+    var polled = polled_handle(loop.condition, handles)
+    assert polled
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(loop.body, expressions)
+    expressions.append(loop.condition)
+    assert not any_call(expressions)
+    emitter.refuse(
+        "this loop reads '{polled}.finished' and calls nothing, so nothing steps '{polled}' between two reads and it never finishes: read its value instead ('var done: T = {polled}' waits for it), or call something that waits in the loop",
+    )
+}
+
+func concurrent_handle(model: Generation.Generator, handle_type: Analysis.SpiteType?): Boolean {
+    if not handle_type {
+        return false
+    }
+    var class_ref = types.as_class_ref(handle_type)
+    if not class_ref {
+        return false
+    }
+    var handle_class = model.find_class_by_c_name(class_ref.c_name)
+    if not handle_class {
+        return false
+    }
+    return handle_class.qualified_dotted == "Concurrent"
+}
+
+func polled_handle(condition: Syntax.Expressions.Expression, handles: List<String>): String? {
+    var unary = shapes.as_unary(condition)
+    if unary {
+        crash unary.operand
+        return polled_handle(unary.operand, handles)
+    }
+    var binary = shapes.as_binary(condition)
+    if binary {
+        crash binary.left
+        crash binary.right
+        var left = polled_handle(binary.left, handles)
+        if left {
+            return left
+        }
+        return polled_handle(binary.right, handles)
+    }
+    var member = shapes.as_member(condition)
+    assert member
+    assert member.name == "finished"
+    crash member.object
+    var named = shapes.as_identifier(member.object)
+    assert named
+    assert handles.contains(named.name)
+    return named.name
+}
+
+func any_call(expressions: List<Syntax.Expressions.Expression>): Boolean {
+    return expressions.any(expression_calls)
+}
+
+func optional_calls(expression: Syntax.Expressions.Expression?): Boolean {
+    if not expression {
+        return false
+    }
+    return expression_calls(expression)
+}
+
+func expression_calls(expression: Syntax.Expressions.Expression): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: return true
+        Syntax.Expressions.GenericCallExpression: return true
+        Syntax.Expressions.BinaryExpression: return optional_calls(expression.left) or optional_calls(expression.right)
+        Syntax.Expressions.UnaryExpression: return optional_calls(expression.operand)
+        Syntax.Expressions.MemberExpression: return optional_calls(expression.object)
+        Syntax.Expressions.IndexExpression: return optional_calls(expression.object) or optional_calls(expression.index)
+        _: return false
+    }
+}
+
+func collect_block_expressions(
+    statements: List<Syntax.Statements.Statement>,
+    expressions: List<Syntax.Expressions.Expression>,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_expressions(statements[index], expressions)
+        index = index + 1
+    }
+}
+
+func collect_statement_expressions(
+    statement: Syntax.Statements.Statement,
+    expressions: List<Syntax.Expressions.Expression>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: add_expression(statement.value, expressions)
+        Syntax.Statements.AssignmentStatement: {
+            add_expression(statement.target, expressions)
+            add_expression(statement.value, expressions)
+        }
+        Syntax.Statements.IfStatement: {
+            add_expression(statement.condition, expressions)
+            collect_block_expressions(statement.then_branch, expressions)
+            collect_block_expressions(statement.else_branch, expressions)
+        }
+        Syntax.Statements.WhileStatement: {
+            add_expression(statement.condition, expressions)
+            collect_block_expressions(statement.body, expressions)
+        }
+        Syntax.Statements.SwitchStatement: {
+            add_expression(statement.subject, expressions)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_block_expressions(statement.cases[case_index].body, expressions)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: add_expression(statement.value, expressions)
+        Syntax.Statements.ReturnStatement: add_expression(statement.value, expressions)
+        Syntax.Statements.ExpressionStatement: add_expression(statement.value, expressions)
+        _: return
+    }
+}
+
+func add_expression(expression: Syntax.Expressions.Expression?, expressions: List<Syntax.Expressions.Expression>) {
+    assert expression
+    expressions.append(expression)
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func note_endless_loop(emitter: Emitter, statement: Syntax.Statements.WhileStatement, owner_simple: String) {
+    assert emitter.function.endless_line == 0
+    assert not can_leave(statement.body)
+    emitter.function.endless_line = statement.line
+    emitter.function.endless_path = emitter.path
+    emitter.function.endless_owner = emitter.owner_name
+    emitter.function.endless_simple = owner_simple
+}
+
+func can_leave(statements: List<Syntax.Statements.Statement>): Boolean {
+    return statements.any(statement_can_leave)
+}
+
+func statement_can_leave(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.ReturnStatement: return true
+        Syntax.Statements.AssertStatement: return true
+        Syntax.Statements.IfStatement: return can_leave(statement.then_branch) or can_leave(statement.else_branch)
+        Syntax.Statements.WhileStatement: return can_leave(statement.body)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if can_leave(statement.cases[case_index].body) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func note_parallel(
+    emitter: Emitter,
+    model: Generation.Generator,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+) {
+    assert arguments.count() == 1 and not emitter.path.starts_with("library/")
+    var work = arguments.first()
+    crash work
+    var work_text = printer.source_expression(work)
+    var key = "{emitter.path}:{emitter.line}:{work_text}"
+    assert not noted_sites.has(key)
+    var owner = class_information
+    var function_name = ""
+    var named = shapes.as_identifier(work)
+    if named {
+        function_name = named.name
+    } else {
+        var member = shapes.as_member(work)
+        assert member
+        crash member.object
+        var object_type = model.lookup_static_type(member.object, emitter.scope, class_information)
+        assert object_type
+        var owner_ref = types.as_class_ref(object_type)
+        assert owner_ref
+        var found = model.find_class_by_c_name(owner_ref.c_name)
+        assert found
+        owner = found
+        function_name = member.name
+    }
+    var function = model.find_or_instantiate_function(owner, function_name)
+    assert function
+    noted_sites[key] = true
+    var site = ParallelSite(work_text, function.c_name)
+    site.path = emitter.path
+    site.line = emitter.line
+    site.owner = emitter.owner_name
+    site.function = emitter.function_name
+    emitter.lowered.parallel_sites.append(site)
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func endless_parallel_work(lowered: Lowered) {
+    var reported = Dictionary<String, Boolean>()
+    var index = 0
+    while index < lowered.parallel_sites.count() {
+        var site = lowered.parallel_sites[index]
+        var reached = reached_functions(lowered, site.work)
+        var position = 0
+        while position < reached.count() {
+            var function = lowered.function_named(reached[position])
+            position = position + 1
+            if function and function.endless_line > 0 and not function.waits and not reported.has(function.c_name) {
+                reported[function.c_name] = true
+                lowered.refuse(
+                    function.endless_path,
+                    function.endless_line,
+                    function.endless_owner,
+                    function.name,
+                    "'Parallel({site.text})' runs '{function.endless_simple}.{function.name}' on the thread pool, and this loop never ends and never waits, so the work never finishes and keeps its thread for good: return from the loop once the work is done, or run the loop on the program's own thread",
+                )
+            }
+        }
+        index = index + 1
+    }
+}
+
+func reached_functions(lowered: Lowered, start: String): List<String> {
+    var order = List<String>()
+    var seen = Dictionary<String, Boolean>()
+    var waiting = [start]
+    seen[start] = true
+    while not waiting.is_empty() {
+        var current = waiting.remove_last()
+        crash current
+        order.append(current)
+        var function = lowered.function_named(current)
+        if function {
+            var block_index = 0
+            while block_index < function.blocks.count() {
+                var block = function.blocks[block_index]
+                var position = 0
+                while position < block.operations.count() {
+                    var operation = block.operations[position]
+                    var callee = operation.callee
+                    if operation.kind == "call" and not seen.has(callee) and lowered.function_named(callee) {
+                        seen[callee] = true
+                        waiting.append(callee)
+                    }
+                    position = position + 1
+                }
+                block_index = block_index + 1
+            }
+        }
+    }
+    return order
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func endless_locked_loops(lowered: Lowered) {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        index = index + 1
+        if function.locking == "locked" and function.endless_line > 0 and not function.endless_path.starts_with("library/") {
+            var simple = function.endless_simple
+            lowered.refuse(
+                function.endless_path,
+                function.endless_line,
+                function.endless_owner,
+                function.name,
+                "'{simple}.{function.name}' holds {simple}'s lock for the whole call, since a Parallel reaches {simple}, and this loop never ends, so every other call on {simple} would wait forever: move the loop into a class that is not a singleton, and call {simple} from it",
+            )
+        }
+    }
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func locked_waits(lowered: Lowered) {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        index = index + 1
+        if function.locking == "locked" and function.source {
+            var source = function.source
+            var layout = lowered.layout_named(function.owner)
+            if layout and layout.information and not layout.information.source_path.starts_with("library/") {
+                waits_in(lowered, source.body, source.body, function, layout, source.return_type)
+            }
+        }
+    }
+}
+
+func waits_in(
+    lowered: Lowered,
+    statements: List<Syntax.Statements.Statement>,
+    whole: List<Syntax.Statements.Statement>,
+    function: Function,
+    layout: Layout,
+    return_type: Analysis.SpiteType?,
+) {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var declared = shapes.as_variable_declaration(statement)
+        if declared {
+            crash declared.value
+            var called = shapes.as_call(declared.value)
+            if called and called.arguments.count() == 1 {
+                crash called.callee
+                var starter = shapes.as_identifier(called.callee)
+                if starter and starter.name == "Parallel" and not handle_escapes(declared.name, whole, true) {
+                    locked_join(lowered, declared.line, function, layout)
+                }
+            }
+        }
+        var returned = shapes.as_return_statement(statement)
+        if returned and returned.value {
+            var called = shapes.as_call(returned.value)
+            if called and called.arguments.count() == 1 {
+                crash called.callee
+                var starter = shapes.as_identifier(called.callee)
+                if starter and starter.name == "Parallel" and not returns_task_handle(lowered, return_type) {
+                    locked_join(lowered, returned.line, function, layout)
+                }
+            }
+        }
+        var branched = shapes.as_if_statement(statement)
+        if branched {
+            waits_in(lowered, branched.then_branch, whole, function, layout, return_type)
+            waits_in(lowered, branched.else_branch, whole, function, layout, return_type)
+        }
+        var looped = shapes.as_while_statement(statement)
+        if looped {
+            waits_in(lowered, looped.body, whole, function, layout, return_type)
+        }
+        index = index + 1
+    }
+}
+
+func returns_task_handle(lowered: Lowered, return_type: Analysis.SpiteType?): Boolean {
+    if not return_type {
+        return false
+    }
+    var inner = return_type
+    var nullable = types.as_nullable(return_type)
+    if nullable {
+        inner = nullable.inner
+    }
+    var class_ref = types.as_class_ref(inner)
+    if not class_ref {
+        return false
+    }
+    var returned = lowered.layout_named(class_ref.c_name)
+    if not returned {
+        return false
+    }
+    return returned.qualified == "Parallel" or returned.qualified == "Concurrent"
+}
+
+func locked_join(lowered: Lowered, line: Integer, function: Function, layout: Layout) {
+    var found = -1
+    var index = 0
+    while index < lowered.parallel_sites.count() {
+        var candidate = lowered.parallel_sites[index]
+        if candidate.line == line and candidate.function == function.name and candidate.owner == layout.qualified {
+            found = index
+        }
+        index = index + 1
+    }
+    assert found >= 0
+    var site = lowered.parallel_sites[found]
+    crash site
+    var reached = reached_functions(lowered, site.work)
+    var position = 0
+    while position < reached.count() {
+        var callee = lowered.function_named(reached[position])
+        position = position + 1
+        if callee and callee.locking == "locked" and callee.owner == function.owner {
+            var simple = layout.qualified
+            if layout.information {
+                simple = layout.information.simple_name
+            }
+            lowered.refuse(
+                site.path,
+                line,
+                site.owner,
+                function.name,
+                "'{simple}.{function.name}' waits for 'Parallel({site.text})' while it holds {simple}'s lock, since a Parallel reaches {simple}, and what '{site.text}' runs calls '{simple}.{callee.name}', which takes that lock: each would wait for the other forever. Wait for the Parallel outside {simple}'s functions, or do not call {simple} from its work",
+            )
+            return
+        }
+    }
+}
+
+func handle_escapes(name: String, statements: List<Syntax.Statements.Statement>, returned_escapes: Boolean): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if statement_hands_on(statements[index], name, returned_escapes) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_hands_on(statement: Syntax.Statements.Statement, name: String, returned_escapes: Boolean): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return optional_hands_on(statement.value, name)
+        Syntax.Statements.AssignmentStatement: {
+            if names_identifier(statement.value, name) {
+                return true
+            }
+            return optional_hands_on(statement.value, name)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if names_identifier(statement.value, name) {
+                return returned_escapes
+            }
+            return optional_hands_on(statement.value, name)
+        }
+        Syntax.Statements.ExpressionStatement: return optional_hands_on(statement.value, name)
+        Syntax.Statements.IfStatement: {
+            if optional_hands_on(statement.condition, name) {
+                return true
+            }
+            if handle_escapes(name, statement.then_branch, returned_escapes) {
+                return true
+            }
+            return handle_escapes(name, statement.else_branch, returned_escapes)
+        }
+        Syntax.Statements.WhileStatement: {
+            if optional_hands_on(statement.condition, name) {
+                return true
+            }
+            return handle_escapes(name, statement.body, returned_escapes)
+        }
+        Syntax.Statements.SwitchStatement: return true
+        _: return false
+    }
+}
+
+func names_identifier(expression: Syntax.Expressions.Expression?, name: String): Boolean {
+    if not expression {
+        return false
+    }
+    var identifier = shapes.as_identifier(expression)
+    if not identifier {
+        return false
+    }
+    return identifier.name == name
+}
+
+func optional_hands_on(expression: Syntax.Expressions.Expression?, name: String): Boolean {
+    if not expression {
+        return false
+    }
+    return expression_hands_on(expression, name)
+}
+
+func expression_hands_on(expression: Syntax.Expressions.Expression, name: String): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            if arguments_hand_on(expression.arguments, name) {
+                return true
+            }
+            return optional_hands_on(expression.callee, name)
+        }
+        Syntax.Expressions.GenericCallExpression: return arguments_hand_on(expression.arguments, name)
+        Syntax.Expressions.BinaryExpression: {
+            if optional_hands_on(expression.left, name) {
+                return true
+            }
+            return optional_hands_on(expression.right, name)
+        }
+        Syntax.Expressions.UnaryExpression: return optional_hands_on(expression.operand, name)
+        Syntax.Expressions.MemberExpression: return optional_hands_on(expression.object, name)
+        Syntax.Expressions.IndexExpression: {
+            if optional_hands_on(expression.object, name) {
+                return true
+            }
+            return optional_hands_on(expression.index, name)
+        }
+        Syntax.Expressions.ListLiteralExpression: return true
+        Syntax.Expressions.ObjectLiteralExpression: return true
+        _: return false
+    }
+}
+
+func arguments_hand_on(arguments: List<Syntax.Expressions.Expression>, name: String): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        if names_identifier(argument, name) {
+            return true
+        }
+        if expression_hands_on(argument, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../specs/concurrency.md#a-wait-in-a-frame-does-not-hold-the-frame
+func wait_answered_early(
+    lowered: Lowered,
+    path: String,
+    line: Integer,
+    owner: String,
+    function: String,
+    asked: String,
+    before: Boolean,
+    now_waits: Boolean,
+) {
+    lowered.refuse(
+        path,
+        line,
+        owner,
+        function,
+        "whether '{asked}' can wait was answered {before} here, before every function it reaches was compiled, and it is {now_waits} once they are, so this frame would wait where it should go on: call it from a function the frame loop's own class declares",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func task_reaches_shared(
+    emitter: Emitter,
+    task: String,
+    function: String,
+    owner: String,
+    attribute: String,
+    phrase: String,
+) {
+    emitter.refuse(
+        "'{task}' runs '{function}' on another thread, so it may reach only the attributes of its own '{owner}' that hold values, its locals and singletons: '{attribute}' holds {phrase}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone that nothing else holds or touches after 'Parallel(...)'",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_reaches_shared(
+    emitter: Emitter,
+    template: String,
+    function: String,
+    owner: String,
+    attribute: String,
+    type_text: String,
+    one_thread: String,
+) {
+    emitter.refuse(
+        "'{template}' runs '{function}' on many elements at once, so it may reach only its own '{owner}' attributes that hold values, and its locals: '{attribute}' holds a '{type_text}', which another element may share. Copy what the pass needs into a number or text attribute first, or write '{one_thread}' to run it on one thread",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_over_values(emitter: Emitter, last_name: String, element_label: String, member_name: String) {
+    emitter.refuse(
+        "'{last_name}' runs a member of each element on many threads, and '{element_label}' is not a class: only a list of a class has members to run there (write 'each_{member_name}' to run it on one thread)",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_after_a_map(emitter: Emitter, last_name: String, stage_name: String) {
+    emitter.refuse(
+        "'{last_name}' can follow only 'filter_' steps: '{stage_name}' reaches another object, which several elements may share, and a parallel pass may touch only each element's own attributes",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_member_is_an_attribute(emitter: Emitter, last_name: String, member_name: String, element_label: String) {
+    emitter.refuse(
+        "'{last_name}': the member '{member_name}' of '{element_label}' is an attribute, but 'parallel_each_' needs a function: reading an attribute and discarding it does nothing",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_member_missing(emitter: Emitter, element_label: String, member_name: String, last_name: String) {
+    emitter.refuse("'{element_label}' has no zero argument function '{member_name}' for '{last_name}'")
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_filter_not_boolean(
+    emitter: Emitter,
+    template: String,
+    member_name: String,
+    element: String,
+    described: String,
+) {
+    emitter.refuse(
+        "'{template}': the member '{member_name}' of '{element}' {described}, but 'filter_' needs it to return Boolean",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func pass_filter_missing(emitter: Emitter, element: String, member_name: String, template: String) {
+    emitter.refuse("'{element}' has no attribute or zero argument function '{member_name}' for '{template}'")
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func task_writes_after_handover(
+    emitter: Emitter,
+    line: Integer,
+    name: String,
+    task: String,
+    keeping: String,
+    kept: String,
+    owner: String,
+) {
+    emitter.refuse_at(
+        line,
+        "'{name}' was handed to '{task}', which {keeping} its '{kept}' on another thread, so it is not used after that line: make another '{owner}' for what follows, or read the task's result",
+    )
+}
+
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+func task_writes_shared(emitter: Emitter, task: String, written: String, holder: String, owner: String) {
+    if holder == "this" {
+        emitter.refuse(
+            "'{task}' writes '{written}' of this '{owner}' on another thread while this thread may write it too, so one write would be lost: move the work into a class of its own and hand a new one over ('var worker = Worker(...)' then 'Parallel(worker.work)'), answer the value from the work and read the task's result, or keep it in a singleton, which is made safe for threads",
+        )
+        return
+    }
+    emitter.refuse(
+        "'{task}' writes '{written}' of '{holder}' on another thread, and '{holder}' is not handed over to it, so another thread may write it at the same time and one write would be lost: make a new '{owner}' on the line before and hand it over ('var worker = {owner}(...)' then 'Parallel(worker.work)'), answer the value from the work and read the task's result, or keep it in a singleton, which is made safe for threads",
+    )
+}

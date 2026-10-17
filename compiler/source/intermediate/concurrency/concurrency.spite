@@ -23,6 +23,12 @@ func run(lowered: Lowered) {
     var made_forms = SingletonForms(lowered, effects, reach)
     forms = made_forms
     made_forms.decide()
+    var checks = Checks.Concurrency()
+    checks.endless_parallel_work(lowered)
+    checks.endless_locked_loops(lowered)
+    checks.locked_waits(lowered)
+    var memory_checks = Checks.Memory()
+    memory_checks.weak_threads(lowered)
 }
 
 func run_at_once(lowered: Lowered, effects: Facts.Effects) {

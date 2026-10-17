@@ -24,6 +24,10 @@ var shown = ""
 var filled_by = ""
 var made_for = ""
 var reaches = List<String>()
+var endless_line = 0
+var endless_path = ""
+var endless_owner = ""
+var endless_simple = ""
 
 func Function(starting_c_name: String, starting_name: String, starting_owner: String) {
     c_name = starting_c_name

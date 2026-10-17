@@ -1,0 +1,140 @@
+# ../../../../specs/foreign_libraries.md#foreign-libraries
+var shapes = Analysis.AstShape()
+
+# ../../../../specs/foreign_libraries.md#foreign-libraries
+func library_arguments(emitter: Emitter, arguments: List<Syntax.Expressions.Expression>): Boolean {
+    var shape_of_call = "DynamicLibrary(...) takes three literals the compiler reads while it compiles: the file, the naming rule ('identity', 'windows' or 'camel_case') and the header"
+    if arguments.count() != 3 {
+        emitter.refuse(shape_of_call)
+        return false
+    }
+    var file = shapes.as_string_literal(arguments[0])
+    var naming = shapes.as_enum_literal(arguments[1])
+    var header = shapes.as_string_literal(arguments[2])
+    if not file or not naming or not header {
+        emitter.refuse(shape_of_call)
+        return false
+    }
+    var settled = true
+    var file_segments = file.value.replace("\\", "/").split("/")
+    var file_leaf = file_segments.last()
+    crash file_leaf
+    if not file_leaf.contains(".") {
+        settled = false
+        emitter.refuse(
+            "'{file.value}' has no extension: name the library file exactly as it is on disk, like \"user32.dll\" or \"libc.so.6\" (a wrapper for another platform names that platform's file)",
+        )
+    }
+    if naming.value != "identity" and naming.value != "windows" and naming.value != "camel_case" {
+        settled = false
+        emitter.refuse(
+            "'{naming.value}' is not a naming rule: a library's functions are named 'identity', 'windows' or 'camel_case'",
+        )
+    }
+    return settled
+}
+
+# ../../../../specs/foreign_libraries.md#foreign-libraries
+func call_without_library(emitter: Emitter) {
+    emitter.refuse(
+        "a foreign function is called through the attribute or variable that holds its DynamicLibrary(...), so the compiler knows which library to bind it in",
+    )
+}
+
+# ../../../../specs/foreign_libraries.md#foreign-libraries
+func constant_without_library(emitter: Emitter) {
+    emitter.refuse("a foreign constant is read through the attribute or variable that holds its DynamicLibrary(...)")
+}
+
+# ../../../../specs/foreign_libraries.md#foreign-libraries
+func constant_without_header(emitter: Emitter, name: String) {
+    emitter.refuse(
+        "'{name}' is a constant, and a constant comes from the library's header: name it as DynamicLibrary's third argument",
+    )
+}
+
+# ../../../../specs/foreign_libraries.md#what-crosses
+func cannot_cross(emitter: Emitter, phrase: String) {
+    emitter.refuse(
+        "{phrase} cannot cross into C: a foreign function takes numbers, Boolean, enum values, text and a type whose attributes are all numbers",
+    )
+}
+
+# ../../../../specs/foreign_libraries.md#structs
+func size_of_a_type_that_is_no_struct(emitter: Emitter, type_name: String) {
+    emitter.refuse(
+        "'{type_name}.size' is the size of the C struct a type is at a foreign call, and only a type whose attributes are all numbers is one",
+    )
+}
+
+func callback_shape_text(): String {
+    return "ForeignCallback(...) takes a function named directly, like 'mixer.voice_ended', and where C passes it back its context: 'no_context', 'context_first' or 'context_last'"
+}
+
+# ../../../../specs/foreign_libraries.md#callbacks
+func callback_shape(emitter: Emitter) {
+    var shape_of_call = callback_shape_text()
+    emitter.refuse(shape_of_call)
+}
+
+# ../../../../specs/foreign_libraries.md#callbacks
+func callback_arguments(
+    emitter: Emitter,
+    arguments: List<Syntax.Expressions.Expression>,
+    function_named_directly: Boolean,
+): Boolean {
+    if arguments.count() != 2 {
+        callback_shape(emitter)
+        return false
+    }
+    var where_context = shapes.as_enum_literal(arguments[1])
+    if not where_context {
+        callback_shape(emitter)
+        return false
+    }
+    var position = where_context.value
+    if position != "no_context" and position != "context_first" and position != "context_last" {
+        emitter.refuse(
+            "'{position}' is not where C passes a callback its context: write 'no_context', 'context_first' or 'context_last'",
+        )
+        return false
+    }
+    if not function_named_directly {
+        callback_shape(emitter)
+        return false
+    }
+    return true
+}
+
+# ../../../../specs/foreign_libraries.md#callbacks
+func callback_parameter_crosses(emitter: Emitter, call_text: String, parameter: String, phrase: String) {
+    emitter.refuse(
+        "'{call_text}' is called by C, which passes numbers and addresses: '{parameter}' is {phrase}, so take it as a number, a Boolean or a Memory.Address (text C passes is read with 'terminated_text()')",
+    )
+}
+
+# ../../../../specs/foreign_libraries.md#callbacks
+func callback_result_crosses(emitter: Emitter, call_text: String, phrase: String) {
+    emitter.refuse("'{call_text}' is called by C, which takes back a number, a Boolean or nothing: it returns {phrase}")
+}
+
+# ../../../../specs/foreign_libraries.md#callbacks
+func callback_without_context(emitter: Emitter, call_text: String, owner: String, function: String) {
+    emitter.refuse(
+        "'{call_text}' gives C no context to find its '{owner}' by, so '{function}' must belong to a singleton: move it into a singleton that tells them apart by what C passes, or hand C the context with 'context_first' or 'context_last'",
+    )
+}
+
+# ../../../../specs/foreign_libraries.md#callbacks
+func callback_reaches_shared(
+    emitter: Emitter,
+    call_text: String,
+    function: String,
+    owner: String,
+    attribute: String,
+    phrase: String,
+) {
+    emitter.refuse(
+        "'{call_text}' may be called by C on a thread of its own, so '{function}' may reach only the attributes of its own '{owner}' that hold values, its locals and singletons: '{attribute}' holds {phrase}, which another thread may share. Keep it in a singleton the callback calls, which is made safe for threads, or give the callback numbers and text of its own",
+    )
+}

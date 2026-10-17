@@ -9,6 +9,9 @@ var receiver = -1
 var shapes = Analysis.AstShape()
 var types = Analysis.TypeShape()
 var defaults_in_progress = List<String>()
+var foreign_checks = Checks.ForeignLibraries()
+var concurrency_checks = Checks.Concurrency()
+var memory_checks = Checks.Memory()
 
 func ExpressionLowering(
     starting_emitter: Emitter,
@@ -651,6 +654,7 @@ func read_own_field(name: String, field_type: Analysis.SpiteType): Integer {
         return string_storage(name, field_type, own_text)
     }
     if lowered_class.is_value_class {
+        memory_checks.number_memory_read(emitter, name, lowered_class.simple_name)
         return not_lowered(field_type, "the memory a value class is kept in")
     }
     var own_object = own_receiver()
@@ -1233,6 +1237,9 @@ func generic_construction(call: Syntax.Expressions.GenericCallExpression): Integ
     if not instance {
         return not_lowered(null, "a generic class with codegen values this lowering cannot bind")
     }
+    if instance.qualified_dotted == "Vector" or instance.qualified_dotted == "Items" {
+        memory_checks.vector_instance(emitter, made, instance)
+    }
     return construct(instance, call.arguments)
 }
 
@@ -1254,6 +1261,9 @@ func list_of_element(element: Analysis.SpiteType?): Integer {
 
 func construct(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Expression>): Integer {
     var made = front()
+    if target.qualified_dotted == "Parallel" {
+        concurrency_checks.note_parallel(emitter, made, arguments, lowered_class)
+    }
     if target.c_name == "DynamicLibrary" {
         return foreign_library(arguments)
     }
@@ -1371,6 +1381,7 @@ func store_default(target: Analysis.ClassInfo, object: Integer, field: Analysis.
 }
 
 func declared_default(declaration: Syntax.Statements.VariableDeclaration, field_type: Analysis.SpiteType): Integer {
+    concurrency_checks.written_handle_type(emitter, declaration)
     if declaration.hardcoded_value {
         return lower_toward(declaration.hardcoded_value, field_type)
     }
@@ -2076,12 +2087,21 @@ func scalar_call(
     arguments: List<Syntax.Expressions.Expression>,
 ): Integer {
     var made = front()
+    if kind == 'address_kind' and made.is_memory_access(name) and not made.is_library_class(lowered_class) {
+        memory_checks.memory_access(emitter, name)
+        return not_lowered(null, "'{name}()' on an address outside library/")
+    }
     var value_class = made.value_class_of(kind)
     if not value_class {
         return not_lowered(null, "'{name}()' on a number with no class")
     }
     var function = made.find_or_instantiate_function(value_class, name)
     if not function {
+        if made.is_memory_access(name) {
+            var scalar_label = known().scalar_name(kind)
+            var phrase = made.with_article(scalar_label)
+            memory_checks.memory_access_on_a_value(emitter, phrase, name)
+        }
         return not_lowered(null, "'{name}()' on a number")
     }
     var converted_type = function.return_type
@@ -3336,6 +3356,7 @@ func type_size(member: Syntax.Expressions.MemberExpression): Integer {
     }
     var struct_code = made.shape_struct_code(sized)
     if struct_code.is_empty() {
+        foreign_checks.size_of_a_type_that_is_no_struct(emitter, named.name)
         return not_lowered(null, "'{named.name}.size' of a type that is not a C struct")
     }
     var long_type = known().typed_long()
@@ -3351,12 +3372,28 @@ func allocator_read(member: Syntax.Expressions.MemberExpression): Integer {
     var holder = -1
     var own = shapes.as_identifier(member.object)
     if own and own.name == "memory" {
+        if lowered_class.is_singleton or lowered_class.is_value_class {
+            memory_checks.allocator_read_in_a_singleton(emitter, lowered_class.simple_name)
+            return not_lowered(null, "an allocator read inside a class with no object of its own")
+        }
         holder = own_receiver()
     }
     var memory = shapes.as_member(member.object)
     if memory and memory.name == "memory" {
         crash memory.object
-        holder = lower(memory.object)
+        var object_path = memory.object
+        var asked = front()
+        var described = asked.lookup_static_type(object_path, emitter.scope, lowered_class)
+        if described and not asked.owning_class_of(described) {
+            var display = asked.type_display_name(described)
+            memory_checks.allocator_read_of_a_value(emitter, display)
+            return not_lowered(null, "an allocator read of a value")
+        }
+        if not memory_checks.is_name_path(object_path) {
+            memory_checks.allocator_read_unnamed(emitter)
+            return not_lowered(null, "an allocator read of an object with no name")
+        }
+        holder = lower(object_path)
     }
     if holder < 0 {
         return -1
@@ -3374,6 +3411,9 @@ func allocator_read(member: Syntax.Expressions.MemberExpression): Integer {
 
 func foreign_library(arguments: List<Syntax.Expressions.Expression>): Integer {
     var made = front()
+    if not foreign_checks.library_arguments(emitter, arguments) {
+        return not_lowered(null, "a DynamicLibrary this lowering cannot read")
+    }
     var result = made.generate_library_constructor(arguments)
     if not result.spite_type {
         return not_lowered(null, "a DynamicLibrary this lowering cannot read")
@@ -3394,7 +3434,14 @@ func foreign_read(name: String, object: Integer): Integer {
     var object_type = type_of(object)
     var library_type = types.as_class_ref(object_type)
     if not library_type or library_type.foreign_library < 0 {
+        foreign_checks.constant_without_library(emitter)
         return not_lowered(null, "the foreign constant '{name}' read through an unknown library")
+    }
+    var header = front().foreign_library_headers[library_type.foreign_library]
+    crash header
+    if header.is_empty() {
+        foreign_checks.constant_without_header(emitter, name)
+        return not_lowered(null, "the foreign constant '{name}' of a library with no header")
     }
     var whole = known().typed_integer()
     var operands = [object]
@@ -3409,6 +3456,7 @@ func foreign_call(name: String, object: Integer, arguments: List<Syntax.Expressi
     var object_type = type_of(object)
     var library_type = types.as_class_ref(object_type)
     if not library_type or library_type.foreign_library < 0 {
+        foreign_checks.call_without_library(emitter)
         return not_lowered(null, "the foreign call '{name}' through an unknown library")
     }
     var library = library_type.foreign_library
@@ -3511,6 +3559,8 @@ func foreign_argument(
     if made.is_function_value_type(argument_type) {
         return foreign_trampoline(argument, argument_type, written)
     }
+    var phrase = made.type_with_article(argument_type)
+    foreign_checks.cannot_cross(emitter, phrase)
     return not_lowered(null, "a value of a kind that cannot cross into C")
 }
 
@@ -3569,7 +3619,7 @@ func foreign_trampoline(
         index = index + 1
     }
     var returned = made.returned_type(signature)
-    if not made.callback_types_cross(argument_text, signature.arguments, names, returned) {
+    if not callback_types_cross(argument_text, signature.arguments, names, returned) {
         return not_lowered(null, "a function handed to C whose types cannot cross")
     }
     var address_type = known().typed_long()
@@ -4283,18 +4333,37 @@ func passed_symbol_call(template: Analysis.TemplateInfo, arguments: List<Syntax.
 func foreign_callback(target: Analysis.ClassInfo, arguments: List<Syntax.Expressions.Expression>): Integer {
     var made = front()
     if arguments.count() != 2 {
+        foreign_checks.callback_shape(emitter)
         return not_lowered(null, "a ForeignCallback with the wrong arguments")
     }
     var where_context = shapes.as_enum_literal(arguments[1])
     var owner = made.callback_owner(arguments[0], emitter.scope, lowered_class)
-    if not where_context or not owner {
+    var named_directly = false
+    if owner {
+        named_directly = true
+    }
+    if not foreign_checks.callback_arguments(emitter, arguments, named_directly) {
         return not_lowered(null, "a ForeignCallback this lowering cannot read")
     }
+    crash where_context
+    crash owner
     crash arguments[0]
     var function_name = made.callback_function_name(arguments[0])
     var function = owner.find_function(function_name)
     if not function {
+        foreign_checks.callback_shape(emitter)
         return not_lowered(null, "a ForeignCallback of a function this lowering cannot find")
+    }
+    var call_text = "ForeignCallback({source_text(arguments[0])}, '{where_context.value}')"
+    var parameter_types = made.parameter_types_of(function.parameters)
+    var parameter_names = function.parameters.map_names()
+    var returned = function.return_type
+    if not callback_types_cross(call_text, parameter_types, parameter_names, returned) {
+        return not_lowered(null, "a ForeignCallback whose types cannot cross")
+    }
+    if where_context.value == "no_context" and not owner.is_singleton {
+        foreign_checks.callback_without_context(emitter, call_text, owner.simple_name, function_name)
+        return not_lowered(null, "a ForeignCallback with no context outside a singleton")
     }
     known().reach(owner, function)
     var made_type = known().class_type(target)
@@ -4304,6 +4373,32 @@ func foreign_callback(target: Analysis.ClassInfo, arguments: List<Syntax.Express
     registered.target = function.c_name
     registered.literal = where_context.value
     return handle
+}
+
+# ../../../specs/foreign_libraries.md#callbacks
+func callback_types_cross(
+    call_text: String,
+    parameter_types: List<Analysis.SpiteType>,
+    parameter_names: List<String>,
+    returned: Analysis.SpiteType,
+): Boolean {
+    var made = front()
+    var index = 0
+    while index < parameter_types.count() {
+        if made.callback_c_type(parameter_types[index]).is_empty() {
+            crash parameter_names[index]
+            var given = made.type_with_article(parameter_types[index])
+            foreign_checks.callback_parameter_crosses(emitter, call_text, parameter_names[index], given)
+            return false
+        }
+        index = index + 1
+    }
+    if not made.callback_returns_nothing(returned) and made.callback_c_type(returned).is_empty() {
+        var given = made.type_with_article(returned)
+        foreign_checks.callback_result_crosses(emitter, call_text, given)
+        return false
+    }
+    return true
 }
 
 func named_function_value(target: Analysis.ClassInfo, name: String, object: Integer): Integer {

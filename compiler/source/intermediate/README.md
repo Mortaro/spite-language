@@ -412,6 +412,52 @@ slower than the generator's C, and the compiler builds itself to a fixpoint.
 **Where an error's rule is:** its `specs/` page is normative (D511). `generation/generator.spite` is only a reference
 for how the rule was implemented; read it for the cases the spec page states, and when the two disagree the spec wins.
 
+### Checks written: compiler, REPL, concurrency, memory, foreign libraries, testing, write it plainly
+
+How a check raises: `Emitter.refuse(message)` (or `refuse_at(line, message)`) appends
+`<path>:<line>: error: <message> (in <Owner>.<function>)` to `Lowered.errors`, once per distinct line; a check in a pass
+calls `Lowered.refuse(path, line, owner, function, message)` with the position it recorded. `Pipeline.settle_errors`
+turns the list into `error_message` after lowering and again after the passes, and `Pipeline.run` prints nothing else
+when it is not empty. Every check file takes the lowering's `Emitter` first and every lookup it needs through one
+parameter named `model` (today the generator, to be the program model), so a swap touches the parameter only.
+
+| File | Covers | Called from |
+|---|---|---|
+| `checks/foreign_libraries.spite` | `foreign_library_mistakes` (three literals, no extension, not a naming rule), `foreign_call_mistakes` (cannot cross into C, constant needs the header, call through the library's holder), `foreign_callback_mistakes` (shape, context word, parameter and result types, no context outside a singleton), `type_size_mistakes` | `foreign_library`, `foreign_read`, `foreign_call`, `foreign_argument`, `foreign_callback`, `callback_types_cross`, `type_size` in `expression_lowering.spite` |
+| `checks/memory.spite` | `memory_access`, `number_memory`, `number_memory_read`, `number_memory_spelling`, `allocator_after_use` (the setting; the reading errors too), `vector_items`, `plain_items`, and the texts of every borrow, row, lent item and replaced item error | `scalar_call`, `read_own_field`, `allocator_read`, `generic_construction` in `expression_lowering.spite`, `place_with_allocator` in `statement_lowering.spite`, `write_layout` in `lowering.spite`, `weak_threads` from the concurrency pass |
+| `checks/concurrency.spite` | `written_handle_type`, `unstepped_poll`, and in the concurrency pass `endless_parallel_work`, `endless_locked_loop`, `locked_wait`, plus the texts of the `Parallel` reach, handover and write errors and of the `parallel_each_` errors | `typed_declaration`, `while_statement`, `endless_loop` in `statement_lowering.spite`, `construct`, `declared_default` in `expression_lowering.spite`, `Concurrency.run` |
+| `checks/parallel_site.spite` | the record of one `Parallel(work)` the lowering saw, kept in `Lowered.parallel_sites` for the checks that need what the work reaches | `Checks.Concurrency.note_parallel` |
+
+Facts a pass knows, checked in the pass with the same text: the work a `Parallel` reaches (a walk over the calls of the
+IR from the function it names), whether a function waits (`Function.waits`), whether a singleton function takes the lock
+(`Function.locking == "locked"`), and the classes a `Weak` holds. The lowering notes the first loop that cannot end in
+each function on `Function.endless_*` for them.
+
+Not placed, and why:
+
+- `compiler.md`, `repl.md`, `testing.md` and `write_it_plainly.md` state no error the generator raises: every error of
+  the command line is raised by `compiler.spite`, `discovery/` or `syntax/`, a reload's refusals by the printer, and the
+  two remaining pages are rules about what the compiler may do, not errors. They have no check file.
+- `atomic_misuse` is the generic "'crash ...' always halts" error of `failure.md` (the library's `crash` on
+  `$value_type` folds to false); its check belongs to that page's file.
+- The borrow tracker. The functions that write each borrow error exist (`kept_item`, `kept_row`, `kept_lent`,
+  `borrow_past_resize`, `row_call_resize`, `lent_call_resize`, `unkept_lender`, `borrowed_name_reused`, the row and
+  reassignment ones), but nothing decides when a name is borrowed, when a statement may move its vector's items, or
+  where a name is kept: that needs the call effects the lowering does not have yet (`grow:` and `shrink:` per
+  collection) and a scope of borrowed names. Until they exist the lowering raises none of these.
+- `replaced_items`: the text is `replaced_item` and `replaced_item_answered`; the lookahead over the block's later
+  statements (`replaced_assignments`, `item_read_of`) is not ported.
+- The `Parallel(function)` reach, handover and shared-write proofs (`task_reaches_shared`, `task_writes_shared`,
+  `task_writes_after_handover`) and the `ForeignCallback` reach (`callback_reaches_shared`), the `parallel_each_` errors
+  (`pass_*`), the late wait answer (`wait_answered_early`): the texts are written; what decides them (the attribute
+  walk over the work's functions, `kept_by_task_alone`, the fused chain of a `parallel_each_` call, the second look at
+  `function_waits`) needs the program model's class and function lookups and is left to it.
+- `lent_arguments`' template-plural error and the `sparse_rows` walk text (`walked_row_refused`,
+  `place_read_outside_a_walk`) belong to the metaprogramming walk; the texts are in `memory.spite`.
+- `--check` stops after lowering and runs no pass, so the errors raised in a pass (`endless_parallel_work`,
+  `endless_locked_loop`, `locked_wait`, `weak_across_threads`) are found by a build and not by `--check`; the
+  diagnostics run a build.
+
 ## Where it stands
 
 The pipeline is built whole: lowering, the eight passes and the printer all exist, and a pipeline compiler compiles

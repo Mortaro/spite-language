@@ -25,6 +25,16 @@ func fail_lowering(reason: String) {
     }
 }
 
+# ../../../specs/compiler.md#how-many-errors-are-listed
+func refuse(message: String) {
+    lowered.refuse(path, line, owner_name, function_name, message)
+}
+
+# ../../../specs/compiler.md#how-many-errors-are-listed
+func refuse_at(at: Integer, message: String) {
+    lowered.refuse(path, at, owner_name, function_name, message)
+}
+
 func lowering_failed(): Boolean {
     return not failure.is_empty()
 }

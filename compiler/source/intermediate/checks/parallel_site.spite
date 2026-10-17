@@ -1,0 +1,12 @@
+# ../../../../specs/concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting
+var text = ""
+var work = ""
+var path = ""
+var line = 0
+var owner = ""
+var function = ""
+
+func ParallelSite(starting_text: String, starting_work: String) {
+    text = starting_text
+    work = starting_work
+}
