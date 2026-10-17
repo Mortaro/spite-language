@@ -20,6 +20,7 @@ func lower(): Lowered {
     var quiet_before = made.nested_quiet
     made.nested_quiet = true
     var instances = Instances(made)
+    check_value_declarations(made, instances)
     write_main(instances)
     write_debug_memory(instances)
     write_scheduler(instances)
@@ -77,6 +78,50 @@ func lower(): Lowered {
     lowered.foreign_headers = made.foreign_library_headers
     made.nested_quiet = quiet_before
     return lowered
+}
+
+func check_value_declarations(made: Generation.Generator, instances: Instances) {
+    var checks = instances.value_checks()
+    var value_names = made.value_class_names()
+    var union_index = 0
+    while union_index < made.unions.count() {
+        var each_union = made.unions[union_index]
+        var owner = made.find_class_by_qualified(each_union.owner_qualified)
+        var path = ""
+        if owner {
+            path = owner.source_path
+        }
+        checks.union_members(
+            path,
+            each_union.owner_qualified,
+            each_union.simple_name,
+            each_union.member_types,
+            value_names,
+        )
+        union_index = union_index + 1
+    }
+    var class_index = 0
+    while class_index < made.classes.count() {
+        var described = made.classes[class_index]
+        check_value_functions(checks, instances, described)
+        class_index = class_index + 1
+    }
+}
+
+func check_value_functions(checks: Checks.ValuesAndTypes, instances: Instances, described: Analysis.ClassInfo) {
+    var index = 0
+    while index < described.declared_functions.count() {
+        var declared = described.declared_functions[index]
+        var path = instances.source_path_of(described, declared)
+        checks.declared_conversion(
+            path,
+            declared.line,
+            described.qualified_dotted,
+            described.simple_name,
+            declared.name,
+        )
+        index = index + 1
+    }
 }
 
 func write_main(instances: Instances) {

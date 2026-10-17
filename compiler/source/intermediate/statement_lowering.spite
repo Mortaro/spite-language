@@ -47,6 +47,9 @@ func lower_statement(statement: Syntax.Statements.Statement) {
         emitter.line = statement.line
     }
     var made = front()
+    var lowered_expressions = lowering()
+    var checks = lowered_expressions.value_checks()
+    checks.lone_holes(statement, lowered_expressions)
     if not made.breakpoint_sites.is_empty() {
         breakpoint(statement)
     }
@@ -93,6 +96,11 @@ func typed_declaration(
         emitter.fail_lowering("the type of '{declared.name}', which this lowering cannot read")
         return
     }
+    var filled = false
+    if shapes.is_null_literal(initial) {
+        filled = made.filled_by_walk(declared, lowered_class)
+    }
+    lowering().value_checks().null_default(declared, resolved, "variable", filled)
     var value = lowering().lower_toward(initial, resolved)
     emitter.declare_local(declared.name, value, resolved)
 }
@@ -225,6 +233,7 @@ func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax
     var made = front()
     var static_class = made.try_resolve_static_path(member.object, lowered_class.qualified_dotted)
     if static_class {
+        check_constant_assignment(static_class, member)
         emitter.fail_lowering("an assignment to a member of a class object")
         return
     }
@@ -249,6 +258,14 @@ func assign_member(member: Syntax.Expressions.MemberExpression, assigned: Syntax
         return
     }
     store_through(member, object, assigned)
+}
+
+func check_constant_assignment(static_class: Analysis.ClassInfo, member: Syntax.Expressions.MemberExpression) {
+    var made = front()
+    assert made.maths.is_constant(member.name)
+    var read = made.number_constant_read(static_class, member.name)
+    assert read
+    lowering().value_checks().constant_assigned("{static_class.qualified_dotted}.{member.name}")
 }
 
 func store_through(

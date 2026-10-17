@@ -1,0 +1,1344 @@
+# ../../../../specs/values_and_types.md#variables-and-values
+var generator: Generation.Generator? = null
+var shapes = Analysis.AstShape()
+var types = Analysis.TypeShape()
+var printer = Syntax.SourcePrinter()
+var saved_path = ""
+var saved_line = 0
+var saved_owner = ""
+var saved_function = ""
+var old_spellings = {
+    "Int": "Integer"
+    "UnsignedInt": "UnsignedInteger"
+    "Bool": "Boolean"
+    "LocalDate": "Date"
+    "LocalTime": "Time"
+    "LocalDateTime": "DateTime"
+    "to_int": "to_integer"
+    "to_unsigned_int": "to_unsigned_integer"
+    "to_bool": "to_boolean"
+    "from_int": "from_integer"
+    "from_unsigned_int": "from_unsigned_integer"
+    "from_bool": "from_boolean"
+    "read_int": "read_integer"
+    "write_int": "write_integer"
+    "read_unsigned_int": "read_unsigned_integer"
+    "write_unsigned_int": "write_unsigned_integer"
+    "read_local_date": "read_date"
+    "read_local_time": "read_time"
+    "read_local_date_time": "read_date_time"
+}
+var maths_spellings = {
+    "sqrt": "square_root"
+    "sin": "sine"
+    "cos": "cosine"
+    "tan": "tangent"
+    "asin": "arc_sine"
+    "acos": "arc_cosine"
+    "atan": "arc_tangent"
+    "atan2": "arc_tangent_over"
+    "pow": "power"
+    "exp": "exponential"
+    "log": "logarithm"
+    "log2": "logarithm_base_2"
+    "log10": "logarithm_base_10"
+    "ln": "logarithm"
+    "ceil": "ceiling"
+    "trunc": "truncate"
+    "abs": "absolute"
+    "fabs": "absolute"
+    "min": "minimum"
+    "max": "maximum"
+    "is_nan": "is_not_a_number"
+    "isnan": "is_not_a_number"
+    "is_infinity": "is_infinite"
+    "isinf": "is_infinite"
+    "isfinite": "is_finite"
+}
+
+func ValuesAndTypes(starting_generator: Generation.Generator) {
+    generator = starting_generator
+}
+
+# ../../../../specs/values_and_types.md#variables-and-values
+func refuse(message: String) {
+    crash generator
+    var quiet = generator.nested_quiet
+    generator.nested_quiet = false
+    generator.report(message)
+    generator.nested_quiet = quiet
+}
+
+# ../../../../specs/values_and_types.md#variables-and-values
+func enter_declaration(path: String, line: Integer, owner: String) {
+    crash generator
+    saved_path = generator.current_path
+    saved_line = generator.current_line
+    saved_owner = generator.current_owner
+    saved_function = generator.current_function
+    generator.current_path = path
+    generator.current_line = line
+    generator.current_owner = owner
+    generator.current_function = ""
+}
+
+# ../../../../specs/values_and_types.md#variables-and-values
+func leave_declaration() {
+    crash generator
+    generator.current_path = saved_path
+    generator.current_line = saved_line
+    generator.current_owner = saved_owner
+    generator.current_function = saved_function
+}
+
+# ../../../../specs/values_and_types.md#casting
+func with_article(name: String): String {
+    var first_letter = name.slice(0, 1)
+    if "AEIOU".contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func kind_name(kind: Analysis.Types.NumericKind): String {
+    switch kind {
+        'tiny_kind': return "Tiny"
+        'byte_kind': return "Byte"
+        'short_kind': return "Short"
+        'unsigned_short_kind': return "UnsignedShort"
+        'integer_kind': return "Integer"
+        'unsigned_integer_kind': return "UnsignedInteger"
+        'long_kind': return "Long"
+        'unsigned_long_kind': return "UnsignedLong"
+        'float_kind': return "Float"
+        'double_kind': return "Double"
+        'boolean_kind': return "Boolean"
+        _: return "Memory.Address"
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func kind_bits(kind: Analysis.Types.NumericKind): Integer {
+    if kind == 'tiny_kind' or kind == 'byte_kind' {
+        return 8
+    }
+    if kind == 'short_kind' or kind == 'unsigned_short_kind' {
+        return 16
+    }
+    if kind == 'long_kind' or kind == 'unsigned_long_kind' or kind == 'double_kind' or kind == 'address_kind' {
+        return 64
+    }
+    return 32
+}
+
+# ../../../../specs/values_and_types.md#casting
+func is_decimal(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'float_kind' or kind == 'double_kind'
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func kind_lowest(kind: Analysis.Types.NumericKind): Long {
+    switch kind {
+        'tiny_kind': return -128
+        'short_kind': return -32768
+        'integer_kind': return -2147483648
+        'long_kind': return Long.smallest
+        _: return 0
+    }
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func kind_highest(kind: Analysis.Types.NumericKind): Long {
+    switch kind {
+        'tiny_kind': return 127
+        'byte_kind': return 255
+        'short_kind': return 32767
+        'unsigned_short_kind': return 65535
+        'integer_kind': return 2147483647
+        'unsigned_integer_kind': return 4294967295
+        _: return Long.largest
+    }
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func kind_range_top(kind: Analysis.Types.NumericKind): String {
+    if kind == 'unsigned_long_kind' {
+        return "18446744073709551615"
+    }
+    var highest = kind_highest(kind)
+    return highest.to_string()
+}
+
+# ../../../../specs/values_and_types.md#casting
+func is_wider(left: Analysis.Types.NumericKind, right: Analysis.Types.NumericKind): Boolean {
+    if left == 'boolean_kind' or right == 'boolean_kind' {
+        return false
+    }
+    if is_decimal(right) and not is_decimal(left) {
+        return true
+    }
+    return kind_bits(right) > kind_bits(left)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func integer_value(expression: Syntax.Expressions.Expression): Long? {
+    var literal = shapes.as_integer_literal(expression)
+    if literal {
+        return literal.value
+    }
+    var negated = shapes.as_unary(expression)
+    assert negated
+    assert negated.operator == 'negate'
+    crash negated.operand
+    var negated_literal = shapes.as_integer_literal(negated.operand)
+    assert negated_literal
+    return -negated_literal.value
+}
+
+# ../../../../specs/values_and_types.md#casting
+func literal_fits(expression: Syntax.Expressions.Expression, kind: Analysis.Types.NumericKind): Boolean {
+    var value = integer_value(expression)
+    if not value {
+        return false
+    }
+    if is_decimal(kind) {
+        return true
+    }
+    return value >= kind_lowest(kind) and value <= kind_highest(kind)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func constant_value(expression: Syntax.Expressions.Expression): Long? {
+    var value = integer_value(expression)
+    if value {
+        assert value >= -2147483648 and value <= 2147483647
+        return value
+    }
+    var binary = shapes.as_binary(expression)
+    assert binary
+    crash binary.left
+    crash binary.right
+    var left_value = constant_value(binary.left)
+    var right_value = constant_value(binary.right)
+    assert left_value and right_value
+    var result = constant_operation(binary.operator, left_value, right_value)
+    assert result
+    assert result >= -2147483648 and result <= 2147483647
+    return result
+}
+
+# ../../../../specs/values_and_types.md#casting
+func constant_operation(operator: Syntax.Expressions.BinaryOperator, left_value: Long, right_value: Long): Long? {
+    switch operator {
+        'add': return left_value + right_value
+        'subtract': return left_value - right_value
+        'multiply': return left_value * right_value
+        'divide': return constant_quotient(left_value, right_value)
+        'modulo': return constant_remainder(left_value, right_value)
+        _: return null
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func constant_quotient(left_value: Long, right_value: Long): Long? {
+    assert right_value != 0
+    return left_value / right_value
+}
+
+# ../../../../specs/values_and_types.md#casting
+func constant_remainder(left_value: Long, right_value: Long): Long? {
+    assert right_value != 0
+    return left_value % right_value
+}
+
+# ../../../../specs/values_and_types.md#casting
+func is_comparison(operator: Syntax.Expressions.BinaryOperator): Boolean {
+    return operator == 'equal' or operator == 'not_equal' or operator == 'less' or operator == 'less_equal' or operator == 'greater' or operator == 'greater_equal'
+}
+
+# ../../../../specs/values_and_types.md#casting
+func operation_name(operator: Syntax.Expressions.BinaryOperator): String {
+    switch operator {
+        'add': return "an addition"
+        'subtract': return "a subtraction"
+        'multiply': return "a multiplication"
+        'divide': return "a division"
+        _: return "a remainder"
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func mirrored_symbol(operator: Syntax.Expressions.BinaryOperator): String {
+    switch operator {
+        'less': return ">"
+        'less_equal': return ">="
+        'greater': return "<"
+        'greater_equal': return "<="
+        'not_equal': return "!="
+        _: return "=="
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func wider_right_operand(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+) {
+    var left_scalar = types.as_scalar(left_type)
+    var right_scalar = types.as_scalar(right_type)
+    assert left_scalar and right_scalar
+    assert is_wider(left_scalar.kind, right_scalar.kind)
+    crash binary.left
+    crash binary.right
+    var left_side = binary.left
+    var right_side = binary.right
+    assert not literal_fits(right_side, left_scalar.kind)
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    var left_text = printer.source_expression(left_side)
+    var right_text = printer.source_expression(right_side)
+    var left_name = kind_name(left_scalar.kind)
+    var right_name = kind_name(right_scalar.kind)
+    var left_article = with_article(left_name)
+    var right_article = with_article(right_name)
+    if is_comparison(binary.operator) {
+        var mirrored = mirrored_symbol(binary.operator)
+        refuse(
+            "'{written}' compares in {left_name}, since a comparison takes the left side's type, and the right side is {right_article}, which would be cut to fit: write the {right_name} first ('{right_text} {mirrored} {left_text}'), or store the right side in {left_article} first if it fits one",
+        )
+        return
+    }
+    var fix = "store the left side in {right_article} first ('var wide: {right_name} = {left_text}')"
+    if binary.operator == 'add' or binary.operator == 'multiply' {
+        var swapped = Syntax.Expressions.BinaryExpression(binary.operator, right_side, left_side)
+        var swapped_expression: Syntax.Expressions.Expression = swapped
+        var swapped_text = printer.source_expression(swapped_expression)
+        fix = "write the {right_name} first ('{swapped_text}')"
+    }
+    var operation = operation_name(binary.operator)
+    refuse(
+        "'{written}' is {operation} in {left_name}, since arithmetic takes the left side's type, and the right side is {right_article}, which would be cut to fit: {fix}, or store the right side in {left_article} first if it fits one",
+    )
+}
+
+# ../../../../specs/values_and_types.md#casting
+func constant_overflow(binary: Syntax.Expressions.BinaryExpression, left_type: Analysis.SpiteType) {
+    var left_scalar = types.as_scalar(left_type)
+    assert left_scalar
+    assert left_scalar.kind == 'integer_kind'
+    assert binary.operator == 'add' or binary.operator == 'subtract' or binary.operator == 'multiply'
+    crash binary.left
+    crash binary.right
+    var left_side = binary.left
+    var right_side = binary.right
+    var left_value = constant_value(left_side)
+    var right_value = constant_value(right_side)
+    assert left_value and right_value
+    var result = constant_operation(binary.operator, left_value, right_value)
+    assert result
+    assert result < -2147483648 or result > 2147483647
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    refuse(
+        "'{written}' is {result}, which does not fit in an Integer, the type its arithmetic is done in, so it would wrap: write the number itself, {result}, which is a Long",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func division_by_zero(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    folded_divisor: String,
+) {
+    var left_scalar = types.as_scalar(left_type)
+    assert left_scalar
+    assert left_scalar.kind != 'boolean_kind' and not is_decimal(left_scalar.kind)
+    assert binary.operator == 'divide' or binary.operator == 'modulo'
+    crash binary.right
+    var written_value = constant_value(binary.right)
+    var written_zero = false
+    if written_value {
+        written_zero = written_value == 0
+    }
+    assert written_zero or folded_divisor == "0"
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    refuse(
+        "'{written}' divides by zero, which always halts the program: a whole number cannot be divided by zero, so divide by something else, or leave the step out",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func number_does_not_fit(value: Long, kind: Analysis.Types.NumericKind) {
+    assert not is_decimal(kind)
+    assert kind != 'boolean_kind' and kind != 'address_kind'
+    assert value < kind_lowest(kind) or value > kind_highest(kind)
+    var name = kind_name(kind)
+    var lowest = kind_lowest(kind)
+    var top = kind_range_top(kind)
+    refuse(
+        "{value} does not fit in {with_article(name)}, whose numbers run from {lowest} to {top}: store it in a wider type, or use a number that fits",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func text_into_number(target_name: String) {
+    var conversion_name = snake_words(target_name)
+    refuse(
+        "text is not {with_article(target_name)} until it is read as one, and text that is not a number has none to give: read it with 'to_{conversion_name}()', which answers '{target_name}?', null when the text is not a number that fits, and narrow it, or declare the value '{target_name}?'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#casting
+func text_into_enum(enum_name: String) {
+    var segments = enum_name.split(".")
+    var last_segment = segments.last()
+    crash last_segment
+    var reading_name = "to_{snake_words(last_segment)}"
+    refuse(
+        "text is not {with_article(enum_name)} until it is read as one, and text that names none of its values has none to give: read it with '{reading_name}()', which answers '{enum_name}?', null when the text names none of its values, and narrow it, or declare the value '{enum_name}?'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func text_into_symbol() {
+    refuse(
+        "text is not a Symbol: a Symbol is written 'name', and text becomes one with Symbol(text), which answers Symbol? (null unless the program already uses that symbol)",
+    )
+}
+
+# ../../../../specs/values_and_types.md#casting
+func no_text_conversion(found_name: String) {
+    refuse(
+        "{with_article(found_name)} becomes text through the to_string() function of its class in library/, and that class declares none",
+    )
+}
+
+# ../../../../specs/values_and_types.md#casting
+func cannot_be_used(found_name: String, wanted_name: String) {
+    refuse("{with_article(found_name)} cannot be used where {with_article(wanted_name)} is needed")
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func symbol_for_text(value: String) {
+    refuse(
+        "'{value}' in single quotes is a symbol, and text is wanted here: text is always written in double quotes, so write \"{value}\"",
+    )
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func symbol_for_function_name(value: String) {
+    refuse(
+        "'{value}' in single quotes is a symbol, and 'has_function' takes the name as text: text is always written in double quotes, so write \"{value}\"",
+    )
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_hole_value(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var text_join = shapes.as_binary(expression)
+    assert text_join
+    assert text_join.is_text_join
+    crash text_join.left
+    var leading = shapes.as_string_literal(text_join.left)
+    assert leading
+    assert leading.value.is_empty()
+    return text_join.right
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_hole(text_expression: Syntax.Expressions.Expression, rewrite: String) {
+    var written = printer.source_expression(text_expression)
+    refuse("'{written}' is a text of one value and nothing else: {rewrite}")
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_holes(statement: Syntax.Statements.Statement, expressions: ExpressionLowering) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: lone_hole_declared(statement, expressions)
+        Syntax.Statements.AssignmentStatement: lone_hole_assigned(statement, expressions)
+        Syntax.Statements.ReturnStatement: lone_hole_returned(statement, expressions)
+        Syntax.Statements.ExpressionStatement: holes_in_value(statement.value, expressions)
+        Syntax.Statements.AssertStatement: holes_in_value(statement.value, expressions)
+        Syntax.Statements.IfStatement: holes_in_value(statement.condition, expressions)
+        Syntax.Statements.WhileStatement: holes_in_value(statement.condition, expressions)
+        Syntax.Statements.SwitchStatement: holes_in_value(statement.subject, expressions)
+        _: return
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_value(value: Syntax.Expressions.Expression?, expressions: ExpressionLowering) {
+    crash value
+    holes_in(value, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_hole_returned(statement: Syntax.Statements.ReturnStatement, expressions: ExpressionLowering) {
+    assert statement.value
+    var returned = statement.value
+    var hole = lone_hole_value(returned)
+    if hole {
+        var value_text = printer.source_expression(hole)
+        lone_hole(returned, "return the value directly, 'return {value_text}'")
+        return
+    }
+    holes_in(returned, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_hole_declared(declaration: Syntax.Statements.VariableDeclaration, expressions: ExpressionLowering) {
+    crash declaration.value
+    var declared_value = declaration.value
+    var hole = lone_hole_value(declared_value)
+    if hole {
+        var value_text = printer.source_expression(hole)
+        var declared_type = declared_type_text(declaration, hole, expressions)
+        lone_hole(declared_value, "declare the value directly, 'var {declaration.name}{declared_type} = {value_text}'")
+        return
+    }
+    holes_in(declared_value, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func declared_type_text(
+    declaration: Syntax.Statements.VariableDeclaration,
+    hole: Syntax.Expressions.Expression,
+    expressions: ExpressionLowering,
+): String {
+    if declaration.type_reference {
+        var written_type = printer.source_type(declaration.type_reference)
+        return ": {written_type}"
+    }
+    if expressions.is_text_value(hole) {
+        return ""
+    }
+    return ": String"
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_hole_assigned(assignment: Syntax.Statements.AssignmentStatement, expressions: ExpressionLowering) {
+    crash assignment.target
+    crash assignment.value
+    var target = assignment.target
+    var assigned_value = assignment.value
+    holes_in(target, expressions)
+    var hole = lone_hole_value(assigned_value)
+    if hole {
+        var target_text = printer.source_expression(target)
+        var value_text = printer.source_expression(hole)
+        lone_hole(assigned_value, "assign the value directly, '{target_text} = {value_text}'")
+        return
+    }
+    holes_in(assigned_value, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in(expression: Syntax.Expressions.Expression, expressions: ExpressionLowering) {
+    var hole = lone_hole_value(expression)
+    if hole {
+        lone_hole_elsewhere(expression, hole, expressions)
+        return
+    }
+    switch expression {
+        Syntax.Expressions.CallExpression: holes_in_call(expression, expressions)
+        Syntax.Expressions.GenericCallExpression: holes_in_generic_call(expression, expressions)
+        Syntax.Expressions.BinaryExpression: holes_in_binary(expression, expressions)
+        Syntax.Expressions.UnaryExpression: holes_in_unary(expression, expressions)
+        Syntax.Expressions.MemberExpression: holes_in_member(expression, expressions)
+        Syntax.Expressions.IndexExpression: holes_in_index(expression, expressions)
+        Syntax.Expressions.ListLiteralExpression: holes_in_list(expression, expressions)
+        Syntax.Expressions.ObjectLiteralExpression: holes_in_object(expression, expressions)
+        _: return
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_call(call: Syntax.Expressions.CallExpression, expressions: ExpressionLowering) {
+    crash call.callee
+    holes_in(call.callee, expressions)
+    var whole: Syntax.Expressions.Expression = call
+    holes_passed(whole, call.arguments, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_generic_call(call: Syntax.Expressions.GenericCallExpression, expressions: ExpressionLowering) {
+    crash call.callee
+    holes_in(call.callee, expressions)
+    var whole: Syntax.Expressions.Expression = call
+    holes_passed(whole, call.arguments, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_unary(unary: Syntax.Expressions.UnaryExpression, expressions: ExpressionLowering) {
+    crash unary.operand
+    holes_in(unary.operand, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_member(member: Syntax.Expressions.MemberExpression, expressions: ExpressionLowering) {
+    crash member.object
+    holes_in(member.object, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_index(indexed: Syntax.Expressions.IndexExpression, expressions: ExpressionLowering) {
+    crash indexed.object
+    crash indexed.index
+    var object_side = indexed.object
+    var index_side = indexed.index
+    holes_in(object_side, expressions)
+    var hole = lone_hole_value(index_side)
+    if not hole {
+        holes_in(index_side, expressions)
+        return
+    }
+    if expressions.is_dictionary_value(object_side) {
+        var looked_up: Syntax.Expressions.Expression = Syntax.Expressions.IndexExpression(object_side, hole)
+        var looked_up_text = printer.source_expression(looked_up)
+        lone_hole(index_side, "look it up by the value directly, '{looked_up_text}'")
+        return
+    }
+    lone_hole_elsewhere(index_side, hole, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_list(literal: Syntax.Expressions.ListLiteralExpression, expressions: ExpressionLowering) {
+    var index = 0
+    while index < literal.elements.count() {
+        var element_value = literal.elements[index].value
+        crash element_value
+        holes_in(element_value, expressions)
+        index = index + 1
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_object(literal: Syntax.Expressions.ObjectLiteralExpression, expressions: ExpressionLowering) {
+    var index = 0
+    while index < literal.fields.count() {
+        var field_value = literal.fields[index].value
+        crash field_value
+        holes_in(field_value, expressions)
+        index = index + 1
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_binary(binary: Syntax.Expressions.BinaryExpression, expressions: ExpressionLowering) {
+    crash binary.left
+    crash binary.right
+    var left_side = binary.left
+    var right_side = binary.right
+    if binary.is_text_join {
+        holes_in_text(binary, expressions)
+        return
+    }
+    holes_in(left_side, expressions)
+    var hole = lone_hole_value(right_side)
+    if hole {
+        joined_hole(binary, hole, expressions)
+        return
+    }
+    holes_in(right_side, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_in_text(text_join: Syntax.Expressions.BinaryExpression, expressions: ExpressionLowering) {
+    crash text_join.left
+    crash text_join.right
+    var left_side = text_join.left
+    var right_side = text_join.right
+    var earlier = shapes.as_binary(left_side)
+    if earlier {
+        holes_in_text(earlier, expressions)
+    }
+    if not shapes.as_string_literal(right_side) {
+        holes_in(right_side, expressions)
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func joined_hole(
+    binary: Syntax.Expressions.BinaryExpression,
+    hole: Syntax.Expressions.Expression,
+    expressions: ExpressionLowering,
+) {
+    crash binary.left
+    crash binary.right
+    var left_side = binary.left
+    var right_side = binary.right
+    if binary.operator == 'add' and expressions.is_text_value(left_side) {
+        var joined: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('add', left_side, hole)
+        var joined_text = printer.source_expression(joined)
+        lone_hole(right_side, "join the value directly, '{joined_text}'")
+        return
+    }
+    lone_hole_elsewhere(right_side, hole, expressions)
+}
+
+# ../../../../specs/values_and_types.md#casting
+func lone_hole_elsewhere(
+    text_expression: Syntax.Expressions.Expression,
+    hole: Syntax.Expressions.Expression,
+    expressions: ExpressionLowering,
+) {
+    if expressions.is_text_value(hole) {
+        var value_text = printer.source_expression(hole)
+        lone_hole(text_expression, "write the value directly, '{value_text}'")
+        return
+    }
+    var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(hole, "to_string")
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var converted: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, no_arguments)
+    var converted_text = printer.source_expression(converted)
+    lone_hole(text_expression, "write its text as '{converted_text}'")
+}
+
+# ../../../../specs/values_and_types.md#casting
+func holes_passed(
+    call: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    expressions: ExpressionLowering,
+) {
+    var position = 0
+    while position < arguments.count() {
+        hole_passed(call, arguments, position, expressions)
+        position = position + 1
+    }
+}
+
+# ../../../../specs/values_and_types.md#casting
+func hole_passed(
+    call: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    position: Integer,
+    expressions: ExpressionLowering,
+) {
+    var argument = arguments[position]
+    crash argument
+    var hole = lone_hole_value(argument)
+    if not hole {
+        holes_in(argument, expressions)
+        return
+    }
+    var passed = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < arguments.count() {
+        var each_argument = arguments[index]
+        if index == position {
+            passed.append(hole)
+        } else {
+            passed.append(each_argument)
+        }
+        index = index + 1
+    }
+    var rewritten = call_passing(call, passed)
+    var rewritten_text = printer.source_expression(rewritten)
+    lone_hole(argument, "pass the value directly, '{rewritten_text}'")
+}
+
+# ../../../../specs/values_and_types.md#casting
+func call_passing(
+    call: Syntax.Expressions.Expression,
+    passed: List<Syntax.Expressions.Expression>,
+): Syntax.Expressions.Expression {
+    var generic_call = shapes.as_generic_call(call)
+    if generic_call {
+        crash generic_call.callee
+        var rewritten_generic = Syntax.Expressions.GenericCallExpression(
+            generic_call.callee,
+            generic_call.type_arguments,
+            passed,
+        )
+        rewritten_generic.names_class = generic_call.names_class
+        return rewritten_generic
+    }
+    var plain_call = shapes.as_call(call)
+    crash plain_call
+    crash plain_call.callee
+    return Syntax.Expressions.CallExpression(plain_call.callee, passed)
+}
+
+# ../../../../specs/values_and_types.md#variables-and-values
+func default_spelling(written: String, declared: Analysis.SpiteType): String {
+    var scalar = types.as_scalar(declared)
+    if scalar {
+        if scalar.kind == 'boolean_kind' {
+            return "false"
+        }
+        if is_decimal(scalar.kind) {
+            return "0.0"
+        }
+        return "0"
+    }
+    if types.as_string(declared) {
+        return "\"\""
+    }
+    var named = types.as_class_ref(declared)
+    if named or types.as_list(declared) or types.as_dictionary(declared) {
+        if named {
+            if named.has_signature {
+                return ""
+            }
+        }
+        return "{written}()"
+    }
+    return ""
+}
+
+# ../../../../specs/values_and_types.md#variables-and-values
+func null_default(
+    declaration: Syntax.Statements.VariableDeclaration,
+    declared: Analysis.SpiteType,
+    kind: String,
+    filled_later: Boolean,
+) {
+    assert not filled_later
+    crash declaration.value
+    assert declaration.type_reference
+    var type_reference = declaration.type_reference
+    assert shapes.is_null_literal(declaration.value) and not types.as_nullable(declared)
+    assert not types.is_void(declared)
+    var written = printer.source_type(type_reference)
+    var made = default_spelling(written, declared)
+    var default_text = ""
+    if not made.is_empty() {
+        default_text = ", or 'var {declaration.name} = {made}' for a default"
+    }
+    if kind == "attribute" {
+        default_text = "{default_text}, or keep '= null' and assign it at the top of the constructor"
+    }
+    refuse(
+        "the {kind} '{declaration.name}' is declared '{written}', not '{written}?', so '= null' would make a default {written} rather than nothing: write 'var {declaration.name}: {written}? = null' for none yet, narrowed before use{default_text}",
+    )
+}
+
+# ../../../../specs/values_and_types.md#variables-and-values
+func shape_null_default(name: String, type_name: String, required_function: String) {
+    refuse(
+        "'{name}' is {with_article(type_name)}, a type that requires the function '{required_function}', so '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with a '?', and narrow it before use, or give it a real object in the constructor",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func new_spelling(name: String): String {
+    var spelled = old_spellings[name]
+    if spelled {
+        return spelled
+    }
+    return ""
+}
+
+# ../../../../specs/values_and_types.md#numeric-types
+func old_spelling(name: String) {
+    var spelled = new_spelling(name)
+    assert not spelled.is_empty()
+    refuse("'{name}' is spelled '{spelled}'")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func snake_words(pascal: String): String {
+    var words = ""
+    var index = 0
+    while index < pascal.length() {
+        var code = pascal.code_at(index)
+        var character = pascal.character_at(index)
+        if code >= 65 and code <= 90 and index > 0 {
+            words = "{words}_"
+        }
+        var lowered = character.lower_case()
+        words = words + lowered
+        index = index + 1
+    }
+    return words
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func pascal_words(snake: String): String {
+    var words = snake.split("_")
+    var spelled = ""
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var word_length = word.length()
+        var first_letter = word.slice(0, 1)
+        var rest = word.slice(1, word_length)
+        spelled = spelled + first_letter.upper_case() + rest
+        index = index + 1
+    }
+    return spelled
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func declared_conversion(path: String, line: Integer, owner: String, simple_name: String, function_name: String) {
+    assert function_name.starts_with("from_")
+    var target_words = snake_words(simple_name)
+    enter_declaration(path, line, owner)
+    refuse(
+        "'{simple_name}.{function_name}' makes a {simple_name} from another value, and a conversion belongs to the value converted: declare 'to_{target_words}()' on the class it converts from, or take the value in the constructor",
+    )
+    leave_declaration()
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func cast_by_name(class_name: String, simple_name: String, function_name: String) {
+    assert function_name.starts_with("from_")
+    var name_length = function_name.length()
+    var source_words = function_name.slice(5, name_length)
+    var source_name = pascal_words(source_words)
+    var target_words = snake_words(simple_name)
+    refuse(
+        "there is no '{class_name}.{function_name}()': a conversion belongs to the value converted, so write 'value.to_{target_words}()' on {with_article(source_name)}, or cast by assignment: 'var converted: {class_name} = value'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func constants_of(class_name: String): String {
+    if class_name == "Float" or class_name == "Double" {
+        return "pi, tau, euler_number, infinity, not_a_number, largest and smallest"
+    }
+    return "largest and smallest"
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func constant_assigned(named: String) {
+    refuse("'{named}' is a constant, and a constant is get-only: nothing can assign it")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func constant_called(named: String) {
+    refuse("'{named}' is a constant, read as an attribute and never called: write '{named}'")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func constant_on_value(class_name: String, name: String) {
+    refuse("'{name}' is a constant of the class {class_name}, not of a value: write '{class_name}.{name}'")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func not_a_class_constant(class_name: String, simple_name: String, name: String, function_exists: Boolean) {
+    if name.starts_with("from_") {
+        cast_by_name(class_name, simple_name, name)
+        return
+    }
+    var constants = constants_of(class_name)
+    if function_exists {
+        refuse(
+            "'{class_name}.{name}()' calls a function of a value on the class: the class {class_name} answers only its constants, {constants}, so call '{name}' on a {class_name}, like 'value.{name}()'",
+        )
+        return
+    }
+    refuse("the class {class_name} answers only its constants, {constants}, and '{name}' is not one of them")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func other_maths_spelling(class_name: String, name: String, spelling_exists: Boolean) {
+    var spelling = maths_spellings[name]
+    assert spelling
+    assert spelling_exists
+    refuse("{class_name} has no function '{name}': Spite spells it '{spelling}', since no name is abbreviated")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func no_function_on_number(type_name: String, name: String) {
+    refuse("{with_article(type_name)} has no function '{name}'")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func no_maths_object(identifier: String) {
+    assert identifier == "Math" or identifier == "Maths"
+    refuse(
+        "Spite has no '{identifier}': maths is a function of the number itself, like 'value.square_root()', and a constant is the number class's, like 'Float.pi'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func no_maths_on_class(name: String) {
+    var spelling = maths_spellings[name]
+    var shown = name
+    if spelling {
+        shown = spelling
+    }
+    refuse("this class has no function '{name}': maths is a function of the number itself, like 'value.{shown}()'")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func text_of_number(type_name: String) {
+    refuse("{type_name} turns into text with 'to_string()', a cast like 'to_integer()': write 'to_string()'")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func bitwise_on_decimal(type_name: String, name: String) {
+    refuse(
+        "{with_article(type_name)} has no function '{name}': the bitwise functions are on the whole numbers, Tiny to UnsignedLong. Cast it first, like 'var whole: Long = value'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func memory_on_number(type_name: String, name: String) {
+    refuse(
+        "{with_article(type_name)} has no function '{name}': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func memory_outside_library(name: String) {
+    refuse(
+        "'{name}' reads or writes the memory at an address, which only library/ does: use a class of the standard library, or 'TypedMemory<T>' for values of any type",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func wider_bitwise_operand(
+    name: String,
+    object: Syntax.Expressions.Expression,
+    argument: Syntax.Expressions.Expression,
+    receiver_type: Analysis.SpiteType,
+    argument_type: Analysis.SpiteType,
+) {
+    assert name == "bits_and" or name == "bits_or" or name == "bits_exclusive_or"
+    var receiver_scalar = types.as_scalar(receiver_type)
+    var argument_scalar = types.as_scalar(argument_type)
+    assert receiver_scalar and argument_scalar
+    assert not literal_fits(argument, receiver_scalar.kind)
+    assert is_wider(receiver_scalar.kind, argument_scalar.kind)
+    var argument_text = printer.source_expression(argument)
+    var receiver_text = printer.source_expression(object)
+    var receiver_name = kind_name(receiver_scalar.kind)
+    var argument_name = kind_name(argument_scalar.kind)
+    var receiver_article = with_article(receiver_name)
+    var argument_article = with_article(argument_name)
+    refuse(
+        "'{receiver_text}.{name}({argument_text})' works in {receiver_article}, since a bitwise function takes its receiver's type, and '{argument_text}' is {argument_article}, which would be cut to fit: store the receiver in {argument_article} first ('var wide: {argument_name} = {receiver_text}'), or store '{argument_text}' in {receiver_article} first if it fits one",
+    )
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func enum_numbers(enum_name: String, values: List<String>, written: List<String>) {
+    var owners = Dictionary<String, String>()
+    var next: Long = 0
+    var failed = false
+    var index = 0
+    while index < values.count() and not failed {
+        var value = values[index]
+        var written_number = written[index]
+        crash written_number
+        var number = next
+        if not written_number.is_empty() {
+            var read = written_number.to_long()
+            crash read
+            number = read
+        }
+        if number < Integer.smallest or number > Integer.largest {
+            enum_number_too_large(value, number, enum_name)
+            failed = true
+        }
+        var key = number.to_string()
+        var owner = owners[key]
+        if owner and not failed {
+            enum_number_twice(owner, value, number, enum_name)
+            failed = true
+        }
+        owners[key] = value
+        next = number + 1
+        index = index + 1
+    }
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func enum_number_too_large(value: String, number: Long, enum_name: String) {
+    refuse(
+        "'{value}' would be number {number} of enum '{enum_name}', which does not fit an Integer: an enum value's number is an Integer",
+    )
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func enum_number_twice(owner: String, value: String, number: Long, enum_name: String) {
+    refuse(
+        "'{owner}' and '{value}' both have the number {number} in enum '{enum_name}': a value's number is its identity, so give one of them another",
+    )
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func not_an_enum_value(value: String) {
+    refuse("'{value}' is not a value of this enum")
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func unknown_enum_of_value(value: String) {
+    refuse("cannot tell which enum '{value}' belongs to here")
+}
+
+# ../../../../specs/values_and_types.md#enums-in-full
+func enum_reload_renumbered(value: String, enum_name: String, now: Integer, before: Integer) {
+    refuse(
+        "a reload cannot give '{value}' of enum '{enum_name}' the number {now}: the running program stores it as {before}, so restart it to renumber",
+    )
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func union_members(
+    path: String,
+    owner: String,
+    union_name: String,
+    members: List<Syntax.Types.Type>,
+    value_names: List<String>,
+) {
+    enter_declaration(path, 0, owner)
+    var index = 0
+    while index < members.count() {
+        union_member(union_name, members[index], value_names)
+        index = index + 1
+    }
+    leave_declaration()
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func union_member(union_name: String, member: Syntax.Types.Type, value_names: List<String>) {
+    var named = shapes.as_named_type(member)
+    assert named
+    var joined_path = named.path.join(".")
+    if joined_path == "String" or value_names.contains(joined_path) {
+        var shown = with_article(joined_path)
+        refuse(
+            "'{joined_path}' cannot be a member of union '{union_name}': a union holds objects whose class a switch tests, and {shown} is a value; make the member a class of your own that keeps it in an attribute",
+        )
+    } else if not named.arguments.is_empty() {
+        refuse(
+            "a generic class cannot be a member of union '{union_name}': a switch could tell only that it is a '{joined_path}', not of what; make the member a class of your own that keeps it in an attribute",
+        )
+    }
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func case_not_in_union(case_name: String, union_name: String) {
+    refuse("'{case_name}' is not a member of union '{union_name}'")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func case_is_value(union_name: String) {
+    refuse("a case of a switch over the union '{union_name}' names one of its classes, never a value")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func case_names_no_class() {
+    refuse("a switch case must name a class of the union")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func rest_case_misplaced(
+    case_index: Integer,
+    case_count: Integer,
+    covered_count: Integer,
+    member_count: Integer,
+    union_name: String,
+) {
+    if case_index != case_count - 1 {
+        refuse("'_:' answers for every member without a case of its own, so it is the last case")
+    } else if covered_count == member_count {
+        refuse("every member of '{union_name}' already has a case, so '_:' answers for nothing: remove it")
+    }
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func repeated_cases(switch_statement: Syntax.Statements.SwitchStatement) {
+    var bodies = List<String>()
+    var names = List<String>()
+    var rest_body = ""
+    var index = 0
+    while index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[index]
+        var printed = printer.source_statement_list(switch_case.body, 0)
+        if is_rest_case(switch_case) {
+            rest_body = printed
+        } else {
+            var label = printer.case_label(switch_case)
+            bodies.append(printed)
+            names.append(label)
+        }
+        index = index + 1
+    }
+    var first = 0
+    var found = false
+    while first < bodies.count() and not found {
+        found = repeated_from(first, bodies, names, rest_body)
+        first = first + 1
+    }
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func repeated_from(first: Integer, bodies: List<String>, names: List<String>, rest_body: String): Boolean {
+    var first_name = names[first]
+    crash first_name
+    if not rest_body.is_empty() and bodies[first] == rest_body {
+        refuse("the case '{first_name}' does the same as '_:': remove it and let '_:' answer for it")
+        return true
+    }
+    var other = first + 1
+    while other < bodies.count() and rest_body.is_empty() {
+        if bodies[first] == bodies[other] {
+            var other_name = names[other]
+            crash other_name
+            refuse(
+                "the cases '{first_name}' and '{other_name}' do the same thing: write it once, as the last case '_:'",
+            )
+            return true
+        }
+        other = other + 1
+    }
+    return false
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Boolean {
+    if switch_case.type_reference {
+        var named = shapes.as_named_type(switch_case.type_reference)
+        if named {
+            return named.path.count() == 1 and named.path[0] == "_"
+        }
+    }
+    return false
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func single_case(switch_statement: Syntax.Statements.SwitchStatement) {
+    assert switch_statement.cases.count() == 2
+    var class_case = case_at(switch_statement, 0)
+    var rest_case = case_at(switch_statement, 1)
+    crash class_case
+    crash rest_case
+    assert is_rest_case(rest_case)
+    assert only_returns(class_case.body) and only_returns(rest_case.body)
+    crash switch_statement.subject
+    var subject_expression = switch_statement.subject
+    var subject = printer.source_expression(subject_expression)
+    var tested = printer.case_label(class_case)
+    var answer = returned_boolean(class_case.body)
+    var rest_answer = returned_boolean(rest_case.body)
+    if answer and rest_answer and answer != rest_answer {
+        var comparison = "=="
+        if answer == "false" {
+            comparison = "!="
+        }
+        var question = "what class '{subject}' is"
+        if class_case.value {
+            question = "whether '{subject}' is {tested}"
+        }
+        refuse("this switch only asks {question}: write 'return {subject} {comparison} {tested}'")
+        return
+    }
+    refuse(
+        "a switch with one case and '_:' is an if: write 'if {subject} == {tested} \{ ... }', returning early, and then what '_:' does",
+    )
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func case_at(switch_statement: Syntax.Statements.SwitchStatement, position: Integer): Syntax.Statements.SwitchCase? {
+    return switch_statement.cases[position]
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func only_returns(body: List<Syntax.Statements.Statement>): Boolean {
+    if body.count() != 1 {
+        return false
+    }
+    return body[0] == Syntax.Statements.ReturnStatement
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func returned_boolean(body: List<Syntax.Statements.Statement>): String? {
+    assert body.count() == 1
+    var returned = shapes.as_return_statement(body[0])
+    assert returned
+    assert returned.value
+    if shapes.is_true_literal(returned.value) {
+        return "true"
+    }
+    if shapes.is_false_literal(returned.value) {
+        return "false"
+    }
+    return null
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func class_test_never_true(tested_name: String, union_name: String) {
+    refuse("'{tested_name}' is not a member of union '{union_name}', so this is never true")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func class_test_decided(subject: String, value_type_name: String, tested_name: String) {
+    refuse(
+        "'{subject}' is {with_article(value_type_name)} here, so it is never {tested_name} and this test is decided while compiling: remove it",
+    )
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func class_test_always(subject: String, value_type_name: String) {
+    refuse("'{subject}' is {with_article(value_type_name)} here, so this test is decided while compiling: remove it")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func class_test_already_narrowed(subject: String, value_type_name: String, site: String) {
+    refuse("'{subject}' is already {with_article(value_type_name)}, narrowed by {site}: remove this test")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func class_test_of_value(value_type_name: String) {
+    refuse("'==' with a class asks what class a value is, and {with_article(value_type_name)} is not an object")
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func generic_class_named() {
+    refuse(
+        "a generic class written without '(...)' names the class, which only the right side of '==' or '!=' reads: call it to make one",
+    )
+}
+
+# ../../../../specs/values_and_types.md#unions-in-full
+func codegen_value_is_type(name: String) {
+    refuse("'${name}' is a type here, so it cannot be used as a value")
+}
+
+# ../../../../specs/values_and_types.md#inline-types-and-duck-typing-in-full
+func type_does_not_require(type_name: String, name: String) {
+    refuse("type '{type_name}' does not require a function '{name}', so it cannot be called through it")
+}
+
+# ../../../../specs/values_and_types.md#inline-types-and-duck-typing-in-full
+func type_function_takes_the_class(type_name: String, name: String) {
+    refuse(
+        "'{name}' of type '{type_name}' takes or answers the class that fits the type, which a value read as '{type_name}' does not know while compiling: take the value through a codegen value the type constrains, 'generic $value_type: {type_name}'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func operator_through_type(symbol: String, shape_name: String) {
+    refuse(
+        "'{symbol}' on a value read as '{shape_name}' needs the class that fits the type, which is not known while compiling: take the value through a codegen value the type constrains, 'generic $value_type: {shape_name}'",
+    )
+}
+
+# ../../../../specs/values_and_types.md#inline-types-and-duck-typing-in-full
+func type_has_no_attribute(type_name: String, name: String) {
+    refuse("type '{type_name}' has no attribute '{name}'")
+}
+
+# ../../../../specs/values_and_types.md#inline-types-and-duck-typing-in-full
+func does_not_fit_type(subject: String, type_name: String, problem: String) {
+    refuse("{subject} does not fit type '{type_name}': {problem}")
+}
+
+# ../../../../specs/values_and_types.md#numbers-are-classes-and-this
+func does_not_fit_required_type(
+    given_name: String,
+    type_name: String,
+    instance_name: String,
+    constrained_name: String,
+    problem: String,
+) {
+    refuse(
+        "'{given_name}' does not fit type '{type_name}', which '{instance_name}' requires of ${constrained_name}: {problem}",
+    )
+}

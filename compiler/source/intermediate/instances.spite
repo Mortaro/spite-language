@@ -20,6 +20,7 @@ var accessed_classes = List<Analysis.ClassInfo>()
 var accessed_texts = List<String>()
 var accessed_kinds = List<String>()
 var row_classes = Dictionary<String, Boolean>()
+var value_checks_made: Checks.ValuesAndTypes? = null
 
 func Instances(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -29,6 +30,15 @@ func Instances(starting_generator: Generation.Generator) {
 func front(): Generation.Generator {
     crash generator
     return generator
+}
+
+func value_checks(): Checks.ValuesAndTypes {
+    if not value_checks_made {
+        var reporting = front()
+        value_checks_made = Checks.ValuesAndTypes(reporting)
+    }
+    crash value_checks_made
+    return value_checks_made
 }
 
 func reach(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {

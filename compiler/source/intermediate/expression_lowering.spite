@@ -55,6 +55,24 @@ func type_of(value: Integer): Analysis.SpiteType {
     return known().typed_nothing()
 }
 
+func value_checks(): Checks.ValuesAndTypes {
+    return known().value_checks()
+}
+
+func is_text_value(expression: Syntax.Expressions.Expression): Boolean {
+    var probed = front().probed_type(expression, emitter.scope, lowered_class)
+    return types.as_string(probed)
+}
+
+func is_dictionary_value(expression: Syntax.Expressions.Expression): Boolean {
+    var probed = front().probed_type(expression, emitter.scope, lowered_class)
+    var dictionary = types.as_dictionary(probed)
+    if dictionary {
+        return true
+    }
+    return false
+}
+
 func hold_binding() {
     var made = front()
     var bound = made.reflected_bindings.last()
@@ -145,6 +163,7 @@ func enum_literal(literal: Syntax.Expressions.EnumLiteralExpression): Integer {
     var made = front()
     var owner = made.find_enum_with_value(literal.value)
     if not owner {
+        value_checks().unknown_enum_of_value(literal.value)
         return not_lowered(null, "the enum value '{literal.value}' with no enum to tell it")
     }
     var enum_type = made.enum_type_of(owner)
@@ -323,8 +342,15 @@ func enum_toward(literal: Syntax.Expressions.EnumLiteralExpression, wanted: Anal
     }
     var wanted_enum = types.as_enum(inner_wanted)
     if wanted_enum {
+        if not wanted_enum.values.contains(literal.value) {
+            value_checks().not_an_enum_value(literal.value)
+        }
         var made_value = emitter.constant(inner_wanted, literal.value)
         return convert(made_value, wanted)
+    }
+    if types.as_string(inner_wanted) {
+        value_checks().symbol_for_text(literal.value)
+        return text_constant(literal.value)
     }
     var found = enum_literal(literal)
     return convert(found, wanted)
@@ -374,9 +400,23 @@ func convert(value: Integer, wanted: Analysis.SpiteType): Integer {
     if signature_into_function(given, wanted) {
         return value
     }
+    check_conversion(given, wanted)
     var given_text = known().type_text(given)
     var wanted_text = known().type_text(wanted)
     return not_lowered(wanted, "a conversion from {given_text} to {wanted_text}")
+}
+
+func check_conversion(given: Analysis.SpiteType, wanted: Analysis.SpiteType) {
+    assert types.as_string(given)
+    var wanted_scalar = types.as_scalar(wanted)
+    if wanted_scalar {
+        var target_name = known().scalar_name(wanted_scalar.kind)
+        value_checks().text_into_number(target_name)
+        return
+    }
+    assert types.as_enum(wanted)
+    var enum_name = known().type_text(wanted)
+    value_checks().text_into_enum(enum_name)
 }
 
 func signature_into_function(given: Analysis.SpiteType, wanted: Analysis.SpiteType): Boolean {
@@ -515,11 +555,14 @@ func into_text(value: Integer, given: Analysis.SpiteType): Integer {
         return union_dispatch(united.c_name, "to_string", true, value, no_arguments)
     }
     var owner = made.class_of_type(given)
+    var found_name = known().type_text(given)
     if not owner {
+        value_checks().cannot_be_used(found_name, "String")
         return not_lowered(null, "a value turned into text with no class")
     }
     var converter = made.shape_member_function(owner, "to_string")
     if not converter {
+        value_checks().cannot_be_used(found_name, "String")
         return not_lowered(null, "a value turned into text with no 'to_string' or 'to_debug'")
     }
     var operands = [value]
@@ -540,6 +583,9 @@ func between_numbers(
     if literal and literal_fits(literal, from, to) {
         return emitter.constant(wanted, literal)
     }
+    if literal {
+        check_literal_range(literal, from, to)
+    }
     var from_name = known().scalar_name(from)
     var to_word = known().scalar_word(to)
     var callee = "{from_name}.to_{to_word}"
@@ -549,6 +595,13 @@ func between_numbers(
         return emitter.checked_call(callee, operands, wanted, checked)
     }
     return emitter.emit_call_one(callee, value, wanted)
+}
+
+func check_literal_range(literal: String, from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind) {
+    assert known().is_checked(to) and known().is_checked(from)
+    var whole = literal.to_long()
+    assert whole
+    value_checks().number_does_not_fit(whole, to)
 }
 
 func needs_narrowing_check(from: Analysis.Types.NumericKind, to: Analysis.Types.NumericKind): Boolean {
@@ -642,6 +695,7 @@ func lower_identifier(identifier: Syntax.Expressions.IdentifierExpression): Inte
     if folded {
         return folded_constant(folded)
     }
+    value_checks().no_maths_object(identifier.name)
     return not_lowered(null, "'{identifier.name}' read as a value")
 }
 
@@ -933,8 +987,16 @@ func member_of_value(member: Syntax.Expressions.MemberExpression, object: Intege
     return class_member(target, member, object)
 }
 
+func check_constant_read(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberExpression) {
+    var made = front()
+    assert made.maths.is_constant(member.name)
+    assert made.is_number_class(target)
+    value_checks().constant_on_value(target.qualified_dotted, member.name)
+}
+
 func class_member(target: Analysis.ClassInfo, member: Syntax.Expressions.MemberExpression, object: Integer): Integer {
     var made = front()
+    check_constant_read(target, member)
     var handled_type = type_of(object)
     var member_handle = made.joinable_handle(handled_type)
     if member_handle and made.forwards_to_result(member_handle, member.name) {
@@ -1363,11 +1425,22 @@ func store_default(target: Analysis.ClassInfo, object: Integer, field: Analysis.
     var field_type = field.type
     var stored = -1
     if declaration {
+        check_attribute_default(target, declaration, field_type)
         stored = declared_default(declaration, field_type)
     } else {
         stored = default_of(field_type)
     }
     emitter.store_field(object, field.name, stored)
+}
+
+func check_attribute_default(
+    target: Analysis.ClassInfo,
+    declaration: Syntax.Statements.VariableDeclaration,
+    field_type: Analysis.SpiteType,
+) {
+    var statements = known().file_statements(target)
+    var assigned = front().constructor_assigns(target.simple_name, declaration.name, statements)
+    value_checks().null_default(declaration, field_type, "attribute", assigned)
 }
 
 func declared_default(declaration: Syntax.Statements.VariableDeclaration, field_type: Analysis.SpiteType): Integer {
@@ -1804,10 +1877,12 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     }
     var static_class = made.try_resolve_static_path(member.object, lowered_class.qualified_dotted)
     if static_class {
+        check_number_class_call(static_class, name)
         var static_type = known().class_type(static_class)
         var class_object = class_object_of(static_type)
         return class_call("Spite_Class", name, class_object, arguments)
     }
+    crash member.object
     if shapes.as_generic_identifier(member.object) {
         return not_lowered(null, "a call on a codegen class object")
     }
@@ -1817,7 +1892,38 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     }
     crash member.object
     var object = lower(member.object)
+    check_bitwise_operand(member, object, arguments)
     return call_on_value(name, object, arguments)
+}
+
+func check_number_class_call(static_class: Analysis.ClassInfo, name: String) {
+    var made = front()
+    assert made.is_number_class(static_class)
+    var function = made.find_or_instantiate_function(static_class, name)
+    var checks = value_checks()
+    if function and made.maths.is_constant(name) and made.is_inline_supplied(function) {
+        checks.constant_called("{static_class.qualified_dotted}.{name}")
+        return
+    }
+    var exists = false
+    if function {
+        exists = true
+    }
+    checks.not_a_class_constant(static_class.qualified_dotted, static_class.simple_name, name, exists)
+}
+
+func check_bitwise_operand(
+    member: Syntax.Expressions.MemberExpression,
+    object: Integer,
+    arguments: List<Syntax.Expressions.Expression>,
+) {
+    assert arguments.count() == 1
+    assert member.name == "bits_and" or member.name == "bits_or" or member.name == "bits_exclusive_or"
+    var receiver_type = type_of(object)
+    var argument = argument_at(arguments, 0)
+    var argument_type = front().probed_type(argument, emitter.scope, lowered_class)
+    var receiver_expression = object_of(member)
+    value_checks().wider_bitwise_operand(member.name, receiver_expression, argument, receiver_type, argument_type)
 }
 
 func fused_chain(member: Syntax.Expressions.MemberExpression, arguments: List<Syntax.Expressions.Expression>): Integer {
@@ -2082,7 +2188,11 @@ func scalar_call(
     }
     var function = made.find_or_instantiate_function(value_class, name)
     if not function {
+        check_number_function(kind, value_class, name)
         return not_lowered(null, "'{name}()' on a number")
+    }
+    if made.maths.is_constant(name) and made.is_inline_supplied(function) {
+        value_checks().constant_on_value(value_class.qualified_dotted, name)
     }
     var converted_type = function.return_type
     var converts = name.starts_with("to_") and not function.has_body and arguments.is_empty()
@@ -2090,6 +2200,42 @@ func scalar_call(
         return convert(object, converted_type)
     }
     return call_with_arguments(value_class, function, object, arguments)
+}
+
+func check_number_function(kind: Analysis.Types.NumericKind, value_class: Analysis.ClassInfo, name: String) {
+    var made = front()
+    var checks = value_checks()
+    var spelling = made.maths.spelled(name)
+    if not spelling.is_empty() {
+        var spelled_function = made.find_or_instantiate_function(value_class, spelling)
+        var spelling_exists = false
+        if spelled_function {
+            spelling_exists = true
+        }
+        checks.other_maths_spelling(value_class.qualified_dotted, name, spelling_exists)
+        assert not spelling_exists
+    }
+    var type_name = known().scalar_name(kind)
+    if name == "text" {
+        checks.text_of_number(type_name)
+        return
+    }
+    var bitwise_names = [
+        "shifted_left"
+        "shifted_right"
+        "bits_and"
+        "bits_or"
+        "bits_exclusive_or"
+        "bits_inverted"
+        "set_bit_count"
+        "leading_zero_count"
+        "trailing_zero_count"
+    ]
+    if bitwise_names.contains(name) {
+        checks.bitwise_on_decimal(type_name, name)
+        return
+    }
+    checks.no_function_on_number(type_name, name)
 }
 
 func enum_call(
@@ -2915,17 +3061,37 @@ func operate(
     if left_union {
         return shape_operator(operator, left, left_union.c_name, right_expression, whole)
     }
-    var right = right_operand(left_type, right_expression)
+    var right = right_operand(left_type, right_expression, whole)
     return number_operation(operator, left, right, left_type, whole)
 }
 
-func right_operand(left_type: Analysis.SpiteType, right_expression: Syntax.Expressions.Expression): Integer {
+func right_operand(
+    left_type: Analysis.SpiteType,
+    right_expression: Syntax.Expressions.Expression,
+    whole: Syntax.Expressions.Expression,
+): Integer {
     var enum_value = shapes.as_enum_literal(right_expression)
     if enum_value and types.as_enum(left_type) {
         return lower_toward(right_expression, left_type)
     }
     var right = lower(right_expression)
+    check_right_operand(whole, left_type, right)
     return convert(right, left_type)
+}
+
+func check_right_operand(whole: Syntax.Expressions.Expression, left_type: Analysis.SpiteType, right: Integer) {
+    var binary = shapes.as_binary(whole)
+    assert binary
+    var right_type = type_of(right)
+    var folded = ""
+    var folded_literal = emitter.literal_of(right)
+    if folded_literal {
+        folded = folded_literal
+    }
+    var checks = value_checks()
+    checks.wider_right_operand(binary, left_type, right_type)
+    checks.constant_overflow(binary, left_type)
+    checks.division_by_zero(binary, left_type, folded)
 }
 
 func works_in_double(left: Integer, right: Integer): Boolean {
