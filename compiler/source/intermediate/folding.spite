@@ -65,6 +65,7 @@ func redirect(function: Function, replaced: Dictionary<String, String>) {
                 operation.callee = replaced[operation.callee]
             }
             operation.literal = redirected_literal(operation.literal, replaced)
+            operation.target = redirected_literal(operation.target, replaced)
             index = index + 1
         }
         block_index = block_index + 1
