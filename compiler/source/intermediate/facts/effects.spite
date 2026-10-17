@@ -151,6 +151,7 @@ func note_intrinsic(made: Summary, function: Function) {
         var parameter = function.parameters[index]
         if kinds.is_counted(parameter.spite_type) and parameter.ownership != "held" and parameter.ownership != "lent" {
             made.releases = true
+            note_released(made, parameter.spite_type)
         }
         if takes_function_value(parameter.spite_type) {
             made.calls_values = true
@@ -158,6 +159,20 @@ func note_intrinsic(made: Summary, function: Function) {
         }
         index = index + 1
     }
+}
+
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func note_released(made: Summary, spite_type: Analysis.SpiteType?) {
+    crash kinds
+    var types = Analysis.TypeShape()
+    assert spite_type
+    assert not types.as_string(spite_type) and not types.is_symbol(spite_type)
+    var layout = kinds.layout_of(spite_type)
+    if layout {
+        made.released[layout.c_name] = true
+        return
+    }
+    made.released["*"] = true
 }
 
 func takes_function_value(spite_type: Analysis.SpiteType?): Boolean {
@@ -185,6 +200,10 @@ func note_operation(made: Summary, function: Function, operation: Operation) {
     } else if operation.kind == "release" {
         made.releases = true
         made.counts = true
+        var let_go = operation.operands.first()
+        crash let_go
+        var let_go_value = function.value_at(let_go)
+        note_released(made, let_go_value.spite_type)
     } else if operation.kind == "retain" {
         made.counts = true
     } else if operation.kind == "call" {
@@ -227,6 +246,7 @@ func note_store(made: Summary, function: Function, operation: Operation) {
     var stored_type = function.value_at(stored).spite_type
     if kinds.is_counted(stored_type) {
         made.releases = true
+        note_released(made, stored_type)
     }
 }
 
