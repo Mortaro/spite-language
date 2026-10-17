@@ -1,5 +1,5 @@
 # ../../../../design/backend_x86_64_encoding.md#the-instructions
-var bytes = Buffer()
+var bytes = Buffer(0)
 var start = 0
 
 func Encoder(starting_address: Integer) {
@@ -7,7 +7,7 @@ func Encoder(starting_address: Integer) {
 }
 
 func clear() {
-    bytes = Buffer()
+    bytes = Buffer(0)
 }
 
 func next_address(): Integer {
@@ -23,11 +23,11 @@ func append_one_byte_number(given: Long) {
 func append_four_byte_number(given: Long) {
     var narrowed: Integer = given
     var unsigned = narrowed.bits_as_unsigned()
-    bytes.append_unsigned_integer(unsigned)
+    bytes.append_unsigned_integer_little_endian(unsigned)
 }
 
 func append_eight_byte_number(given: Long) {
-    bytes.append_long(given)
+    bytes.append_long_little_endian(given)
 }
 
 # ../../../../design/backend_x86_64_encoding.md#the-place-form

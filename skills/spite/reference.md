@@ -594,17 +594,19 @@ Integer` (how many the system took). A peer that hung up is not an error: `socke
 answer an empty buffer or `null` and writes send nothing. Check `closed`, never a count of `-1`.
 **Bytes are a `Buffer`**, never a `List<Byte>` (a list has no byte functions; calling one is a compile error naming
 `Buffer`). A `Buffer` is still a run of bytes (`count()`, `buffer[index]`, `append(byte)`, templates) and adds:
-`byte_order` set once (`Buffer()` is `'little_endian'`, `Buffer('big_endian')`; there are no `_big_endian` functions),
+made with a size, `Buffer(size)` (`Buffer(0)` when nothing is known; the size is room, never a limit),
+a byte order named in every number of two bytes or more (`_little_endian` or `_big_endian` after the number, like
+`read_integer_big_endian_at(position)`; `byte` and `tiny` have none),
 a `position` that `read_<number>(): <number>?` reads at and moves past, `read_<number>_at(position): <number>?`
-anywhere without moving (`byte`, `tiny`, `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`,
-`unsigned_long`, `float`, `double`; `byte` only as `read_byte()`), `append_<number>(value)`,
+anywhere without moving (`tiny`, `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`,
+`unsigned_long`, `float`, `double`, each with its order; `byte` only as `read_byte()`), `append_<number>(value)`,
 `write_<number>_at(position, value)` (halts outside), `read_bytes(count)` / `read_bytes_at(position, count): Buffer?`,
 `append_bytes(other, start, count)`, `remaining()`, `reserve(count)` and `to_utf8_text(): String?`. Prove `_at` reads
 instead of narrowing each: `crash body + 13 <= bytes.count()` proves every read inside those 13 bytes, a loop `while position + 15 <
 bytes.count()` stepping `position = position + 16` reads each record with no test, and `crash height * stride <=
 pixels.count()` proves `pixels[row * stride + column]` inside `while row < height` and `while column < stride`.
 Memory a C library hands out (a mapped GPU buffer) is `ForeignBytes(address, count)`, with the same `_at` reads and
-writes and `byte_order`, bounds checked. A program never reads or writes bytes through a `Memory.Address`: the old forms
+writes, orders named, bounds checked. A program never reads or writes bytes through a `Memory.Address`: the old forms
 (`read_bytes(position, count, address)`, `read_bytes_now(address, count)`, `read_memory`) are compile errors naming
 the plain form.
 `UdpSocket()` opens with `open()`, `open_locally(port)`, `open_everywhere(port)` or `open_at(host, port)` and sends one `Buffer` datagram per `send_to(host, port, bytes)`; `HttpServer` (`next_request(): HttpRequest?`, `respond(request, response)`) and `HttpClient` (`send(host, port, request): HttpResponse?`) speak HTTP/1.1 and keep connections alive on their own.

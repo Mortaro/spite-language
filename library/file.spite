@@ -137,7 +137,7 @@ func append_bytes(bytes: Buffer): Long? {
 }
 
 func _read_into_buffer(handle: Long, wanted: Long): Buffer {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     if wanted > 0 {
         var counted: Integer = wanted
         bytes.reserve(counted)

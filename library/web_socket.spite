@@ -16,8 +16,8 @@ var _close_sent = false
 var _final = false
 var _opcode = 0
 var _message_opcode = 0
-var _parts = Buffer()
-var _head = Buffer()
+var _parts = Buffer(0)
+var _head = Buffer(0)
 var _random = SecureRandom()
 var _base64 = Base64()
 
@@ -176,7 +176,7 @@ func _take_data(frame: Buffer): Message? {
     var kind = _message_opcode
     var whole = _parts
     _message_opcode = 0
-    _parts = Buffer()
+    _parts = Buffer(0)
     if kind == 2 {
         return WebSocketBinary(whole)
     }
@@ -351,7 +351,7 @@ func _send_frame(opcode: Integer, payload: Buffer): Boolean {
 }
 
 func _send_close(code: Integer) {
-    var payload = Buffer()
+    var payload = Buffer(0)
     if code != 1005 {
         var high: Byte = code.shifted_right(8)
         var low: Byte = code.bits_and(255)
@@ -422,8 +422,7 @@ func _read_frame(already: Integer): Buffer? {
         assert mask_read
     }
     var count: Integer = length
-    var payload = Buffer()
-    payload.reserve(count)
+    var payload = Buffer(count)
     var filled = _read_into(payload.items, count)
     assert filled
     if masked {
@@ -487,8 +486,7 @@ func _answer_close(frame: Buffer) {
             _fail(1002)
         }
         assert not _closed
-        var rest = Buffer()
-        rest.reserve(count - 2)
+        var rest = Buffer(count - 2)
         var reason_at = frame.items + 2
         reason_at.copy_to(rest.items, count - 2)
         rest.item_count = count - 2
@@ -581,8 +579,7 @@ func _sha1(source: Buffer): Buffer {
         _sha1_compress(state, chunk, schedule)
         offset = offset + 64
     }
-    var digest = Buffer()
-    digest.reserve(20)
+    var digest = Buffer(20)
     digest.item_count = 20
     var word_index = 0
     while word_index < 5 {

@@ -1,5 +1,5 @@
 var console = Console()
-var records = Buffer('big_endian')
+var records = Buffer(1600000)
 
 func Naive() {
     fill(100000)
@@ -12,13 +12,13 @@ func Naive() {
 func fill(count: Integer) {
     var index = 0
     while index < count {
-        records.append_integer(index)
-        records.append_integer(index * 7 - 50000)
-        records.append_integer(index % 1000)
+        records.append_integer_big_endian(index)
+        records.append_integer_big_endian(index * 7 - 50000)
+        records.append_integer_big_endian(index % 1000)
         var kind: Short = index % 5
-        records.append_short(kind)
+        records.append_short_big_endian(kind)
         var flags: Short = index % 3
-        records.append_short(flags)
+        records.append_short_big_endian(flags)
         index = index + 1
     }
 }
@@ -39,15 +39,14 @@ func rounds(records: Buffer): Long {
 }
 
 func decode(records: Buffer): Long {
-    records.byte_order = 'big_endian'
     var total: Long = 0
     var position = 0
     while position + 15 < records.count() {
-        var identity = records.read_integer_at(position)
-        var across = records.read_integer_at(position + 4)
-        var down = records.read_integer_at(position + 8)
-        var kind = records.read_short_at(position + 12)
-        var flags = records.read_short_at(position + 14)
+        var identity = records.read_integer_big_endian_at(position)
+        var across = records.read_integer_big_endian_at(position + 4)
+        var down = records.read_integer_big_endian_at(position + 8)
+        var kind = records.read_short_big_endian_at(position + 12)
+        var flags = records.read_short_big_endian_at(position + 14)
         total = total + identity + across + down * kind + flags
         position = position + 16
     }

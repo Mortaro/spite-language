@@ -4,6 +4,13 @@ What is decided, or wished for, and not built yet: one line per missing thing, w
 parentheses. Build it, then delete its line in the same commit. The rule is on its page in `specs/`, the reason in
 [DECISIONS.md](DECISIONS.md), and the work's size and order in [design/backlog.md](design/backlog.md).
 
+## Before master
+
+What keeps `next` from being released to `master` (D620): work that is in `next` but slower than what `master` ships, or not yet proven. An agent fixes these first; when this section is empty and a full check passes, `next` is merged into `master`.
+
+- The codecs and hashes on `Buffer` (Buffer Part 2, D590) run 23 to 50% slower than on `master` until the compiler passes a list argument it only reads without counting it, keeps a local `Buffer(n)` in the frame, and proves `list[base + counter]` in bounds; time them with `bash benchmarks/run.sh` before and after
+- `Process.run` reads the pipe in binary mode on Windows so a byte 0x1A no longer ends the output, but no program proves it yet: running a child process that writes 0x1A through `Process` hung in a test, which needs finding too
+
 ## Language rules
 
 - A `switch` case of two statements or more is a compile error; about 530 cases in the compiler and `library/` are rewritten first (D576)
@@ -28,9 +35,9 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 - `File.lock()`, a lock between processes, so a program needs no operating-system folder for locks (D608, D565)
 - Every operator a library class answers declared in `library/`, none hidden in the compiler (D612)
-- `Buffer(size)`: a buffer made with a size the compiler treats as a suggestion (less room when proven, plain variables for a small one), and numbers' storage written `var _memory = Buffer(n)` instead of `Memory.Bytes(n)` (D602)
-- Byte order named in each read and write (`read_integer_little_endian_at`, `read_integer_big_endian_at`), written once as a template over `Buffer.ByteOrder`; `Buffer` loses `byte_order` (D603, D604)
+- Numbers' storage written `var _memory = Buffer(n)` instead of `Memory.Bytes(n)` (D602), and the compiler's use of a buffer's size as a suggestion (less room when proven, plain variables for a small one)
 - Reading and writing bits on a `Buffer`, to pack flags into fewer bytes (D603)
+- `Buffer` replaces `List<Byte>` everywhere bytes are taken or answered, with `position` and the `_at` names (D590)
 - TLS, so HTTPS and `wss` (D294, D394, D395)
 - TLS written in Spite, after an outside security review (D395)
 - HTTP: request bodies sent chunked, and a server that reads several clients' requests at once (D294)
@@ -144,6 +151,7 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Optimisations and proofs
 
+- The library above the memory floor (Sha256, Deflate, Argon2) is 1.2 to 1.8 times slower and counts more allocations than its raw-memory form (`--optimized`: Sha256 128 to 158 ms, Zlib 37 to 56, Argon2 193 to 283), for three reasons the compiler can remove: a library function takes its list or buffer argument counted (`List_Long___retain` per call: the held-argument copy covers only a program's own functions); a local `Buffer(n)` or reserved `List` that never leaves its function is not placed in the frame (raw `heap.allocate` blocks were uncounted, each Buffer or List is 2 allocations), which D602's small-buffer placement would cover; and `list[base + counter]` (a table base plus a loop counter, a hash-chain index) is checked on every access, since the counted-loop proof takes only the counter plus a literal window of up to 63
 - Naive programs reach hand-written speed (D506, D507, D508, D550)
 - Independent loops written as a `while`, and reductions, run at once (D506)
 - Layout chosen by the compiler: structure of arrays, hot and cold splitting, field order, cache-line alignment (D402, D485)

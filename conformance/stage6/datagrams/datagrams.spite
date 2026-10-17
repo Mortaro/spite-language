@@ -34,7 +34,7 @@ func Datagrams() {
     crash answer
     var answer_count = answer.count()
     console.print("replied: {replied}, client got {answer_count} bytes")
-    var empty = Buffer()
+    var empty = Buffer(0)
     client.send_to("localhost", 47811, empty)
     var empty_arrived = server.receive()
     crash empty_arrived

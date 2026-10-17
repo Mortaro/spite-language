@@ -15,7 +15,7 @@ func Hashes() {
         console.print(shown)
         index = index + 1
     }
-    var million = Buffer()
+    var million = Buffer(0)
     while million.count() < 1000000 {
         million.append(97)
     }
@@ -29,7 +29,7 @@ func Hashes() {
     var mac = sha256.hmac(key, message)
     var mac_shown = hex(mac)
     console.print(mac_shown)
-    var long_key = Buffer()
+    var long_key = Buffer(0)
     while long_key.count() < 131 {
         long_key.append(170)
     }

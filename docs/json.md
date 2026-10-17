@@ -83,7 +83,7 @@ Ada "the" first shipped tea 2
 value into bytes and back. Each names its type, is made once and is reused, and each call carries its own input.
 The bytes are a `Buffer`, the bytes themselves in one block
 ([standard_library.md](standard_library.md#bytes-are-a-buffer)). Reading or writing a single number at a position is
-not a serializer's job but the buffer's own (`buffer.read_integer()`, `buffer.append_long(value)`); the pair is for
+not a serializer's job but the buffer's own (`buffer.read_integer_little_endian()`, `buffer.append_long_little_endian(value)`, and the `_big_endian` twins); the pair is for
 values of your classes:
 
 ```gdscript title=binary_basics/order.spite
@@ -167,7 +167,7 @@ Infinity and not-a-number are ordinary bytes: only JSON cannot hold them, so `Bi
 var console = Console()
 
 func BinaryStream() {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     var names = ["ada", "bo", "cy"]
     var name_writer = BinaryWriter<List<String>>()
     name_writer.append_to(names, bytes)
@@ -242,7 +242,7 @@ from the new source, since nothing in the bytes says which class they are or wha
   one buffer and a program frames them however its transport needs.
 - **Little-endian everywhere.** It is the order of every machine Spite compiles for (x86-64, ARM64 and
   WebAssembly), so a number is one store and one load with no swapping. The format is little-endian whatever
-  `byte_order` the buffer has, and a writer or reader never moves the buffer's `position`; a big-endian target
+  orders the rest of the buffer holds, and a writer or reader never moves the buffer's `position`; a big-endian target
   would swap each number's bytes, and the format would not change.
 - **Reading never trusts a count.** A text length or an element count larger than the bytes left fails the read
   before anything is allocated, so a corrupt or hostile buffer cannot make a reader allocate gigabytes.

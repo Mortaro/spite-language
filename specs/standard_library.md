@@ -417,7 +417,7 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   `MappedFile`'s and `ForeignBytes`', with the same names), never a serializer's.
 - **A `List` has none of these.** Every function above that a `List` does not have is an error on a `List<Byte>`,
   and on a list of anything else, naming the class that has it: `List has no method 'read_integer': bytes are a
-  Buffer, which has it: make them with 'Buffer()'` (the same for `to_utf8_text`, `append_bytes` and the rest).
+  Buffer, which has it: make them with 'Buffer(size)'` (the same for `to_utf8_text`, `append_bytes` and the rest).
 - **Files.** `read_bytes()` answers the whole file, `null` when it cannot be opened, when its size cannot be read, or
   when fewer bytes arrive than its size said; an empty file is an empty buffer. A file larger than a `Buffer` holds
   (more than 2 147 483 647 bytes) halts, as any `Long` cut to an `Integer` does, so read it with `read_bytes_at` or
@@ -441,7 +441,7 @@ Everything that hands bytes over answers a `Buffer`, and everything that takes b
   is one load (and one byte swap for a big-endian order) with no test. Elsewhere the buffer could have changed size
   by another name since the bound was proven, so the read keeps one compare the C compiler is told is never taken
   (two when nothing proves the position is not negative), and when it fails the program halts with `spite:
-  'bytes.read_integer_at(body + 4)' is outside its buffer: a bound proves only the top of an index, and this one is
+  'bytes.read_integer_little_endian_at(body + 4)' is outside its buffer: a bound proves only the top of an index, and this one is
   below 0 or the buffer changed, at file:line`. A proven `write_<number>_at` in a counted loop is one store; elsewhere
   it is the library's checked write. A read at the position, `read_<number>()`, always answers a `T?`; a read the
   program wants proven is written with `_at`. The byte order is in the function's name, so a read never tests it:

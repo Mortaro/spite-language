@@ -268,7 +268,7 @@ How a read is proven:
   stride`), with `rows` and `stride` names or literals, proves `list[row * stride + column]`, and a read of width `w`
   there, inside `while row < rows` and `while column < stride` (or `while column + k < stride` with `w - 1 <= k`)
   when `row` and `column` are locals that are never negative (above). A literal `stride` may take a literal column
-  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer_at(index * 16 + 4)`
+  instead: under `count * 16 <= bytes.count()` and inside `while index < count`, `bytes.read_integer_little_endian_at(index * 16 + 4)`
   is proven, since `4 + 3 < 16`. Assigning `rows`, `stride` or the list, or shrinking the list, undoes the guard;
   assigning `row` or `column` undoes their loops' part, and inside a loop that has read them that is the error for a
   proof undone inside a loop (`conformance/stage6/list_byte_numbers`).

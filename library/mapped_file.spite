@@ -1,6 +1,5 @@
 var _address: Memory.Address = 0
 var _size: Long = 0
-var byte_order: Buffer.ByteOrder = 'little_endian'
 
 func MappedFile(address: Memory.Address, bytes: Long) {
     _address = address
@@ -21,51 +20,72 @@ func get_at(position: Long): Byte? {
     return _address.read_byte(position)
 }
 
-func read_short_at(position: Long): Short? {
+func read_short_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Short? {
     assert _inside(position, 2)
-    if byte_order == 'big_endian' {
+    return _load_short(position, order.name == "big_endian")
+}
+
+func read_integer_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Integer? {
+    assert _inside(position, 4)
+    return _load_integer(position, order.name == "big_endian")
+}
+
+func read_long_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Long? {
+    assert _inside(position, 8)
+    return _load_long(position, order.name == "big_endian")
+}
+
+func read_float_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Float? {
+    assert _inside(position, 4)
+    return _load_float(position, order.name == "big_endian")
+}
+
+func read_double_order_at(order: Spite.AttributeDeclaration<Buffer.ByteOrder>, position: Long): Double? {
+    assert _inside(position, 8)
+    return _load_double(position, order.name == "big_endian")
+}
+
+func _load_short(position: Long, big: Boolean): Short {
+    if big {
         return _address.read_short_big_endian(position)
     }
     return _address.read_short(position)
 }
 
-func read_integer_at(position: Long): Integer? {
-    assert _inside(position, 4)
-    if byte_order == 'big_endian' {
+func _load_integer(position: Long, big: Boolean): Integer {
+    if big {
         return _address.read_integer_big_endian(position)
     }
     return _address.read_integer(position)
 }
 
-func read_long_at(position: Long): Long? {
-    assert _inside(position, 8)
-    if byte_order == 'big_endian' {
+func _load_long(position: Long, big: Boolean): Long {
+    if big {
         return _address.read_long_big_endian(position)
     }
     return _address.read_long(position)
 }
 
-func read_float_at(position: Long): Float? {
-    assert _inside(position, 4)
-    if byte_order == 'big_endian' {
-        return _address.read_unsigned_integer_big_endian(position).bits_as_float()
+func _load_float(position: Long, big: Boolean): Float {
+    if big {
+        var pattern = _address.read_unsigned_integer_big_endian(position)
+        return pattern.bits_as_float()
     }
     return _address.read_float(position)
 }
 
-func read_double_at(position: Long): Double? {
-    assert _inside(position, 8)
-    if byte_order == 'big_endian' {
-        return _address.read_unsigned_long_big_endian(position).bits_as_double()
+func _load_double(position: Long, big: Boolean): Double {
+    if big {
+        var pattern = _address.read_unsigned_long_big_endian(position)
+        return pattern.bits_as_double()
     }
     return _address.read_double(position)
 }
 
 func read_bytes_at(position: Long, count: Long): Buffer? {
     assert position >= 0 and count >= 0 and position <= _size - count
-    var run = Buffer(byte_order)
+    var run = Buffer(count)
     if count > 0 {
-        run.reserve(count)
         var start: Memory.Address = _address + position
         start.copy_to(run.items, count)
         run.item_count = count

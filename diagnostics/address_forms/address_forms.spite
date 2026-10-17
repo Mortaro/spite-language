@@ -19,10 +19,14 @@ func AddressForms() {
     var numbers = [1, 2, 3]
     var number = numbers.read_integer(0)
     console.print(number)
-    var wrong_order = Buffer().read_integer_big_endian(0)
-    console.print(wrong_order)
-    var position_first = Buffer().read_integer(0)
+    var unnamed_order = Buffer(0).read_integer_at(0)
+    console.print(unnamed_order)
+    var position_first = Buffer(0).read_integer_big_endian(0)
     console.print(position_first)
-    var missing_position = Buffer().write_integer(0, 1)
+    var missing_order = Buffer(0).read_integer(0)
+    console.print(missing_order)
+    var missing_position = Buffer(0).write_integer_little_endian(0, 1)
     console.print(missing_position)
+    var unnamed_append = Buffer(0).append_long(1)
+    console.print(unnamed_append)
 }

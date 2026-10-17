@@ -3,32 +3,27 @@ singleton
 func compress(bytes: Buffer): Buffer {
     var deflate = Deflate()
     var body = deflate.compress(bytes)
-    var body_count = body.item_count
-    var output = Buffer()
-    output.reserve(body_count + 6)
+    var body_count = body.count()
+    var output = Buffer(body_count + 6)
     output.append(120)
     output.append(156)
-    body.items.copy_to(output.items + 2, body_count)
-    output.item_count = body_count + 2
+    output.append_bytes(body, 0, body_count)
     var checksum = _adler32(bytes)
     _append_big_endian(output, checksum)
     return output
 }
 
 func decompress(bytes: Buffer): Buffer? {
-    var total = bytes.item_count
+    var total = bytes.count()
     assert total >= 6
-    var method: Integer = bytes.items.read_byte(0)
-    var flags: Integer = bytes.items.read_byte(1)
+    var method: Integer = _byte(bytes, 0)
+    var flags: Integer = _byte(bytes, 1)
     assert method.bits_and(15) == 8
     assert method.shifted_right(4) <= 7
     assert (method * 256 + flags) % 31 == 0
     assert flags.bits_and(32) == 0
-    var body = Buffer()
-    body.reserve(total - 6)
-    var body_start: Memory.Address = bytes.items + 2
-    body_start.copy_to(body.items, total - 6)
-    body.item_count = total - 6
+    var body = bytes.read_bytes_at(2, total - 6)
+    crash body
     var deflate = Deflate()
     var output = deflate.decompress(body)
     assert output
@@ -38,17 +33,22 @@ func decompress(bytes: Buffer): Buffer? {
     return output
 }
 
+func _byte(bytes: Buffer, index: Integer): Byte {
+    var value = bytes[index]
+    crash value
+    return value
+}
+
 func _adler32(bytes: Buffer): UnsignedInteger {
     var low: UnsignedInteger = 1
     var high: UnsignedInteger = 0
-    var total = bytes.item_count
-    var items = bytes.items
+    var total = bytes.count()
     var index = 0
     while index < total {
         var chunk_limit = index + 5552
         var chunk_end = chunk_limit.minimum(total)
         while index < chunk_end {
-            var value: UnsignedInteger = items.read_byte(index)
+            var value: UnsignedInteger = _byte(bytes, index)
             low = low + value
             high = high + low
             index = index + 1
@@ -63,7 +63,7 @@ func _read_big_endian(bytes: Buffer, at: Integer): UnsignedInteger {
     var value: UnsignedInteger = 0
     var index = 0
     while index < 4 {
-        var part: UnsignedInteger = bytes.items.read_byte(at + index)
+        var part: UnsignedInteger = _byte(bytes, at + index)
         value = value.shifted_left(8).bits_or(part)
         index = index + 1
     }

@@ -178,16 +178,16 @@ var console = Console()
 
 func ByteRecords() {
     var store = File(".spite/documentation_byte_records.bin")
-    var record = Buffer()
-    record.append_long(1111)
+    var record = Buffer(8)
+    record.append_long_little_endian(1111)
     store.write_bytes(record)
-    var next = Buffer()
-    next.append_long(2222)
+    var next = Buffer(8)
+    next.append_long_little_endian(2222)
     var second_at = store.append_bytes(next)
     crash second_at
     var read_back = store.read_bytes_at(second_at, 8)
     crash read_back
-    var second = read_back.read_long()
+    var second = read_back.read_long_little_endian()
     crash second
     var size = store.size()
     crash size
@@ -245,7 +245,7 @@ false keep me
 brings each page in the first time it is read and may drop it again, so a file of many gigabytes is walked as if
 it were in memory. A `MappedFile` answers `size(): Long`,
 and reads by position with the names a `Buffer` uses ([below](#bytes-are-a-buffer)): `mapped[position]` (a `Byte`),
-`read_short_at`, `read_integer_at`, `read_long_at`, `read_float_at`, `read_double_at` in its `byte_order`,
+`read_short_little_endian_at`, `read_integer_little_endian_at`, `read_long_little_endian_at`, `read_float_little_endian_at`, `read_double_little_endian_at` and their `_big_endian_at` twins,
 `read_bytes_at(position, count)` and `text(position, count)`, each a `T?` that is `null` when the bytes it would read
 are not all inside the file, since a position read from a file is data from outside ([failure.md](failure.md)). The mapping
 is undone when the `MappedFile` is dropped, and a file that is mapped cannot be removed on Windows until then.
@@ -255,9 +255,9 @@ var console = Console()
 
 func MappedRecords() {
     var store = File(".spite/documentation_mapped_records.bin")
-    var record = Buffer()
-    record.append_long(1111)
-    record.append_long(2222)
+    var record = Buffer(16)
+    record.append_long_little_endian(1111)
+    record.append_long_little_endian(2222)
     store.write_bytes(record)
     total_records(store)
     store.remove()
@@ -269,12 +269,12 @@ func total_records(store: File) {
     var total: Long = 0
     var position: Long = 0
     while position < mapped.size() {
-        var value = mapped.read_long_at(position)
+        var value = mapped.read_long_little_endian_at(position)
         crash value
         total = total + value
         position = position + 8
     }
-    var past_end = mapped.read_long_at(16)
+    var past_end = mapped.read_long_little_endian_at(16)
     console.print("the records add up to", total, "and a read past the end is null:", not past_end)
 }
 ```
@@ -852,10 +852,13 @@ A `Buffer` is still a run of bytes, and everything a list of bytes does it does 
 ([collections.md](collections.md#listt)). It keeps the bytes themselves in one block, so a read is one load and there
 is no list hiding inside it. `reserve(count)` makes room before writing, when the size is known.
 
-**Byte order is said once.** `Buffer()` is little-endian, the order of every machine Spite compiles for;
-`Buffer('big_endian')` is for a format that writes the most significant byte first (PNG, network order).
-`byte_order` can be read and set at any time, and every number read or written after uses it, so the functions
-have one name each and the order is never repeated at every call.
+**Byte order is said in each name.** A number of two bytes or more is read and written through a function that
+names its order after the number: `_little_endian`, the order of every machine Spite compiles for and of Spite's own
+binary format, or `_big_endian`, which puts the most significant byte first (PNG, network order). So a call says what
+it reads, one buffer may hold both orders, each read where its format says, and the order of every read is known
+while compiling. A `byte` and a `tiny` are one byte and have no order. A buffer is made with a size,
+`Buffer(size)`, for the bytes the program knows it will write (`Buffer(0)` when nothing is known): the size is a
+suggestion for room, never a limit, and the buffer grows past it as always.
 
 **A buffer has a position.** `position` starts at `0`. A read without a position reads there and moves past what it
 read, so a message is read front to back without counting bytes by hand; a read with `_at` reads anywhere and moves
@@ -871,8 +874,9 @@ nothing. `remaining()` is how many bytes are left after the position.
 | `append_bytes(other, start, count)` | | copies `count` bytes of `other`, from `start`, to the end; a run not inside `other` halts |
 | `to_utf8_text()` | `String?` | the text the bytes spell, `null` when they are not valid UTF-8 ([below](#bytes-base64-compression-hashes-and-passwords)) |
 
-`<number>` is `tiny`, `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`, `unsigned_long`, `float` or
-`double`, so the functions are `read_integer()`, `read_unsigned_short_at(4)`, `append_double(value)`, and so on;
+`<number>` is `tiny`, or one of `short`, `unsigned_short`, `integer`, `unsigned_integer`, `long`, `unsigned_long`,
+`float` or `double` followed by `_little_endian` or `_big_endian`, so the functions are `read_integer_little_endian()`,
+`read_unsigned_short_big_endian_at(4)`, `append_double_little_endian(value)`, and so on;
 `read_byte()` reads one `Byte` at the position too, while one byte anywhere is `buffer[position]` and one more at the
 end is `append(byte)`. A `List` has none of these functions, whatever it holds: calling one on a list is a compile
 error that says to keep the bytes in a `Buffer`.
@@ -890,22 +894,22 @@ checked, so use `_at` in a loop that must not test.
 var console = Console()
 
 func ByteNumbers() {
-    var message = Buffer('big_endian')
-    message.append_unsigned_short(2)
-    message.append_integer(1200)
-    message.append_integer(-35)
+    var message = Buffer(10)
+    message.append_unsigned_short_big_endian(2)
+    message.append_integer_big_endian(1200)
+    message.append_integer_big_endian(-35)
     var records = read_records(message)
     console.print("records:", records)
-    var missing = message.read_long_at(6)
+    var missing = message.read_long_big_endian_at(6)
     console.print("a read past the end is null:", not missing)
 }
 
 func read_records(message: Buffer): Integer {
-    var count = message.read_unsigned_short()
+    var count = message.read_unsigned_short_big_endian()
     crash count
-    var first = message.read_integer()
+    var first = message.read_integer_big_endian()
     crash first
-    var second = message.read_integer()
+    var second = message.read_integer_big_endian()
     crash second
     console.print(count, "records:", first, second)
     return count
@@ -925,7 +929,7 @@ the buffer's numbers, as above. The rules, the edge cases and the error texts ar
 
 **Memory C hands out.** A foreign library sometimes answers an address and a size, such as a GPU buffer mapped for the
 program to fill. `ForeignBytes(address, count)` wraps it: `count()`, `foreign[position]` and `foreign[position] =
-value` for one byte, a `byte_order`, the same `read_<number>_at` and `write_<number>_at` functions as a `Buffer`
+value` for one byte, the same `read_<number>_at` and `write_<number>_at` functions, with their byte order in the name, as a `Buffer`
 (each read a `T?`, each write halting outside the memory), `read_bytes_at(position, count): Buffer?` and
 `write_bytes_at(position, bytes)`. It has no position of its own. The memory stays C's: `ForeignBytes` never frees
 it, and it is only as alive as the library says it is.

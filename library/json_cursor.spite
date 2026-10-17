@@ -3,7 +3,6 @@ var position = 0
 var expected = ""
 var crashes = false
 var matched = false
-var heap = Memory.Heap()
 
 func JsonCursor(starting_text: String) {
     text = starting_text
@@ -186,7 +185,7 @@ func hexadecimal_digit(at: Integer): Integer {
 }
 
 func text_of(code_point: Integer): String {
-    var bytes = List<Integer>()
+    var bytes = Buffer(4)
     var shift = 0
     var lead_marker = 0
     if code_point >= 65536 {
@@ -199,23 +198,18 @@ func text_of(code_point: Integer): String {
         shift = 6
         lead_marker = 192
     }
-    var lead = code_point.shifted_right(shift).bits_or(lead_marker)
+    var lead: Byte = code_point.shifted_right(shift).bits_or(lead_marker)
     bytes.append(lead)
     while shift > 0 {
         shift = shift - 6
-        var continuation = code_point.shifted_right(shift).bits_and(63).bits_or(128)
+        var continuation: Byte = code_point.shifted_right(shift).bits_and(63).bits_or(128)
         bytes.append(continuation)
     }
-    var address = heap.allocate(4)
-    var index = 0
-    while index < bytes.count() {
-        var byte = bytes[index]
-        address.write_byte(index, byte)
-        index = index + 1
+    var result = bytes.to_utf8_text()
+    if not result {
+        fail("a character that is not half of a surrogate pair")
+        return ""
     }
-    var length = bytes.count()
-    var result = address.text(length)
-    heap.free(address)
     return result
 }
 

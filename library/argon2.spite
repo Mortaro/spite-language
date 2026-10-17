@@ -1,6 +1,5 @@
 singleton
 
-var heap = Memory.Heap()
 var random = SecureRandom()
 var base64 = Base64()
 var _blake_initial: List<Long> = [
@@ -201,7 +200,7 @@ func verify(password: String, encoded: String): Boolean? {
     assert salt and expected
     assert expected.count() >= 4 and salt.count() >= 8
     var secret = password.to_bytes()
-    var nothing = Buffer()
+    var nothing = Buffer(0)
     var tag_length = expected.count()
     var tag = _derived(variant, secret, salt, nothing, nothing, time_cost, memory_cost, lanes, tag_length)
     return _same_bytes(tag, expected)
@@ -215,7 +214,7 @@ func derive(
     lanes: Integer,
     tag_length: Integer,
 ): Buffer {
-    var nothing = Buffer()
+    var nothing = Buffer(0)
     return _derived(2, password, salt, nothing, nothing, time_cost, memory_cost, lanes, tag_length)
 }
 
@@ -257,13 +256,31 @@ func _same_bytes(left: Buffer, right: Buffer): Boolean {
     var difference = 0
     var index = 0
     while index < left_count {
-        var left_byte: Integer = left.items.read_byte(index)
-        var right_byte: Integer = right.items.read_byte(index)
+        var left_byte: Integer = _byte(left, index)
+        var right_byte: Integer = _byte(right, index)
         var differing = left_byte.bits_exclusive_or(right_byte)
         difference = difference.bits_or(differing)
         index = index + 1
     }
     return difference == 0
+}
+
+func _byte(bytes: Buffer, index: Integer): Byte {
+    var value = bytes[index]
+    crash value
+    return value
+}
+
+func _long_at(bytes: Buffer, at: Integer): Long {
+    var value = bytes.read_long_little_endian_at(at)
+    crash value
+    return value
+}
+
+func _word(words: List<Long>, index: Integer): Long {
+    var value = words[index]
+    crash value
+    return value
 }
 
 func _derived(
@@ -279,7 +296,11 @@ func _derived(
 ): Buffer {
     crash lanes >= 1 and time_cost >= 1 and tag_length >= 4
     crash memory_cost >= 8 * lanes
-    var parameters = Buffer()
+    var password_count = password.count()
+    var salt_count = salt.count()
+    var secret_count = secret.count()
+    var associated_count = associated.count()
+    var parameters = Buffer(40 + password_count + salt_count + secret_count + associated_count)
     _append_word(parameters, lanes)
     _append_word(parameters, tag_length)
     _append_word(parameters, memory_cost)
@@ -290,25 +311,51 @@ func _derived(
     _append_counted(parameters, salt)
     _append_counted(parameters, secret)
     _append_counted(parameters, associated)
-    var seed = heap.allocate(72)
-    var parameters_length: Long = parameters.count()
-    _blake2b(parameters.items, parameters_length, seed, 64)
+    var engine = List<Long>()
+    engine.reserve(24)
+    var cleared_engine = 0
+    while cleared_engine < 24 {
+        engine.append(0)
+        cleared_engine = cleared_engine + 1
+    }
+    var tail = Buffer(128)
+    var prefixed = Buffer(1028)
+    var digest = Buffer(64)
+    var chain = Buffer(64)
+    var hashed = Buffer(1024)
+    var seeded = Buffer(1024)
+    _blake2b(engine, tail, parameters, 64, digest)
+    seeded.append_bytes(digest, 0, 64)
     var segment_length = memory_cost / (4 * lanes)
     var lane_length = segment_length * 4
-    var block_count: Long = lane_length * lanes
-    var blocks = heap.allocate(block_count * 1024)
+    var block_count = lane_length * lanes
+    var work = block_count * 128
+    var memory = List<Long>()
+    memory.reserve(work + 640)
+    var cleared = 0
+    while cleared < work + 640 {
+        memory.append(0)
+        cleared = cleared + 1
+    }
     var lane = 0
     while lane < lanes {
-        seed.write_integer(68, lane)
-        seed.write_integer(64, 0)
-        var first = _block(blocks, lane * lane_length)
-        _long_hash(seed, 72, first, 1024)
-        seed.write_integer(64, 1)
-        var second = _block(blocks, lane * lane_length + 1)
-        _long_hash(seed, 72, second, 1024)
+        var column = 0
+        while column < 2 {
+            seeded.truncate(64)
+            seeded.append_integer_little_endian(column)
+            seeded.append_integer_little_endian(lane)
+            hashed.clear()
+            _long_hash(engine, tail, prefixed, digest, chain, seeded, 1024, hashed)
+            var target = _block(lane * lane_length + column)
+            var word = 0
+            while word < 128 {
+                memory[target + word] = _long_at(hashed, word * 8)
+                word = word + 1
+            }
+            column = column + 1
+        }
         lane = lane + 1
     }
-    var work = heap.allocate(5120)
     var pass = 0
     while pass < time_cost {
         var slice = 0
@@ -317,7 +364,7 @@ func _derived(
             while lane < lanes {
                 _fill_segment(
                     variant,
-                    blocks,
+                    memory,
                     work,
                     pass,
                     slice,
@@ -334,22 +381,28 @@ func _derived(
         }
         pass = pass + 1
     }
-    var final_block = work
-    var last = _block(blocks, lane_length - 1)
-    last.copy_to(final_block, 1024)
+    var last = _block(lane_length - 1)
+    var word = 0
+    while word < 128 {
+        memory[work + word] = _word(memory, last + word)
+        word = word + 1
+    }
     lane = 1
     while lane < lanes {
-        var lane_last = _block(blocks, lane * lane_length + lane_length - 1)
-        _xor_into(final_block, lane_last)
+        var lane_last = _block(lane * lane_length + lane_length - 1)
+        _xor_into(memory, work, lane_last)
         lane = lane + 1
     }
-    var tag = Buffer()
-    tag.reserve(tag_length)
-    _long_hash(final_block, 1024, tag.items, tag_length)
-    tag.item_count = tag_length
-    heap.free(work)
-    heap.free(blocks)
-    heap.free(seed)
+    seeded.clear()
+    word = 0
+    while word < 128 {
+        var held = memory[work + word]
+        crash held
+        seeded.append_long_little_endian(held)
+        word = word + 1
+    }
+    var tag = Buffer(tag_length)
+    _long_hash(engine, tail, prefixed, digest, chain, seeded, tag_length, tag)
     return tag
 }
 
@@ -365,33 +418,30 @@ func _append_word(bytes: Buffer, value: Integer) {
 func _append_counted(bytes: Buffer, added: Buffer) {
     var added_count = added.count()
     _append_word(bytes, added_count)
-    var index = 0
-    while index < added_count {
-        var value: Byte = added.items.read_byte(index)
-        bytes.append(value)
-        index = index + 1
-    }
+    bytes.append_bytes(added, 0, added_count)
 }
 
-func _block(blocks: Memory.Address, index: Long): Memory.Address {
-    return blocks + index * 1024
+func _block(index: Integer): Integer {
+    return index * 128
 }
 
-func _xor_into(target: Memory.Address, source: Memory.Address) {
+func _xor_into(memory: List<Long>, target: Integer, source: Integer) {
     var offset = 0
-    while offset < 1024 {
-        var held = target.read_long(offset)
-        var other = source.read_long(offset)
+    while offset < 128 {
+        var held = memory[target + offset]
+        crash held
+        var other = memory[source + offset]
+        crash other
         var mixed = held.bits_exclusive_or(other)
-        target.write_long(offset, mixed)
-        offset = offset + 8
+        memory[target + offset] = mixed
+        offset = offset + 1
     }
 }
 
 func _fill_segment(
     variant: Integer,
-    blocks: Memory.Address,
-    work: Memory.Address,
+    memory: List<Long>,
+    work: Integer,
     pass: Integer,
     slice: Integer,
     lane: Integer,
@@ -399,32 +449,32 @@ func _fill_segment(
     lane_length: Integer,
     segment_length: Integer,
     time_cost: Integer,
-    block_count: Long,
+    block_count: Integer,
 ) {
     var independent = variant == 1 or variant == 2 and pass == 0 and slice < 2
-    var zero_block = work + 1024
-    var address_block = work + 2048
+    var zero_block = work + 128
+    var address_block = work + 256
     var input_block = work
     if independent {
-        _clear(zero_block)
-        _clear(input_block)
-        input_block.write_long(0, pass)
-        input_block.write_long(8, lane)
-        input_block.write_long(16, slice)
-        input_block.write_long(24, block_count)
-        input_block.write_long(32, time_cost)
-        input_block.write_long(40, variant)
+        _clear(memory, zero_block)
+        _clear(memory, input_block)
+        memory[input_block] = pass
+        memory[input_block + 1] = lane
+        memory[input_block + 2] = slice
+        memory[input_block + 3] = block_count
+        memory[input_block + 4] = time_cost
+        memory[input_block + 5] = variant
     }
     var index = 0
     if pass == 0 and slice == 0 {
         index = 2
         if independent {
-            _next_addresses(input_block, zero_block, address_block)
+            _next_addresses(memory, input_block, zero_block, address_block)
         }
     }
     while index < segment_length {
         var column = slice * segment_length + index
-        var current: Long = lane * lane_length + column
+        var current = lane * lane_length + column
         var previous = current - 1
         if column == 0 {
             previous = current + lane_length - 1
@@ -432,13 +482,17 @@ func _fill_segment(
         var random_value: Long = 0
         if independent {
             if index % 128 == 0 {
-                _next_addresses(input_block, zero_block, address_block)
+                _next_addresses(memory, input_block, zero_block, address_block)
             }
             var slot = index % 128
-            random_value = address_block.read_long(slot * 8)
+            var random_value_raw = memory[address_block + slot]
+            crash random_value_raw
+            random_value = random_value_raw
         } else {
-            var previous_block = _block(blocks, previous)
-            random_value = previous_block.read_long(0)
+            var previous_block = _block(previous)
+            var random_value_raw = memory[previous_block]
+            crash random_value_raw
+            random_value = random_value_raw
         }
         var reference_lane = lane
         if pass > 0 or slice > 0 {
@@ -464,11 +518,12 @@ func _fill_segment(
         var reference_column = (start + relative) % lane_length
         var reference: Long = reference_lane * lane_length
         reference = reference + reference_column
-        var previous_address = _block(blocks, previous)
-        var reference_address = _block(blocks, reference)
-        var current_address = _block(blocks, current)
-        var mixed = work + 3072
-        _compress(previous_address, reference_address, current_address, pass > 0, mixed)
+        var reference_index: Integer = reference
+        var mixed = work + 384
+        var previous_at = _block(previous)
+        var reference_at = _block(reference_index)
+        var current_at = _block(current)
+        _compress(memory, previous_at, reference_at, current_at, pass > 0, mixed)
         index = index + 1
     }
 }
@@ -494,113 +549,123 @@ func _reference_area(
     return finished
 }
 
-func _clear(block: Memory.Address) {
+func _clear(memory: List<Long>, block: Integer) {
     var offset = 0
-    while offset < 1024 {
-        block.write_long(offset, 0)
-        offset = offset + 8
+    while offset < 128 {
+        memory[block + offset] = 0
+        offset = offset + 1
     }
 }
 
-func _next_addresses(input_block: Memory.Address, zero_block: Memory.Address, address_block: Memory.Address) {
-    var counter = input_block.read_long(48)
-    input_block.write_long(48, counter + 1)
-    var mixed = input_block + 3072
-    _compress(zero_block, input_block, address_block, false, mixed)
-    _compress(zero_block, address_block, address_block, false, mixed)
+func _next_addresses(memory: List<Long>, input_block: Integer, zero_block: Integer, address_block: Integer) {
+    var counter = memory[input_block + 6]
+    crash counter
+    memory[input_block + 6] = counter + 1
+    var mixed = input_block + 384
+    _compress(memory, zero_block, input_block, address_block, false, mixed)
+    _compress(memory, zero_block, address_block, address_block, false, mixed)
 }
 
 func _compress(
-    previous: Memory.Address,
-    reference: Memory.Address,
-    target: Memory.Address,
+    memory: List<Long>,
+    previous: Integer,
+    reference: Integer,
+    target: Integer,
     keep: Boolean,
-    mixed: Memory.Address,
+    mixed: Integer,
 ) {
-    var saved = mixed + 1024
+    var saved = mixed + 128
     var offset = 0
-    while offset < 1024 {
-        var left = previous.read_long(offset)
-        var right = reference.read_long(offset)
+    while offset < 128 {
+        var left = memory[previous + offset]
+        crash left
+        var right = memory[reference + offset]
+        crash right
         var both = left.bits_exclusive_or(right)
-        mixed.write_long(offset, both)
+        memory[mixed + offset] = both
         if keep {
-            var old = target.read_long(offset)
+            var old = memory[target + offset]
+            crash old
             both = both.bits_exclusive_or(old)
         }
-        saved.write_long(offset, both)
-        offset = offset + 8
+        memory[saved + offset] = both
+        offset = offset + 1
     }
     var row = 0
     while row < 8 {
-        var row_start = mixed + row * 128
-        _permute(row_start, 16, 8)
+        var row_start = mixed + row * 16
+        _permute(memory, row_start, 2, 1)
         row = row + 1
     }
     var column = 0
     while column < 8 {
-        var column_start = mixed + column * 16
-        _permute(column_start, 128, 8)
+        var column_start = mixed + column * 2
+        _permute(memory, column_start, 16, 1)
         column = column + 1
     }
     offset = 0
-    while offset < 1024 {
-        var kept = saved.read_long(offset)
-        var permuted = mixed.read_long(offset)
+    while offset < 128 {
+        var kept = memory[saved + offset]
+        crash kept
+        var permuted = memory[mixed + offset]
+        crash permuted
         var result = kept.bits_exclusive_or(permuted)
-        target.write_long(offset, result)
-        offset = offset + 8
+        memory[target + offset] = result
+        offset = offset + 1
     }
-}
-
-func _permute(start: Memory.Address, pair_step: Integer, word_step: Integer) {
-    _mix(start, 0, 4, 8, 12, pair_step, word_step)
-    _mix(start, 1, 5, 9, 13, pair_step, word_step)
-    _mix(start, 2, 6, 10, 14, pair_step, word_step)
-    _mix(start, 3, 7, 11, 15, pair_step, word_step)
-    _mix(start, 0, 5, 10, 15, pair_step, word_step)
-    _mix(start, 1, 6, 11, 12, pair_step, word_step)
-    _mix(start, 2, 7, 8, 13, pair_step, word_step)
-    _mix(start, 3, 4, 9, 14, pair_step, word_step)
 }
 
 func _offset(word: Integer, pair_step: Integer, word_step: Integer): Integer {
     return word / 2 * pair_step + word % 2 * word_step
 }
 
-func _mix(
-    start: Memory.Address,
-    first: Integer,
-    second: Integer,
-    third: Integer,
-    fourth: Integer,
-    pair_step: Integer,
-    word_step: Integer,
-) {
-    var at_a = _offset(first, pair_step, word_step)
-    var at_b = _offset(second, pair_step, word_step)
-    var at_c = _offset(third, pair_step, word_step)
-    var at_d = _offset(fourth, pair_step, word_step)
-    var word_a = start.read_long(at_a).bits_as_unsigned()
-    var word_b = start.read_long(at_b).bits_as_unsigned()
-    var word_c = start.read_long(at_c).bits_as_unsigned()
-    var word_d = start.read_long(at_d).bits_as_unsigned()
-    word_a = _multiplied_sum(word_a, word_b)
-    word_d = _rotated_exclusive_or(word_d, word_a, 32)
-    word_c = _multiplied_sum(word_c, word_d)
-    word_b = _rotated_exclusive_or(word_b, word_c, 24)
-    word_a = _multiplied_sum(word_a, word_b)
-    word_d = _rotated_exclusive_or(word_d, word_a, 16)
-    word_c = _multiplied_sum(word_c, word_d)
-    word_b = _rotated_exclusive_or(word_b, word_c, 63)
-    var signed_a = word_a.bits_as_signed()
-    start.write_long(at_a, signed_a)
-    var signed_b = word_b.bits_as_signed()
-    start.write_long(at_b, signed_b)
-    var signed_c = word_c.bits_as_signed()
-    start.write_long(at_c, signed_c)
-    var signed_d = word_d.bits_as_signed()
-    start.write_long(at_d, signed_d)
+func _permute(memory: List<Long>, start: Integer, pair_step: Integer, word_step: Integer) {
+    var step = 0
+    while step < 8 {
+        var lane = step % 4
+        var first = lane
+        var second = 4 + lane
+        var third = 8 + lane
+        var fourth = 12 + lane
+        if step >= 4 {
+            second = 4 + (lane + 1) % 4
+            third = 8 + (lane + 2) % 4
+            fourth = 12 + (lane + 3) % 4
+        }
+        var at_a = start + _offset(first, pair_step, word_step)
+        var at_b = start + _offset(second, pair_step, word_step)
+        var at_c = start + _offset(third, pair_step, word_step)
+        var at_d = start + _offset(fourth, pair_step, word_step)
+        var word_a_raw = memory[at_a]
+        crash word_a_raw
+        var word_b_raw = memory[at_b]
+        crash word_b_raw
+        var word_c_raw = memory[at_c]
+        crash word_c_raw
+        var word_d_raw = memory[at_d]
+        crash word_d_raw
+        var word_a = word_a_raw.bits_as_unsigned()
+        var word_b = word_b_raw.bits_as_unsigned()
+        var word_c = word_c_raw.bits_as_unsigned()
+        var word_d = word_d_raw.bits_as_unsigned()
+        word_a = _multiplied_sum(word_a, word_b)
+        word_d = _rotated_exclusive_or(word_d, word_a, 32)
+        word_c = _multiplied_sum(word_c, word_d)
+        word_b = _rotated_exclusive_or(word_b, word_c, 24)
+        word_a = _multiplied_sum(word_a, word_b)
+        word_d = _rotated_exclusive_or(word_d, word_a, 16)
+        word_c = _multiplied_sum(word_c, word_d)
+        word_b = _rotated_exclusive_or(word_b, word_c, 63)
+        var signed_a = word_a.bits_as_signed()
+        memory[at_a] = signed_a
+        var signed_b = word_b.bits_as_signed()
+        memory[at_b] = signed_b
+        var signed_c = word_c.bits_as_signed()
+        memory[at_c] = signed_c
+        var signed_d = word_d.bits_as_signed()
+        memory[at_d] = signed_d
+        step = step + 1
+    }
 }
 
 func _multiplied_sum(left: UnsignedLong, right: UnsignedLong): UnsignedLong {
@@ -617,116 +682,133 @@ func _rotated_exclusive_or(value: UnsignedLong, other: UnsignedLong, count: Inte
     return right.bits_or(left)
 }
 
-func _long_hash(input: Memory.Address, input_length: Long, output: Memory.Address, output_length: Integer) {
-    var prefixed = heap.allocate(input_length + 4)
-    prefixed.write_integer(0, output_length)
-    var rest = prefixed + 4
-    input.copy_to(rest, input_length)
+func _long_hash(
+    engine: List<Long>,
+    tail: Buffer,
+    prefixed: Buffer,
+    digest: Buffer,
+    chain: Buffer,
+    input: Buffer,
+    output_length: Integer,
+    output: Buffer,
+) {
+    var input_count = input.count()
+    prefixed.clear()
+    prefixed.append_integer_little_endian(output_length)
+    prefixed.append_bytes(input, 0, input_count)
+    digest.clear()
     if output_length <= 64 {
-        _blake2b(prefixed, input_length + 4, output, output_length)
-        heap.free(prefixed)
+        _blake2b(engine, tail, prefixed, output_length, digest)
+        output.append_bytes(digest, 0, output_length)
         return
     }
-    var chain = heap.allocate(128)
-    var next = chain + 64
-    _blake2b(prefixed, input_length + 4, chain, 64)
-    heap.free(prefixed)
-    chain.copy_to(output, 32)
+    chain.clear()
+    _blake2b(engine, tail, prefixed, 64, chain)
+    output.append_bytes(chain, 0, 32)
     var written = 32
     while output_length - written > 64 {
-        _blake2b(chain, 64, next, 64)
-        next.copy_to(chain, 64)
-        var at = output + written
-        chain.copy_to(at, 32)
+        digest.clear()
+        _blake2b(engine, tail, chain, 64, digest)
+        chain.clear()
+        chain.append_bytes(digest, 0, 64)
+        output.append_bytes(chain, 0, 32)
         written = written + 32
     }
-    var last = output + written
-    _blake2b(chain, 64, last, output_length - written)
-    heap.free(chain)
+    var last_length = output_length - written
+    digest.clear()
+    _blake2b(engine, tail, chain, last_length, digest)
+    output.append_bytes(digest, 0, last_length)
 }
 
-func _blake2b(input: Memory.Address, input_length: Long, output: Memory.Address, output_length: Integer) {
-    var state = heap.allocate(64)
-    var block = heap.allocate(128)
+func _blake2b(engine: List<Long>, tail: Buffer, input: Buffer, output_length: Integer, digest: Buffer) {
+    var input_length = input.count()
     var index = 0
     while index < 8 {
         crash _blake_initial[index]
         var initial = _blake_initial[index]
-        state.write_long(index * 8, initial)
+        engine[index] = initial
         index = index + 1
     }
-    var first: Long = state.read_long(0)
+    var first: Long = _word(engine, 0)
     var parameter: Long = output_length
     parameter = parameter.bits_or(16842752)
     first = first.bits_exclusive_or(parameter)
-    state.write_long(0, first)
-    var offset: Long = 0
+    engine[0] = first
+    var offset = 0
     while input_length - offset > 128 {
-        var chunk = input + offset
-        chunk.copy_to(block, 128)
         offset = offset + 128
-        _blake_compress(state, block, offset, false)
+        var counter: Long = offset
+        var block_start = offset - 128
+        _blake_compress(engine, input, block_start, counter, false)
     }
+    tail.clear()
     var remaining = input_length - offset
-    var cleared: Long = remaining
-    while cleared < 128 {
-        block.write_byte(cleared, 0)
-        cleared = cleared + 1
+    tail.append_bytes(input, offset, remaining)
+    while tail.count() < 128 {
+        tail.append(0)
     }
-    var tail = input + offset
-    tail.copy_to(block, remaining)
-    _blake_compress(state, block, input_length, true)
-    state.copy_to(output, output_length)
-    heap.free(state)
-    heap.free(block)
-}
-
-func _blake_compress(state: Memory.Address, block: Memory.Address, counter: Long, last: Boolean) {
-    var work = heap.allocate(128)
-    state.copy_to(work, 64)
-    var index = 0
+    var total: Long = input_length
+    _blake_compress(engine, tail, 0, total, true)
+    index = 0
     while index < 8 {
-        crash _blake_initial[index]
-        var initial = _blake_initial[index]
-        work.write_long(64 + index * 8, initial)
+        var held = engine[index]
+        crash held
+        digest.append_long_little_endian(held)
         index = index + 1
     }
-    var twelfth = work.read_long(96)
+    digest.truncate(output_length)
+}
+
+func _blake_compress(engine: List<Long>, block: Buffer, base: Integer, counter: Long, last: Boolean) {
+    var index = 0
+    while index < 8 {
+        var held = engine[index]
+        crash held
+        engine[8 + index] = held
+        crash _blake_initial[index]
+        var initial = _blake_initial[index]
+        engine[16 + index] = initial
+        index = index + 1
+    }
+    var twelfth: Long = _word(engine, 20)
     twelfth = twelfth.bits_exclusive_or(counter)
-    work.write_long(96, twelfth)
+    engine[20] = twelfth
     if last {
-        var fifteenth = work.read_long(112)
+        var fifteenth: Long = _word(engine, 22)
         fifteenth = fifteenth.bits_inverted()
-        work.write_long(112, fifteenth)
+        engine[22] = fifteenth
     }
     var round = 0
     while round < 12 {
         var order = round % 10 * 16
-        _blake_mix(work, block, 0, 4, 8, 12, order)
-        _blake_mix(work, block, 1, 5, 9, 13, order + 2)
-        _blake_mix(work, block, 2, 6, 10, 14, order + 4)
-        _blake_mix(work, block, 3, 7, 11, 15, order + 6)
-        _blake_mix(work, block, 0, 5, 10, 15, order + 8)
-        _blake_mix(work, block, 1, 6, 11, 12, order + 10)
-        _blake_mix(work, block, 2, 7, 8, 13, order + 12)
-        _blake_mix(work, block, 3, 4, 9, 14, order + 14)
+        _blake_mix(engine, block, base, 8, 12, 16, 20, order)
+        _blake_mix(engine, block, base, 9, 13, 17, 21, order + 2)
+        _blake_mix(engine, block, base, 10, 14, 18, 22, order + 4)
+        _blake_mix(engine, block, base, 11, 15, 19, 23, order + 6)
+        _blake_mix(engine, block, base, 8, 13, 18, 23, order + 8)
+        _blake_mix(engine, block, base, 9, 14, 19, 20, order + 10)
+        _blake_mix(engine, block, base, 10, 15, 16, 21, order + 12)
+        _blake_mix(engine, block, base, 11, 12, 17, 22, order + 14)
         round = round + 1
     }
     index = 0
     while index < 8 {
-        var held = state.read_long(index * 8)
-        var low = work.read_long(index * 8)
-        var high = work.read_long(64 + index * 8)
+        var held = engine[index]
+        crash held
+        var low = engine[8 + index]
+        crash low
+        var high = engine[16 + index]
+        crash high
         var mixed = held.bits_exclusive_or(low).bits_exclusive_or(high)
-        state.write_long(index * 8, mixed)
+        engine[index] = mixed
         index = index + 1
     }
-    heap.free(work)
 }
 
 func _blake_mix(
-    work: Memory.Address,
-    block: Memory.Address,
+    work: List<Long>,
+    block: Buffer,
+    base: Integer,
     first: Integer,
     second: Integer,
     third: Integer,
@@ -737,12 +819,24 @@ func _blake_mix(
     var x_index = _blake_order[order]
     crash _blake_order[order + 1]
     var y_index = _blake_order[order + 1]
-    var message_x = block.read_long(x_index * 8).bits_as_unsigned()
-    var message_y = block.read_long(y_index * 8).bits_as_unsigned()
-    var word_a = work.read_long(first * 8).bits_as_unsigned()
-    var word_b = work.read_long(second * 8).bits_as_unsigned()
-    var word_c = work.read_long(third * 8).bits_as_unsigned()
-    var word_d = work.read_long(fourth * 8).bits_as_unsigned()
+    var message_x_raw = block.read_long_little_endian_at(base + x_index * 8)
+    crash message_x_raw
+    var message_x = message_x_raw.bits_as_unsigned()
+    var message_y_raw = block.read_long_little_endian_at(base + y_index * 8)
+    crash message_y_raw
+    var message_y = message_y_raw.bits_as_unsigned()
+    var word_a_raw = work[first]
+    crash word_a_raw
+    var word_a = word_a_raw.bits_as_unsigned()
+    var word_b_raw = work[second]
+    crash word_b_raw
+    var word_b = word_b_raw.bits_as_unsigned()
+    var word_c_raw = work[third]
+    crash word_c_raw
+    var word_c = word_c_raw.bits_as_unsigned()
+    var word_d_raw = work[fourth]
+    crash word_d_raw
+    var word_d = word_d_raw.bits_as_unsigned()
     word_a = word_a.wrapping_sum(word_b).wrapping_sum(message_x)
     word_d = _rotated_exclusive_or(word_d, word_a, 32)
     word_c = word_c.wrapping_sum(word_d)
@@ -752,11 +846,11 @@ func _blake_mix(
     word_c = word_c.wrapping_sum(word_d)
     word_b = _rotated_exclusive_or(word_b, word_c, 63)
     var signed_a = word_a.bits_as_signed()
-    work.write_long(first * 8, signed_a)
+    work[first] = signed_a
     var signed_b = word_b.bits_as_signed()
-    work.write_long(second * 8, signed_b)
+    work[second] = signed_b
     var signed_c = word_c.bits_as_signed()
-    work.write_long(third * 8, signed_c)
+    work[third] = signed_c
     var signed_d = word_d.bits_as_signed()
-    work.write_long(fourth * 8, signed_d)
+    work[fourth] = signed_d
 }

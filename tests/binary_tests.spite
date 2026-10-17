@@ -74,7 +74,7 @@ func test_every_number_width_round_trips() {
 }
 
 func test_values_follow_each_other_in_one_buffer() {
-    var bytes = Buffer()
+    var bytes = Buffer(0)
     var ada = Sailor("Ada")
     var bo = Sailor("Bo")
     var ada_writer = BinaryWriter<Sailor>()
@@ -98,14 +98,14 @@ func test_reads_after_a_header_of_numbers() {
     var writer = BinaryWriter<Sailor>()
     var record = writer.write(bo)
     var record_count = record.count()
-    var big_endian = Buffer('big_endian')
-    big_endian.append_integer(record_count)
-    var header = Buffer()
-    header.append_integer(record_count)
+    var big_endian = Buffer(4)
+    big_endian.append_integer_big_endian(record_count)
+    var header = Buffer(0)
+    header.append_integer_little_endian(record_count)
     header.append_bytes(record, 0, record_count)
-    var length = header.read_integer_at(0)
+    var length = header.read_integer_little_endian_at(0)
     crash length == record_count
-    var big_length = big_endian.read_integer_at(0)
+    var big_length = big_endian.read_integer_big_endian_at(0)
     crash big_length == record_count
     var reader = BinaryReader<Sailor>()
     var read = reader.read_from(header, 4)
@@ -155,7 +155,7 @@ func test_bad_bytes_read_nothing() {
     var reader = BinaryReader<Ship>()
     var cut = reader.read(bytes)
     crash not cut
-    var flag = Buffer()
+    var flag = Buffer(0)
     flag.append(0)
     flag.append(0)
     flag.append(0)
@@ -174,7 +174,7 @@ func test_bad_bytes_read_nothing() {
     var flag_reader = BinaryReader<Ship>()
     var bad_flag = flag_reader.read(flag)
     crash not bad_flag
-    var empty = Buffer()
+    var empty = Buffer(0)
     var empty_reader = BinaryReader<Ship>()
     var nothing = empty_reader.read(empty)
     crash not nothing
@@ -191,7 +191,7 @@ func test_a_bad_enum_index_reads_nothing() {
 }
 
 func test_a_count_larger_than_the_bytes_left_reads_nothing() {
-    var huge = Buffer()
+    var huge = Buffer(0)
     huge.append(255)
     huge.append(255)
     huge.append(255)

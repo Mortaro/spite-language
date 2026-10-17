@@ -19,7 +19,7 @@ func NumberType() {
     var float_span = sizes.span(floats)
     console.print("{float_best} {float_total} {float_span}")
     var bytes = ByteTally<Byte>()
-    var small = Buffer()
+    var small = Buffer(0)
     small.append(7)
     small.append(200)
     small.append(10)

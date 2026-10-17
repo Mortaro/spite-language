@@ -85,7 +85,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A switch covers every case](#a-switch-covers-every-case) | refuses a forgotten case | add the case or `_:` |
 | [A proven count or bound proves a read](#a-proven-count-or-bound-proves-a-read) | `list[i]` read without narrowing | refused until proven, naming how |
 | [A proven read halts outside its list](#a-proven-read-halts-outside-its-list) | a stray counter stops the program | none |
-| [A read of a width](#a-proven-count-or-bound-proves-a-read-of-a-width) | `bytes.read_integer_at(position)` read as a number, one load in a counted loop | a `T?` to narrow |
+| [A read of a width](#a-proven-count-or-bound-proves-a-read-of-a-width) | `bytes.read_integer_little_endian_at(position)` read as a number, one load in a counted loop | a `T?` to narrow |
 | [An index built from loop counters](#an-index-built-from-loop-counters-is-proven-by-one-guard) | `list[row * stride + column]` read under one guard | a `T?` to narrow |
 | [A counted loop reads its items unchecked](#a-counted-loop-reads-its-items-unchecked) | no range checks, vectorisable | the ordinary checked loop |
 | [A proven divisor is not checked](#a-proven-divisor-is-not-checked) | no zero check | the zero check |
@@ -414,10 +414,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
   or more, a local whose every assignment in the function is such a literal or adds one to itself, a name proven
   `>= 0` or `> 0` inside the same loop, or one of those plus a literal. A counted loop may step its counter by any
   literal up to its window: `while position + 15 < records.count()` with `position = position + 16` last.
-- **Buys.** In a counted loop, one load from the buffer (and one byte swap for a `'big_endian'` buffer), with no test and no
+- **Buys.** In a counted loop, one load from the buffer (and one byte swap for a `_big_endian_at` read), with no test and no
   call: the hand-written loop's code. Elsewhere one compare of the top, which the C compiler is told is never taken,
   and the load; two compares when the low end is not known. A `write_<number>_at` in a counted loop is one store.
-- **Falls back.** Unproven, and always for a read at the buffer's position (`read_<number>()`), the read is a `T?` the program narrows (`crash header`, `if value { }`), and the
+- **Falls back.** Unproven, and always for a read at the buffer's position (`read_<number>_little_endian()`), the read is a `T?` the program narrows (`crash header`, `if value { }`), and the
   library's own read compares both ends. Outside a counted loop the compare stays, because another name for the same
   buffer could have shrunk it since the bound; a read that finds it so halts naming the read
   ([below](#a-proven-read-halts-outside-its-list)). Nothing proves a read whose position comes from another read

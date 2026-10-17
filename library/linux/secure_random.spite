@@ -1,12 +1,13 @@
 var _library = DynamicLibrary("libc.so.6", 'identity', "")
 
-func _fill(address: Memory.Address, count: Integer) {
-    var filled = 0
-    while filled < count {
-        var at = address + filled
-        var wanted = count - filled
+func _fill(filled: Buffer, count: Integer) {
+    var written = 0
+    while written < count {
+        var at = filled.items + written
+        var wanted = count - written
         var got: Integer = _library.getrandom_as_long(at, wanted, 0)
         crash got > 0
-        filled = filled + got
+        written = written + got
     }
+    filled.item_count = count
 }

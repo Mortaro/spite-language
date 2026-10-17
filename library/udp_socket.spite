@@ -141,8 +141,7 @@ func _received(): Buffer? {
         heap.free(sender)
         return null
     }
-    var bytes = Buffer()
-    bytes.reserve(received)
+    var bytes = Buffer(received)
     buffer.copy_to(bytes.items, received)
     bytes.item_count = received
     _sender_host = _addresses.address_text(sender)
