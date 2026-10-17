@@ -459,7 +459,7 @@ output build finished
 | `Process(command, arguments)` | | `arguments` is a `List<String>`, each one argument of the child, quoted for you (below) |
 | `working_directory` | `String` | the folder the child runs in; `""`, the default, is the program's own |
 | `environment_variables` | `Dictionary<String, String>` | variables set for the child alone, on top of the program's own: `process.environment_variables["LOG"] = "1"` |
-| `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start; on Linux and macOS, a child a signal ended answers 128 plus the signal's number, as a shell reports it) |
+| `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start; on Linux and macOS, a child a signal ended answers 128 plus the signal's number, as a shell reports it); captures standard output as bytes on Windows, where byte `0x1A` does not end the output |
 | `output()` | `String` | what it wrote to its standard output, valid after `run()` |
 | `run_attached()` | `Integer` | runs it with the program's own terminal, so what it writes and reads is the user's, and answers its exit code, read as `run()` reads it |
 
@@ -733,7 +733,7 @@ datagrams; reliable channels are the program's.
 
 ## HTTP
 
-`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket`, keeping a connection open for the next exchange.
+`HttpServer` and `HttpClient` speak HTTP/1.1 over `Socket`, keeping a connection open for the next exchange. A client writes the requested host and includes a nonstandard port in the `host` header, with IPv6 addresses bracketed before the port.
 A message is an `HttpRequest` (`method`, `path`, `version`, `headers`, `body`) or an `HttpResponse` (`status`,
 `headers`, `body`); `header(name)` reads a header whatever its case and `set_header(name, value)` writes one, and
 `reason()` is the response's reason phrase. Bodies are text.

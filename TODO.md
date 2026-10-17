@@ -200,7 +200,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 - A `type` and a generic are meant to belong to the file that declares them, yet `Number` and `Nothing` are used as generic constraints from other files: find where the scope leaks, and whether other names resolve without being loaded
 - A float can answer different bits in a default build and an `--optimized` one, since the C compiler fuses a multiply and an add when tuned for the machine: pass `-ffp-contract=off` in every compile (D605)
-- `Integer.smallest.absolute()` may answer the negative value (suspected, not reproduced)
 - `parallel_each_` over a list holding one object twice runs it on two threads at once
 - A local read from a list and assigned a value nothing reads still compiles inside a `while` with the local outside, or through a function the rule cannot follow (D515, D516)
 - Reference cycles leak without a word unless built with `--debug-memory`
@@ -208,7 +207,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 - A Windows `__fastfail` ends the program without Spite's report
 - A `while true` that can never leave but calls something is refused only in `Parallel` work and locked singleton functions (D510)
 - `Process.run` reads pipes in text mode on Windows, so a byte 0x1A ends the output
-- `HttpClient.send` writes `host` without the port when the port is not 80
 - A list's templates read elements uncounted without checking the `drop()` functions that may free one
 - `read_value`, `write_value`, `release_value` and `swap_values` are accepted by name on any receiver
 - A copy made to narrow is caught only when the condition is the bare name
