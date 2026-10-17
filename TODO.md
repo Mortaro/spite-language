@@ -6,7 +6,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 
 ## Language rules
 
-- A member chain read through a `T?` inside `==` or `!=` is a `T?`, so `return made.kind == "make"` compiles; and `and` narrows its right side in every expression, `return` included (D598)
 - A `switch` case of two statements or more is a compile error; about 530 cases in the compiler and `library/` are rewritten first (D576)
 - Three or more classes in a folder sharing a name prefix are an error; the compiler's own `backend/high_*.spite` break it (D588)
 - Environments are a reopenable, walkable enum (D180, D373)
@@ -199,7 +198,6 @@ parentheses. Build it, then delete its line in the same commit. The rule is on i
 ## Bugs that fail silently (D244)
 
 - A `type` and a generic are meant to belong to the file that declares them, yet `Number` and `Nothing` are used as generic constraints from other files: find where the scope leaks, and whether other names resolve without being loaded
-- A float can answer different bits in a default build and an `--optimized` one, since the C compiler fuses a multiply and an add when tuned for the machine: pass `-ffp-contract=off` in every compile (D605)
 - `parallel_each_` over a list holding one object twice runs it on two threads at once
 - A local read from a list and assigned a value nothing reads still compiles inside a `while` with the local outside, or through a function the rule cannot follow (D515, D516)
 - Reference cycles leak without a word unless built with `--debug-memory`
