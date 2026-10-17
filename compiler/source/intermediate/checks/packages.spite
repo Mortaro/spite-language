@@ -1,0 +1,37 @@
+# ../../../../specs/packages.md#packages-namespaces-and-loading
+var raise = Raise()
+
+func unknown_type_message(written: String, held: String, suggestion: String): String {
+    if not held.is_empty() {
+        return "unknown type '{written}': {held}"
+    }
+    if not suggestion.is_empty() {
+        return "unknown type '{written}': did you mean '{suggestion}'?"
+    }
+    return "unknown type '{written}'"
+}
+
+func unknown_type(starting_emitter: Emitter, written: String, held: String, suggestion: String) {
+    var message = unknown_type_message(written, held, suggestion)
+    raise.in_body(starting_emitter, message)
+}
+
+func unknown_type_in_class(
+    information: Analysis.ClassInfo,
+    line: Integer,
+    written: String,
+    held: String,
+    suggestion: String,
+) {
+    var message = unknown_type_message(written, held, suggestion)
+    raise.in_class(information, line, message)
+}
+
+func bodiless(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert not function.has_body and function.supplied_body.is_empty()
+    raise.in_function(
+        information,
+        function,
+        "'{information.simple_name}.{function.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
+    )
+}

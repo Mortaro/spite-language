@@ -294,6 +294,12 @@ func store_member(
     }
     var field = target.find_field(member.name)
     if not field {
+        var getter = made.find_getter(target, member.name, lowered_class)
+        var read_only = false
+        if getter {
+            read_only = true
+        }
+        Checks.Reflection().unassignable(emitter, target, member.name, read_only)
         emitter.fail_lowering("an assignment to '{member.name}', which '{target.qualified_dotted}' does not hold")
         return
     }

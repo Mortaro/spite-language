@@ -1,0 +1,187 @@
+# ../../../../specs/reflection.md#the-names-reflection-gives-every-object
+var raise = Raise()
+
+func class_declarations(information: Analysis.ClassInfo) {
+    assert not information.qualified_dotted.starts_with("Spite.")
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field = information.fields[field_index]
+        reserved_attribute(information, field)
+        field_index = field_index + 1
+    }
+    var index = 0
+    while index < information.declared_functions.count() {
+        var function = information.declared_functions[index]
+        reserved_function(information, function)
+        index = index + 1
+    }
+}
+
+func reserved_attribute(information: Analysis.ClassInfo, field: Analysis.FieldInfo) {
+    assert field.line > 0
+    var problem = reserved_name_problem(field.name, "attribute", information)
+    assert not problem.is_empty()
+    raise.in_class(information, field.line, problem)
+}
+
+func reserved_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    assert function.line > 0 and function.specialised_from.is_empty() and function.symbol_name.is_empty()
+    var is_conversion = information.is_value_class and function.name.starts_with("to_")
+    assert not function.is_constructor and not is_conversion and function.has_body
+    var problem = reserved_name_problem(function.name, "function", information)
+    assert not problem.is_empty()
+    raise.in_function(information, function, problem)
+}
+
+func reserved_name_problem(name: String, what: String, information: Analysis.ClassInfo): String {
+    var member = name
+    var accessor = ""
+    if name.starts_with("get_") or name.starts_with("set_") {
+        var name_length = name.length()
+        member = name.slice(4, name_length)
+        accessor = name.slice(0, 4)
+    }
+    var meaning = reflection_member_meaning(member)
+    if meaning.is_empty() {
+        return ""
+    }
+    var owner = snake_words(information.simple_name)
+    var suggestion = "{accessor}{owner}_{member}"
+    if accessor.is_empty() {
+        return "the {what} '{name}' has a name reflection gives every object: {meaning}, and one of its own would hide it. Name it something else, like '{suggestion}'"
+    }
+    return "the {what} '{name}' is read as '{member}', a name reflection gives every object: {meaning}, and one of its own would hide it. Name it something else, like '{suggestion}'"
+}
+
+func reflection_member_meaning(member: String): String {
+    switch member {
+        "class": return "'value.class' is its class"
+        "attributes": return "'value.attributes' lists its attributes, and JsonReader, JsonWriter and every attribute walk read through it"
+        "functions": return "'value.functions' lists its functions"
+        "instances": return "'Monster.instances' lists every live instance of a class"
+        "memory": return "'value.memory' says where the value lives"
+        _: return ""
+    }
+}
+
+func snake_words(pascal: String): String {
+    var words = ""
+    var index = 0
+    while index < pascal.length() {
+        var code = pascal.code_at(index)
+        var character = pascal.character_at(index)
+        if code >= 65 and code <= 90 and index > 0 {
+            words = "{words}_"
+        }
+        var lowered = character.lower_case()
+        words = words + lowered
+        index = index + 1
+    }
+    return words
+}
+
+func unassignable(
+    starting_emitter: Emitter,
+    target: Analysis.ClassInfo,
+    member_name: String,
+    answers_through_getter: Boolean,
+) {
+    if answers_through_getter {
+        raise.in_body(
+            starting_emitter,
+            "'{member_name}' is read-only: '{target.simple_name}' answers it through get_{member_name}() and has no set_{member_name}(value)",
+        )
+        return
+    }
+    raise.in_body(starting_emitter, "'{target.simple_name}' has no attribute '{member_name}' to assign to")
+}
+
+func class_not_a_value(starting_emitter: Emitter, name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{name}' is a class, not a value: write '{name}()' to make one, and give it a name with 'var ... = '; for the class itself, pass it where a 'Spite.Class' is wanted",
+    )
+}
+
+func function_called_on_class(starting_emitter: Emitter, qualified_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{qualified_name}' is a class, not a value: write '{qualified_name}()' to make one, and give it a name with 'var ... = '",
+    )
+}
+
+func memory_of_unnamed_value(starting_emitter: Emitter) {
+    raise.in_body(starting_emitter, "only a named value has memory of its own: give this value a name with 'var' first")
+}
+
+func memory_of_type(starting_emitter: Emitter, type_with_article: String) {
+    raise.in_body(starting_emitter, "{type_with_article} has no memory of its own to describe")
+}
+
+func memory_of_unnamed_object(starting_emitter: Emitter) {
+    raise.in_body(
+        starting_emitter,
+        "only a named object answers its allocator: give this object a name with 'var' first",
+    )
+}
+
+func string_name_unnamed(starting_emitter: Emitter, name: String) {
+    raise.in_body(starting_emitter, "'{name}' is read from a String that has a name: name this text with 'var' first")
+}
+
+func string_storage(starting_emitter: Emitter) {
+    raise.in_body(starting_emitter, "a String is its characters and their length: read '_bytes' or '_length'")
+}
+
+func instances_unavailable(starting_emitter: Emitter, class_name: String) {
+    raise.in_body(starting_emitter, "'{class_name}.instances' is not available for this class")
+}
+
+func declaration_for_attribute(starting_emitter: Emitter, taker: String, name: String, owner_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{taker}' takes a 'Spite.Attribute', an attribute bound to an instance, and '{name}' here is a declaration of '{owner_name}', which has no value: declare the parameter 'Spite.AttributeDeclaration', or walk an instance's attributes",
+    )
+}
+
+func bound_for_declaration(starting_emitter: Emitter, taker: String, name: String, owner_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{taker}' takes a 'Spite.AttributeDeclaration', and '{name}' here is bound to an instance: declare the parameter 'Spite.Attribute', or walk the class's attributes, '{owner_name}.attributes'",
+    )
+}
+
+func value_of_declaration(starting_emitter: Emitter, shown: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{shown}.value' reads an attribute of an instance, and '{shown}' describes a declaration: walk the instance's own attributes, 'monster.attributes', or read 'monster.attributes[{shown}]'",
+    )
+}
+
+func attribute_of_another_class(starting_emitter: Emitter, own_name: String, other_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'attributes[...]' is an attribute of this '{own_name}', and the attribute given is one of '{other_name}': read it on a '{other_name}', 'value.attributes[...]'",
+    )
+}
+
+func not_a_known_class(starting_emitter: Emitter, path: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{path}' is not a class known while compiling, so it cannot be a type here: a reflection object is a type only when it is a class the compiler can identify",
+    )
+}
+
+func no_run_time_value(starting_emitter: Emitter, name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{name}' is a reflection object known while compiling, so this function is compiled once for it, and it has no run-time value to pass on here: read what you need from it, like '{name}.name' or '{name}.class'",
+    )
+}
+
+func run_time_reflection(starting_emitter: Emitter, function_name: String) {
+    raise.in_body(
+        starting_emitter,
+        "'{function_name}' answers a type read from a reflection object, so it is compiled once for each object the compiler can identify, and this call hands it one known only at run time: pass a class, attribute, function or argument named in the code, or walked from one",
+    )
+}

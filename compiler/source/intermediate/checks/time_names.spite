@@ -1,0 +1,23 @@
+# ../../../../specs/time.md#time-one-stored-instant-zones-for-presentation
+var raise = Raise()
+
+func old_name(starting_emitter: Emitter, name: String): Boolean {
+    var spelled = new_spelling(name)
+    if spelled.is_empty() {
+        return false
+    }
+    raise.in_body(starting_emitter, "'{name}' is spelled '{spelled}'")
+    return true
+}
+
+func new_spelling(name: String): String {
+    switch name {
+        "LocalDate": return "Date"
+        "LocalTime": return "Time"
+        "LocalDateTime": return "DateTime"
+        "read_local_date": return "read_date"
+        "read_local_time": return "read_time"
+        "read_local_date_time": return "read_date_time"
+        _: return ""
+    }
+}

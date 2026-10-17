@@ -9,6 +9,7 @@ var receiver = -1
 var shapes = Analysis.AstShape()
 var types = Analysis.TypeShape()
 var defaults_in_progress = List<String>()
+var static_receiver = ""
 
 func ExpressionLowering(
     starting_emitter: Emitter,
@@ -812,6 +813,9 @@ func static_member(static_class: Analysis.ClassInfo, member: Syntax.Expressions.
     }
     if member.name == "instances" and not reflection_class and not static_class.is_generic_template {
         return live_instances(static_class)
+    }
+    if member.name == "instances" and static_class.is_generic_template {
+        Checks.Reflection().instances_unavailable(emitter, static_class.simple_name)
     }
     if member.name == "class" and not static_class.find_field("class") and not static_class.find_function("class") {
         var described_type = known().class_type(static_class)
@@ -1819,6 +1823,7 @@ func method_call(member: Syntax.Expressions.MemberExpression, arguments: List<Sy
     if static_class {
         var static_type = known().class_type(static_class)
         var class_object = class_object_of(static_type)
+        static_receiver = static_class.qualified_dotted
         return class_call("Spite_Class", name, class_object, arguments)
     }
     if shapes.as_generic_identifier(member.object) {
@@ -1947,6 +1952,8 @@ func class_call(
     object: Integer,
     arguments: List<Syntax.Expressions.Expression>,
 ): Integer {
+    var class_receiver = static_receiver
+    static_receiver = ""
     var made = front()
     var target = made.find_class_by_c_name(c_name)
     if not target {
@@ -1966,6 +1973,9 @@ func class_call(
     }
     var found = made.find_or_instantiate_function(target, name)
     if not found {
+        if not class_receiver.is_empty() and name != "copy" and name != "deep_copy" {
+            Checks.Reflection().function_called_on_class(emitter, class_receiver)
+        }
         return missing_function(target, name, object)
     }
     var spread = made.spread_template(arguments, lowered_class)

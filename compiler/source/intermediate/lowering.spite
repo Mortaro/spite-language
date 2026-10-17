@@ -256,6 +256,7 @@ func write_layout(instances: Instances, information: Analysis.ClassInfo) {
     Checks.ClassesAndFiles().class_declarations(information)
     Checks.Json().class_declarations(information)
     Checks.Style().class_declarations(information)
+    Checks.Reflection().class_declarations(information)
     var layout = Layout(information.c_name, information.qualified_dotted)
     layout.information = information
     layout.is_value = information.is_value_class

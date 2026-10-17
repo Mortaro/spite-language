@@ -412,6 +412,29 @@ slower than the generator's C, and the compiler builds itself to a fixpoint.
 **Where an error's rule is:** its `specs/` page is normative (D511). `generation/generator.spite` is only a reference
 for how the rule was implemented; read it for the cases the spec page states, and when the two disagree the spec wins.
 
+### The checks of classes, metaprogramming, reflection, packages, style, json and time
+
+`checks/raise.spite` is a singleton that keeps the first error in the generator's line form
+(`path:line: error: text (in Owner.function)`); `Pipeline.prepare` prints it before anything else. `game_maths` and
+`programs` have no file: the Quaternion rule of `game_maths` is the folded `crash` of `metaprogramming`, and every error
+of `programs` is raised by `discovery/`. The calls sit in `write_layout` (a class's declarations), `lower_statement`
+(every statement), `store_default` (attribute defaults), `generic_construction`, `construct`, `singleton`,
+`class_member`, `method_call`, `store_member`, `assert_side` and `if_statement`. Where a check needs the name resolver it
+takes a `Generation.Generator` and calls `try_resolve_static_path` or one helper of it: the model replaces that type.
+
+| File | Covers (diagnostics) | Raisers written, not called yet |
+|---|---|---|
+| `classes_and_files.spite` | `empty_constructor`, `singleton_function`, `duplicate_function`, `singleton_arguments`, `local_singleton`, `inline_singleton`, `inline_singleton_attribute`, `dropped_construction`; the private-name error in `reflection_read_only` | `singleton_circle` (detection needs the attribute defaults of each singleton and its instances) |
+| `metaprogramming.spite` | `folded_crash`, `folded_build_crash`, `codegen_values` (value without a `generic` line, wrong count, not inferred), `failed_constructor` (the first line), `generic_constraints` | `generic_constraint_not_a_type`, `function_shape_default`, `every_attribute`, `template_attribute_spelling`, `template_function_clash`, `plural_templates`, `plain_symbol_on_list`, codegen types without a line |
+| `reflection.spite` | `reflection_names`, `reflection_read_only`, `read_only_attribute` | `class_as_value` (needs the caller's wanted type), `declaration_walk`, memory, `.instances` of a generic, the `Spite.Call` errors |
+| `packages.spite` | none placed | `unknown_type_in_shape`, `unknown_type_suggestion` (raised where the model resolves a written type), the bodiless function |
+| `style.spite` | `doubled_underscore`, `naming` (attributes, functions, parameters, variables), `call_as_argument`, `constructor_as_argument`, `long_line_construction`, `repeated_branch_call` | `unused_names`, `unused_attributes`, `written_not_read`, `package_attributes` (they need a read of each local and attribute, which the lowering does not record), type and enum names |
+| `json.spite` | `json_key`, `json_unwritable` | the old name `Json` (`json_split`) |
+| `time_names.spite` | none placed | the old spellings `LocalDate`, `LocalTime`, `LocalDateTime` |
+
+Not built in the generator either, so with no text to copy yet: the `Spite.Call` errors, `read_memory` on a
+`BinaryReader`, `map_` of a question member, a `generic` line inside a function.
+
 ## Where it stands
 
 The pipeline is built whole: lowering, the eight passes and the printer all exist, and a pipeline compiler compiles
