@@ -3,6 +3,8 @@ var text = Text()
 var types = Analysis.TypeShape()
 var program: Lowered? = null
 var shapes = Dictionary<String, String>()
+var folded_function: Function? = null
+var exact_classes = true
 var folded_count = 0
 
 func run(lowered: Lowered) {
@@ -48,6 +50,10 @@ func fold_once(lowered: Lowered): Boolean {
 }
 
 func redirect(function: Function, replaced: Dictionary<String, String>) {
+    if replaced.has(function.filled_by) {
+        crash replaced[function.filled_by]
+        function.filled_by = replaced[function.filled_by]
+    }
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]
@@ -59,6 +65,7 @@ func redirect(function: Function, replaced: Dictionary<String, String>) {
                 operation.callee = replaced[operation.callee]
             }
             operation.literal = redirected_literal(operation.literal, replaced)
+            operation.target = redirected_literal(operation.target, replaced)
             index = index + 1
         }
         block_index = block_index + 1
@@ -95,6 +102,7 @@ func may_fold(function: Function): Boolean {
 }
 
 func normalised(function: Function): String {
+    folded_function = function
     var lines = List<String>()
     var renumbered = Dictionary<Integer, Integer>()
     number_value(renumbered, function.receiver)
@@ -108,8 +116,12 @@ func normalised(function: Function): String {
         index = index + 1
     }
     var answer = shape_text(function.answer, 0)
-    var owner_type: Analysis.SpiteType = Analysis.Types.ClassRefType(function.owner)
-    var owner = shape_text(owner_type, 0)
+    exact_classes = names_any_class(function)
+    var owner = function.owner
+    if not exact_classes {
+        var owner_type: Analysis.SpiteType = Analysis.Types.ClassRefType(function.owner)
+        owner = shape_text(owner_type, 0)
+    }
     lines.append(
         "{owner}|{parameters.join(",")}|{answer}|{function.locking}|{function.resumable}|{function.lends_answer}",
     )
@@ -163,7 +175,11 @@ func block_lines(block: Block, renumbered: Dictionary<Integer, Integer>, lines: 
         }
         var made = shown_value(renumbered, operation.result)
         var shown_type = shape_text(operation.spite_type, 0)
-        var made_layout = layout_shape(operation.layout, 0)
+        var made_layout = operation.layout
+        if names_classes(operation) {
+            shown_type = text.type_text(operation.spite_type)
+            made_layout = "{operation.layout}|{operation.target}|{operand_types(block, operation)}"
+        }
         var site = site_text(operation.site)
         lines.append(
             "{made}={operation.kind}|{operation.callee}|{made_layout}|{operation.field}|{operation.literal}|{operation.form}|{site}|{shown_type}|{operands}",
@@ -196,11 +212,16 @@ func shape_text(spite_type: Analysis.SpiteType?, depth: Integer): String {
     if not spite_type {
         return "?"
     }
+    var written = text.type_text(spite_type)
     var class_ref = types.as_class_ref(spite_type)
     if not class_ref or class_ref.has_signature {
-        return text.type_text(spite_type)
+        return written
     }
-    return layout_shape(class_ref.c_name, depth)
+    var shape = layout_shape(class_ref.c_name, depth)
+    if not exact_classes {
+        return shape
+    }
+    return "{written}{shape}"
 }
 
 func layout_shape(c_name: String, depth: Integer): String {
@@ -208,15 +229,16 @@ func layout_shape(c_name: String, depth: Integer): String {
     if c_name.is_empty() {
         return ""
     }
-    if shapes.has(c_name) {
-        crash shapes[c_name]
-        return shapes[c_name]
+    var cached = "{c_name}|{exact_classes}"
+    if shapes.has(cached) {
+        crash shapes[cached]
+        return shapes[cached]
     }
     var layout = program.layout_named(c_name)
     if not layout or depth > 4 or layout.is_singleton {
         return c_name
     }
-    shapes[c_name] = c_name
+    shapes[cached] = c_name
     var fields = List<String>()
     var index = 0
     while index < layout.stored_fields.count() {
@@ -225,7 +247,68 @@ func layout_shape(c_name: String, depth: Integer): String {
         fields.append("{field.name}:{shown}")
         index = index + 1
     }
-    var made = "({fields.join(",")})"
-    shapes[c_name] = made
+    var drops = layout_drops(layout)
+    var properties = "{layout.is_value}|{layout.arrangement}|{layout.pooled}|{layout.atomic_counts}|{layout.copy_with_table}|{layout.thread_form}|{layout.kind}|{drops}"
+    var made = "({fields.join(",")}|{properties})"
+    shapes[cached] = made
     return made
+}
+
+func names_classes(operation: Operation): Boolean {
+    if operation.kind == "make" or not operation.target.is_empty() {
+        return true
+    }
+    var naming = ["Reflection.", "Union.", "Object.", "Instances.", "Symbol.", "Enum.", "Singleton."]
+    var index = 0
+    while index < naming.count() {
+        if operation.callee.starts_with(naming[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func operand_types(block: Block, operation: Operation): String {
+    crash folded_function
+    var shown = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var operand_type = folded_function.value_at(operation.operands[index]).spite_type
+        var written = text.type_text(operand_type)
+        shown.append(written)
+        index = index + 1
+    }
+    return "{block.number}:{shown.join(",")}"
+}
+
+# ../../../docs/optimizations.md#identical-functions-are-folded-into-one
+func names_any_class(function: Function): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if names_classes(operation) or operation.callee == "Reference.equals" or operation.callee.starts_with("Foreign.") {
+                return true
+            }
+            index = index + 1
+        }
+        if block.terminator.kind == "switch" {
+            return true
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func layout_drops(layout: Layout): Boolean {
+    if not layout.information {
+        return true
+    }
+    if layout.information.drop_function {
+        return true
+    }
+    return false
 }

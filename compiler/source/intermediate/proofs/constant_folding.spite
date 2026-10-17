@@ -14,12 +14,35 @@ func ConstantFolding(lowered: Lowered) {
 
 func fold_function(function: Function) {
     var changed = true
-    var rounds = 0
-    while changed and rounds < 8 {
+    while changed {
         var uses = Facts.Uses(function)
         changed = fold_once(function, uses)
-        rounds = rounds + 1
     }
+}
+
+# ../../../../docs/optimizations.md#an-object-wrapped-and-read-back-is-the-object
+func unwrapped(function: Function, uses: Facts.Uses, operation: Operation) {
+    crash kinds
+    assert operation.callee == "Union.value" or operation.callee == "Nullable.value"
+    assert operation.site < 0 and operation.result >= 0 and operation.operands.count() == 1
+    var wrapped = operation.operands.first()
+    crash wrapped
+    var wrapper = uses.definition_of(wrapped)
+    assert wrapper and wrapper.kind == "call" and wrapper.operands.count() == 1 and wrapper.result >= 0
+    var wrapping = "Union.wrap"
+    if operation.callee == "Nullable.value" {
+        wrapping = "Nullable.wrap"
+    }
+    assert wrapper.callee == wrapping
+    var inner = wrapper.operands.first()
+    crash inner
+    var inner_value = function.value_at(inner)
+    var result_value = function.value_at(operation.result)
+    var inner_layout = kinds.layout_of(inner_value.spite_type)
+    var result_layout = kinds.layout_of(result_value.spite_type)
+    assert inner_layout and result_layout and inner_layout.c_name == result_layout.c_name
+    var rewrites = Facts.Rewrites()
+    rewrites.replace_value(function, operation.result, inner)
 }
 
 func fold_once(function: Function, uses: Facts.Uses): Boolean {
@@ -42,6 +65,7 @@ func fold_once(function: Function, uses: Facts.Uses): Boolean {
 
 func fold_operation(function: Function, uses: Facts.Uses, operation: Operation): Boolean {
     crash intrinsics
+    unwrapped(function, uses, operation)
     if operation.result < 0 or operation.operands.is_empty() {
         return false
     }

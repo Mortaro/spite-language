@@ -2,6 +2,7 @@
 var output = Output()
 var lowered = Lowered()
 var naming = Naming()
+var hot = Hot()
 var sites = Sites()
 var shape = Analysis.TypeShape()
 var copies = Copies()
@@ -33,8 +34,47 @@ func print(body: Body, operation: Operation) {
         "Bands": print_bands(body, operation)
         "Rows": print_rows(body, operation)
         "Singleton": print_singleton_lock(body, operation, word)
+        "Type": print_type(body, operation, word)
+        "Loop": print_loop(body, operation, word)
         _: print_number(body, operation, word)
     }
+}
+
+func singleton_instance(body: Body, tracked: Layout, filled: String, appending: String) {
+    var getter = hot.getter_of(tracked.qualified)
+    if getter.is_empty() {
+        body.refuse(
+            "it lists the instance of the singleton '{tracked.qualified}', whose maker the program does not hold",
+        )
+        return
+    }
+    if tracked.arrangement == "static" {
+        if lowered.is_inspectable() {
+            body.emit("{appending}({filled}, {getter}());")
+        }
+        return
+    }
+    body.emit(
+        "\{ {tracked.c_name}* spite_made = {getter}_peek(); if (spite_made != 0) {appending}({filled}, spite_made); }",
+    )
+}
+
+func print_singleton_keep(body: Body, operation: Operation) {
+    var kept_type = body.operand_type(operation, 0)
+    var layout = naming.layout_of(kept_type)
+    if not layout or not layout.is_singleton or layout.arrangement == "static" {
+        body.refuse("it keeps a stand-in that is not a stateful singleton")
+        return
+    }
+    var kept = body.operand(operation, 0)
+    var slot = "spite_stand_in_{body.function.c_name}_{body.operand_number(operation, 0)}"
+    var name = layout.c_name
+    output.need("singletons")
+    output.support(
+        "static {name}* {slot} = 0;\nstatic void {slot}_teardown(void) \{\n{name}* object = {slot};\n{slot} = 0;\n{name}___discard(object);\n}",
+    )
+    body.emit("{slot} = {kept};")
+    body.emit("spite_singleton_created({slot}_teardown);")
 }
 
 func print_singleton_peek(body: Body, operation: Operation) {
@@ -55,6 +95,81 @@ func print_singleton_peek(body: Body, operation: Operation) {
     body.assign(operation.result, "{operation.target}_peek()")
 }
 
+# ../../../../docs/repl.md#remote---repl-port
+func print_loop(body: Body, operation: Operation, word: String) {
+    switch word {
+        "check_point": loop_check_point(body)
+        "serve": loop_serve(body, operation)
+        "breakpoint": loop_breakpoint(body, operation)
+        _: body.refuse("it calls 'Loop.{word}', which is no intrinsic")
+    }
+}
+
+func loop_check_point(body: Body) {
+    var scheduler = hot.getter_of("Scheduler")
+    var check_point = hot.function_named("Scheduler", "check_point")
+    if scheduler.is_empty() or check_point.is_empty() {
+        body.refuse("it stops at a loop's check point, and the program holds no Scheduler or its check_point")
+        return
+    }
+    output.need("check point")
+    var parking = ""
+    if lowered.hot_reload {
+        parking = "spite_world_park(); "
+    }
+    body.emit(
+        "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0) \{ {parking}{check_point}({scheduler}()); }",
+    )
+}
+
+func loop_serve(body: Body, operation: Operation) {
+    var loop = body.operand(operation, 0)
+    var program = body.operand(operation, 1)
+    var listen = hot.function_named("ReadEvaluatePrintLoop", "listen_in_background")
+    var serve = hot.function_named("ReadEvaluatePrintLoop", "serve")
+    if listen.is_empty() or serve.is_empty() or operation.literal.is_empty() {
+        body.refuse(
+            "it serves a REPL port, and the program holds no ReadEvaluatePrintLoop with listen_in_background and serve, or no port",
+        )
+        return
+    }
+    output.need("remote loop")
+    output.need("threads")
+    hot.remote_serve = serve
+    body.emit("spite_remote_loop = ReadEvaluatePrintLoop___retain({loop});")
+    body.emit("spite_remote_program = Spite_Attribute___retain({program});")
+    body.emit("{listen}(spite_remote_loop, {operation.literal}, (int64_t)(intptr_t)&spite_remote_loop_thread);")
+}
+
+func loop_breakpoint(body: Body, operation: Operation) {
+    var site = body.operand(operation, 0)
+    var locals = body.operand(operation, 1)
+    var locals_type = body.operand_type(operation, 1)
+    var pause = hot.function_named("ReadEvaluatePrintLoop", "pause_at")
+    var counted = ""
+    if locals_type {
+        counted = naming.counted_name(locals_type)
+    }
+    if pause.is_empty() or counted.is_empty() {
+        body.refuse(
+            "it stops at a breakpoint, and the program holds no ReadEvaluatePrintLoop.pause_at or no list of locals",
+        )
+        return
+    }
+    output.need("remote loop")
+    hot.remote_pause = pause
+    hot.remote_locals = counted
+    body.emit("spite_breakpoint(SpiteString___retain({site}), {counted}___retain({locals}));")
+}
+
+func print_type(body: Body, operation: Operation, word: String) {
+    if word != "size" or operation.literal.is_empty() {
+        body.refuse("it calls 'Type.{word}' on '{operation.target}', which has no C struct to measure")
+        return
+    }
+    body.assign(operation.result, "((int64_t)sizeof({operation.literal}))")
+}
+
 func print_singleton_lock(body: Body, operation: Operation, word: String) {
     var owner = operation.literal
     switch word {
@@ -63,6 +178,7 @@ func print_singleton_lock(body: Body, operation: Operation, word: String) {
         "enter_skipping": body.enter_skipping(owner)
         "leave_skipping": body.leave_skipping(owner)
         "peek": print_singleton_peek(body, operation)
+        "keep": print_singleton_keep(body, operation)
         _: body.refuse("it calls 'Singleton.{word}', which is no intrinsic")
     }
 }
@@ -71,17 +187,92 @@ func print_attribute(body: Body, operation: Operation, word: String) {
     switch word {
         "hold": attribute_hold(body, operation)
         "place": attribute_place(body, operation)
+        "bind_item": attribute_bind_item(body, operation)
         _: body.refuse("it calls 'Attribute.{word}', which is no intrinsic")
     }
 }
 
-func link_piece(pieces: List<String>, index: Integer): String {
-    if index >= pieces.count() {
-        return ""
+func attribute_bind_item(body: Body, operation: Operation) {
+    var attribute = body.operand(operation, 0)
+    var listed = body.operand(operation, 1)
+    var position = body.operand(operation, 2)
+    var list_type = body.operand_type(operation, 1)
+    crash list_type
+    var counted = naming.counted_name(list_type)
+    var layout = naming.layout_of(list_type)
+    if counted.is_empty() or not layout {
+        body.refuse("it binds an attribute to an item of something that is not a list")
+        return
     }
-    var named = pieces[index].trim()
-    if named.is_empty() or not lowered.function_named(named) {
-        return ""
+    body.emit("({attribute})->spite_stored_address = (int64_t)({position}); ({attribute})->spite_stored_bytes = 0;")
+    body.emit(
+        "({attribute})->spite_owner = (void*){counted}___retain({listed}); ({attribute})->spite_release_owner = (void (*)(void*)){counted}___release;",
+    )
+    if not operation.target.is_empty() {
+        var assign = item_thunk(body, layout, operation.target, "SpiteString text", "text", 0)
+        body.emit("({attribute})->spite_assign = {assign};")
+    }
+    if not operation.literal.is_empty() {
+        crash operation.spite_type
+        var item_layout = naming.layout_of(operation.spite_type)
+        if not item_layout {
+            body.refuse("it binds a store to items that are not objects")
+            return
+        }
+        var identity = naming.class_id_of(item_layout)
+        var written = naming.c_type(operation.spite_type)
+        var store = item_thunk(body, layout, operation.literal, "void* object", "({written})object", identity)
+        body.emit("({attribute})->spite_store = {store};")
+    }
+}
+
+func item_thunk(body: Body, layout: Layout, called: String, last: String, passed: String, identity: Integer): String {
+    var function = lowered.function_named(called)
+    if not function {
+        body.refuse("it binds the item function x27{called}x27, which the program does not hold")
+        return "0"
+    }
+    var thunk = "{called}___thunk"
+    if output.forwarders.contains(thunk) {
+        return thunk
+    }
+    output.forwarders.append(thunk)
+    var answer = ""
+    var finish = "return true;"
+    var checked = ""
+    if last == "SpiteString text" {
+        answer = "return "
+        finish = ""
+    } else {
+        checked = "if (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n"
+    }
+    var argument = passed
+    if function.parameters.count() == 2 and function.parameters[1].ownership == "owned" {
+        crash function.parameters[1].spite_type
+        var counted = naming.counted_name(function.parameters[1].spite_type)
+        argument = "{counted}___retain({passed})"
+        if last == "SpiteString text" {
+            argument = "SpiteString___retain(text)"
+        }
+    }
+    print_thunk(
+        layout,
+        thunk,
+        last,
+        "{checked}{answer}{called}(({layout.c_name}*)owner, (int32_t)(intptr_t)slot, {argument});\n{finish}",
+        "{layout.qualified}x27s item function",
+    )
+    return thunk
+}
+
+func link_piece(body: Body, pieces: List<String>, index: Integer): String {
+    var named = ""
+    if index < pieces.count() {
+        named = pieces[index].trim()
+    }
+    if not named.is_empty() and not lowered.function_named(named) {
+        body.refuse("it links the reflection function '{named}', which the program does not hold")
+        named = ""
     }
     return named
 }
@@ -95,9 +286,9 @@ func attribute_hold(body: Body, operation: Operation) {
     var layout = naming.layout_of(held_type)
     assert not counted.is_empty() and layout and not layout.is_value and not naming.is_tagged(held_type) and not shape.as_union(held_type)
     var pieces = operation.target.split(",")
-    var attributes = link_piece(pieces, 0)
-    var functions = link_piece(pieces, 1)
-    var described_class = link_piece(pieces, 2)
+    var attributes = link_piece(body, pieces, 0)
+    var functions = link_piece(body, pieces, 1)
+    var described_class = link_piece(body, pieces, 2)
     body.emit("({attribute})->spite_held = (void*){counted}___retain({held});")
     body.emit("({attribute})->spite_release_held = (void (*)(void*)){counted}___release;")
     body.emit("({attribute})->spite_held_bytes = (int64_t)sizeof({layout.c_name});")
@@ -110,12 +301,20 @@ func attribute_hold(body: Body, operation: Operation) {
     if not described_class.is_empty() {
         body.emit("({attribute})->spite_held_class = (void* (*)(void)){described_class};")
     }
+    var buffer = held_buffer(attribute, held, held_type)
+    if not buffer.is_empty() {
+        body.emit(buffer)
+    }
+}
+
+func held_buffer(attribute: String, held: String, held_type: Analysis.SpiteType): String {
     var listed = shape.as_list(held_type)
-    assert listed
-    var element = naming.c_type(listed.element)
-    body.emit(
-        "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }",
-    )
+    var text = ""
+    if listed {
+        var element = naming.c_type(listed.element)
+        text = "if ({held} != 0) \{ ({attribute})->spite_buffer_address = (int64_t)(intptr_t)({held})->items_; ({attribute})->spite_buffer_bytes = (int64_t)({held})->item_count_ * (int64_t)sizeof({element}); }"
+    }
+    return text
 }
 
 func attribute_place(body: Body, operation: Operation) {
@@ -132,8 +331,9 @@ func attribute_place(body: Body, operation: Operation) {
         return
     }
     var name = layout.c_name
+    var reached = naming.fields_of(layout, "({owner})")
     body.emit(
-        "({attribute})->spite_stored_address = (int64_t)(intptr_t)&({owner})->{field.name}_; ({attribute})->spite_stored_bytes = (int64_t)sizeof(({owner})->{field.name}_);",
+        "({attribute})->spite_stored_address = (int64_t)(intptr_t)&{reached}->{field.name}_; ({attribute})->spite_stored_bytes = (int64_t)sizeof({reached}->{field.name}_);",
     )
     var assign = assign_thunk(layout, field, operation)
     var store = store_thunk(layout, field, operation)
@@ -154,11 +354,34 @@ func written_field(field: Field, operation: Operation, value: String): String {
         return "{setter.c_name}(self, {value});"
     }
     crash field.spite_type
-    var counted = naming.counted_name(field.spite_type)
+    var counted_type: Analysis.SpiteType = field.spite_type
+    var wrapped = shape.as_nullable(counted_type)
+    if wrapped {
+        counted_type = wrapped.inner
+    }
+    var counted = naming.counted_name(counted_type)
     if counted.is_empty() {
         return "self->{field.name}_ = {value};"
     }
     return "{counted}___release(self->{field.name}_);\nself->{field.name}_ = {value};"
+}
+
+func print_thunk(layout: Layout, thunk: String, last: String, body_text: String, display: String) {
+    var parameters = ["void* owner", "void* slot", last]
+    if layout.hot {
+        hot.slot_support(thunk, "bool", parameters, body_text, display, layout.c_name)
+        return
+    }
+    var heading = "static bool {thunk}({parameters.join(", ")})"
+    output.prototypes.append("{heading};")
+    output.support("{heading} \{\n{body_text}\n}")
+    output.runtime_place(thunk)
+}
+
+func owner_line(layout: Layout): String {
+    var cast = "({layout.c_name}*)owner"
+    var reached = naming.fields_of(layout, cast)
+    return "{layout.c_name}* self = {reached};"
 }
 
 func assign_thunk(layout: Layout, field: Field, operation: Operation): String {
@@ -180,11 +403,14 @@ func assign_thunk(layout: Layout, field: Field, operation: Operation): String {
         guard = ""
     }
     var stored = written_field(field, operation, "assigned")
-    output.prototypes.append("static bool {thunk}(void* owner, void* slot, SpiteString text);")
-    output.support(
-        "static bool {thunk}(void* owner, void* slot, SpiteString text) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\n{guard}\n{written} assigned;\n{parsed}\n{stored}\nreturn true;\n}",
+    var owned = owner_line(layout)
+    print_thunk(
+        layout,
+        thunk,
+        "SpiteString text",
+        "{owned}\n(void)slot;\n{guard}\n{written} assigned;\n{parsed}\n{stored}\nreturn true;",
+        "{layout.qualified}'s assignment of {field.name}",
     )
-    output.runtime_place(thunk)
     return thunk
 }
 
@@ -221,6 +447,17 @@ func parsed_lines(spite_type: Analysis.SpiteType, text: String, target: String, 
     if nullable and shape.as_string(nullable.inner) {
         return "if (SPITE_STRING_IS_NULL({text})) {target} = SPITE_STRING_NULL; else {target} = SpiteString___retain({text});"
     }
+    if nullable and shape.as_class_ref(nullable.inner) {
+        return "if (SPITE_STRING_IS_NULL({text})) {target} = 0; else return false;"
+    }
+    if nullable and shape.as_scalar(nullable.inner) {
+        var inner_lines = parsed_lines(nullable.inner, text, "spite_inner", parser)
+        var inner_written = naming.c_type(nullable.inner)
+        var whole_written = naming.c_type(spite_type)
+        if not inner_lines.is_empty() {
+            return "if (SPITE_STRING_IS_NULL({text})) {target} = ({whole_written})\{ .has_value = false }; else \{ {inner_written} spite_inner; {inner_lines} {target} = ({whole_written})\{ .has_value = true, .value = spite_inner }; }"
+        }
+    }
     return ""
 }
 
@@ -238,11 +475,14 @@ func store_thunk(layout: Layout, field: Field, operation: Operation): String {
     output.forwarders.append(thunk)
     var identity = naming.class_id_of(stored_layout)
     var stored = written_field(field, operation, "assigned")
-    output.prototypes.append("static bool {thunk}(void* owner, void* slot, void* object);")
-    output.support(
-        "static bool {thunk}(void* owner, void* slot, void* object) \{\n{layout.c_name}* self = ({layout.c_name}*)owner;\n(void)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{stored_layout.c_name}* assigned = {stored_layout.c_name}___retain(({stored_layout.c_name}*)object);\n{stored}\nreturn true;\n}",
+    var owned = owner_line(layout)
+    print_thunk(
+        layout,
+        thunk,
+        "void* object",
+        "{owned}\n(void)slot;\nif (object == 0 || ((SpiteHeader*)object)->class_id != {identity}) return false;\n{stored_layout.c_name}* assigned = {stored_layout.c_name}___retain(({stored_layout.c_name}*)object);\n{stored}\nreturn true;",
+        "{layout.qualified}'s store of {field.name}",
     )
-    output.runtime_place(thunk)
     return thunk
 }
 
@@ -256,10 +496,14 @@ func print_instances(body: Body, operation: Operation, word: String) {
         return
     }
     var name = tracked.c_name
+    var filled = body.operand(operation, 0)
+    if tracked.is_singleton {
+        singleton_instance(body, tracked, filled, appending.c_name)
+        return
+    }
     if not output.tracked_layouts.contains(name) {
         output.tracked_layouts.append(name)
     }
-    var filled = body.operand(operation, 0)
     var registry = "spite_instances_{name}"
     body.emit(
         "for (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) {appending.c_name}({filled}, {name}___retain({registry}[spite_index]));",
@@ -276,12 +520,80 @@ func print_reflection(body: Body, operation: Operation, word: String) {
         class_read(body, operation)
         return
     }
+    if word == "memory" {
+        memory_read(body, operation)
+        return
+    }
     if word != "class_object" {
-        body.refuse("it reads '{word}' by reflection, which the printer does not write yet")
+        var read_from = body.operand_type(operation, 0)
+        var read_name = "a value with no type"
+        if read_from {
+            read_name = naming.c_type(read_from)
+        }
+        body.refuse("it reads '{word}' of '{read_name}' by reflection, which the printer does not write yet")
         return
     }
     var getter = class_getter(operation.target)
     body.assign(operation.result, "{getter}()")
+}
+
+# ../../../../docs/memory.md#where-a-value-lives-memory
+func memory_read(body: Body, operation: Operation) {
+    var memory = lowered.layout_named("Spite_Memory")
+    var object_type = body.operand_type(operation, 0)
+    if not memory or not object_type {
+        body.refuse("it reads where a value lives, and the program holds no Spite.Memory layout")
+        return
+    }
+    var number = body.operand_number(operation, 0)
+    var object = body.operand(operation, 0)
+    var named = not body.function.value_at(number).name.is_empty()
+    var address = "(int64_t)(intptr_t)({object})"
+    var bytes = "(int64_t)sizeof(*({object}))"
+    var section = "Spite_Memory_Section_heap"
+    if shape.as_string(object_type) {
+        var inline_section = "Spite_Memory_Section_heap"
+        if named {
+            inline_section = "Spite_Memory_Section_stack"
+        }
+        address = "(int64_t)(intptr_t)spite_string_bytes(&({object}))"
+        bytes = "spite_string_length({object})"
+        section = "(SPITE_STRING_IS_HEAP({object}) ? Spite_Memory_Section_heap : SPITE_STRING_IS_INLINE({object}) ? {inline_section} : Spite_Memory_Section_constant)"
+    } else if shape.as_scalar(object_type) or shape.as_enum(object_type) {
+        var read_field = body.field_read_of(number)
+        if not read_field.is_empty() {
+            named = true
+            object = read_field
+        }
+        if not named {
+            body.refuse("it reads where a value lives that has no name, and only a named value has memory of its own")
+            return
+        }
+        address = "(int64_t)(intptr_t)&({object})"
+        bytes = number_bytes(object_type)
+        if read_field.is_empty() {
+            section = "Spite_Memory_Section_stack"
+        }
+    } else if naming.counted_name(object_type).is_empty() or shape.as_nullable(object_type) or shape.as_union(object_type) {
+        body.refuse("it reads where a value lives that has no memory of its own")
+        return
+    } else if body.made_in_frame(number) {
+        section = "Spite_Memory_Section_stack"
+    }
+    var made = body.result_name(operation)
+    body.assign(operation.result, "Spite_Memory___allocate()")
+    body.emit("({made})->_address_ = {address};")
+    body.emit("({made})->_bytes_ = {bytes};")
+    body.emit("({made})->_section_ = {section};")
+}
+
+func number_bytes(object_type: Analysis.SpiteType): String {
+    var written = naming.c_type(object_type)
+    var described = naming.layout_of(object_type)
+    if described and described.information and described.information.memory_bytes > 0 {
+        return "(int64_t){described.information.memory_bytes}"
+    }
+    return "(int64_t)sizeof({written})"
 }
 
 func class_getter(target: String): String {
@@ -290,8 +602,11 @@ func class_getter(target: String): String {
         "_nullable",
     )
     var getter = "spite_class_object_{label}"
-    if not output.class_objects.contains(getter) {
-        output.class_objects.append(getter)
+    if output.class_objects.contains(getter) {
+        return getter
+    }
+    output.class_objects.append(getter)
+    if not lowered.function_named(getter) {
         class_object(getter, target)
     }
     return getter
@@ -354,6 +669,7 @@ func union_class_of(read_type: Analysis.SpiteType): String {
     output.prototypes.append("static Spite_Class* {chooser}({written} self);")
     var chooser_text = lines.join("\n")
     output.support(chooser_text)
+    output.name_piece(chooser)
     return chooser
 }
 
@@ -401,6 +717,9 @@ func print_foreign(body: Body, operation: Operation, word: String) {
         "constant": foreign_constant(body, operation)
         "call": foreign_call(body, operation)
         "callback": foreign_callback(body, operation)
+        "struct": foreign_struct(body, operation)
+        "struct_field": foreign_struct_field(body, operation)
+        "trampoline": foreign_trampoline(body, operation)
         _: body.refuse("it calls 'Foreign.{word}', which the printer does not write yet")
     }
 }
@@ -638,6 +957,7 @@ func foreign_call(body: Body, operation: Operation) {
     var call = "(({returned} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")})"
     if returned == "void" {
         body.emit("{call};")
+        restore_trampolines(body, operation)
         return
     }
     if text_answer {
@@ -645,9 +965,103 @@ func foreign_call(body: Body, operation: Operation) {
             operation.result,
             "(\{ const char* spite_foreign_text = {call}; spite_string_from_cstring_owned(spite_foreign_text != 0 ? spite_foreign_text : \"\"); })",
         )
+        restore_trampolines(body, operation)
         return
     }
     body.assign(operation.result, call)
+    restore_trampolines(body, operation)
+}
+
+# ../../../../docs/foreign_libraries.md#for-the-length-of-one-call
+func restore_trampolines(body: Body, operation: Operation) {
+    var index = 1
+    while index < operation.operands.count() {
+        var number = operation.operands[index]
+        if body.restores.has(number) {
+            crash body.restores[number]
+            body.emit(body.restores[number])
+        }
+        index = index + 1
+    }
+}
+
+func foreign_struct(body: Body, operation: Operation) {
+    if operation.literal.is_empty() {
+        body.refuse("it hands C a struct of '{operation.target}' and names no C struct")
+        return
+    }
+    var held = "spite_struct_{operation.result}"
+    body.declare("{operation.literal} {held};")
+    var values = List<String>()
+    var index = 0
+    while index < operation.operands.count() {
+        var value = body.operand(operation, index)
+        values.append(value)
+        index = index + 1
+    }
+    body.emit("{held} = (__typeof__({held}))\{ {values.join(", ")} };")
+    if not operation.field.is_empty() {
+        body.emit(
+            "_Static_assert(sizeof({operation.field}) == sizeof({held}), \"{operation.target} does not match {operation.field}\");",
+        )
+    }
+    body.assign(operation.result, "(int64_t)(intptr_t)&{held}")
+}
+
+func foreign_struct_field(body: Body, operation: Operation) {
+    var number = body.operand_number(operation, 0)
+    body.assign(operation.result, "spite_struct_{number}.{operation.literal}")
+}
+
+func foreign_trampoline(body: Body, operation: Operation) {
+    var function_value = body.operand(operation, 0)
+    var function_type = body.operand_type(operation, 0)
+    assert function_type
+    var signature = shape.as_class_ref(function_type)
+    if not signature or not signature.has_signature {
+        body.refuse("it hands C a callback that is not a function value")
+        return
+    }
+    output.need("callbacks")
+    var trampoline = "spite_callback_{body.function.c_name}_{operation.result}"
+    var slot = "{trampoline}_slot"
+    var parameters = List<String>()
+    var pointer_parameters = ["void*"]
+    var arguments = ["spite_function->spite_owner"]
+    var index = 0
+    while index < signature.arguments.count() {
+        var written = naming.c_type(signature.arguments[index])
+        parameters.append("{written} spite_argument_{index}")
+        pointer_parameters.append(written)
+        arguments.append("spite_argument_{index}")
+        index = index + 1
+    }
+    if parameters.is_empty() {
+        parameters.append("void")
+    }
+    var returned = "void"
+    if signature.returns and not shape.is_void(signature.returns) {
+        returned = naming.c_type(signature.returns)
+    }
+    var result = "return "
+    if returned == "void" {
+        result = ""
+    }
+    var source = body.source_place(operation)
+    var place = naming.escape_c(source)
+    var heading = "static {returned} {trampoline}({parameters.join(", ")})"
+    output.prototypes.append("{heading};")
+    output.support(
+        "static SPITE_THREAD_LOCAL void* {slot} = 0;\n{heading} \{\nSpite_Function* spite_function = (Spite_Function*){slot};\nif (spite_function == 0) spite_callback_late(\"{place}\", \"after the foreign call that handed it over had returned, or on another thread: a function C keeps, or calls from a thread of its own, is handed over as a ForeignCallback the program keeps for as long as C may call it\");\n{result}(({returned} (*)({pointer_parameters.join(", ")}))spite_function->spite_typed_call)({arguments.join(", ")});\n}",
+    )
+    output.impure()
+    output.runtime_place(trampoline)
+    var saved = "spite_saved_{operation.result}"
+    body.declare("void* {saved};")
+    body.emit("{saved} = {slot};")
+    body.emit("{slot} = (void*)({function_value});")
+    body.restores[operation.result] = "{slot} = {saved};"
+    body.assign(operation.result, "(int64_t)(intptr_t)&{trampoline}")
 }
 
 func crossing_type(argument_type: Analysis.SpiteType): String {
@@ -776,7 +1190,9 @@ func print_bands(body: Body, operation: Operation) {
     var pool = pool_function("maker")
     var running = pool_function("run_bands")
     if not layout or not member or not layout.information or layout.qualified != "List" or pool.is_empty() or running.is_empty() or not lowered.layout_named("Spite_Function") {
-        body.assign(operation.result, "false")
+        body.refuse(
+            "it runs '{operation.literal}' in bands, and the list's layout, that function, the thread pool's maker or run_bands, or Spite.Function is not held",
+        )
         return
     }
     var piece = band_piece(layout, member)
@@ -833,7 +1249,46 @@ func print_list(body: Body, operation: Operation, word: String) {
     )
 }
 
+func function_text_call(body: Body, operation: Operation) {
+    var bound = body.operand(operation, 0)
+    var texter = lowered.function_named(operation.target)
+    if not texter {
+        body.refuse("it gives a function value the text call '{operation.target}', which the program does not hold")
+        return
+    }
+    body.emit("({bound})->spite_text_call = (void*){texter.c_name};")
+}
+
+func function_add_arguments(body: Body, operation: Operation) {
+    var bound = body.operand(operation, 0)
+    var describer = lowered.function_named(operation.target)
+    if not describer {
+        body.refuse(
+            "it gives a function value the argument describer x27{operation.target}x27, which the program does not hold",
+        )
+        return
+    }
+    body.emit("({bound})->spite_add_arguments = (void (*)(Spite_Function*)){describer.c_name};")
+}
+
+func function_describe_arguments(body: Body, operation: Operation) {
+    var described = body.operand(operation, 0)
+    body.emit("spite_function_arguments_described({described});")
+}
+
 func print_function_value(body: Body, operation: Operation, word: String) {
+    if word == "text_call" {
+        function_text_call(body, operation)
+        return
+    }
+    if word == "add_arguments" {
+        function_add_arguments(body, operation)
+        return
+    }
+    if word == "describe_arguments" {
+        function_describe_arguments(body, operation)
+        return
+    }
     if word != "bind" {
         body.refuse("it calls 'Function.{word}', which is no intrinsic")
         return
@@ -898,6 +1353,7 @@ func note_value_box(label: String, written: String) {
     output.support(
         "static void* spite_box_{label}({written} value) \{\nSpiteBox_{label}* self = (SpiteBox_{label}*)SPITE_MALLOC(sizeof(SpiteBox_{label}));\nif (self == 0) \{ fflush(stdout); fputs(\"spite: out of memory making an object\\n\", stderr); exit(1); }\nself->header.ref_count = 1;\nself->header.class_id = 0;\nself->value = value;\nreturn self;\n}",
     )
+    output.name_piece("spite_box_{label}")
 }
 
 func value_forwarder(called: Function, box: String): String {
@@ -971,6 +1427,7 @@ func print_symbol(body: Body, operation: Operation, word: String) {
         "text": symbol_text(body, operation)
         "equals": symbol_equals(body, operation)
         "from_text": symbol_from_text(body, operation)
+        "of_text": symbol_text(body, operation)
         _: body.refuse("it calls 'Symbol.{word}', which is no intrinsic")
     }
 }
@@ -994,6 +1451,11 @@ func symbol_equals(body: Body, operation: Operation) {
     var second_tag = body.tag_expression(second_number)
     if not first_tag.is_empty() and not second_tag.is_empty() {
         body.assign(operation.result, "({first_tag} == {second_tag})")
+        return
+    }
+    var named = body.string_constants[second_number]
+    if not first_tag.is_empty() and second_tag.is_empty() and named {
+        body.assign(operation.result, "false")
         return
     }
     string_equals(body, operation)
@@ -1044,30 +1506,7 @@ func print_object(body: Body, operation: Operation, word: String) {
         body.assign(operation.result, deep)
         return
     }
-    if word != "copy" {
-        body.refuse("it calls 'Object.{word}', which the printer does not write yet")
-        return
-    }
-    var copied = body.operand(operation, 0)
-    var copied_type = body.operand_type(operation, 0)
-    var layout = naming.layout_of(copied_type)
-    if not layout or layout.kind != "class" or layout.is_value {
-        body.refuse("it copies something that is not an object of a class")
-        return
-    }
-    if body.placements.has(operation.result) {
-        var head = body.placement_head(operation.result, layout)
-        assert not head.is_empty()
-        if not output.copied_in.contains(layout.c_name) {
-            output.copied_in.append(layout.c_name)
-        }
-        body.assign(operation.result, "{layout.c_name}_copy_in({head}, {copied})")
-        return
-    }
-    if not output.copied_layouts.contains(layout.c_name) {
-        output.copied_layouts.append(layout.c_name)
-    }
-    body.assign(operation.result, "{layout.c_name}_copy({copied})")
+    body.refuse("it calls 'Object.{word}', which is an ordinary call or not an intrinsic")
 }
 
 func print_arguments(body: Body, operation: Operation, word: String) {
@@ -1085,9 +1524,19 @@ func print_arguments(body: Body, operation: Operation, word: String) {
 }
 
 func object_allocator(body: Body, operation: Operation) {
+    var object = body.operand(operation, 0)
     var heap = body.operand(operation, 1)
     var made = body.type_of(operation.result)
     var written = naming.c_type(made)
+    var object_type = body.operand_type(operation, 0)
+    var layout = naming.layout_of(object_type)
+    if layout and output.placed_layouts.contains(layout.c_name) {
+        body.assign(
+            operation.result,
+            "(({object})->spite_allocator != 0 ? (({written})(({object})->spite_allocator)) : (({written})({heap})))",
+        )
+        return
+    }
     body.assign(operation.result, "(({written})({heap}))")
 }
 
@@ -1103,7 +1552,7 @@ func arguments_flag(body: Body, operation: Operation, arguments: String) {
 
 func print_enum(body: Body, operation: Operation, word: String) {
     if word == "from_text" {
-        enum_from_text(body, operation)
+        body.refuse("it calls 'Enum.from_text', which is an ordinary call of the enum's reader")
         return
     }
     if word != "to_integer" {
@@ -1112,43 +1561,6 @@ func print_enum(body: Body, operation: Operation, word: String) {
     }
     var converted = body.operand(operation, 0)
     body.assign(operation.result, "((int32_t)({converted}))")
-}
-
-func enum_from_text(body: Body, operation: Operation) {
-    var text = body.operand(operation, 0)
-    var made = body.type_of(operation.result)
-    assert made
-    var nullable = shape.as_nullable(made)
-    var enumerated = shape.as_enum(made)
-    if nullable {
-        enumerated = shape.as_enum(nullable.inner)
-    }
-    if not enumerated {
-        body.refuse("it reads text as an enum, and the answer is not an enum")
-        return
-    }
-    var written = naming.c_type(made)
-    var reader = "{enumerated.c_name}___from_text"
-    if not output.enum_readers.contains(reader) {
-        output.enum_readers.append(reader)
-        output.need("string same")
-        var lines = ["static {written} {reader}(SpiteString text) \{"]
-        var index = 0
-        while index < enumerated.values.count() {
-            var value = enumerated.values[index]
-            var spelled = sites.literal(value)
-            lines.append(
-                "if (spite_string_same(text, {spelled})) return ({written})\{ .has_value = true, .value = {enumerated.c_name}_{value} };",
-            )
-            index = index + 1
-        }
-        lines.append("return ({written})\{ .has_value = false };")
-        lines.append("}")
-        var reader_text = lines.join("\n")
-        output.support(reader_text)
-        output.runtime_place(reader)
-    }
-    body.assign(operation.result, "{reader}({text})")
 }
 
 func print_boolean(body: Body, operation: Operation, word: String) {
@@ -1457,11 +1869,8 @@ func power_of_two(bits: Integer): String {
 func print_string(body: Body, operation: Operation, word: String) {
     switch word {
         "join": join(body, operation)
-        "equals": string_equals(body, operation)
         "bytes": string_storage(body, operation, "((int64_t)(intptr_t)spite_string_bytes(&")
         "stored_length": string_storage(body, operation, "spite_string_length((")
-        "less_than": string_order(body, operation, "<")
-        "greater_than": string_order(body, operation, ">")
         _: body.refuse("it calls 'String.{word}', which is no intrinsic")
     }
 }
@@ -1469,13 +1878,6 @@ func print_string(body: Body, operation: Operation, word: String) {
 func string_storage(body: Body, operation: Operation, opening: String) {
     var text = body.operand(operation, 0)
     body.assign(operation.result, "{opening}({text})))")
-}
-
-func string_order(body: Body, operation: Operation, symbol: String) {
-    var first = body.operand(operation, 0)
-    var second = body.operand(operation, 1)
-    output.need("string order")
-    body.assign(operation.result, "(spite_string_order({first}, {second}) {symbol} 0)")
 }
 
 func join(body: Body, operation: Operation) {
@@ -1649,7 +2051,7 @@ func union_value(body: Body, operation: Operation) {
         tagged_value(body, operation, held, made)
         return
     }
-    if shape.as_string(made) or shape.is_symbol(made) {
+    if shape.as_string(made) or shape.is_symbol(made) or naming.is_symbol_class(made) {
         body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}))->value)")
         return
     }
@@ -1664,7 +2066,9 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
     var tagged = naming.is_tagged(held_type)
     var layout = naming.layout_of(made)
     var scalar = shape.as_scalar(made)
-    if shape.as_string(made) or shape.is_symbol(made) {
+    if (shape.is_symbol(made) or naming.is_symbol_class(made)) and tagged {
+        layout = lowered.layout_named("SpiteSymbol")
+    } else if shape.as_string(made) or shape.is_symbol(made) or naming.is_symbol_class(made) {
         layout = lowered.layout_named("SpiteString")
     } else if scalar {
         layout = lowered.layout_named("Spite{naming.scalar_label(scalar.kind)}")
@@ -1681,7 +2085,7 @@ func member_test(held: String, held_type: Analysis.SpiteType, made: Analysis.Spi
 
 func tagged_value(body: Body, operation: Operation, held: String, made: Analysis.SpiteType) {
     var written = naming.c_type(made)
-    if shape.as_string(made) or shape.is_symbol(made) {
+    if shape.as_string(made) or shape.is_symbol(made) or naming.is_symbol_class(made) {
         body.assign(operation.result, "(((SpiteBox_SpiteString*)({held}).value.object)->value)")
         return
     }
@@ -1734,6 +2138,16 @@ func tagged_wrap(body: Body, operation: Operation, given: Analysis.SpiteType) {
     }
     if shape.as_union(given) {
         body.assign(operation.result, "spite_tagged_from_pointer((void*)({wrapped}))")
+        return
+    }
+    if shape.is_symbol(given) {
+        var symbol_layout = lowered.layout_named("SpiteSymbol")
+        if not symbol_layout {
+            body.refuse("a symbol is put in a tagged union, and the program has no Symbol layout to tag it with")
+            return
+        }
+        var symbol_box = string_box(body, operation, wrapped)
+        body.assign(operation.result, "spite_tagged_object({naming.class_id_of(symbol_layout)}, {symbol_box})")
         return
     }
     if shape.as_string(given) or shape.is_symbol(given) {

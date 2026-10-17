@@ -241,6 +241,7 @@ func resolve_call(call: Syntax.Expressions.CallExpression): ResolvedCall? {
         resolved.constructs = true
         return resolved
     }
+    crash call.callee
     var own = shape.as_identifier(call.callee)
     if own {
         var own_function = studied().find_function(own.name)
@@ -406,6 +407,7 @@ func fresh_generic(construction: Syntax.Expressions.GenericCallExpression): Anal
         assert not argument_text.contains("$")
         index = index + 1
     }
+    crash construction.callee
     var template = constructed_class(construction.callee)
     assert template
     assert template.is_generic_template
@@ -561,6 +563,7 @@ func statement_keeps(statement: Syntax.Statements.Statement): Boolean {
                     return block_keeps(statement.else_branch)
                 }
             }
+            crash statement.condition
             return keeps(statement.condition) and block_keeps(statement.then_branch) and block_keeps(statement.else_branch)
         }
         Syntax.Statements.WhileStatement: {
@@ -833,11 +836,15 @@ func operator_keeps(binary: Syntax.Expressions.BinaryExpression): Boolean {
     }
     var resolved = operator_call(binary)
     if resolved {
+        crash binary.left
+        crash binary.right
         return operands_lent(resolved, binary.left, binary.right)
     }
     if binary.operator != 'equal' and binary.operator != 'not_equal' {
         return false
     }
+    crash binary.left
+    crash binary.right
     return keeps_unless_followed(binary.left) and keeps_unless_followed(binary.right)
 }
 

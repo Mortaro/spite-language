@@ -29,6 +29,13 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
   at the cost of the C compiler never fusing a multiply-add on its own.
 - **D602's details:** `Buffer(size)` gives room for `size` bytes and starts empty (not `size` zero bytes); the
   size is always written (`Buffer(0)` when unknown); `reserve(count)` stays for a buffer that learns its size later.
+- **D591, a `T?` passed where a `union` or `type` is wanted is an error**, with the text every other `T?` gets.
+  It was silently accepted before. Easy to change: the text, or narrowing `not x or f(x)` on the right side so
+  fewer `crash` lines are needed.
+- **D589, choices made building the desugared IR**: the namespace name `Intermediate`; hot reload driven by the IR
+  (no C reading, unswappable changes refused by name); a store releases what the field held; class objects answer
+  retained references; the pipeline switched on only in a test-built compiler until the switch-over. Each is easy
+  to change.
 - **D566, the programs that test an internal class (decided by Claude Opus 5.5 under D509: (c)).** About 80 conformance programs, diagnostics and benchmarks name
   `Concurrent`, `Parallel`, `Lock`, `Atomic`, `ThreadLocal` or `Memory.Heap` because testing that class (or the lock a
   `Parallel` makes the compiler add) is their point. Once those classes are internal, naming them outside `library/` is

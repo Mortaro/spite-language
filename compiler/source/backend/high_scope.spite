@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 var parent: HighScope? = null
 var entries = Dictionary<String, Analysis.SpiteType>()
 var objects = Dictionary<String, Integer>()

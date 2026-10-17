@@ -312,6 +312,7 @@ func visit(expression: Syntax.Expressions.Expression) {
             crash expression.left
             crash expression.right
             visit(expression.left)
+            crash expression.right
             visit(expression.right)
         }
         Syntax.Expressions.UnaryExpression: visit_optional(expression.operand)
@@ -712,6 +713,7 @@ func raw_roots(expression: Syntax.Expressions.Expression): String {
             if binds_singleton(member_field_type) {
                 return "|shared|"
             }
+            crash expression.object
             return raw_roots(expression.object)
         }
         Syntax.Expressions.IndexExpression: {
@@ -724,6 +726,7 @@ func raw_roots(expression: Syntax.Expressions.Expression): String {
             crash expression.left
             crash expression.right
             var left_roots = raw_roots(expression.left)
+            crash expression.right
             var right_roots = raw_roots(expression.right)
             return united(left_roots, right_roots)
         }

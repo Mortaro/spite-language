@@ -15,6 +15,7 @@ func run(lowered: Lowered) {
     run_at_once(lowered, first_effects)
     var entries = made_waits.concurrent_entries()
     made_waits.mark_resumable(entries)
+    made_waits.rewrite_started_calls()
     var effects = Facts.Effects(lowered)
     var reach = Facts.ThreadReach(lowered, effects)
     var counts = SharedCounts(lowered)

@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#what-a-function-surely-wrote
+# ../intermediate/README.md#what-a-function-surely-wrote
 var before_blocks = List<List<String>>()
 var after_blocks = List<List<String>>()
 var predecessors = List<List<Integer>>()
@@ -41,7 +41,7 @@ func note_predecessors(function: HighFunction) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#what-a-function-surely-wrote
+# ../intermediate/README.md#what-a-function-surely-wrote
 func start_full(function: HighFunction) {
     var index = 0
     while index < function.blocks.count() {
@@ -73,7 +73,7 @@ func settle(function: HighFunction) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#what-a-function-surely-wrote
+# ../intermediate/README.md#what-a-function-surely-wrote
 func state_before(block: HighBlock): List<String> {
     var coming = predecessors[block.number]
     crash coming

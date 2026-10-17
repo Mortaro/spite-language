@@ -1,0 +1,30 @@
+var console = Console()
+var made: Piece? = null
+
+func ChainComparison() {
+    var absent_make = is_make()
+    var absent_other = is_not_make()
+    console.print(absent_make, absent_other)
+    var first = Piece("make")
+    var second = Piece("wait")
+    first.next = second
+    made = first
+    var present_make = is_make()
+    var present_other = is_not_make()
+    var linked = first.next.kind == "wait"
+    var unlinked = second.next.kind == "x"
+    var unlinked_other = second.next.kind != "x"
+    console.print(present_make, present_other, linked, unlinked, unlinked_other)
+    if made.kind == "make" {
+        console.print("made is make")
+    }
+    console.print("done")
+}
+
+func is_make(): Boolean {
+    return made.kind == "make"
+}
+
+func is_not_make(): Boolean {
+    return made.kind != "make"
+}

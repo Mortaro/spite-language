@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#what-the-walk-covers
+# ../intermediate/README.md#what-the-walk-covers
 var program: HighProgram? = null
 var recorded: HighFunction? = null
 var class_information: Analysis.ClassInfo? = null
@@ -149,6 +149,10 @@ func walk_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     crash declaration.value
     var value = walk_value(declaration.value)
     var declared = declared_type(declaration, value)
+    if not declared {
+        note_unknown("a declaration whose type the walk cannot resolve", current_line)
+        return
+    }
     var points_at = points_at_of(value)
     write_value("local", -1, declaration.name, declared, current_line, points_at, value, -1)
     var scope = scopes.last()
@@ -233,6 +237,7 @@ func walk_written_slot(indexed: Syntax.Expressions.IndexExpression, declared: An
     crash indexed.object
     crash indexed.index
     var holder = walk_value(indexed.object)
+    crash indexed.index
     var at_index = walk_value(indexed.index)
     var owner = items_of(holder)
     write_value("slot", owner, "items", declared, current_line, owner, written, holder)
@@ -317,7 +322,7 @@ func walk_while(statement: Syntax.Statements.WhileStatement) {
     overlay(at_condition)
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func close_loop(frame: HighLoopFrame, condition_block: HighBlock, after_body: HighValues, steps: Boolean) {
     var depth = loop_frames.count() - 1
     if steps {
@@ -408,6 +413,7 @@ func walk_assert(statement: Syntax.Statements.AssertStatement) {
         halting.can_end = true
         halting.takes(tested)
         halting.condition_text = statement.condition_text
+        crash statement.value
         if shapes.is_false_literal(statement.value) {
             end_the_block("crash")
         }
@@ -602,7 +608,7 @@ func changes_a_container(member_name: String): Boolean {
     return not reads_only.contains(member_name)
 }
 
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 func items_of(holder: Integer): Integer {
     var list_number = points_at_of(holder)
     if list_number < 0 {
@@ -660,6 +666,7 @@ func walk_slot_read(indexed: Syntax.Expressions.IndexExpression): Integer {
     crash indexed.object
     crash indexed.index
     var holder = walk_value(indexed.object)
+    crash indexed.index
     var at_index = walk_value(indexed.index)
     var owner = items_of(holder)
     var element = element_type_of(holder)
@@ -686,6 +693,7 @@ func walk_call(call: Syntax.Expressions.CallExpression): Integer {
         arguments.append(read)
         position = position + 1
     }
+    crash call.callee
     var identifier = shapes.as_identifier(call.callee)
     if identifier {
         return walk_own_call(identifier.name, arguments)
@@ -859,6 +867,7 @@ func walk_computation(binary: Syntax.Expressions.BinaryExpression): Integer {
         return walk_short_circuit(binary)
     }
     var left = walk_value(binary.left)
+    crash binary.right
     var right = walk_value(binary.right)
     var operation = add_operation("computation", current_line)
     operation.operator = binary.operator
@@ -885,7 +894,7 @@ func is_comparison(operator: Syntax.Expressions.BinaryOperator): Boolean {
     return operator == 'less_equal' or operator == 'greater' or operator == 'greater_equal'
 }
 
-# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+# ../intermediate/README.md#functions-blocks-and-operations
 func walk_short_circuit(binary: Syntax.Expressions.BinaryExpression): Integer {
     crash binary.left
     crash binary.right
@@ -902,6 +911,7 @@ func walk_short_circuit(binary: Syntax.Expressions.BinaryExpression): Integer {
         add_edge("dropped", right_block)
     }
     block = right_block
+    crash binary.right
     var right = walk_value(binary.right)
     add_edge("fallthrough", join_block)
     var after_right = copied_values()
@@ -1054,7 +1064,7 @@ func write_field(
     write_value("field", object_number, field_name, declared, at, held, source, holder)
 }
 
-# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+# ../intermediate/README.md#the-facts-folded-from-the-operations
 func release_what_the_field_held(
     object_number: Integer,
     field_name: String,
@@ -1080,7 +1090,7 @@ func note_field_owner(object: HighObject) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 func points_at_of_field(object_number: Integer, field_name: String, declared: Analysis.SpiteType?): Integer {
     var held_class = class_of_type(declared)
     if not held_class {
@@ -1177,7 +1187,7 @@ func type_of_nothing(): Analysis.SpiteType {
     return Analysis.Types.VoidType()
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func note_join(join_block: HighBlock, before: HighValues, after_taken: HighValues, after_dropped: HighValues) {
     crash recorded
     var joined = before.copied()
@@ -1223,7 +1233,7 @@ func merged_value(sample: Integer, taken: Integer, dropped: Integer): Integer {
     return recorded.new_value(like.kind, like.owner, like.points_at, like.name, version + 1, like.spite_type)
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func outer_value(
     depth: Integer,
     key: String,
@@ -1265,7 +1275,7 @@ func value_like(depth: Integer, key: String, sample: Integer): Integer {
     return outer_value(depth, key, like.kind, like.owner, like.name, like.spite_type, like.points_at)
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func known_value(key: String): Integer {
     var depth = loop_frames.count() - 1
     while depth >= 0 {
@@ -1326,7 +1336,7 @@ func names_of(first: HighValues, second: HighValues, third: HighValues): List<St
     return names
 }
 
-# ../../../design/backend_high_level_ir.md#what-the-walk-covers
+# ../intermediate/README.md#what-the-walk-covers
 func resolve_type_reference(type_reference: Syntax.Types.Type): Analysis.SpiteType? {
     if shapes.as_generic_type(type_reference) {
         note_unknown("a codegen value used as a type", current_line)
@@ -1448,6 +1458,7 @@ func resolve_dictionary_type(named: Syntax.Types.NamedType): Analysis.SpiteType?
         return null
     }
     var key = resolve_type_argument(named.arguments[0])
+    crash named.arguments[1]
     var value = resolve_type_argument(named.arguments[1])
     assert key and value
     var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(value, key)

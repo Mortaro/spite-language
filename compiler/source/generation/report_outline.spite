@@ -138,9 +138,11 @@ func declared_type(lines: List<String>, name: String, with_header: Boolean): Str
     var index = lines.count() - 1
     while index >= 0 {
         crash lines[index]
-        var found = type_on_line(lines[index], name, with_header and index == 0)
-        if not found.is_empty() {
-            return found
+        if lines[index].contains(name) {
+            var found = type_on_line(lines[index], name, with_header and index == 0)
+            if not found.is_empty() {
+                return found
+            }
         }
         index = index - 1
     }

@@ -8,6 +8,7 @@ var consumption: Consumption? = null
 var drop_effects: Facts.Summary? = null
 var origins = Dictionary<Integer, String>()
 var sources = Dictionary<Integer, List<Integer>>()
+var joined = List<Integer>()
 
 func Borrows(
     studied: Function,
@@ -33,6 +34,9 @@ func origin_of(value: Integer): String {
         return origins[value]
     }
     var found = classified(value)
+    if not origins.has(value) {
+        joined.append(value)
+    }
     origins[value] = found
     return found
 }
@@ -55,12 +59,15 @@ func classified(value: Integer): String {
     }
     var defining = uses.definition_of(value)
     if not defining {
-        return "owned"
+        return joined_origin(value)
     }
     if defining.kind == "call" and defining.callee == "Union.tag" {
         return "plain"
     }
-    if defining.kind == "call" and defining.callee == "Singleton.peek" {
+    if defining.form == "digits_in_place" {
+        return "plain"
+    }
+    if defining.kind == "call" and (defining.callee == "Singleton.peek" or defining.callee == "Object.allocator") {
         return "held"
     }
     if consumption.is_lent_call(defining) {
@@ -72,6 +79,9 @@ func classified(value: Integer): String {
         var wrapped_origin = origin_of(wrapped)
         if wrapped_origin == "lent" {
             return "lent"
+        }
+        if wrapped_origin == "static" {
+            return "static"
         }
         if wrapped_origin != "owned" and wrapped_origin != "plain" {
             note_sources(value, defining)
@@ -106,6 +116,76 @@ func classified(value: Integer): String {
     return "owned"
 }
 
+# ../../../../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame
+func joined_origin(value: Integer): String {
+    crash function
+    var block_number = block_holding(value)
+    if block_number < 0 {
+        return "owned"
+    }
+    var block = function.block_at(block_number)
+    var position = block.parameters.index_of(value)
+    if not position {
+        return "owned"
+    }
+    var started = joined.count()
+    origins[value] = "lent"
+    joined.append(value)
+    var incoming = incoming_arguments(block_number, position)
+    var index = 0
+    while index < incoming.count() {
+        var argument = incoming[index]
+        if argument != value and origin_of(argument) != "lent" {
+            forget_joined(started)
+            return "owned"
+        }
+        index = index + 1
+    }
+    if incoming.is_empty() {
+        return "owned"
+    }
+    return "lent"
+}
+
+func block_holding(value: Integer): Integer {
+    crash function
+    var index = 0
+    while index < function.blocks.count() {
+        if function.blocks[index].parameters.contains(value) {
+            return function.blocks[index].number
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func forget_joined(started: Integer) {
+    while joined.count() > started {
+        var forgotten = joined.remove_last()
+        crash forgotten
+        origins.remove(forgotten)
+    }
+}
+
+func incoming_arguments(block_number: Integer, position: Integer): List<Integer> {
+    crash function
+    var found = List<Integer>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var targets = function.blocks[block_index].terminator.targets
+        var index = 0
+        while index < targets.count() {
+            var target = targets[index]
+            if target.block == block_number and position < target.arguments.count() {
+                found.append(target.arguments[position])
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
 func parameter_ownership(value: Integer): String {
     crash function
     var index = 0
@@ -131,6 +211,36 @@ func note_sources(value: Integer, defining: Operation) {
         index = index + 1
     }
     sources[value] = found
+}
+
+# ../../../../docs/proofs.md#an-address-keeps-its-owner-alive
+func derives_address(value: Integer): Boolean {
+    crash function
+    crash uses
+    if sources.has(value) {
+        return true
+    }
+    var types = Analysis.TypeShape()
+    var described = function.value_at(value)
+    if not described.spite_type {
+        return false
+    }
+    var scalar = types.as_scalar(described.spite_type)
+    if not scalar or scalar.kind != 'address_kind' {
+        return false
+    }
+    var defining = uses.definition_of(value)
+    if not defining {
+        return false
+    }
+    if defining.kind == "load" {
+        return is_address_read(value)
+    }
+    if defining.kind != "call" {
+        return false
+    }
+    note_sources(value, defining)
+    return true
 }
 
 func is_address_read(value: Integer): Boolean {
@@ -230,7 +340,25 @@ func consumed_at(place: Facts.Place, value: Integer): Boolean {
     if passes_on and operation.result >= 0 and origin_of(operation.result) != "owned" {
         return is_consumed(operation.result)
     }
-    return consumption.consumes(operation, value)
+    return consumption.consumes(operation, value) and not hands_over_by_count(operation, value)
+}
+
+# ../../../../docs/optimizations.md#a-borrowed-item-is-counted-only-where-it-is-kept
+func hands_over_by_count(operation: Operation, value: Integer): Boolean {
+    if operation.kind != "call" or operation.form == "in_place" or consumption_is_wrap(operation) {
+        return false
+    }
+    crash uses
+    var defining = uses.definition_of(value)
+    if not defining {
+        return true
+    }
+    return not consumption_is_wrap(defining)
+}
+
+func consumption_is_wrap(operation: Operation): Boolean {
+    crash consumption
+    return consumption.is_wrap(operation)
 }
 
 func targets_take(terminator: Terminator, value: Integer): Boolean {
@@ -277,6 +405,10 @@ func valid_until(value: Integer, start: Facts.Place, at: Facts.Place): Boolean {
     var block = function.block_at(at.block)
     crash block.operations[at.position]
     var used_in = block.operations[at.position]
+    crash consumption
+    if used_in.kind == "call" and consumption.consumes(used_in, value) and hands_over_by_count(used_in, value) {
+        return true
+    }
     return used_in.kind != "call" or not disturbs(used_in, value)
 }
 
@@ -290,7 +422,11 @@ func disturbs(operation: Operation, value: Integer): Boolean {
     }
     var field_key = read_field(value)
     if origin_of(value) == "lending" {
-        return summary.writes_memory or summary.releases and drop_effects.writes_memory
+        var container = lending_container(value, 0)
+        if container.is_empty() {
+            return summary.writes_memory or summary.releases and drop_effects.writes_memory
+        }
+        return lending_disturbed(summary, container)
     }
     if field_key.is_empty() {
         return false
@@ -304,6 +440,94 @@ func disturbs(operation: Operation, value: Integer): Boolean {
         return true
     }
     return summary.releases and drop_effects.may_write(layout, field)
+}
+
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func lending_container(value: Integer, depth: Integer): String {
+    crash uses
+    crash kinds
+    crash consumption
+    crash kinds.lowered
+    if depth > 6 {
+        return ""
+    }
+    var defining = uses.definition_of(value)
+    if not defining or defining.kind != "call" {
+        return ""
+    }
+    if consumption.is_projection(defining) or consumption.is_wrap(defining) {
+        var inner = defining.operands.first()
+        crash inner
+        return lending_container(inner, depth + 1)
+    }
+    var callee = kinds.lowered.function_named(defining.callee)
+    if not callee {
+        return ""
+    }
+    var container = kinds.lowered.layout_named(callee.owner)
+    if not container or container.qualified != "List" {
+        return ""
+    }
+    var held = container.field_named("values")
+    if not held {
+        return ""
+    }
+    var held_layout = kinds.layout_of(held.spite_type)
+    if not held_layout or held_layout.qualified != "TypedMemory" {
+        return ""
+    }
+    return container.c_name
+}
+
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func lending_disturbed(summary: Facts.Summary, container: String): Boolean {
+    crash kinds
+    crash kinds.lowered
+    var list = kinds.lowered.layout_named(container)
+    crash list
+    var held = list.field_named("values")
+    crash held
+    var memory = kinds.layout_of(held.spite_type)
+    crash memory
+    if summary.typed_memory.has(memory.c_name) {
+        return true
+    }
+    var let_go = summary.released.keys()
+    var index = 0
+    while index < let_go.count() {
+        if kinds.holds(let_go[index], container) {
+            return true
+        }
+        index = index + 1
+    }
+    return replaces_holder(summary, container)
+}
+
+func replaces_holder(summary: Facts.Summary, container: String): Boolean {
+    crash kinds
+    crash kinds.lowered
+    var written = summary.writes.keys()
+    var index = 0
+    while index < written.count() {
+        var key = written[index]
+        var dot = key.index_of(".")
+        if not dot {
+            return true
+        }
+        var owner_name = key.slice(0, dot)
+        var owner = kinds.lowered.layout_named(owner_name)
+        if not owner {
+            return true
+        }
+        var key_length = key.length()
+        var field_name = key.slice(dot + 1, key_length)
+        var field = owner.field_named(field_name)
+        if not field or kinds.holds_type_of(field.spite_type, container) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func read_field(value: Integer): String {

@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+# ../intermediate/README.md#what-the-comparison-checks
 var walked = 0
 var agreed = 0
 var differed = 0
@@ -80,7 +80,7 @@ func compare_band(program: HighProgram, facts: Generation.OverlapFacts, function
     }
 }
 
-# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+# ../intermediate/README.md#what-a-band-site-needs
 func compare_band_site(program: HighProgram, facts: Generation.OverlapFacts, function: HighFunction, site: String) {
     assert not sites_asked.has(site) and facts.bodies.has(site)
     sites_asked[site] = true
@@ -116,7 +116,7 @@ func compare_band_site(program: HighProgram, facts: Generation.OverlapFacts, fun
     }
 }
 
-# ../../../design/backend_high_level_ir.md#what-a-band-site-needs
+# ../intermediate/README.md#what-a-band-site-needs
 func unseen_calls(merged: Generation.OverlapFact): String {
     names = List<String>()
     merged.writes.keys().each(note_unseen)
@@ -286,7 +286,7 @@ func written_key_of(program: HighProgram, key: String): String {
     return written
 }
 
-# ../../../design/backend_high_level_ir.md#what-the-comparison-checks
+# ../intermediate/README.md#what-the-comparison-checks
 func key_of(program: HighProgram, owner: HighObject, field_name: String): String {
     var written = "f:{program.class_c_name(owner.class_name)}#{field_name}_"
     if owner.kind == "items" {

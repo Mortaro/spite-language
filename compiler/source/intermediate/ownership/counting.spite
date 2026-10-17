@@ -13,6 +13,11 @@ var terminator_pseudo_uses = Dictionary<Integer, List<Integer>>()
 var dominator_children = Dictionary<Integer, List<Integer>>()
 var retained_count = 0
 var released_count = 0
+var held_by = Dictionary<Integer, List<Integer>>()
+var lowered_functions: Lowered? = null
+var held_block = Dictionary<Integer, Integer>()
+var held_position = Dictionary<Integer, Integer>()
+var held_reach = Dictionary<Integer, List<Integer>>()
 
 func Counting(
     studied: Function,
@@ -24,6 +29,7 @@ func Counting(
     borrows = studied_borrows
     consumption = studied_consumption
     kinds = studied_kinds
+    lowered_functions = studied_kinds.lowered
     crash studied_borrows.flow
     crash studied_borrows.uses
     flow = studied_borrows.flow
@@ -33,11 +39,13 @@ func Counting(
 func count() {
     crash function
     choose_tracked()
+    find_held()
     find_children()
     var index = 0
     while index < function.values.count() {
         if tracked.has(index) {
             bind_name(index)
+            bind_instance(index)
         }
         index = index + 1
     }
@@ -90,21 +98,37 @@ func children_of(block: Integer): List<Integer> {
 # ../../../../docs/optimizations.md#the-compiler-places-memory
 func bind_name(value: Integer) {
     crash function
-    crash uses
     var described = function.value_at(value)
     assert not described.name.is_empty()
+    bind_scope(value, described.name)
+}
+
+func bind_instance(value: Integer) {
+    crash function
+    crash kinds
+    crash consumption
+    var described = function.value_at(value)
+    assert described.name.is_empty()
+    var layout = kinds.layout_of(described.spite_type)
+    assert layout and consumption.is_instance_class(layout.c_name)
+    bind_scope(value, "spite_instance_{value}")
+}
+
+func bind_scope(value: Integer, name: String) {
+    crash function
+    crash uses
     var place = uses.place_of(value)
     assert place.block >= 0
     var waiting = List<Integer>()
     var first_position = place.order() + 1
-    if bind_in_block(value, described.name, place.block, first_position) {
+    if bind_in_block(value, name, place.block, first_position) {
         var first_children = children_of(place.block)
         first_children.each(waiting.append)
     }
     while not waiting.is_empty() {
         var taken = waiting.remove_last()
         crash taken
-        if bind_from_entry(value, described.name, taken) {
+        if bind_from_entry(value, name, taken) {
             var more = children_of(taken)
             more.each(waiting.append)
         }
@@ -131,7 +155,11 @@ func bind_in_block(value: Integer, name: String, block_number: Integer, start: I
     while index < block.operations.count() {
         var operation = block.operations[index]
         if operation.result >= 0 and operation.result != value and function.value_at(operation.result).name == name {
-            add_pseudo_use(pseudo_uses, block_number * 100000 + index, value)
+            var finished = index
+            if runs_drop_observably(value) {
+                finished = constructed_at(block, operation.result, index)
+            }
+            add_pseudo_use(pseudo_uses, block_number * 100000 + finished, value)
             return false
         }
         index = index + 1
@@ -180,7 +208,7 @@ func tracked_users(value: Integer, depth: Integer, found: List<Integer>) {
         return
     }
     var origin = borrows.origin_of(value)
-    assert origin == "borrowed" or origin == "lending" or borrows.sources.has(value)
+    assert origin == "borrowed" or origin == "lending" or borrows.derives_address(value)
     var from = borrows.sources_of(value)
     var index = 0
     while index < from.count() {
@@ -194,6 +222,7 @@ func operation_users(operation: Operation, block_number: Integer, position: Inte
     var index = 0
     while index < operation.operands.count() {
         tracked_users(operation.operands[index], 0, found)
+        held_users(operation.operands[index], found, block_number, position)
         index = index + 1
     }
     if operation.kind == "retain" {
@@ -219,6 +248,7 @@ func terminator_users(block_number: Integer): List<Integer> {
     var index = 0
     while index < terminator.operands.count() {
         tracked_users(terminator.operands[index], 0, found)
+        held_users(terminator.operands[index], found, block_number, 1000000000)
         index = index + 1
     }
     index = 0
@@ -227,6 +257,7 @@ func terminator_users(block_number: Integer): List<Integer> {
         var argument_index = 0
         while argument_index < target.arguments.count() {
             tracked_users(target.arguments[argument_index], 0, found)
+            held_users(target.arguments[argument_index], found, block_number, 1000000000)
             argument_index = argument_index + 1
         }
         index = index + 1
@@ -356,7 +387,7 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
     if terminator.kind == "return" and not function.lends_answer {
         var returned = terminator.operands.first()
         if returned {
-            hand_on(returned, live, moved, before_terminator)
+            hand_on(returned, live, moved, before_terminator, true)
         }
     }
     var index = 0
@@ -364,7 +395,7 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
         var target = terminator.targets[index]
         var argument_index = 0
         while argument_index < target.arguments.count() {
-            hand_on(target.arguments[argument_index], live, moved, before_terminator)
+            hand_on(target.arguments[argument_index], live, moved, before_terminator, false)
             argument_index = argument_index + 1
         }
         index = index + 1
@@ -383,10 +414,23 @@ func place_terminator(block_number: Integer, live: LiveSet, before_terminator: L
     users.each(live.add)
 }
 
-func hand_on(value: Integer, live: LiveSet, moved: List<Integer>, placed: List<Operation>) {
+func hand_on(
+    value: Integer,
+    live: LiveSet,
+    moved: List<Integer>,
+    placed: List<Operation>,
+    counts_lent_parameter: Boolean,
+) {
     crash borrows
+    crash function
     var origin = borrows.origin_of(value)
-    assert origin != "plain" and origin != "lent"
+    if origin == "lent" and counts_lent_parameter and function.is_parameter(value) {
+        var lent_retain = counted("retain", value)
+        placed.append(lent_retain)
+        retained_count = retained_count + 1
+        return
+    }
+    assert origin != "plain" and origin != "lent" and origin != "static"
     if tracked.has(value) and not live.has(value) and not moved.contains(value) {
         moved.append(value)
         return
@@ -446,7 +490,7 @@ func place_operation(
         var operand = operation.operands[index]
         if consumption.consumes_position(operation, index) and not passes_through {
             var retained_before = before.count()
-            hand_on(operand, live, moved, before)
+            hand_on(operand, live, moved, before, true)
             if before.count() > retained_before {
                 retained_any = true
             }
@@ -517,4 +561,125 @@ func edge_releases(block_number: Integer, live: LiveSet, dead: List<Integer>) {
         }
         index = index + 1
     }
+}
+
+func find_held() {
+    crash function
+    crash consumption
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            note_held(block.operations[index], block_index, index)
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_held(operation: Operation, block_number: Integer, position: Integer) {
+    crash consumption
+    assert operation.kind == "store" and consumption.into_row(operation)
+    var stored = operation.operands.last()
+    crash stored
+    assert tracked.has(stored) and not held_block.has(stored)
+    var row = operation.operands.first()
+    crash row
+    var root = root_of(row, 0)
+    if not held_by.has(root) {
+        held_by[root] = List<Integer>()
+    }
+    crash held_by[root]
+    held_by[root].append(stored)
+    held_block[stored] = block_number
+    held_position[stored] = position
+}
+
+func root_of(value: Integer, depth: Integer): Integer {
+    crash uses
+    crash consumption
+    var defining = uses.definition_of(value)
+    if not defining or depth > 8 {
+        return value
+    }
+    var passes_on = consumption.is_projection(defining) or consumption.is_wrap(defining)
+    var inner = defining.operands.first()
+    if not passes_on or not inner {
+        return value
+    }
+    return root_of(inner, depth + 1)
+}
+
+func held_users(value: Integer, found: List<Integer>, block_number: Integer, position: Integer) {
+    assert held_by.count() > 0
+    var root = root_of(value, 0)
+    assert held_by.has(root)
+    crash held_by[root]
+    var kept = held_by[root]
+    var index = 0
+    while index < kept.count() {
+        var stored = kept[index]
+        if comes_after_store(stored, block_number, position) and not found.contains(stored) {
+            found.append(stored)
+        }
+        index = index + 1
+    }
+}
+
+func comes_after_store(stored: Integer, block_number: Integer, position: Integer): Boolean {
+    crash held_block[stored]
+    crash held_position[stored]
+    var store_block = held_block[stored]
+    if store_block == block_number {
+        return position > held_position[stored]
+    }
+    var reached = blocks_reached_from(store_block)
+    return reached.contains(block_number)
+}
+
+func blocks_reached_from(start: Integer): List<Integer> {
+    crash flow
+    if held_reach.has(start) {
+        crash held_reach[start]
+        return held_reach[start]
+    }
+    var seen = List<Integer>()
+    var waiting = List<Integer>()
+    var first = flow.successors_of(start)
+    first.each(waiting.append)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not seen.contains(taken) {
+            seen.append(taken)
+            var next = flow.successors_of(taken)
+            next.each(waiting.append)
+        }
+    }
+    held_reach[start] = seen
+    return seen
+}
+
+func runs_drop_observably(value: Integer): Boolean {
+    crash function
+    crash kinds
+    var described = function.value_at(value)
+    return kinds.may_run_drop(described.spite_type)
+}
+
+func constructed_at(block: Block, made: Integer, start: Integer): Integer {
+    crash lowered_functions
+    var index = start + 1
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind == "call" and operation.operands.first() == made {
+            var callee = lowered_functions.function_named(operation.callee)
+            if callee and callee.is_constructor {
+                return index
+            }
+        }
+        index = index + 1
+    }
+    return start
 }

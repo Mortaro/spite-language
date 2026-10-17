@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 var program: HighProgram? = null
 var function = HighFunction("", "", "")
 var answers_nothing = true
@@ -22,7 +22,14 @@ func HighEmit(
     function = starting_function
     answered_type = starting_answered_type
     borrowed = starting_borrowed
-    answers_nothing = not answered_type or types.is_void(answered_type)
+    answers_nothing = answers_nothing_for(starting_answered_type)
+}
+
+func answers_nothing_for(answer: Analysis.SpiteType?): Boolean {
+    if not answer {
+        return true
+    }
+    return types.is_void(answer)
 }
 
 func printed(): Boolean {
@@ -413,7 +420,7 @@ func generator_of(): Generation.Generator {
     return program.generator
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func print_checked(
     operation: HighOperation,
     syntax: Syntax.Expressions.BinaryExpression,
@@ -464,7 +471,7 @@ func print_return(operation: HighOperation) {
     }
 }
 
-# ../../../design/backend_high_level_ir.md#c-written-from-the-high-level
+# ../intermediate/README.md#c-written-from-the-high-level
 func next_block(block: HighBlock, stop: Integer): Integer {
     if block.edges.is_empty() {
         return -1

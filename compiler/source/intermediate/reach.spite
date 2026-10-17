@@ -47,6 +47,10 @@ func reach_function(c_name: String) {
     if not function.folded_into.is_empty() {
         waiting.append(function.folded_into)
     }
+    if not function.filled_by.is_empty() {
+        waiting.append(function.filled_by)
+    }
+    function.reaches.each(note_supplied_maker)
     var index = 0
     while index < function.values.count() {
         reach_type(function.values[index].spite_type, 0)
@@ -56,13 +60,150 @@ func reach_function(c_name: String) {
     while index < function.blocks.count() {
         var block = function.blocks[index]
         block.operations.each(reach_operation)
+        reach_copies(function, block)
         reach_tags(block)
         index = index + 1
     }
 }
 
+func note_supplied_maker(c_name: String) {
+    crash lowered
+    assert lowered.function_named(c_name) and not functions_reached.has(c_name) and not waiting.contains(c_name)
+    waiting.append(c_name)
+}
+
+func reach_copies(function: Function, block: Block) {
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        index = index + 1
+        if operation.kind == "call" and is_deep_copy(operation) and operation.operands.count() == 1 {
+            var visited = List<String>()
+            var copied = function.value_at(operation.operands[0])
+            reach_copy_of(copied.spite_type, visited)
+        }
+    }
+}
+
+func is_deep_copy(operation: Operation): Boolean {
+    crash lowered
+    if operation.callee == "Object.deep_copy" {
+        return true
+    }
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return false
+    }
+    return callee.made_for == "deep_copy"
+}
+
+func reach_copy_of(spite_type: Analysis.SpiteType?, visited: List<String>) {
+    crash lowered
+    assert spite_type
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        reach_copy_of(nullable.inner, visited)
+        return
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        reach_copy_of(listed.element, visited)
+        return
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        reach_copy_of(dictionary.element, visited)
+        return
+    }
+    var c_name = ""
+    var united = types.as_union(spite_type)
+    var class_ref = types.as_class_ref(spite_type)
+    if united {
+        c_name = united.c_name
+    } else if class_ref {
+        c_name = class_ref.c_name
+    } else {
+        return
+    }
+    if not visited.contains(c_name) {
+        visited.append(c_name)
+        reach_copy_layout(c_name, visited)
+    }
+}
+
+func reach_copy_layout(c_name: String, visited: List<String>) {
+    crash lowered
+    var layout = lowered.layout_named(c_name)
+    assert layout
+    if layout.information {
+        var declared = layout.information.find_function("deep_copy")
+        if declared and lowered.function_named(declared.c_name) and not functions_reached.has(declared.c_name) and not waiting.contains(declared.c_name) {
+            waiting.append(declared.c_name)
+        }
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member = lowered.layout_named(layout.members[index])
+        if member and member.value_type {
+            reach_copy_of(member.value_type, visited)
+        } else if member {
+            var member_type: Analysis.SpiteType = Analysis.Types.ClassRefType(member.c_name)
+            reach_copy_of(member_type, visited)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        reach_copy_of(layout.stored_fields[index].spite_type, visited)
+        index = index + 1
+    }
+}
+
+func reach_check_point() {
+    crash lowered
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        index = index + 1
+        var owner = lowered.layout_named(candidate.owner)
+        var scheduled = false
+        if owner {
+            scheduled = owner.qualified == "Scheduler"
+        }
+        var needed = candidate.name == "check_point" or not candidate.singleton_of.is_empty()
+        if scheduled and needed and not functions_reached.has(candidate.c_name) and not waiting.contains(candidate.c_name) {
+            waiting.append(candidate.c_name)
+        }
+    }
+}
+
+func reach_pool() {
+    crash lowered
+    var wanted = ["run_bands", "submit", "join"]
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var candidate = lowered.concrete_functions[index]
+        index = index + 1
+        var owner = lowered.layout_named(candidate.owner)
+        var pooled = false
+        if owner {
+            pooled = owner.qualified == "ThreadPool"
+        }
+        var needed = wanted.contains(candidate.name) or not candidate.singleton_of.is_empty()
+        if pooled and needed and not functions_reached.has(candidate.c_name) and not waiting.contains(candidate.c_name) {
+            waiting.append(candidate.c_name)
+        }
+    }
+}
+
 func reach_operation(operation: Operation) {
     crash lowered
+    if operation.kind == "call" and (operation.callee == "Bands.run" or operation.callee == "Rows.run") {
+        reach_pool()
+    }
+    if operation.kind == "call" and operation.callee == "Loop.check_point" {
+        reach_check_point()
+    }
     if operation.kind == "make" {
         reach_layout(operation.layout)
     }
@@ -82,6 +223,15 @@ func reach_operation(operation: Operation) {
     while index < named.count() {
         var name = named[index]
         if not name.is_empty() and lowered.function_named(name) {
+            waiting.append(name)
+        }
+        index = index + 1
+    }
+    var linked = operation.target.split(",")
+    index = 0
+    while index < linked.count() {
+        var name = linked[index].trim()
+        if not name.is_empty() and linked.count() > 1 and lowered.function_named(name) {
             waiting.append(name)
         }
         index = index + 1

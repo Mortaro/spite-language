@@ -86,7 +86,9 @@ func arithmetic_key(defining: Operation, meaning: String): ValueKey? {
     }
     assert meaning == "sum" or meaning == "subtract"
     var amount = literal_of(defining.operands[1])
-    assert amount
+    if not amount {
+        return named_sum(defining, meaning)
+    }
     var left = key_of(defining.operands[0])
     if meaning == "sum" {
         return left.shifted(amount)
@@ -448,7 +450,92 @@ func proves_inside(
     if proves_keys_less(small, count, small_span, at) {
         return true
     }
+    if proves_offset_counter(index, extra, count, at, studied_spans) {
+        return true
+    }
     return extra == 0 and proves_grid(index, count, at, studied_spans)
+}
+
+func named_sum(defining: Operation, meaning: String): ValueKey? {
+    assert meaning == "sum"
+    var left = defining.operands.first()
+    var right = defining.operands.last()
+    crash left
+    crash right
+    var first = key_of(left)
+    var second = key_of(right)
+    return joined_sum(first, second)
+}
+
+func joined_sum(first: ValueKey, second: ValueKey): ValueKey {
+    var first_text = first.text()
+    var second_text = second.text()
+    var total = ValueKey("({first_text}+{second_text})", 0)
+    if second_text < first_text {
+        total = ValueKey("({second_text}+{first_text})", 0)
+    }
+    total.takes(first)
+    total.takes(second)
+    return total
+}
+
+# ../../../../docs/proofs.md#an-index-offset-by-a-base-is-proven-by-one-guard
+func proves_offset_counter(
+    index: Integer,
+    extra: Integer,
+    count: ValueKey,
+    at: Facts.Place,
+    studied_spans: Spans,
+): Boolean {
+    crash uses
+    var sum = uses.definition_of(index)
+    if not sum or sum.callee != "Integer.sum" or sum.operands.count() != 2 {
+        return false
+    }
+    var first = sum.operands[0]
+    var second = sum.operands[1]
+    return counted_from(first, second, extra, count, at, studied_spans) or counted_from(second, first, extra, count, at, studied_spans)
+}
+
+func counted_from(
+    base: Integer,
+    counter: Integer,
+    extra: Integer,
+    count: ValueKey,
+    at: Facts.Place,
+    studied_spans: Spans,
+): Boolean {
+    var base_span = studied_spans.span_at(base, at.block)
+    var counter_span = studied_spans.span_at(counter, at.block)
+    if not base_span or not counter_span or base_span.lowest < 0 or counter_span.lowest < 0 {
+        return false
+    }
+    var bound = bound_above(counter, at)
+    if not bound {
+        return false
+    }
+    var base_key = key_of(base)
+    var total = joined_sum(base_key, bound)
+    var room = count.shifted(1 - extra)
+    return proves_keys_less(total, room, null, at)
+}
+
+func sum_is_not_negative(index: Integer, at: Facts.Place, studied_spans: Spans): Boolean {
+    crash uses
+    var sum = uses.definition_of(index)
+    if not sum or sum.callee != "Integer.sum" or sum.operands.count() != 2 {
+        return false
+    }
+    var left = sum.operands.first()
+    var right = sum.operands.last()
+    crash left
+    crash right
+    var first = studied_spans.span_at(left, at.block)
+    var second = studied_spans.span_at(right, at.block)
+    if not first or not second {
+        return false
+    }
+    return first.lowest >= 0 and second.lowest >= 0
 }
 
 func proves_grid(index: Integer, count: ValueKey, at: Facts.Place, studied_spans: Spans): Boolean {

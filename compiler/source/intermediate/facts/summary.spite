@@ -5,6 +5,10 @@ var reads = Dictionary<String, Boolean>()
 var makes = Dictionary<String, Boolean>()
 var callees = List<String>()
 var writes_memory = false
+var typed_memory = Dictionary<String, Boolean>()
+var heap_blocks = false
+var released = Dictionary<String, Boolean>()
+var address_memory = false
 var releases = false
 var calls_values = false
 var unknown = false
@@ -53,6 +57,34 @@ func adds(other: Summary): Boolean {
             changed = true
         }
         index = index + 1
+    }
+    var typed = other.typed_memory.keys()
+    index = 0
+    while index < typed.count() {
+        var key = typed[index]
+        if not typed_memory.has(key) {
+            typed_memory[key] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    var let_go = other.released.keys()
+    index = 0
+    while index < let_go.count() {
+        var name = let_go[index]
+        if not released.has(name) {
+            released[name] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    if other.heap_blocks and not heap_blocks {
+        heap_blocks = true
+        changed = true
+    }
+    if other.address_memory and not address_memory {
+        address_memory = true
+        changed = true
     }
     if other.writes_memory and not writes_memory {
         writes_memory = true

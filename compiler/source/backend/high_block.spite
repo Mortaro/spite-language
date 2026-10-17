@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+# ../intermediate/README.md#functions-blocks-and-operations
 var number = 0
 var kind = ""
 var operations = List<HighOperation>()

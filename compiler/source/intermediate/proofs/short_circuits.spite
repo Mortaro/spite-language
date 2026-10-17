@@ -1,0 +1,283 @@
+# ../../../../docs/optimizations.md#deciding-conditions-at-compile-time
+var threaded_count = 0
+
+func thread(function: Function) {
+    assert not function.blocks.is_empty()
+    var rounds = 0
+    var changed = true
+    while changed and rounds < 64 {
+        changed = thread_once(function)
+        rounds = rounds + 1
+    }
+    var branches = BranchFolding()
+    branches.drop_unreachable(function)
+}
+
+func thread_once(function: Function): Boolean {
+    var flow = Facts.Flow(function)
+    var index = 0
+    while index < flow.order.count() {
+        var block_number = flow.order[index]
+        if joins_a_condition(function, flow, block_number) {
+            settle_uses(function, flow, block_number)
+            var threaded = thread_into(function, flow, block_number)
+            if threaded {
+                threaded_count = threaded_count + 1
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func joins_a_condition(function: Function, flow: Facts.Flow, block_number: Integer): Boolean {
+    var block = function.block_at(block_number)
+    if block_number == 0 or block.parameters.count() != 1 or not block.operations.is_empty() {
+        return false
+    }
+    var terminator = block.terminator
+    if terminator.kind != "branch" or terminator.targets.count() != 2 or terminator.operands.first() != block.parameters.first() {
+        return false
+    }
+    var taken = terminator.targets[0]
+    var other = terminator.targets[1]
+    if taken.block == other.block or taken.block == block_number or other.block == block_number {
+        return false
+    }
+    var uses = Facts.Uses(function)
+    var coming = flow.predecessors_of(block_number)
+    var index = 0
+    while index < coming.count() {
+        var from = function.block_at(coming[index])
+        if flow.is_back_edge(coming[index], block_number) {
+            return false
+        }
+        if from.terminator.kind == "branch" and not branch_edges_known(from, uses, block_number) {
+            return false
+        }
+        if from.terminator.kind != "jump" and from.terminator.kind != "branch" {
+            return false
+        }
+        index = index + 1
+    }
+    return not coming.is_empty()
+}
+
+func branch_edges_known(from: Block, uses: Facts.Uses, block_number: Integer): Boolean {
+    var index = 0
+    while index < from.terminator.targets.count() {
+        var target = from.terminator.targets[index]
+        if target.block == block_number and branch_edge_value(from, uses, index).is_empty() {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func branch_edge_value(from: Block, uses: Facts.Uses, edge: Integer): String {
+    var target = from.terminator.targets[edge]
+    crash target
+    var argument = target.arguments.first()
+    if not argument {
+        return ""
+    }
+    var constant = uses.constant_of(argument)
+    if constant {
+        if constant.literal == "true" or constant.literal == "false" {
+            return constant.literal
+        }
+    }
+    if from.terminator.operands.first() != argument {
+        return ""
+    }
+    if edge == 0 {
+        return "true"
+    }
+    return "false"
+}
+
+func settle_uses(function: Function, flow: Facts.Flow, block_number: Integer) {
+    var block = function.block_at(block_number)
+    var parameter = block.parameters.first()
+    crash parameter
+    var taken = block.terminator.targets[0]
+    var other = block.terminator.targets[1]
+    crash taken
+    crash other
+    var uses = Facts.Uses(function)
+    var reached = uses.uses_of(parameter)
+    var truth = -1
+    var untruth = -1
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.block != block_number {
+            var taken_alone = flow.predecessors_of(taken.block).count() == 1
+            var other_alone = flow.predecessors_of(other.block).count() == 1
+            if taken_alone and flow.dominates(taken.block, place.block) {
+                if truth < 0 {
+                    truth = known_value(function, taken.block, "true")
+                }
+                replace_at(function, place, parameter, truth)
+            } else if other_alone and flow.dominates(other.block, place.block) {
+                if untruth < 0 {
+                    untruth = known_value(function, other.block, "false")
+                }
+                replace_at(function, place, parameter, untruth)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func known_value(function: Function, block_number: Integer, literal: String): Integer {
+    var truth: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
+    var constant = Operation("constant", 0)
+    constant.literal = literal
+    constant.spite_type = truth
+    constant.result = function.new_value(truth, "operation")
+    function.value_at(constant.result).block = block_number
+    var block = function.block_at(block_number)
+    var operations = List<Operation>()
+    operations.append(constant)
+    block.operations.each(operations.append)
+    block.operations = operations
+    return constant.result
+}
+
+func replace_at(function: Function, place: Facts.Place, from: Integer, to: Integer) {
+    var block = function.block_at(place.block)
+    var rewrites = Facts.Rewrites()
+    if place.at_terminator() {
+        rewrites.replace_in(block.terminator.operands, from, to)
+        var index = 0
+        while index < block.terminator.targets.count() {
+            rewrites.replace_in(block.terminator.targets[index].arguments, from, to)
+            index = index + 1
+        }
+        return
+    }
+    var position = 0
+    while position < block.operations.count() {
+        rewrites.replace_in(block.operations[position].operands, from, to)
+        position = position + 1
+    }
+}
+
+func thread_into(function: Function, flow: Facts.Flow, block_number: Integer): Boolean {
+    var block = function.block_at(block_number)
+    var parameter = block.parameters.first()
+    crash parameter
+    var uses = Facts.Uses(function)
+    var reached = uses.uses_of(parameter)
+    var index = 0
+    while index < reached.count() {
+        if reached[index].block != block_number {
+            return false
+        }
+        index = index + 1
+    }
+    var coming = flow.predecessors_of(block_number)
+    index = 0
+    while index < coming.count() {
+        thread_from(function, flow, uses, coming[index], block_number)
+        index = index + 1
+    }
+    return true
+}
+
+func thread_from(function: Function, flow: Facts.Flow, uses: Facts.Uses, from: Integer, block_number: Integer) {
+    var block = function.block_at(block_number)
+    var parameter = block.parameters.first()
+    crash parameter
+    var taken = block.terminator.targets[0]
+    var other = block.terminator.targets[1]
+    crash taken
+    crash other
+    var source = function.block_at(from)
+    if source.terminator.kind == "branch" {
+        var edge = 0
+        while edge < source.terminator.targets.count() {
+            var target = source.terminator.targets[edge]
+            if target.block == block_number {
+                var value = branch_edge_value(source, uses, edge)
+                var argument = target.arguments.first()
+                crash argument
+                var chosen = copied_target(other, parameter, argument)
+                if value == "true" {
+                    chosen = copied_target(taken, parameter, argument)
+                }
+                source.terminator.targets[edge] = chosen
+            }
+            edge = edge + 1
+        }
+        return
+    }
+    var jumping = source.terminator.targets.first()
+    crash jumping
+    var argument = jumping.arguments.first()
+    crash argument
+    var known = known_on_edge(function, flow, uses, from, argument)
+    var taken_copy = copied_target(taken, parameter, argument)
+    var other_copy = copied_target(other, parameter, argument)
+    if known == "true" {
+        var straight = Terminator("jump")
+        straight.to(taken_copy)
+        source.terminator = straight
+        return
+    }
+    if known == "false" {
+        var straight = Terminator("jump")
+        straight.to(other_copy)
+        source.terminator = straight
+        return
+    }
+    var branch = Terminator("branch")
+    branch.operands.append(argument)
+    branch.to(taken_copy)
+    branch.to(other_copy)
+    source.terminator = branch
+}
+
+func copied_target(original: Target, parameter: Integer, argument: Integer): Target {
+    var copy = Target(original.block)
+    original.arguments.each(copy.arguments.append)
+    var rewrites = Facts.Rewrites()
+    rewrites.replace_in(copy.arguments, parameter, argument)
+    copy.tag = original.tag
+    return copy
+}
+
+func known_on_edge(function: Function, flow: Facts.Flow, uses: Facts.Uses, from: Integer, argument: Integer): String {
+    var constant = uses.constant_of(argument)
+    if constant {
+        if constant.literal == "true" or constant.literal == "false" {
+            return constant.literal
+        }
+    }
+    var coming = flow.predecessors_of(from)
+    if coming.count() != 1 {
+        return ""
+    }
+    var above_number = coming.first()
+    crash above_number
+    var above = function.block_at(above_number)
+    var terminator = above.terminator
+    if terminator.kind != "branch" or terminator.operands.first() != argument or terminator.targets.count() != 2 {
+        return ""
+    }
+    var taken = terminator.targets[0]
+    var other = terminator.targets[1]
+    if taken.block == other.block {
+        return ""
+    }
+    if taken.block == from {
+        return "true"
+    }
+    if other.block == from {
+        return "false"
+    }
+    return ""
+}

@@ -1,0 +1,204 @@
+# ../../../../docs/optimizations.md#a-row-of-borrowed-items-lives-in-the-frame
+var lowered: Lowered? = null
+var escaped_count = 0
+var keeping = Dictionary<String, Boolean>()
+var results_kept = Dictionary<String, Boolean>()
+var studying_results = Dictionary<String, Boolean>()
+
+func run(starting_lowered: Lowered) {
+    lowered = starting_lowered
+    var functions = starting_lowered.concrete_functions
+    settle_keeping(functions)
+    functions.each(study)
+}
+
+func settle_keeping(functions: List<Function>) {
+    var changed = true
+    var rounds = 0
+    while changed and rounds < 16 {
+        changed = false
+        var index = 0
+        while index < functions.count() {
+            if note_kept(functions[index]) {
+                changed = true
+            }
+            index = index + 1
+        }
+        rounds = rounds + 1
+    }
+}
+
+func note_kept(function: Function): Boolean {
+    if function.blocks.is_empty() or function.is_intrinsic() {
+        return false
+    }
+    var uses = Facts.Uses(function)
+    var changed = false
+    var index = 0
+    while index < function.parameters.count() {
+        var key = "{function.c_name}|{index}"
+        if not keeping.has(key) and not escapes(function, uses, function.parameters[index].value, 0).is_empty() {
+            keeping[key] = true
+            changed = true
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func study(function: Function) {
+    assert not function.blocks.is_empty() and not function.is_intrinsic()
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            note_made(function, uses, block.operations[index])
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func note_made(function: Function, uses: Facts.Uses, operation: Operation) {
+    crash lowered
+    assert operation.kind == "make" and operation.result >= 0
+    var layout = lowered.layout_named(operation.layout)
+    assert layout and layout.kind == "row"
+    var reason = escapes(function, uses, operation.result, 0)
+    assert not reason.is_empty()
+    layout.kind = "class"
+    layout.escape_reason = reason
+    escaped_count = escaped_count + 1
+}
+
+func escapes(function: Function, uses: Facts.Uses, value: Integer, depth: Integer): String {
+    crash lowered
+    if depth > 8 {
+        return "it passes through more than eight projections"
+    }
+    var reached = uses.uses_of(value)
+    var index = 0
+    while index < reached.count() {
+        var place = reached[index]
+        if place.at_terminator() {
+            var ending = function.block_at(place.block).terminator
+            if ending.kind == "return" and result_kept(function.c_name) {
+                return "returned by {function.c_name}, and a caller keeps it"
+            }
+        } else if place.position >= 0 {
+            var block = function.block_at(place.block)
+            var operation = block.operations[place.position]
+            crash operation
+            if operation.kind == "store" and operation.operands.last() == value {
+                return "stored into field '{operation.field}' by {function.c_name}"
+            }
+            var passes_on = operation.kind == "call" and operation.result >= 0 and (operation.callee == "Union.wrap" or operation.callee == "Union.value" or operation.callee == "Nullable.wrap" or operation.callee == "Nullable.value")
+            if passes_on {
+                var inner = escapes(function, uses, operation.result, depth + 1)
+                if not inner.is_empty() {
+                    return inner
+                }
+            }
+            if operation.kind == "call" and callee_keeps(operation, value) {
+                return "kept by a parameter of {operation.callee}, called by {function.c_name}"
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func callee_keeps(operation: Operation, value: Integer): Boolean {
+    crash lowered
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return not operation.callee.contains(".")
+    }
+    var first_argument = 0
+    if callee.receiver >= 0 {
+        first_argument = 1
+    }
+    var position = first_argument
+    while position < operation.operands.count() {
+        var parameter_index = position - first_argument
+        if operation.operands[position] == value and keeps_parameter(callee, parameter_index) {
+            return true
+        }
+        position = position + 1
+    }
+    return false
+}
+
+func keeps_parameter(callee: Function, parameter_index: Integer): Boolean {
+    if callee.is_intrinsic() {
+        return callee.name == "write_value" or callee.name == "swap_values"
+    }
+    if callee.blocks.is_empty() {
+        return true
+    }
+    var key = "{callee.c_name}|{parameter_index}"
+    return keeping.has(key)
+}
+
+func result_kept(c_name: String): Boolean {
+    crash lowered
+    if results_kept.has(c_name) {
+        return results_kept[c_name] == true
+    }
+    if studying_results.has(c_name) {
+        return true
+    }
+    studying_results[c_name] = true
+    var kept = false
+    var called = false
+    var functions = lowered.concrete_functions
+    var index = 0
+    while index < functions.count() and not kept {
+        var caller = functions[index]
+        if not caller.blocks.is_empty() and not caller.is_intrinsic() {
+            var seen = calls_of(caller, c_name)
+            if seen.count() > 0 {
+                called = true
+                kept = any_kept(caller, seen)
+            }
+        }
+        index = index + 1
+    }
+    studying_results.remove(c_name)
+    var answer = kept or not called
+    results_kept[c_name] = answer
+    return answer
+}
+
+func calls_of(caller: Function, c_name: String): List<Integer> {
+    var found = List<Integer>()
+    var block_index = 0
+    while block_index < caller.blocks.count() {
+        var block = caller.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == c_name and operation.result >= 0 {
+                found.append(operation.result)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func any_kept(caller: Function, results: List<Integer>): Boolean {
+    var uses = Facts.Uses(caller)
+    var index = 0
+    while index < results.count() {
+        var reason = escapes(caller, uses, results[index], 0)
+        if not reason.is_empty() {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}

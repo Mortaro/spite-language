@@ -250,6 +250,5 @@ func is_memory_write_name(name: String): Boolean {
 }
 
 func is_release_name(name: String): Boolean {
-    var exact = ["release_value", "free"]
-    return exact.contains(name)
+    return name == "release_value"
 }

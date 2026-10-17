@@ -52,7 +52,7 @@ func removed_enum_lines(information: Analysis.EnumInfo, lines: List<String>) {
 
 func print_enum_names(information: Analysis.EnumInfo) {
     var name = information.c_name
-    assert output.printed_text.contains("{name}___name(")
+    assert output.uses("{name}___name(")
     var names = List<String>()
     names.append("const char* {name}___name({name} value) \{")
     names.append("switch (value) \{")
@@ -136,6 +136,7 @@ func print_class(layout: Layout) {
         return
     }
     print_initialize(layout)
+    print_arguments_describer(layout)
     if layout.pooled {
         print_pool(layout)
     }
@@ -147,12 +148,6 @@ func print_class(layout: Layout) {
     }
     if output.framed_layouts.contains(name) {
         print_framed(layout)
-    }
-    if output.copied_layouts.contains(name) {
-        print_copy(layout)
-    }
-    if output.copied_in.contains(name) {
-        print_copy_in(layout)
     }
 }
 
@@ -238,12 +233,7 @@ func hidden_releases(c_name: String): List<String> {
 }
 
 func print_static_singleton(layout: Layout) {
-    var name = layout.c_name
     print_uncounted(layout)
-    if output.copied_layouts.contains(name) {
-        output.prototypes.append("{name}* {name}_copy({name}* self);")
-        output.support("{name}* {name}_copy({name}* self) \{ return self; }")
-    }
 }
 
 func print_uncounted(layout: Layout) {
@@ -251,7 +241,17 @@ func print_uncounted(layout: Layout) {
     output.prototypes.append("static inline {name}* {name}___retain({name}* self);")
     output.prototypes.append("static inline void {name}___release({name}* self);")
     output.support("static inline {name}* {name}___retain({name}* self) \{ return self; }")
+    output.name_piece("{name}___retain")
     output.support("static inline void {name}___release({name}* self) \{ (void)self; }")
+    output.name_piece("{name}___release")
+}
+
+func print_arguments_describer(layout: Layout) {
+    assert layout.c_name == "Spite_Function"
+    output.prototypes.append("static void spite_function_arguments_described(Spite_Function* self);")
+    output.support(
+        "static void spite_function_arguments_described(Spite_Function* self) \{\nif (SPITE_SINGLETON_FOUND(self->spite_add_arguments) == 0) return;\nSPITE_LOCK(self->spite_arguments_lock);\nvoid (*adding)(Spite_Function*) = self->spite_add_arguments;\nif (adding != 0) \{\nadding(self);\nSPITE_SINGLETON_PUBLISH(self->spite_add_arguments, (void (*)(Spite_Function*))0);\n}\nSPITE_UNLOCK(self->spite_arguments_lock);\n}",
+    )
 }
 
 func print_initialize(layout: Layout) {
@@ -337,6 +337,7 @@ func print_pool(layout: Layout) {
     ]
     var lines_text = lines.join("\n")
     output.support(lines_text)
+    output.impure()
     output.runtime_place("{pool}_grow")
     output.runtime_place("{pool}_take")
     output.runtime_place("{pool}_give")
@@ -401,6 +402,7 @@ func print_tracking(name: String) {
     output.support(
         "static {name}** {registry} = 0;\nstatic int64_t {registry}_count = 0;\nstatic int64_t {registry}_capacity = 0;\nstatic void spite_track_{name}({name}* self) \{\nif ({registry}_count == {registry}_capacity) \{\n{registry}_capacity = {registry}_capacity == 0 ? 8 : {registry}_capacity * 2;\n{registry} = ({name}**)realloc({registry}, (size_t){registry}_capacity * sizeof({name}*));\nif ({registry} == 0) \{ fflush(stdout); fputs(\"spite: out of memory keeping the instances of a class\\n\", stderr); exit(1); }\n}\n{registry}[{registry}_count] = self;\n{registry}_count = {registry}_count + 1;\n}\nstatic void spite_untrack_{name}({name}* self) \{\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{\nif ({registry}[spite_index] == self) \{\nfor (int64_t spite_shift = spite_index; spite_shift < {registry}_count - 1; spite_shift = spite_shift + 1) \{ {registry}[spite_shift] = {registry}[spite_shift + 1]; }\n{registry}_count = {registry}_count - 1;\nreturn;\n}\n}\n}",
     )
+    output.impure()
     output.runtime_place("spite_track_{name}")
     output.runtime_place("spite_untrack_{name}")
 }
@@ -425,7 +427,8 @@ func field_releases(layout: Layout, holder: String): List<String> {
         var field = layout.stored_fields[index]
         var counted = counted_field(field)
         if not counted.is_empty() {
-            lines.append("{counted}___release({holder}->{field.name}_);")
+            var held = naming.fields_of(layout, holder)
+            lines.append("{counted}___release({held}->{field.name}_);")
         }
         index = index + 1
     }
@@ -438,6 +441,17 @@ func counted_field(field: Field): String {
         return ""
     }
     return naming.counted_name(field.spite_type)
+}
+
+func drop_waits(layout: Layout): Boolean {
+    if layout.hot or not layout.information or not layout.information.drop_function {
+        return false
+    }
+    var dropper = lowered.function_named(layout.information.drop_function.c_name)
+    if not dropper {
+        return false
+    }
+    return dropper.resumable or not dropper.waiting_kind.is_empty()
 }
 
 func drop_call(layout: Layout): String {
@@ -456,7 +470,9 @@ func print_counted(layout: Layout) {
     var name = layout.c_name
     output.prototypes.append("static inline {name}* {name}___retain({name}* self);")
     output.prototypes.append("static inline void {name}___release({name}* self);")
-    output.prototypes.append("void {name}___free({name}* self);")
+    if not layout.hot {
+        output.prototypes.append("void {name}___free({name}* self);")
+    }
     var counting = "SPITE_COUNT"
     if lowered.makes_threads and not layout.atomic_counts {
         counting = "SPITE_PLAIN_COUNT"
@@ -464,13 +480,22 @@ func print_counted(layout: Layout) {
     output.support(
         "static inline {name}* {name}___retain({name}* self) \{\nif (self != 0) {counting}_UP(self->header.ref_count);\nreturn self;\n}",
     )
+    output.name_piece("{name}___retain")
     output.support(
         "static inline void {name}___release({name}* self) \{\nif (self == 0) return;\nif ({counting}_DOWN(self->header.ref_count) > 0) return;\n{name}___free(self);\n}",
     )
+    output.name_piece("{name}___release")
     var lines = List<String>()
     lines.append("void {name}___free({name}* self) \{")
     var dropping = drop_call(layout)
-    if not dropping.is_empty() {
+    var split = not dropping.is_empty() and drop_waits(layout)
+    if split {
+        output.prototypes.append("void {name}___free_after_drop({name}* self);")
+        lines.append(dropping)
+        lines.append("{name}___free_after_drop(self);")
+        lines.append("}")
+        lines.append("void {name}___free_after_drop({name}* self) \{")
+    } else if not dropping.is_empty() {
         lines.append(dropping)
     }
     var released = field_releases(layout, "self")
@@ -493,6 +518,14 @@ func print_counted(layout: Layout) {
         lines.append("SPITE_FREE(self);")
     }
     lines.append("}")
+    if layout.hot {
+        lines.remove_at(0)
+        lines.remove_last()
+        var free_body = lines.join("\n")
+        var receiving = ["{name}* self"]
+        hot.slot_support("{name}___free", "void", receiving, free_body, "{layout.qualified}'s release", name)
+        return
+    }
     var lines_text = lines.join("\n")
     output.support(lines_text)
     output.runtime_place("{name}___retain")
@@ -517,6 +550,7 @@ func print_singleton(layout: Layout) {
     destroy.append("}")
     var destroy_text = destroy.join("\n")
     output.support(destroy_text)
+    output.name_piece("{name}___destroy")
     var discard = List<String>()
     discard.append("void {name}___discard({name}* self) \{")
     discard.append("if (self == 0) return;")
@@ -534,10 +568,6 @@ func print_singleton(layout: Layout) {
     output.support(discard_text)
     output.runtime_place("{name}___destroy")
     output.runtime_place("{name}___discard")
-    if output.copied_layouts.contains(name) {
-        output.prototypes.append("{name}* {name}_copy({name}* self);")
-        output.support("{name}* {name}_copy({name}* self) \{ return self; }")
-    }
 }
 
 func print_framed(layout: Layout) {
@@ -546,6 +576,9 @@ func print_framed(layout: Layout) {
     if output.placed_layouts.contains(name) {
         framed_allocator = "self->spite_allocator = 0;\n"
     }
+    if output.tracked_layouts.contains(name) {
+        framed_allocator = "{framed_allocator}spite_track_{name}(self);\n"
+    }
     var identity = naming.class_id_of(layout)
     output.need("framed")
     output.prototypes.append("static {name}* {name}___framed({name}* self);")
@@ -553,76 +586,34 @@ func print_framed(layout: Layout) {
     output.support(
         "static {name}* {name}___framed({name}* self) \{\nself->header.ref_count = SPITE_FRAMED_COUNT;\nself->header.class_id = {identity};\n{name}___init(self);\n{framed_allocator}return self;\n}",
     )
+    output.name_piece("{name}___framed")
     var lines = List<String>()
     lines.append("static void {name}___unframe({name}* self) \{")
     var dropping = drop_call(layout)
     if not dropping.is_empty() {
         lines.append(dropping)
     }
+    if output.tracked_layouts.contains(name) {
+        lines.append("spite_untrack_{name}(self);")
+    }
     var released = field_releases(layout, "self")
     var released_text = released.join("\n")
     lines.append(released_text)
+    var hidden = hidden_releases(name)
+    hidden.each(lines.append)
     lines.append("(void)self;")
     lines.append("}")
     var lines_text = lines.join("\n")
     output.support(lines_text)
+    output.name_piece("{name}___unframe")
     output.prototypes.append("static void {name}___unframe_fields({name}* self);")
     var field_lines = field_releases(layout, "self")
+    hidden.each(field_lines.append)
     var fields_text = field_lines.join("\n")
     output.support("static void {name}___unframe_fields({name}* self) \{\n{fields_text}\n(void)self;\n}")
     output.runtime_place("{name}___framed")
     output.runtime_place("{name}___unframe")
     output.runtime_place("{name}___unframe_fields")
-}
-
-func print_copy(layout: Layout) {
-    var name = layout.c_name
-    var lines = List<String>()
-    lines.append("{name}* {name}_copy({name}* self) \{")
-    lines.append("{name}* spite_copy = {name}___allocate();")
-    var index = 0
-    while index < layout.stored_fields.count() {
-        var field = layout.stored_fields[index]
-        var copied = copied_field(field)
-        lines.append(copied)
-        index = index + 1
-    }
-    lines.append("return spite_copy;")
-    lines.append("}")
-    output.prototypes.append("{name}* {name}_copy({name}* self);")
-    var lines_text = lines.join("\n")
-    output.support(lines_text)
-    output.runtime_place("{name}_copy")
-}
-
-func print_copy_in(layout: Layout) {
-    var name = layout.c_name
-    var signature = "{name}* {name}_copy_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address, {name}* self)"
-    var lines = [
-        "{signature} \{"
-        "{name}* spite_copy = {name}___allocate_in(spite_allocator, spite_give_back, spite_address);"
-    ]
-    var index = 0
-    while index < layout.stored_fields.count() {
-        var field = layout.stored_fields[index]
-        var copied = copied_field(field)
-        lines.append(copied)
-        index = index + 1
-    }
-    lines.append("return spite_copy;")
-    lines.append("}")
-    output.prototypes.append("{signature};")
-    var lines_text = lines.join("\n")
-    output.support(lines_text)
-    output.runtime_place("{name}_copy_in")
-}
-
-func copied_field(field: Field): String {
-    var counted = counted_field(field)
-    if counted.is_empty() {
-        return "spite_copy->{field.name}_ = self->{field.name}_;"
-    }
-    return "spite_copy->{field.name}_ = {counted}___retain(self->{field.name}_);"
 }
 
 func print_union(layout: Layout) {
@@ -633,6 +624,7 @@ func print_union(layout: Layout) {
     output.support(
         "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
     )
+    output.name_piece("{name}___retain")
     var lines = List<String>()
     lines.append("void {name}___release({name} self) \{")
     lines.append("if (self == 0) return;")
@@ -660,6 +652,7 @@ func print_tagged_union(layout: Layout) {
     output.support(
         "{name} {name}___retain({name} self) \{\nif (self.plain == 0 && self.value.object != 0) SPITE_COUNT_UP(((SpiteHeader*)self.value.object)->ref_count);\nreturn self;\n}",
     )
+    output.name_piece("{name}___retain")
     var lines = List<String>()
     lines.append("void {name}___release({name} self) \{")
     lines.append("if (self.plain != 0 || self.value.object == 0) return;")
@@ -687,6 +680,10 @@ func member_release(member: String, object: String, tag: String): String {
     }
     var identity = naming.class_id_of(layout)
     if member == "SpiteString" {
+        output.need("string box")
+        return "if ({tag} == {identity}) \{ spite_string_box_release({object}); return; }"
+    }
+    if member == "SpiteSymbol" {
         output.need("string box")
         return "if ({tag} == {identity}) \{ spite_string_box_release({object}); return; }"
     }

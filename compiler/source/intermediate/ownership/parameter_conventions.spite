@@ -3,8 +3,10 @@ var lowered: Lowered? = null
 var kinds: Facts.ValueKinds? = null
 var effects: Facts.Effects? = null
 var taken_as_values = Dictionary<String, Boolean>()
+var bound_callers = Dictionary<String, Boolean>()
 var consumption: Consumption? = null
 var held_count = 0
+var slot_stores: SlotStores? = null
 
 func ParameterConventions(starting_lowered: Lowered, starting_effects: Facts.Effects) {
     lowered = starting_lowered
@@ -13,6 +15,9 @@ func ParameterConventions(starting_lowered: Lowered, starting_effects: Facts.Eff
     kinds = made_kinds
     var made_consumption = Consumption(starting_lowered)
     consumption = made_consumption
+    var no_drops = Facts.Summary()
+    var made_slot_stores = SlotStores(starting_lowered, starting_effects, no_drops)
+    slot_stores = made_slot_stores
 }
 
 func decide() {
@@ -94,6 +99,9 @@ func note_values_taken(function: Function) {
             if names_function and not operation.literal.is_empty() {
                 taken_as_values[operation.literal] = true
             }
+            if operation.callee == "Function.bind" and not operation.target.is_empty() {
+                bound_callers[operation.target] = true
+            }
             index = index + 1
         }
         block_index = block_index + 1
@@ -111,7 +119,11 @@ func start(function: Function) {
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
         parameter.ownership = "owned"
-        if lent.contains(parameter.name) {
+        if lent.contains(parameter.name) or called_from_runtime(function) {
+            parameter.ownership = "lent"
+        } else if index == 0 and fills_described(function) {
+            parameter.ownership = "lent"
+        } else if index == 0 and function.receiver < 0 and bound_callers.has(function.c_name) {
             parameter.ownership = "lent"
         } else if eligible and kinds.is_counted(parameter.spite_type) and not is_text(parameter.spite_type) {
             parameter.ownership = "held"
@@ -193,5 +205,18 @@ func consumes_at(function: Function, uses: Facts.Uses, place: Facts.Place, value
     if passes_on and operation.result >= 0 {
         return is_consumed(function, uses, operation.result, depth + 1)
     }
+    crash slot_stores
+    if operation.operands.last() == value and slot_stores.fits_in_place(function, uses, operation) {
+        return false
+    }
     return consumption.consumes(operation, value)
+}
+
+func fills_described(function: Function): Boolean {
+    return function.c_name.ends_with("___accessed") or function.c_name.ends_with("___describe_functions") or function.c_name.ends_with("___describe_attributes")
+}
+
+func called_from_runtime(function: Function): Boolean {
+    var kinds = ["text_call", "item_assign", "item_store", "arguments"]
+    return kinds.contains(function.made_for)
 }

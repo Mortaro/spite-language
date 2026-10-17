@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#abstract-objects
+# ../intermediate/README.md#abstract-objects
 var number = 0
 var class_name = ""
 var kind = ""

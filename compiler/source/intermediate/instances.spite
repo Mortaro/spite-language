@@ -15,6 +15,10 @@ var reflection_names = List<String>()
 var reflection_kinds = List<String>()
 var reflection_classes = List<Analysis.ClassInfo>()
 var reflection_texts = List<String>()
+var accessed_names = List<String>()
+var accessed_classes = List<Analysis.ClassInfo>()
+var accessed_texts = List<String>()
+var accessed_kinds = List<String>()
 var row_classes = Dictionary<String, Boolean>()
 
 func Instances(starting_generator: Generation.Generator) {
@@ -43,6 +47,14 @@ func reach_layout(information: Analysis.ClassInfo) {
     layout_classes.append(information)
     assert information.drop_function
     reach(information, information.drop_function)
+}
+
+func reach_held(held: Analysis.SpiteType) {
+    var made = front()
+    var held_name = made.type_label(held)
+    var information = made.find_class_by_c_name(held_name)
+    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    reach_layout(information)
 }
 
 func reach_type(spite_type: Analysis.SpiteType?) {
@@ -304,6 +316,17 @@ func field_declaration(information: Analysis.ClassInfo, name: String): Syntax.St
         index = index + 1
     }
     return found
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func accessed_maker(name: String, information: Analysis.ClassInfo, text: String, kind: String): String {
+    if not accessed_names.contains(name) {
+        accessed_names.append(name)
+        accessed_classes.append(information)
+        accessed_texts.append(text)
+        accessed_kinds.append(kind)
+    }
+    return name
 }
 
 func has_pending(): Boolean {

@@ -1,0 +1,23 @@
+var console = Console()
+var names = List<String>()
+var emitted = 0
+
+func LoopAfterAssert() {
+    names.append("a")
+    names.append("b")
+    names.append("c")
+    emit()
+    names.append("d")
+    emit()
+    console.print("emitted", emitted)
+}
+
+func emit() {
+    assert emitted < names.count()
+    while emitted < names.count() {
+        var position = emitted
+        emitted = emitted + 1
+        crash names[position]
+        console.print(names[position])
+    }
+}

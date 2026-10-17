@@ -261,13 +261,25 @@ func is_tagged(spite_type: Analysis.SpiteType): Boolean {
     return layout.kind == "tagged union"
 }
 
+func is_symbol_class(spite_type: Analysis.SpiteType?): Boolean {
+    if not spite_type {
+        return false
+    }
+    var class_ref = shape.as_class_ref(spite_type)
+    if not class_ref {
+        return false
+    }
+    return class_ref.c_name == "SpiteSymbol"
+}
+
 func counted_name(spite_type: Analysis.SpiteType): String {
     if shape.as_string(spite_type) or shape.is_symbol(spite_type) {
         return "SpiteString"
     }
     var class_ref = shape.as_class_ref(spite_type)
     if class_ref {
-        if is_value_class(class_ref.c_name) or not lowered.layout_named(class_ref.c_name) {
+        var held = lowered.layout_named(class_ref.c_name)
+        if is_value_class(class_ref.c_name) or not held {
             return ""
         }
         return class_ref.c_name
@@ -309,6 +321,9 @@ func zero(spite_type: Analysis.SpiteType?): String {
     var enumerated = shape.as_enum(spite_type)
     if enumerated {
         return first_enum_value(enumerated)
+    }
+    if shape.is_arguments(spite_type) {
+        return "((SpiteArguments)\{ .count = 0, .items = 0 })"
     }
     var nullable = shape.as_nullable(spite_type)
     if nullable {
@@ -466,6 +481,14 @@ func layout_of(spite_type: Analysis.SpiteType?): Layout? {
         return lowered.layout_named("SpiteString")
     }
     return null
+}
+
+# ../../../../docs/repl.md#changing-a-classs-attributes
+func fields_of(layout: Layout, object: String): String {
+    if layout.hot {
+        return "{layout.c_name}___fields({object})"
+    }
+    return object
 }
 
 func c_type_of_layout(layout: Layout): String {

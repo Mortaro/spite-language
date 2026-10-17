@@ -5,6 +5,7 @@ var lowered = Lowered()
 var reached_unions = List<String>()
 var types = Analysis.TypeShape()
 var optimized = false
+var lowers_only = false
 var placed_allocators = List<String>()
 var hot_manifest = ""
 
@@ -14,6 +15,9 @@ func Pipeline(starting_generator: Generation.Generator) {
 
 func run(): String {
     prepare()
+    if has_error() or lowers_only {
+        return ""
+    }
     var printer = Printer()
     var written = printer.print(lowered)
     hot_manifest = printer.hot_manifest
@@ -32,11 +36,36 @@ func prepare() {
     settle_settings()
     settle_layouts()
     lowered.runtime_roots = roots_of_runtime()
+    lowered.concrete_functions.each(settle_waiting_kind)
+    if lowers_only {
+        note_unlowered()
+        return
+    }
     var passes = Passes()
     passes.run(lowered)
+    if not passes.verifier.problems.is_empty() {
+        var written = passes.verifier.problems.join("\n")
+        error_message = "error: the high IR is not valid: {written}"
+    }
     settle_held_layouts()
     if lowered.hot_reload {
         settle_hot()
+    }
+}
+
+# ../../../design/proposals/desugared_high_ir.md#caching-the-high-ir-d569
+func note_unlowered() {
+    var refused = List<String>()
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        if not function.not_lowered.is_empty() {
+            refused.append("'{function.c_name}' ({function.owner}.{function.name}): {function.not_lowered}")
+        }
+        index = index + 1
+    }
+    if not refused.is_empty() {
+        error_message = "error: the high IR could not be lowered:\n{refused.join("\n")}"
     }
 }
 
@@ -84,6 +113,14 @@ func baseline(host_text: String): String {
     return lines.join("\n")
 }
 
+# ../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+func settle_waiting_kind(function: Function) {
+    crash generator
+    var owner = lowered.layout_named(function.owner)
+    assert function.source and owner and owner.information
+    function.waiting_kind = generator.waiting_kind(owner.information, function.source)
+}
+
 func has_error(): Boolean {
     return not error_message.is_empty()
 }
@@ -101,6 +138,7 @@ func settle_settings() {
     lowered.makes_threads = generator.builder.threads or generator.parallel_used
     lowered.makes_concurrents = generator.scheduler_used
     lowered.class_names = generator.class_names_by_id
+    lowered.symbol_names = generator.symbol_names
     lowered.foreign_files = generator.foreign_library_files
     lowered.foreign_namings = generator.foreign_library_namings
     lowered.foreign_includes = List<String>()
@@ -210,6 +248,10 @@ func settle_schema(function: Function) {
 }
 
 func settle_held_layouts() {
+    if runs_pieces() {
+        var piece_type: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Function")
+        settle_held(piece_type)
+    }
     var index = 0
     while index < lowered.layouts.count() {
         var layout = lowered.layouts[index]
@@ -220,12 +262,41 @@ func settle_held_layouts() {
     }
 }
 
+func runs_pieces(): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        var block_index = 0
+        while block_index < function.blocks.count() {
+            var block = function.blocks[block_index]
+            var position = 0
+            while position < block.operations.count() {
+                var operation = block.operations[position]
+                var pieced = operation.callee == "Bands.run" or operation.callee == "Rows.run"
+                if pieced or operation.form == "overlap" or operation.form == "started" {
+                    return true
+                }
+                position = position + 1
+            }
+            block_index = block_index + 1
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func settle_held(held: Analysis.SpiteType) {
     crash generator
     var held_name = generator.type_label(held)
-    assert not lowered.layout_named(held_name)
     var information = generator.find_class_by_c_name(held_name)
-    assert information and not information.is_value_class and not information.is_generic_template and not information.is_singleton
+    if information and not lowered.layout_named(held_name) {
+        if not information.is_value_class and not information.is_generic_template and not information.is_singleton {
+            add_held_layout(information)
+        }
+    }
+}
+
+func add_held_layout(information: Analysis.ClassInfo) {
     var made = Layout(information.c_name, information.qualified_dotted)
     made.information = information
     var index = 0
@@ -275,6 +346,12 @@ func roots_of_runtime(): List<String> {
     lowered.concrete_functions.each(note_serving_roots)
     placed_allocators.each(roots.append)
     lowered.concrete_functions.each(note_pool_roots)
+    if generator.hot_reload or generator.remote_loop_port > 0 {
+        note_roots("Scheduler", ["check_point"], roots)
+    }
+    if generator.remote_loop_port > 0 {
+        note_roots("ReadEvaluatePrintLoop", ["listen_in_background", "serve", "pause_at"], roots)
+    }
     if generator.hot_reload {
         note_roots("HotReload", ["start", "watch"], roots)
         note_roots("Environment", ["Environment"], roots)
@@ -314,8 +391,20 @@ func note_pool_roots(function: Function) {
                 note_pool(pool, "run_bands")
                 note_pool(pool, "submit")
                 note_pool(pool, "join")
+                note_pool_makers(pool)
             }
             position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func note_pool_makers(pool: Analysis.ClassInfo) {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var made = lowered.concrete_functions[index]
+        if made.singleton_of == pool.c_name and not placed_allocators.contains(made.c_name) {
+            placed_allocators.append(made.c_name)
         }
         index = index + 1
     }
@@ -468,6 +557,20 @@ func settle_hot_layout(layout: Layout) {
     crash generator
     assert layout.information and layout.kind == "class" and not layout.is_value
     layout.hot = generator.is_hot_class(layout.information)
+    assert layout.hot
+    layout.fits = generator.class_fits_vector(layout.information)
+    layout.migrating = generator.migrating_classes.contains(layout.c_name)
+    layout.changing = generator.changing_layouts.contains(layout.c_name)
+    assert layout.changing
+    layout.storage_change = generator.storage_change(layout.information)
+    layout.renamed_from = List<String>()
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        var old_name = generator.renamed_from(layout.information, field.name)
+        layout.renamed_from.append(old_name)
+        index = index + 1
+    }
 }
 
 func settle_slot(function: Function) {

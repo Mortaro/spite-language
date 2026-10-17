@@ -5,6 +5,12 @@ var kinds: ValueKinds? = null
 var summaries = Dictionary<String, Summary>()
 var callers = Dictionary<String, List<String>>()
 var fresh_values = Dictionary<Integer, Boolean>()
+var one_operation = false
+var value_targets = List<Function>()
+var value_target_names = Dictionary<String, Boolean>()
+var drop_functions = Dictionary<String, String>()
+var types = Analysis.TypeShape()
+var naming = Printing.Naming()
 
 func Effects(starting_lowered: Lowered) {
     lowered = starting_lowered
@@ -22,6 +28,9 @@ func Effects(starting_lowered: Lowered) {
     }
     link_callers()
     settle()
+    naming.lowered = starting_lowered
+    note_value_targets()
+    settle_late_waits()
 }
 
 func own_summary(function: Function): Summary {
@@ -38,6 +47,9 @@ func own_summary(function: Function): Summary {
     if not function.not_lowered.is_empty() {
         made.unknown = true
         return made
+    }
+    if not function.waiting_kind.is_empty() {
+        made.waits = true
     }
     fresh_values = Dictionary<Integer, Boolean>()
     function.blocks.each(note_fresh)
@@ -68,6 +80,9 @@ func note_fresh(block: Block) {
 
 func is_waiting(function: Function): Boolean {
     crash lowered
+    if not function.waiting_kind.is_empty() {
+        return true
+    }
     var layout = lowered.layout_named(function.owner)
     if not layout {
         return false
@@ -101,6 +116,25 @@ func is_waiting(function: Function): Boolean {
     return waiting_classes.contains(layout.qualified) and waiting_names.contains(function.name)
 }
 
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func note_memory_kind(made: Summary, function: Function) {
+    crash lowered
+    var owner = lowered.layout_named(function.owner)
+    if not owner {
+        made.address_memory = true
+        return
+    }
+    if owner.qualified == "TypedMemory" or owner.qualified == "InlineMemory" {
+        made.typed_memory[owner.c_name] = true
+        return
+    }
+    if owner.qualified == "Memory.Heap" {
+        made.heap_blocks = true
+        return
+    }
+    made.address_memory = true
+}
+
 func note_intrinsic(made: Summary, function: Function) {
     crash intrinsics
     crash kinds
@@ -108,6 +142,7 @@ func note_intrinsic(made: Summary, function: Function) {
     assert not intrinsics.is_reading_name(name)
     if intrinsics.is_memory_write_name(name) {
         made.writes_memory = true
+        note_memory_kind(made, function)
         made.releases = intrinsics.is_release_name(name)
         return
     }
@@ -116,6 +151,7 @@ func note_intrinsic(made: Summary, function: Function) {
         var parameter = function.parameters[index]
         if kinds.is_counted(parameter.spite_type) and parameter.ownership != "held" and parameter.ownership != "lent" {
             made.releases = true
+            note_released(made, parameter.spite_type)
         }
         if takes_function_value(parameter.spite_type) {
             made.calls_values = true
@@ -123,6 +159,20 @@ func note_intrinsic(made: Summary, function: Function) {
         }
         index = index + 1
     }
+}
+
+# ../../../../docs/proofs.md#an-item-a-name-holds-from-its-list-is-not-counted
+func note_released(made: Summary, spite_type: Analysis.SpiteType?) {
+    crash kinds
+    var types = Analysis.TypeShape()
+    assert spite_type
+    assert not types.as_string(spite_type) and not types.is_symbol(spite_type)
+    var layout = kinds.layout_of(spite_type)
+    if layout {
+        made.released[layout.c_name] = true
+        return
+    }
+    made.released["*"] = true
 }
 
 func takes_function_value(spite_type: Analysis.SpiteType?): Boolean {
@@ -150,6 +200,10 @@ func note_operation(made: Summary, function: Function, operation: Operation) {
     } else if operation.kind == "release" {
         made.releases = true
         made.counts = true
+        var let_go = operation.operands.first()
+        crash let_go
+        var let_go_value = function.value_at(let_go)
+        note_released(made, let_go_value.spite_type)
     } else if operation.kind == "retain" {
         made.counts = true
     } else if operation.kind == "call" {
@@ -174,7 +228,7 @@ func note_store(made: Summary, function: Function, operation: Operation) {
     crash kinds
     var object = operation.operands.first()
     crash object
-    assert not function.is_constructor or object != function.receiver
+    assert one_operation or not function.is_constructor or object != function.receiver
     assert not fresh_values.has(object)
     var object_type = function.value_at(object).spite_type
     var layout = kinds.layout_of(object_type)
@@ -192,6 +246,7 @@ func note_store(made: Summary, function: Function, operation: Operation) {
     var stored_type = function.value_at(stored).spite_type
     if kinds.is_counted(stored_type) {
         made.releases = true
+        note_released(made, stored_type)
     }
 }
 
@@ -238,6 +293,12 @@ func note_dotted(made: Summary, callee: String) {
     if owner == "Parallel" or owner == "Concurrent" {
         made.starts_threads = true
     }
+    crash lowered
+    if owner == "Foreign" and not calls_back_from_c() {
+        made.writes_memory = true
+        made.address_memory = true
+        return
+    }
     made.unknown = true
 }
 
@@ -270,15 +331,80 @@ func note_caller(callee: String, caller: String) {
 }
 
 func settle() {
+    pass_in_order()
     var waiting = summaries.keys()
+    var queued = Dictionary<String, Boolean>()
+    var index = 0
+    while index < waiting.count() {
+        var pending = waiting[index]
+        queued[pending] = true
+        index = index + 1
+    }
     while not waiting.is_empty() {
         var taken = waiting.remove_last()
         crash taken
-        pass_up(taken, waiting)
+        queued.remove(taken)
+        pass_up(taken, waiting, queued)
     }
 }
 
-func pass_up(callee: String, waiting: List<String>) {
+func pass_in_order() {
+    var visited = Dictionary<String, Boolean>()
+    var names = summaries.keys()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if not visited.has(name) {
+            visit_callees(name, visited)
+        }
+        index = index + 1
+    }
+}
+
+func visit_callees(start: String, visited: Dictionary<String, Boolean>) {
+    var stack = List<String>()
+    var next_callee = List<Integer>()
+    stack.append(start)
+    next_callee.append(0)
+    visited[start] = true
+    while not stack.is_empty() {
+        var top = stack.count() - 1
+        crash stack[top]
+        crash next_callee[top]
+        var name = stack[top]
+        var position = next_callee[top]
+        crash summaries[name]
+        var summary = summaries[name]
+        if position < summary.callees.count() {
+            next_callee[top] = position + 1
+            var callee = summary.callees[position]
+            if summaries.has(callee) and not visited.has(callee) {
+                visited[callee] = true
+                stack.append(callee)
+                next_callee.append(0)
+            }
+        } else {
+            take_callees(summary)
+            stack.remove_last()
+            next_callee.remove_last()
+        }
+    }
+}
+
+func take_callees(summary: Summary) {
+    var index = 0
+    while index < summary.callees.count() {
+        var callee = summary.callees[index]
+        if summaries.has(callee) {
+            crash summaries[callee]
+            var reached = summaries[callee]
+            summary.adds(reached)
+        }
+        index = index + 1
+    }
+}
+
+func pass_up(callee: String, waiting: List<String>, queued: Dictionary<String, Boolean>) {
     assert callers.has(callee)
     crash callers[callee]
     crash summaries[callee]
@@ -288,8 +414,9 @@ func pass_up(callee: String, waiting: List<String>) {
     while index < calling.count() {
         var caller = calling[index]
         crash summaries[caller]
-        if summaries[caller].adds(reached) and not waiting.contains(caller) {
+        if summaries[caller].adds(reached) and not queued.has(caller) {
             waiting.append(caller)
+            queued[caller] = true
         }
         index = index + 1
     }
@@ -299,6 +426,11 @@ func of(callee: String): Summary {
     if summaries.has(callee) {
         crash summaries[callee]
         return summaries[callee]
+    }
+    crash lowered
+    var late = lowered.function_named(callee)
+    if late {
+        return late_summary(late)
     }
     var unknowable = Summary()
     crash intrinsics
@@ -322,13 +454,432 @@ func callers_of(callee: String): List<String> {
 }
 
 func operation_summary(function: Function, operation: Operation): Summary {
-    var made = Summary()
     if operation.kind == "call" {
-        var reached = of(operation.callee)
-        made.adds(reached)
-        return made
+        return of(operation.callee)
     }
+    var made = Summary()
     fresh_values = Dictionary<Integer, Boolean>()
+    one_operation = true
     note_operation(made, function, operation)
+    one_operation = false
     return made
+}
+
+func late_summary(function: Function): Summary {
+    var made = own_summary(function)
+    summaries[function.c_name] = made
+    var reached = Summary()
+    var index = 0
+    while index < made.callees.count() {
+        var callee = made.callees[index]
+        var inner = of(callee)
+        reached.adds(inner)
+        index = index + 1
+    }
+    made.adds(reached)
+    return made
+}
+
+func calls_back_from_c(): Boolean {
+    crash lowered
+    var index = 0
+    while index < lowered.layouts.count() {
+        if lowered.layouts[index].qualified == "ForeignCallback" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func note_value_targets() {
+    crash lowered
+    var functions = lowered.concrete_functions
+    functions.each(note_function_values)
+}
+
+func note_function_values(function: Function) {
+    if function.name == "drop" and not function.owner.is_empty() {
+        drop_functions[function.owner] = function.c_name
+    }
+    var index = 0
+    while index < function.blocks.count() {
+        var block = function.blocks[index]
+        block.operations.each(note_value_target)
+        index = index + 1
+    }
+}
+
+func note_value_target(operation: Operation) {
+    crash lowered
+    var named = operation.callee == "Function.bind" or operation.kind == "constant"
+    assert named and not operation.literal.is_empty()
+    assert not value_target_names.has(operation.literal)
+    var target = lowered.function_named(operation.literal)
+    assert target
+    value_target_names[operation.literal] = true
+    value_targets.append(target)
+}
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func settle_late_waits() {
+    crash lowered
+    var changed = true
+    var rounds = 0
+    while changed and rounds < 64 {
+        changed = false
+        var functions = lowered.concrete_functions
+        var index = 0
+        while index < functions.count() {
+            if marked_waiting_late(functions[index]) {
+                changed = true
+            }
+            index = index + 1
+        }
+        rounds = rounds + 1
+    }
+}
+
+func marked_waiting_late(function: Function): Boolean {
+    if function.blocks.is_empty() or function.is_intrinsic() or not summaries.has(function.c_name) {
+        return false
+    }
+    crash summaries[function.c_name]
+    var summary = summaries[function.c_name]
+    if summary.waits or not waits_late(function) {
+        return false
+    }
+    summary.waits = true
+    spread_waits(function.c_name)
+    return true
+}
+
+func spread_waits(start: String) {
+    var waiting = List<String>()
+    var queued = Dictionary<String, Boolean>()
+    waiting.append(start)
+    queued[start] = true
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        queued.remove(taken)
+        pass_up(taken, waiting, queued)
+    }
+}
+
+func waits_late(function: Function): Boolean {
+    var fresh = Dictionary<Integer, Boolean>()
+    var stored = Dictionary<String, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.kind == "make" and operation.result >= 0 {
+                fresh[operation.result] = true
+            }
+            if waits_by_rule(function, operation, fresh, stored) {
+                return true
+            }
+            position = position + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
+func waits_by_rule(
+    function: Function,
+    operation: Operation,
+    fresh: Dictionary<Integer, Boolean>,
+    stored: Dictionary<String, Boolean>,
+): Boolean {
+    if operation.kind == "call value" {
+        return value_call_waits(function, operation)
+    }
+    if operation.kind == "release" {
+        var released = operation.operands.first()
+        crash released
+        var released_value = function.value_at(released)
+        var visited = Dictionary<String, Boolean>()
+        return drop_waits(released_value.spite_type, visited)
+    }
+    if operation.kind == "store" {
+        return store_waits(function, operation, fresh, stored)
+    }
+    return false
+}
+
+func store_waits(
+    function: Function,
+    operation: Operation,
+    fresh: Dictionary<Integer, Boolean>,
+    stored: Dictionary<String, Boolean>,
+): Boolean {
+    crash kinds
+    var object = operation.operands.first()
+    crash object
+    var key = "{object}.{operation.field}"
+    var made_here = fresh.has(object) or function.is_constructor and object == function.receiver
+    var first = not stored.has(key)
+    stored[key] = true
+    if made_here and first {
+        return false
+    }
+    var object_value = function.value_at(object)
+    var layout = kinds.layout_of(object_value.spite_type)
+    if not layout {
+        return false
+    }
+    var held = layout.field_named(operation.field)
+    if not held {
+        return false
+    }
+    var visited = Dictionary<String, Boolean>()
+    return drop_waits(held.spite_type, visited)
+}
+
+func drop_waits(spite_type: Analysis.SpiteType?, visited: Dictionary<String, Boolean>): Boolean {
+    if not spite_type {
+        return false
+    }
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return drop_waits(nullable.inner, visited)
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        return drop_waits(listed.element, visited)
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        return drop_waits(dictionary.element, visited)
+    }
+    crash lowered
+    var united = types.as_union(spite_type)
+    if united {
+        var united_layout = lowered.layout_named(united.c_name)
+        return layout_drop_waits(united_layout, visited)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref and not class_ref.has_signature {
+        var held_layout = lowered.layout_named(class_ref.c_name)
+        return layout_drop_waits(held_layout, visited)
+    }
+    return false
+}
+
+func layout_drop_waits(layout: Layout?, visited: Dictionary<String, Boolean>): Boolean {
+    if not layout or visited.has(layout.c_name) {
+        return false
+    }
+    visited[layout.c_name] = true
+    if drop_functions.has(layout.c_name) {
+        var dropped = drop_functions[layout.c_name]
+        crash dropped
+        if summaries.has(dropped) {
+            crash summaries[dropped]
+            if summaries[dropped].waits {
+                return true
+            }
+        }
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member_layout = lowered_layout(layout.members[index])
+        if layout_drop_waits(member_layout, visited) {
+            return true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        if drop_waits(layout.stored_fields[index].spite_type, visited) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func lowered_layout(c_name: String): Layout? {
+    crash lowered
+    return lowered.layout_named(c_name)
+}
+
+func value_call_waits(function: Function, operation: Operation): Boolean {
+    var called = operation.operands.first()
+    crash called
+    var called_value = function.value_at(called)
+    var signature: Analysis.Types.ClassRefType? = null
+    if called_value.spite_type {
+        signature = types.as_class_ref(called_value.spite_type)
+    }
+    var index = 0
+    while index < value_targets.count() {
+        var target = value_targets[index]
+        if summaries.has(target.c_name) and fits_signature(signature, target) {
+            crash summaries[target.c_name]
+            if summaries[target.c_name].waits {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func fits_signature(signature: Analysis.Types.ClassRefType?, target: Function): Boolean {
+    if not signature or not signature.has_signature {
+        return true
+    }
+    var skipped = 0
+    if target.receiver < 0 and target.c_name.contains("___call_") {
+        skipped = 1
+    }
+    if signature.arguments.count() != target.parameters.count() - skipped {
+        return false
+    }
+    var index = 0
+    while index < signature.arguments.count() {
+        var wanted = naming.label(signature.arguments[index])
+        var held_parameter = target.parameters[index + skipped]
+        crash held_parameter
+        var held = held_parameter.spite_type
+        if not held or naming.label(held) != wanted {
+            return false
+        }
+        index = index + 1
+    }
+    var wanted_answer = return_label(signature.returns)
+    var held_answer = return_label(target.answer)
+    return wanted_answer == held_answer
+}
+
+func return_label(spite_type: Analysis.SpiteType?): String {
+    if not spite_type or types.is_void(spite_type) {
+        return "Nothing"
+    }
+    return naming.label(spite_type)
+}
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func value_waiters_of(function: Function): List<String> {
+    var found = List<String>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.kind == "call value" {
+                note_value_waiters(function, operation, found)
+            }
+            position = position + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func note_value_waiters(function: Function, operation: Operation, found: List<String>) {
+    var called = operation.operands.first()
+    crash called
+    var called_value = function.value_at(called)
+    var signature: Analysis.Types.ClassRefType? = null
+    if called_value.spite_type {
+        signature = types.as_class_ref(called_value.spite_type)
+    }
+    var index = 0
+    while index < value_targets.count() {
+        var target = value_targets[index]
+        if summaries.has(target.c_name) and fits_signature(signature, target) {
+            crash summaries[target.c_name]
+            if summaries[target.c_name].waits {
+                found.append(target.c_name)
+            }
+        }
+        index = index + 1
+    }
+}
+
+# ../../../../docs/proofs.md#whether-a-function-waits
+func drop_waiters_of(function: Function): List<String> {
+    var found = List<String>()
+    var visited = Dictionary<String, Boolean>()
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var position = 0
+        while position < block.operations.count() {
+            var operation = block.operations[position]
+            if operation.kind == "release" {
+                var released = operation.operands.first()
+                crash released
+                var released_value = function.value_at(released)
+                collect_drops(released_value.spite_type, visited, found)
+            }
+            position = position + 1
+        }
+        block_index = block_index + 1
+    }
+    return found
+}
+
+func collect_drops(spite_type: Analysis.SpiteType?, visited: Dictionary<String, Boolean>, found: List<String>) {
+    assert spite_type
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        collect_drops(nullable.inner, visited, found)
+        return
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        collect_drops(listed.element, visited, found)
+        return
+    }
+    var dictionary = types.as_dictionary(spite_type)
+    if dictionary {
+        collect_drops(dictionary.element, visited, found)
+        return
+    }
+    crash lowered
+    var united = types.as_union(spite_type)
+    var layout: Layout? = null
+    if united {
+        layout = lowered.layout_named(united.c_name)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if class_ref and not class_ref.has_signature {
+        layout = lowered.layout_named(class_ref.c_name)
+    }
+    collect_layout_drops(layout, visited, found)
+}
+
+func collect_layout_drops(layout: Layout?, visited: Dictionary<String, Boolean>, found: List<String>) {
+    assert layout and not visited.has(layout.c_name)
+    visited[layout.c_name] = true
+    if drop_functions.has(layout.c_name) {
+        var dropped = drop_functions[layout.c_name]
+        crash dropped
+        if summaries.has(dropped) {
+            crash summaries[dropped]
+            if summaries[dropped].waits {
+                found.append(dropped)
+            }
+        }
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member_layout = lowered_layout(layout.members[index])
+        collect_layout_drops(member_layout, visited, found)
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        collect_drops(layout.stored_fields[index].spite_type, visited, found)
+        index = index + 1
+    }
 }

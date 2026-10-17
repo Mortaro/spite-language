@@ -10,6 +10,7 @@ func run(starting_lowered: Lowered) {
     kinds = made_kinds
     assert not starting_lowered.hot_reload
     var elision = DefaultElision(starting_lowered)
+    var carried = CarriedObjects(starting_lowered)
     var functions = starting_lowered.concrete_functions
     var index = 0
     while index < functions.count() {
@@ -17,17 +18,16 @@ func run(starting_lowered: Lowered) {
         if not function.blocks.is_empty() {
             inline_function(function)
             elision.elide(function)
+            carried.carry(function)
         }
         index = index + 1
     }
 }
 
 func inline_function(function: Function) {
-    var rounds = 0
     var changed = true
-    while changed and rounds < 256 {
+    while changed {
         changed = inline_once(function)
-        rounds = rounds + 1
     }
 }
 
@@ -73,7 +73,22 @@ func judged(callee_name: String): Boolean {
     if not callee or callee.is_intrinsic() or callee.is_constructor or not callee.not_lowered.is_empty() or not callee.singleton_of.is_empty() {
         return false
     }
-    if callee.blocks.is_empty() or callee.blocks.count() > 6 or not kinds.is_library_layout(callee.owner) {
+    if not callee.waiting_kind.is_empty() {
+        return false
+    }
+    var copying = callee.made_for == "copy" and callee.blocks.count() == 1
+    var specialised = not callee.specialised_from.is_empty()
+    if callee.source and callee.source.specialisation_position >= 0 {
+        specialised = true
+    }
+    var own_code = copying or specialised or kinds.is_library_layout(callee.owner)
+    if callee.blocks.is_empty() or not own_code or not copying and callee.blocks.count() > 6 {
+        return false
+    }
+    if reaches_itself(callee_name) {
+        return false
+    }
+    if reaches_a_wait(callee_name, 0) {
         return false
     }
     var lending = ["get_at", "first", "last"]
@@ -93,7 +108,7 @@ func judged(callee_name: String): Boolean {
         counted = counted + block.operations.count()
         block_index = block_index + 1
     }
-    return counted <= 16
+    return counted <= 16 or copying
 }
 
 func plain_operations(block: Block, callee_name: String): Boolean {
@@ -107,4 +122,72 @@ func plain_operations(block: Block, callee_name: String): Boolean {
         index = index + 1
     }
     return true
+}
+
+func reaches_itself(start: String): Boolean {
+    crash lowered
+    var seen = Dictionary<String, Boolean>()
+    var waiting = List<String>()
+    waiting.append(start)
+    var first = true
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if taken == start and not first {
+            return true
+        }
+        first = false
+        if not seen.has(taken) {
+            seen[taken] = true
+            var function = lowered.function_named(taken)
+            if function {
+                note_callees(function, waiting)
+            }
+        }
+    }
+    return false
+}
+
+func note_callees(function: Function, waiting: List<String>) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" {
+                waiting.append(operation.callee)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func reaches_a_wait(name: String, depth: Integer): Boolean {
+    crash lowered
+    if depth > 4 {
+        return true
+    }
+    var function = lowered.function_named(name)
+    if not function or function.is_intrinsic() {
+        return false
+    }
+    if not function.waiting_kind.is_empty() or function.blocks.is_empty() {
+        return not function.waiting_kind.is_empty()
+    }
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and reaches_a_wait(operation.callee, depth + 1) {
+                return true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
 }

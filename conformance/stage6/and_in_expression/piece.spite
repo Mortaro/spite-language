@@ -1,0 +1,5 @@
+var kind = ""
+
+func Piece(starting: String) {
+    kind = starting
+}

@@ -1,5 +1,7 @@
 # The desugared high IR, and C written only from it (D587)
 
+The guide to the code, how to run it and where it stands is [compiler/source/intermediate/README.md](../../compiler/source/intermediate/README.md); this page is the normative specification.
+
 Mortaro, 2026-10-14: the high level is only useful to optimise when it is **desugared** (every operator is a call to
 its function) and **monomorphised** (every template, codegen value and specialisation is resolved, so every function
 and type in it is concrete). Then a pass can see what is the same and collapse it, and what can be optimised, without
@@ -46,7 +48,10 @@ and every jump passes the values for them), a list of operations, and one termin
 | `store` | a field written |
 | `make` | a new object of a concrete class, not yet constructed |
 | `retain`, `release` | a count up or down, inserted only by the ownership pass |
-| `site` | a check that halts with a report: overflow, bounds, narrowing, division, `crash` |
+
+**A check is not an operation kind.** A check that can fail (overflow, bounds, narrowing, division, presence) is the
+intrinsic `call` that can fail, carrying a `site` (an index into the program's sites); a `crash` that always halts is a
+`halt` terminator with its site.
 
 **A terminator** is `jump` (to a block, with its arguments), `branch` (on a Boolean, to two blocks), `switch` (on a
 tag), `return`, or `halt` (a `crash` that always halts).
@@ -61,6 +66,7 @@ tag), `return`, or `halt` (a `crash` that always halts).
 | `a and b`, `a or b` | branches |
 | `"{x} items"` | `call String.join(...)` over the parts, each part through its `to_string` |
 | `x.field` with a getter, a setter | `call get_field`, `call set_field` |
+| `a[x]`, `a[x] = v` | `call get_at(a, x)`, `call set_at(a, x, v)` (the class's own functions; a pass decides whether a call becomes a direct read) |
 | `list.each_bump()`, `each`, `filter`, `sum`, a fused chain | the loop over the list's items, with the calls it makes |
 | `switch` | `switch` on the tag, or branches |
 | `assert c` | a branch to a block that returns the default |
@@ -76,6 +82,12 @@ foreign calls, and the few runtime calls (`spite_overflowed` and the other repor
 and a type and no body; the printer writes its C, and a pass may decide its **form** (an overflow check dropped
 because a range proof holds, a bounds check dropped because the index is proven inside). The form is a field of the
 operation, set by a pass, never a different operation.
+
+**Nothing that is a function in the end becomes an operation of its own (D599).** What the source can say as a call
+of an existing function is lowered as that call, and the passes decide what it becomes: a read of a list item is
+`get_at`, a write `set_at`, never an intrinsic that reaches into the list's fields. A new intrinsic is only for what
+has no Spite function under it: the floor above, and what the printer must know about C. Reflection and the REPL
+follow the same rule: an attribute that stands for a list item reads and writes it through `get_at` and `set_at`.
 
 ## The passes, in order
 
@@ -187,6 +199,17 @@ What the lowering writes, for the passes and the printer:
 - `Foreign.library` (the library's number in `target`; its file, naming and header are in `Lowered.foreign_*`),
   `Foreign.call` (the symbol in `target`, the library's number in `literal`), `Foreign.constant`.
 - `Arguments.program`, `Arguments.count`, `Arguments.get`, `Arguments.flag`.
+- A call on a `type` is a `switch` on `Union.tag` with a target per member class and a default target that halts
+  (its site says the value's class was not compiled for the call), so a `type` no class fits still lowers. A
+  required function of a `type` read as a value binds `<type>___call_<name>`, a function the lowering writes whose
+  body is that switch, to the `type` value with `Function.bind`. `to_string` and `to_debug` dispatch on any `type`
+  without being required, falling back from `to_string` to `to_debug` per member.
+- `Type.size` answers the C size of a `type` whose attributes are all numbers, with the `type` in `target` and its
+  C struct in `literal`.
+- What the generator folds while compiling is written as its answer: a dictionary local only read by literal keys
+  is its entries, read where they are named; a chain of element templates is one call of the fused template the
+  generator registers (`filter_is_active_then_sum_price`); `"word".pluralize()` is the inflected text; a maths
+  call on constants is its value; a local bound to a reflection object is no local at all.
 - `assert` returns the function's default; `crash` is a `halt` whose operands are the text, number and enum
   locals in scope, named in the site's `shown`.
 
@@ -208,3 +231,24 @@ declarations and functions when the program asks for them. `value.attributes` an
 listed function is bound to its object with `Function.bind`, the same intrinsic a function value uses. Only what
 the printer must know about C stays an intrinsic: the memory a value lives in (`Reflection.memory`) and the class
 of a union's value (`Reflection.class`).
+
+## Caching the high IR (D569)
+
+The lowered IR is cached per function, so a check or a build relowers only what changed. What a function's IR is
+depends on more than its own text, and the key says all of it:
+
+- **The winning definition.** A class's functions can be spread over files: the class's own file, reopenings in other
+  files and packages ([classes_and_files.md](../../docs/classes_and_files.md#reopening-a-class)), and the
+  standard library's. Which definition wins depends on everything loaded. The key of a function is the definition
+  that won, named by its file and its text, never the file a function first came from; a definition that lost is not
+  the function and is never served for it.
+- **The load set.** Loading more (a package, a new reopening file) can change which definition wins without
+  changing any body. Every build resolves the winners first, compares them with the cache's, and relowers each
+  function whose winner changed.
+- **What it depends on.** The types, layouts and signatures it uses, the templates and codegen values that made it
+  (monomorphisation), the facts it was lowered against (which functions wait, which classes are singletons), and the
+  compiler's own version.
+
+A stale or unreadable entry is rebuilt, never trusted (D244). `--check` stops after lowering: it parses, analyses
+and lowers (from the cache where it can) and runs no pass and prints no C; the passes and the printer run only for a
+build that runs.

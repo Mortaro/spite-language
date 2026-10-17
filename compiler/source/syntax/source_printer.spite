@@ -37,6 +37,7 @@ func formatted_file(
                 text = "{text}\n"
             }
         }
+        crash file.statements[index]
         text = "{text}{comment_block}{source_statement(file.statements[index], 0)}"
         index = index + 1
     }
@@ -75,6 +76,7 @@ func source_statement_list(statements: List<Syntax.Statements.Statement>, depth:
     while index < statements.count() {
         if index > 0 {
             text = "{text}\n"
+            crash statements[index - 1]
             if depth == 0 and stands_apart(statements[index - 1], statements[index]) {
                 text = "{text}\n"
             }
@@ -131,6 +133,7 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Integer): S
             if statement.type_reference {
                 type_text = ": {source_type(statement.type_reference)}"
             }
+            crash statement.value
             return broken_or(printed, "{indent}var {statement.name}{type_text} = ", statement.value, depth)
         }
         Syntax.Statements.AssignmentStatement: {
@@ -363,12 +366,14 @@ func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, dep
                 parameters = "{parameters}{source_type(field.parameter_types[parameter_index])}"
                 parameter_index = parameter_index + 1
             }
+            crash field.type_reference
             var returned = ": {source_type(field.type_reference)}"
             if returned == ": Nothing" {
                 returned = ""
             }
             text = "{text}\n{source_indent(depth + 1)}{field.name}({parameters}){returned}"
         } else {
+            crash field.type_reference
             text = "{text}\n{source_indent(depth + 1)}{field.name}: {source_type(field.type_reference)}"
         }
         index = index + 1
@@ -431,6 +436,7 @@ func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Integer)
 func one_line_case(body: List<Syntax.Statements.Statement>, depth: Integer): String {
     if body.count() == 1 {
         var single = source_statement(body[0], depth + 1).trim()
+        crash body[0]
         if not single.contains("\n") and not shape.as_if_statement(body[0]) and not shape.as_while_statement(body[0]) and not shape.as_switch_statement(body[0]) {
             return single
         }
@@ -597,6 +603,7 @@ func collect_text_join_pieces(expression: Syntax.Expressions.Expression, pieces:
             crash binary.left
             crash binary.right
             collect_text_join_pieces(binary.left, pieces)
+            crash binary.right
             collect_text_join_pieces(binary.right, pieces)
             return
         }

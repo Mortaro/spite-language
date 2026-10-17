@@ -1,0 +1,267 @@
+# ../../../docs/optimizations.md#a-deep-copy-is-written-per-class-with-a-table-only-where-a-graph-needs-one
+var expressions: ExpressionLowering? = null
+var types = Analysis.TypeShape()
+var visiting = List<String>()
+var weak_checked = false
+var weak_held = false
+
+func DeepCopying(starting_expressions: ExpressionLowering) {
+    expressions = starting_expressions
+}
+
+func lowering(): ExpressionLowering {
+    crash expressions
+    return expressions
+}
+
+func plain(spite_type: Analysis.SpiteType?): Boolean {
+    crash spite_type
+    var made = lowering().front()
+    note_weak(made)
+    if weak_held {
+        return false
+    }
+    return simple(spite_type)
+}
+
+func note_weak(made: Generation.Generator) {
+    assert not weak_checked
+    weak_checked = true
+    var index = 0
+    while index < made.classes.count() {
+        var each = made.classes[index]
+        if made.is_library_class(each) and each.source_path.ends_with("/weak.spite") {
+            weak_held = true
+        }
+        index = index + 1
+    }
+}
+
+func simple(spite_type: Analysis.SpiteType?): Boolean {
+    crash spite_type
+    var made = lowering().front()
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return simple(nullable.inner)
+    }
+    if types.as_scalar(spite_type) or types.as_enum(spite_type) or types.is_symbol(spite_type) or types.as_string(spite_type) {
+        return true
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        return simple(listed.element)
+    }
+    var mapped = types.as_dictionary(spite_type)
+    if mapped {
+        var key = mapped.key
+        var plain_key = types.as_string(key) or types.as_scalar(key) or types.as_enum(key) or types.is_symbol(key)
+        return plain_key and simple(mapped.element)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if not class_ref or class_ref.has_signature {
+        return false
+    }
+    var described = made.find_class_by_c_name(class_ref.c_name)
+    if not described or described.is_value_class or described.is_generic_template or described.is_container {
+        return false
+    }
+    if described.is_singleton or described.find_function("deep_copy") {
+        return true
+    }
+    if visiting.contains(described.c_name) {
+        return false
+    }
+    visiting.append(described.c_name)
+    var all = true
+    var index = 0
+    while index < described.fields.count() {
+        if not simple(described.fields[index].type) {
+            all = false
+        }
+        index = index + 1
+    }
+    visiting.remove_last()
+    return all
+}
+
+func copy_value(value: Integer, spite_type: Analysis.SpiteType): Integer {
+    var made = lowering().front()
+    var nullable = types.as_nullable(spite_type)
+    if nullable {
+        return copy_nullable(value, nullable, spite_type)
+    }
+    var listed = types.as_list(spite_type)
+    if listed {
+        var list_class = made.list_class_of(listed.element)
+        return call_copy(value, list_class, spite_type)
+    }
+    var mapped = types.as_dictionary(spite_type)
+    if mapped {
+        var dictionary_name = made.ensure_dictionary(mapped)
+        var dictionary_class = made.find_class_by_c_name(dictionary_name)
+        crash dictionary_class
+        return call_copy(value, dictionary_class, spite_type)
+    }
+    var class_ref = types.as_class_ref(spite_type)
+    if not class_ref {
+        return value
+    }
+    var described = made.find_class_by_c_name(class_ref.c_name)
+    crash described
+    if described.is_singleton {
+        return value
+    }
+    var own = described.find_function("deep_copy")
+    if own {
+        var operands = [value]
+        return lowering().call_reached(described, own, operands)
+    }
+    return call_copy(value, described, spite_type)
+}
+
+func call_copy(value: Integer, described: Analysis.ClassInfo, spite_type: Analysis.SpiteType): Integer {
+    var name = "{described.c_name}___deep_copy"
+    lowering().known().accessed_maker(name, described, "", "deep_copy")
+    lowering().known().reach_layout(described)
+    var operands = [value]
+    return lowering().emitter.emit_call(name, operands, spite_type)
+}
+
+func copy_nullable(value: Integer, nullable: Analysis.Types.NullableType, spite_type: Analysis.SpiteType): Integer {
+    var inner = nullable.inner
+    var reference = types.as_class_ref(inner) or types.as_list(inner) or types.as_dictionary(inner)
+    if not reference {
+        return value
+    }
+    var emitter = lowering().emitter
+    var boolean = lowering().known().typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", value, boolean)
+    var inside = emitter.new_block()
+    var absent = emitter.new_block()
+    var joined = emitter.new_block()
+    var answered = emitter.new_value(spite_type, "parameter")
+    emitter.built_function().block_at(joined).parameters.append(answered)
+    emitter.branch(present, inside, absent)
+    emitter.enter_block(inside)
+    var held = emitter.emit_call_one("Nullable.value", value, inner)
+    var copied = copy_value(held, inner)
+    var wrapped = lowering().convert(copied, spite_type)
+    var wrapped_passed = [wrapped]
+    emitter.jump(joined, wrapped_passed)
+    emitter.enter_block(absent)
+    var nothing = emitter.constant(spite_type, "null")
+    var nothing_passed = [nothing]
+    emitter.jump(joined, nothing_passed)
+    emitter.enter_block(joined)
+    return answered
+}
+
+func class_body(described: Analysis.ClassInfo, receiver: Integer, owner_type: Analysis.SpiteType): Integer {
+    var emitter = lowering().emitter
+    var made_object = emitter.make_object(described.c_name, owner_type)
+    var index = 0
+    while index < described.fields.count() {
+        var field = described.fields[index]
+        var held = emitter.load_field(receiver, field.name, field.type)
+        var copied = copy_value(held, field.type)
+        emitter.store_field(made_object, field.name, copied)
+        index = index + 1
+    }
+    return made_object
+}
+
+func list_body(described: Analysis.ClassInfo, receiver: Integer): Integer {
+    var element = described.codegen_types[0]
+    crash element
+    var result = lowering().new_list(element)
+    var counter = lowering().list_function(element, "count")
+    var reader = lowering().list_function(element, "get_at")
+    var appender = lowering().list_function(element, "append")
+    crash counter.owner
+    crash counter.function
+    var count_operands = [receiver]
+    var count = lowering().call_reached(counter.owner, counter.function, count_operands)
+    var loop = open_loop(count)
+    crash reader.owner
+    crash reader.function
+    var item_operands = [receiver, loop.index]
+    var read_item = lowering().call_reached(reader.owner, reader.function, item_operands)
+    var item = lowering().present_item(read_item, element)
+    var copied = copy_value(item, element)
+    lowering().call_two_function(appender, result, copied)
+    close_loop(loop)
+    return result
+}
+
+func dictionary_body(described: Analysis.ClassInfo, receiver: Integer): Integer {
+    var made = lowering().front()
+    var emitter = lowering().emitter
+    var key_type = described.codegen_types[0]
+    var value_type = described.codegen_types[1]
+    crash key_type
+    crash value_type
+    var dictionary = Analysis.Types.DictionaryType(value_type, key_type)
+    var result = lowering().new_dictionary(dictionary)
+    var key_list_type = made.list_type_of(key_type)
+    var value_list_type = made.list_type_of(value_type)
+    var keys = emitter.load_field(receiver, "entry_keys", key_list_type)
+    var values = emitter.load_field(receiver, "entry_values", value_list_type)
+    var counter = lowering().list_function(key_type, "count")
+    var key_reader = lowering().list_function(key_type, "get_at")
+    var value_reader = lowering().list_function(value_type, "get_at")
+    var dictionary_name = made.ensure_dictionary(dictionary)
+    var dictionary_class = made.find_class_by_c_name(dictionary_name)
+    crash dictionary_class
+    var setter = dictionary_class.find_function("set_at")
+    crash setter
+    crash counter.owner
+    crash counter.function
+    var count_operands = [keys]
+    var count = lowering().call_reached(counter.owner, counter.function, count_operands)
+    var loop = open_loop(count)
+    crash key_reader.owner
+    crash key_reader.function
+    var key_operands = [keys, loop.index]
+    var read_key = lowering().call_reached(key_reader.owner, key_reader.function, key_operands)
+    var key = lowering().present_item(read_key, key_type)
+    crash value_reader.owner
+    crash value_reader.function
+    var value_operands = [values, loop.index]
+    var read_value = lowering().call_reached(value_reader.owner, value_reader.function, value_operands)
+    var value = lowering().present_item(read_value, value_type)
+    var copied = copy_value(value, value_type)
+    var set_operands = [result, key, copied]
+    lowering().call_reached(dictionary_class, setter, set_operands)
+    close_loop(loop)
+    return result
+}
+
+func open_loop(count: Integer): CopyLoop {
+    var emitter = lowering().emitter
+    var integer_type = lowering().known().typed_integer()
+    var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("index")
+    var zero = emitter.constant(integer_type, "0")
+    var header = emitter.new_block()
+    var body = emitter.new_block()
+    var done = emitter.new_block()
+    var index = emitter.new_value(integer_type, "parameter")
+    emitter.built_function().block_at(header).parameters.append(index)
+    var start = [zero]
+    emitter.jump(header, start)
+    emitter.enter_block(header)
+    var below = lowering().compare_values('less', index, count, whole)
+    emitter.branch(below, body, done)
+    emitter.enter_block(body)
+    return CopyLoop(header, done, index)
+}
+
+func close_loop(loop: CopyLoop) {
+    var emitter = lowering().emitter
+    var integer_type = lowering().known().typed_integer()
+    var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("index")
+    var one = emitter.constant(integer_type, "1")
+    var next = lowering().number_operation('add', loop.index, one, integer_type, whole)
+    var again = [next]
+    emitter.jump(loop.header, again)
+    emitter.enter_block(loop.done)
+}

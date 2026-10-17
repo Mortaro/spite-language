@@ -31,10 +31,12 @@ func print_library(
     crash lowered.hot_reload
     print_pieces(lowered)
     note_hot_exports()
+    runtime.shared_redirects = hot.ring_redirects()
     var types = types_text()
     var hot_prototypes = hot.prototypes()
     var prototypes = prototypes_text()
-    var declared = "{hot_prototypes}\n{prototypes}"
+    var remote_prototypes = hot.remote_prototypes()
+    var declared = "{hot_prototypes}\n{remote_prototypes}\n{prototypes}"
     var runtime_text = supports_text(lowered, "", false)
     var faults = runtime.faults()
     var written = hot.library(reload, owners, rebuilt, types, declared, "{runtime_text}\n{faults}")
@@ -56,6 +58,9 @@ func note_hot_exports() {
         "int64_t* spite_machine_frames(const char* name, const char* shown);"
         "void spite_settings_reread(void);"
     ]
+    if not hot.remote_pause.is_empty() {
+        lines.append("void spite_breakpoint(SpiteString site, {hot.remote_locals}* locals);")
+    }
     if output.needs("singletons") {
         var singletons = runtime.singleton_prototypes()
         var singleton_lines = singletons.split("\n")
@@ -78,15 +83,48 @@ func print_pieces(lowered: Lowered) {
     lowered.enums.each(layouts.print_enum)
     lowered.layouts.each(note_slots)
     lowered.layouts.each(note_weak)
+    lowered.concrete_functions.each(note_placed)
     lowered.concrete_functions.each(body.print)
-    var macros = output.macros.join(" ")
-    var bodies = output.bodies.join(" ")
-    output.printed_text = "{macros} {bodies}"
     lowered.enums.each(layouts.print_enum_names)
     lowered.layouts.each(layouts.print)
     note_nothing_default()
     note_loop_tables(lowered)
     note_maths()
+    note_symbol_names(lowered)
+}
+
+func note_symbol_names(lowered: Lowered) {
+    assert output.needs("symbol find")
+    var index = 0
+    while index < lowered.symbol_names.count() {
+        var symbol = sites.literal(lowered.symbol_names[index])
+        if not output.symbol_literals.contains(symbol) {
+            output.symbol_literals.append(symbol)
+        }
+        index = index + 1
+    }
+}
+
+# ../../../docs/memory.md#an-object-reads-its-own-allocator
+func note_placed(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == "Object.place" and operation.operands.count() == 2 {
+                var placed = operation.operands[0]
+                var placed_type = function.value_at(placed).spite_type
+                var layout = naming.layout_of(placed_type)
+                if layout and not output.placed_layouts.contains(layout.c_name) {
+                    output.placed_layouts.append(layout.c_name)
+                }
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
 }
 
 func note_slots(layout: Layout) {
@@ -144,6 +182,8 @@ func wire(lowered: Lowered) {
     hot.naming = naming
     body.hot = hot
     layouts.hot = hot
+    copies.hot = hot
+    intrinsics.hot = hot
     copies.made = List<String>()
     copies.table_written = false
     intrinsics.copies = copies
@@ -166,9 +206,6 @@ func wire(lowered: Lowered) {
 }
 
 func refuse_unbuilt(lowered: Lowered) {
-    if lowered.remote_loop {
-        output.refuse("the program serves a REPL port, which the printer does not write yet")
-    }
     if lowered.entry == "main" {
         output.refuse("the program starts at a function named 'main', which is the name of C's own entry")
     }
@@ -180,6 +217,12 @@ func assembled(lowered: Lowered): String {
     var supports = output.supports.join("\n")
     var supported = supports_text(lowered, supports, true)
     var bodies = output.bodies.join("\n")
+    if output.needs("check point") or output.needs("remote loop") {
+        var remote_prototypes = hot.remote_prototypes()
+        var remote_supports = hot.remote_supports()
+        declared = "{remote_prototypes}\n{declared}"
+        bodies = "{bodies}\n{remote_supports}"
+    }
     if lowered.hot_reload {
         note_hot_exports()
         var hot_prototypes = hot.prototypes()
@@ -245,6 +288,9 @@ func supports_text(lowered: Lowered, printed_supports: String, with_singletons: 
     if output.needs("guards") {
         guards = runtime.guard_runtime()
     }
+    if not output.needs("guards") {
+        guards = "static void spite_enter_skipped(void* guard) \{ (void)guard; }"
+    }
     var library_prototypes = foreign_prototypes()
     return "{reported}\n{helped}\n{runtime.string_supports()}\n{runtime.prelude.bodies()}\n{table}\n{singletons}\n{guards}\n{library_prototypes}\n{supports}\n{libraries}"
 }
@@ -260,26 +306,29 @@ func foreign_prototypes(): String {
 }
 
 func note_loop_tables(lowered: Lowered) {
-    assert output.printed_text.contains("spite_loop_class_names") or output.printed_text.contains("spite_loop_enum_names") or output.printed_text.contains("spite_loop_class_descriptions")
+    assert output.uses("spite_loop_class_names") or output.uses("spite_loop_enum_names") or output.uses("spite_loop_class_descriptions")
     var class_names = naming.escape_c(lowered.loop_class_names)
     var enum_names = naming.escape_c(lowered.loop_enum_names)
     var descriptions = naming.escape_c(lowered.loop_class_descriptions)
-    output.prototypes.append("SpiteString spite_loop_class_names(void);")
-    output.prototypes.append("SpiteString spite_loop_enum_names(void);")
-    output.prototypes.append("SpiteString spite_loop_class_descriptions(void);")
-    output.support(
-        "SpiteString spite_loop_class_names(void) \{ return spite_string_from_cstring_owned(\"{class_names}\"); }",
-    )
-    output.support(
-        "SpiteString spite_loop_enum_names(void) \{ return spite_string_from_cstring_owned(\"{enum_names}\"); }",
-    )
-    output.support(
-        "SpiteString spite_loop_class_descriptions(void) \{ return spite_string_from_cstring_owned(\"{descriptions}\"); }",
-    )
+    loop_table(lowered, "spite_loop_class_names", class_names, "the names of the classes")
+    loop_table(lowered, "spite_loop_enum_names", enum_names, "the names of the enums")
+    loop_table(lowered, "spite_loop_class_descriptions", descriptions, "the descriptions of the classes")
+}
+
+func loop_table(lowered: Lowered, name: String, text: String, shown: String) {
+    var body_text = "return spite_string_from_cstring_owned(\"{text}\");"
+    if lowered.hot_reload {
+        var nothing = List<String>()
+        hot.slot_support(name, "SpiteString", nothing, body_text, "the REPL's list of {shown}", "spite_loop")
+        return
+    }
+    output.prototypes.append("SpiteString {name}(void);")
+    output.support("SpiteString {name}(void) \{ {body_text} }")
+    output.name_piece(name)
 }
 
 func note_nothing_default() {
-    assert output.printed_text.contains("Nothing___default(")
+    assert output.uses("Nothing___default(")
     var nothing = naming.lowered.layout_named("Nothing")
     if not nothing {
         output.refuse("a concurrent call answers Nothing, and the program holds no Nothing layout")
@@ -291,6 +340,7 @@ func note_nothing_default() {
     }
     output.prototypes.append("static Nothing* Nothing___default(void);")
     output.support("static Nothing* Nothing___default(void) \{ return {made}; }")
+    output.name_piece("Nothing___default")
 }
 
 func note_maths() {
@@ -332,7 +382,7 @@ func note_maths() {
         "cbrt"
         "hypot"
     ]
-    if names.any(output.printed_text.contains) {
+    if names.any(output.uses) {
         output.need("maths")
     }
 }

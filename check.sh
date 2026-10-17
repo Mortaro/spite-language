@@ -446,7 +446,7 @@ job_launcher() {
 }
 
 # The high level the compiler builds of a program, compared with what the C of that program says
-# (design/backend_high_level_ir.md#what-the-comparison-checks). It is a check of the compiler, never an error in
+# (compiler/source/intermediate/README.md#what-the-comparison-checks). It is a check of the compiler, never an error in
 # a user's program: a difference is a bug in the walk or in the C reader, and it names both answers. It compiles each
 # program with --check, so no program is built and no program runs, and it writes nothing beside the repository.
 job_high_level() {
@@ -1754,7 +1754,7 @@ echo "breakpoints: a breakpoint compiled into a running loop stopped it with its
 # built from a copy in which docs/ sits there.
 job_formatting() {
 formatting_tool="$work/formatting_tool"
-# design/ is copied because the compiler's own sources link into it (backend_high_level_ir.md), and the formatting
+# design/ is copied because the compiler's own sources link into it (desugared_high_ir.md), and the formatting
 # tool resolves a comment's link from the folder of the file it is in.
 mkdir -p "$formatting_tool/scripts" "$formatting_tool/compiler"
 cp -r scripts/formatting "$formatting_tool/scripts/" && cp -r docs "$formatting_tool/docs" && cp -r specs "$formatting_tool/specs" && cp -r design "$formatting_tool/design" && cp -r compiler/source "$formatting_tool/compiler/" || {

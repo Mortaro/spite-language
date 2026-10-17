@@ -39,6 +39,8 @@ func prove_function(function: Function, listed: ListedValues) {
     folding.fold_function(function)
     var branches = BranchFolding()
     branches.fold(function)
+    var circuits = ShortCircuits()
+    circuits.thread(function)
     crash effects
     var first_flow = Facts.Flow(function)
     var first_uses = Facts.Uses(function)
@@ -89,12 +91,16 @@ func prove_call(
         decide_comparison(function, operation, place, spans, relations, listed)
         return
     }
+    if callee == "Enum.equals" and operation.operands.count() == 2 and operation.result >= 0 {
+        decide_listed(function, operation, listed)
+        return
+    }
     if callee == "Nullable.has" {
         decide_presence(function, operation, place, relations)
         return
     }
     if callee == "Nullable.value" and operation.site >= 0 {
-        prove_present_value(operation, place, relations)
+        prove_present_value(function, operation, place, relations)
         return
     }
     prove_read(function, operation, place, spans, relations)
@@ -215,6 +221,18 @@ func decide_comparison(
     folding.become_constant(operation, answer, result_type)
 }
 
+# ../../../../docs/optimizations.md#a-test-against-a-value-a-list-never-holds-is-decided-while-compiling
+func decide_listed(function: Function, operation: Operation, listed: ListedValues) {
+    crash folding
+    var left = operation.operands.first()
+    var right = operation.operands.last()
+    assert left and right
+    var answer = listed.decided_equality(function, left, right)
+    assert not answer.is_empty()
+    var result_type = function.value_at(operation.result).spite_type
+    folding.become_constant(operation, answer, result_type)
+}
+
 func compared(
     meaning: String,
     left: Integer,
@@ -283,7 +301,7 @@ func read_is_present(function: Function, tested: Integer, relations: Relations):
         return false
     }
     var callee = relations.lowered_function(defining.callee)
-    if not callee or callee.name != "get_at" {
+    if not callee or read_width(callee.name) == 0 {
         return false
     }
     var element = element_of(function, defining)
@@ -299,10 +317,10 @@ func element_of(function: Function, read: Operation): Analysis.SpiteType? {
     return nullable.inner
 }
 
-func prove_present_value(operation: Operation, place: Facts.Place, relations: Relations) {
+func prove_present_value(function: Function, operation: Operation, place: Facts.Place, relations: Relations) {
     var tested = operation.operands.first()
     crash tested
-    assert relations.proves_present(tested, place)
+    assert relations.proves_present(tested, place) or read_is_present(function, tested, relations)
     operation.form = "unchecked"
 }
 
@@ -318,7 +336,14 @@ func prove_read(function: Function, operation: Operation, place: Facts.Place, sp
     var container = operation.operands[0]
     var index = operation.operands[1]
     var index_span = spans.span_at(index, place.block)
-    assert index_span and index_span.lowest >= 0
+    var not_negative = false
+    if index_span {
+        not_negative = index_span.lowest >= 0
+    }
+    if not not_negative {
+        not_negative = relations.sum_is_not_negative(index, place, spans)
+    }
+    assert not_negative
     var count_field = relations.count_field_of(container)
     assert not count_field.is_empty()
     if relations.proves_inside(index, width - 1, container, count_field, place, spans) {

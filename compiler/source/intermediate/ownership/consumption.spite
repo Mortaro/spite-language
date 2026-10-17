@@ -3,11 +3,38 @@ var lowered: Lowered? = null
 var intrinsics: Facts.Intrinsics? = null
 var returns_lent = Dictionary<String, Boolean>()
 var current: Function? = null
+var instance_classes = Dictionary<String, Boolean>()
 
 func Consumption(starting_lowered: Lowered) {
     lowered = starting_lowered
     var made_intrinsics = Facts.Intrinsics(starting_lowered)
     intrinsics = made_intrinsics
+    starting_lowered.concrete_functions.each(note_instances)
+}
+
+func note_instances(function: Function) {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.kind == "call" and operation.callee == "Instances.fill" {
+                instance_classes[operation.literal] = true
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+}
+
+func is_instance_class(c_name: String): Boolean {
+    return instance_classes.has(c_name)
+}
+
+# ../../../../docs/proofs.md#an-item-lent-to-the-caller
+func lends_return(function: Function): Boolean {
+    return function.lends_answer or returns_lent.has(function.c_name)
 }
 
 # ../../../../docs/proofs.md#an-item-lent-to-the-caller

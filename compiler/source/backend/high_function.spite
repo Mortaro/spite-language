@@ -1,4 +1,4 @@
-# ../../../design/backend_high_level_ir.md#functions-blocks-and-operations
+# ../intermediate/README.md#functions-blocks-and-operations
 var name = ""
 var class_name = ""
 var c_name = ""
@@ -62,7 +62,7 @@ func value_at(number: Integer): HighValue {
     return made
 }
 
-# ../../../design/backend_high_level_ir.md#values-and-owners
+# ../intermediate/README.md#values-and-owners
 func value_or_none_at(number: Integer): HighValue? {
     var found: HighValue? = null
     if number >= 0 and number < values.count() {
@@ -98,7 +98,7 @@ func answers_true_or_false(): Boolean {
     return has_return
 }
 
-# ../../../design/backend_high_level_ir.md#the-facts-folded-from-the-operations
+# ../intermediate/README.md#the-facts-folded-from-the-operations
 func fold_facts() {
     blocks.each(fold_block)
 }

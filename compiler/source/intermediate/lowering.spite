@@ -7,6 +7,8 @@ var made_layouts = 0
 var foreign_written = false
 var made_reflections = 0
 var loop_written = false
+var made_accessed = 0
+var started_noted = false
 
 func Lowering(starting_generator: Generation.Generator) {
     generator = starting_generator
@@ -54,6 +56,16 @@ func lower(): Lowered {
             made_layouts = made_layouts + 1
             settled = false
         }
+        if settled and not started_noted {
+            started_noted = true
+            note_started_twins(instances)
+            settled = made_accessed == instances.accessed_names.count()
+        }
+        if settled and made_accessed < instances.accessed_names.count() {
+            write_accessed(instances, made_accessed)
+            made_accessed = made_accessed + 1
+            settled = false
+        }
         if settled and made.read_evaluate_print_loop and not loop_written {
             loop_written = true
             write_loop_singletons(instances)
@@ -79,10 +91,41 @@ func write_main(instances: Instances) {
     var expressions = ExpressionLowering(emitter, instances, launcher, described, -1)
     var no_arguments = List<Syntax.Expressions.Expression>()
     expressions.construct(launcher, no_arguments)
+    if instances.front().scheduler_used {
+        finish_concurrents(instances, emitter)
+    }
     emitter.returns(-1)
     finish_body(main, emitter)
     lowered.entry = main.c_name
     instances.reach_layout(launcher)
+}
+
+func finish_concurrents(instances: Instances, emitter: Emitter) {
+    var made = instances.front()
+    var scheduler = made.find_class_by_qualified("Scheduler")
+    crash scheduler
+    var finishing = made.find_or_instantiate_function(scheduler, "finish_concurrents")
+    crash finishing
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var maker = instances.singleton_maker(scheduler, no_arguments, "")
+    var scheduler_type = instances.class_type(scheduler)
+    var maybe_type = instances.nullable_of(scheduler_type)
+    var no_operands = List<Integer>()
+    var peeking = emitter.call_operation("Singleton.peek", no_operands, maybe_type)
+    peeking.target = maker
+    var boolean = instances.typed_boolean()
+    var present = emitter.emit_call_one("Nullable.has", peeking.result, boolean)
+    var present_block = emitter.new_block()
+    var done_block = emitter.new_block()
+    emitter.branch(present, present_block, done_block)
+    emitter.enter_block(present_block)
+    var found = emitter.emit_call_one("Nullable.value", peeking.result, scheduler_type)
+    instances.reach(scheduler, finishing)
+    var operands = [found]
+    emitter.emit_call(finishing.c_name, operands, finishing.return_type)
+    var no_jump = List<Integer>()
+    emitter.jump(done_block, no_jump)
+    emitter.enter_block(done_block)
 }
 
 func write_singleton(instances: Instances, position: Integer) {
@@ -182,6 +225,10 @@ func lower_body(
     function: Function,
 ) {
     var emitter = start_body(function, information, declared, instances)
+    if information.c_name == "Spite_Function" and declared.name == "get_arguments" {
+        var described_arguments = [function.receiver]
+        emitter.call_operation("Function.describe_arguments", described_arguments, null)
+    }
     var index = 0
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
@@ -219,6 +266,7 @@ func write_layout(instances: Instances, information: Analysis.ClassInfo) {
         instances.reach_type(declared_type)
         index = index + 1
     }
+    information.codegen_types.each(instances.reach_held)
     if instances.row_classes.has(information.c_name) {
         layout.kind = "row"
     }
@@ -244,15 +292,16 @@ func lower_supplied(
         generator.supply_body(information, declared)
     }
     var answer = declared.return_type
-    if declared.name == "to_debug" and declared.supplied_body.contains("Spite_Debug") {
-        reach_debug_text(instances, information)
+    if declared.name == "to_debug" and declared.supplied_body.contains("* spite_debug = ") {
+        write_debug_text(instances, information, declared, function)
+        return
     }
     if declared.name == "entry_address" {
         reach_served(instances, information)
     }
     if not declared.supplied_body.is_empty() or not types.is_void(answer) {
         function.intrinsic = "supplied"
-        reach_supplied_makers(instances, declared.supplied_body)
+        reach_supplied_makers(instances, declared.supplied_body, function)
         return
     }
     var emitter = start_body(function, information, declared, instances)
@@ -297,6 +346,9 @@ func write_scheduler(instances: Instances) {
         "offload_start"
         "offload_over"
     ]
+    if made.hot_reload or made.remote_loop_port > 0 {
+        wanted.append("check_point")
+    }
     var index = 0
     while index < wanted.count() {
         var found = made.find_or_instantiate_function(scheduler, wanted[index])
@@ -346,6 +398,18 @@ func write_reflection(instances: Instances, position: Integer) {
         write_class_maker(instances, name, described)
         return
     }
+    if kind == "forwarder" {
+        crash instances.reflection_texts[position]
+        var forwarded = instances.reflection_texts[position]
+        write_forwarder(instances, name, described, forwarded)
+        return
+    }
+    if kind == "shape_caller" {
+        crash instances.reflection_texts[position]
+        var called = instances.reflection_texts[position]
+        write_shape_caller(instances, name, described, called)
+        return
+    }
     if kind == "namespace_object" {
         crash instances.reflection_texts[position]
         var dotted = instances.reflection_texts[position]
@@ -353,6 +417,7 @@ func write_reflection(instances: Instances, position: Integer) {
         return
     }
     var function = synthetic_function(name, kind, described)
+    function.made_for = kind
     var owner_type = instances.class_type(described)
     function.receiver = function.new_value(owner_type, "receiver")
     var made = instances.front()
@@ -391,6 +456,33 @@ func write_class_object(instances: Instances, name: String) {
     var object = reflection.class_object(name)
     emitter.returns(object)
     finish_body(maker, emitter)
+    var described = reflection.described_by_class_object(name)
+    assert described
+    write_class_object_fill(instances, maker, described, class_class)
+}
+
+func write_class_object_fill(
+    instances: Instances,
+    maker: Function,
+    described: Analysis.ClassInfo,
+    class_class: Analysis.ClassInfo,
+) {
+    var fill_name = "{maker.c_name}___fill"
+    maker.filled_by = fill_name
+    var filler = synthetic_function(fill_name, "class_object_fill", class_class)
+    var class_type = instances.class_type(class_class)
+    var filled = filler.new_value(class_type, "parameter")
+    filler.value_at(filled).name = "made"
+    var parameter = Parameter("made", class_type, filled)
+    filler.parameters.append(parameter)
+    var nothing_type = instances.typed_nothing()
+    var described_function = synthetic_description("class_object_fill", fill_name, nothing_type)
+    var emitter = start_body(filler, class_class, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, class_class, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    reflection.describe_class(filled, described)
+    emitter.returns(-1)
+    finish_body(filler, emitter)
 }
 
 func write_namespace_object(instances: Instances, name: String, dotted: String) {
@@ -408,6 +500,31 @@ func write_namespace_object(instances: Instances, name: String, dotted: String) 
     var object = reflection.namespace_object(dotted)
     emitter.returns(object)
     finish_body(maker, emitter)
+    write_namespace_object_fill(instances, maker, namespace_class, dotted)
+}
+
+func write_namespace_object_fill(
+    instances: Instances,
+    maker: Function,
+    namespace_class: Analysis.ClassInfo,
+    dotted: String,
+) {
+    var fill_name = "{maker.c_name}___fill"
+    maker.filled_by = fill_name
+    var filler = synthetic_function(fill_name, "namespace_object_fill", namespace_class)
+    var namespace_type = instances.class_type(namespace_class)
+    var filled = filler.new_value(namespace_type, "parameter")
+    filler.value_at(filled).name = "made"
+    var parameter = Parameter("made", namespace_type, filled)
+    filler.parameters.append(parameter)
+    var nothing_type = instances.typed_nothing()
+    var described_function = synthetic_description("namespace_object_fill", fill_name, nothing_type)
+    var emitter = start_body(filler, namespace_class, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, namespace_class, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    reflection.describe_namespace(filled, dotted)
+    emitter.returns(-1)
+    finish_body(filler, emitter)
 }
 
 func synthetic_body(information: Analysis.ClassInfo, declared: Analysis.FunctionInfo) {
@@ -422,15 +539,29 @@ func synthetic_body(information: Analysis.ClassInfo, declared: Analysis.Function
     declared.supplied_body = "return spite_string_from_cstring_owned({information.c_name}___name(self));"
 }
 
-func reach_debug_text(instances: Instances, information: Analysis.ClassInfo) {
+func write_debug_text(
+    instances: Instances,
+    information: Analysis.ClassInfo,
+    declared: Analysis.FunctionInfo,
+    function: Function,
+) {
     var made = instances.front()
-    var debugged_type = made.instance_type_of(information)
-    var debug_class = made.debug_class_of(debugged_type)
-    var no_arguments = List<Syntax.Expressions.Expression>()
-    instances.singleton_maker(debug_class, no_arguments, "")
+    var body = declared.supplied_body
+    var end = body.index_of("* spite_debug")
+    crash end >= 0
+    var debug_name = body.slice(0, end)
+    var debug_class = made.find_class_by_c_name(debug_name)
+    crash debug_class
     var text = made.find_or_instantiate_function(debug_class, "text")
-    assert text
-    instances.reach(debug_class, text)
+    crash text
+    var emitter = start_body(function, information, declared, instances)
+    var expressions = ExpressionLowering(emitter, instances, information, declared, function.receiver)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var debugger = expressions.singleton(debug_class, no_arguments)
+    var operands = [debugger, function.receiver]
+    var shown = expressions.call_reached(debug_class, text, operands)
+    emitter.returns(shown)
+    finish_body(function, emitter)
 }
 
 func reach_served(instances: Instances, information: Analysis.ClassInfo) {
@@ -490,6 +621,542 @@ func write_reflect(instances: Instances, name: String, described: Analysis.Class
     finish_body(function, emitter)
 }
 
+func write_forwarder(instances: Instances, name: String, described: Analysis.ClassInfo, forwarded: String) {
+    var made = instances.front()
+    var target = made.find_or_instantiate_function(described, forwarded)
+    crash target
+    var function = synthetic_function(name, forwarded, described)
+    function.answer = target.return_type
+    var receiver_type = instances.receiver_type(described)
+    function.receiver = function.new_value(receiver_type, "receiver")
+    var operands = List<Integer>()
+    if not receiver_less(described, target) {
+        operands.append(function.receiver)
+    }
+    var index = 0
+    while index < target.parameters.count() {
+        var declared_parameter = target.parameters[index]
+        var spite_type = declared_parameter.type
+        var value = function.new_value(spite_type, "parameter")
+        function.value_at(value).name = declared_parameter.name
+        var parameter = Parameter(declared_parameter.name, spite_type, value)
+        function.parameters.append(parameter)
+        operands.append(value)
+        index = index + 1
+    }
+    var described_function = synthetic_description(forwarded, name, target.return_type)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var answered = expressions.call_reached(described, target, operands)
+    if types.is_void(target.return_type) {
+        emitter.returns(-1)
+    } else {
+        emitter.returns(answered)
+    }
+    finish_body(function, emitter)
+}
+
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func note_started_twins(instances: Instances) {
+    var made = instances.front()
+    assert made.scheduler_used and not made.keeps_internals and not made.hot_reload and not made.read_evaluate_print_loop
+    assert program_sleeps()
+    var count = lowered.concrete_functions.count()
+    var index = 0
+    while index < count {
+        var function = lowered.concrete_functions[index]
+        index = index + 1
+        note_started_twin(instances, function)
+    }
+}
+
+func program_sleeps(): Boolean {
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var function = lowered.concrete_functions[index]
+        var layout = lowered.layout_named(function.owner)
+        if layout and layout.qualified == "Program" and function.name == "sleep" {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func note_started_twin(instances: Instances, function: Function) {
+    assert function.made_for.is_empty() and function.not_lowered.is_empty() and not function.is_constructor
+    assert not function.is_intrinsic() and not function.blocks.is_empty() and function.receiver >= 0
+    assert function.parameters.is_empty() and function.source and types.is_void(function.source.return_type)
+    var made = instances.front()
+    var information = made.find_class_by_c_name(function.owner)
+    assert information and not information.is_singleton and not information.is_value_class
+    assert not information.is_generic_template and not made.is_library_class(information)
+    instances.accessed_maker("{function.c_name}___started", information, function.c_name, "started")
+}
+
+# ../../../docs/proofs.md#a-wait-in-a-frame-is-started
+func write_started(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var called = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash called
+    var callee = lowered.function_named(called)
+    crash callee
+    crash callee.source
+    var made = instances.front()
+    var keeper = made.waits_in_flight()
+    var keep = made.find_or_instantiate_function(keeper, "_keep")
+    crash keep
+    var function = synthetic_function(name, "started", described)
+    function.made_for = "started"
+    var nothing = instances.typed_nothing()
+    function.answer = nothing
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var integer_type = instances.typed_integer()
+    var site = function.new_value(integer_type, "parameter")
+    function.value_at(site).name = "site"
+    var site_parameter = Parameter("site", integer_type, site)
+    function.parameters.append(site_parameter)
+    var described_function = synthetic_description("started", name, nothing)
+    var emitter = start_body(function, described, described_function, instances)
+    var holder = "spite_started_receiver"
+    emitter.declare_local(holder, function.receiver, owner_type)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var statements = StatementLowering(expressions)
+    crash callee.source
+    var callee_name = callee.source.name
+    var callee_line = callee.source.line
+    var callee_path = instances.source_path_of(described, callee.source)
+    var owner: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(holder)
+    var bound_function: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(owner, callee_name)
+    var concurrent: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("Concurrent")
+    var started_arguments = List<Syntax.Expressions.Expression>()
+    started_arguments.append(bound_function)
+    var started: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(concurrent, started_arguments)
+    var handle_name = "spite_started_handle"
+    var declaration = Syntax.Statements.VariableDeclaration(handle_name, null, started)
+    declaration.line = callee_line
+    declaration.source_path = callee_path
+    statements.lower_statement(declaration)
+    var handle = emitter.local_named(handle_name)
+    if handle {
+        var no_arguments = List<Syntax.Expressions.Expression>()
+        var kept = expressions.singleton(keeper, no_arguments)
+        var operands = [kept, handle.value, site]
+        expressions.call_reached(keeper, keep, operands)
+        emitter.returns(-1)
+    } else if not emitter.lowering_failed() {
+        emitter.fail_lowering("the started call of '{called}', whose Concurrent was not made")
+    }
+    finish_body(function, emitter)
+}
+
+# ../../../docs/reflection.md#spiteaccess
+func write_accessed(instances: Instances, position: Integer) {
+    var kind = instances.accessed_kinds[position]
+    crash kind
+    if kind == "list_attributes" or kind == "dictionary_attributes" {
+        write_container_attributes(instances, position)
+        return
+    }
+    if kind == "text_call" {
+        write_text_call(instances, position)
+        return
+    }
+    if kind == "started" {
+        write_started(instances, position)
+        return
+    }
+    if kind == "arguments" {
+        write_arguments(instances, position)
+        return
+    }
+    if kind == "enum_from_text" {
+        write_enum_reader(instances, position)
+        return
+    }
+    if kind == "copy" {
+        write_copy(instances, position)
+        return
+    }
+    if kind == "deep_copy" {
+        write_deep_copy(instances, position)
+        return
+    }
+    if kind == "item_assign" or kind == "item_store" {
+        write_item_function(instances, position)
+        return
+    }
+    write_described(instances, position)
+}
+
+func write_item_function(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var kind = instances.accessed_kinds[position]
+    crash name
+    crash described
+    crash kind
+    var function = synthetic_function(name, kind, described)
+    function.made_for = kind
+    var element = described.codegen_types[0]
+    crash element
+    var boolean = instances.typed_boolean()
+    var nothing = instances.typed_nothing()
+    var answer = nothing
+    if kind == "item_assign" {
+        answer = boolean
+    }
+    function.answer = answer
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var integer_type = instances.typed_integer()
+    var index = function.new_value(integer_type, "parameter")
+    function.value_at(index).name = "index"
+    var index_parameter = Parameter("index", integer_type, index)
+    function.parameters.append(index_parameter)
+    var last_type = element
+    var last_name = "value"
+    if kind == "item_assign" {
+        last_type = instances.typed_string()
+        last_name = "text"
+    }
+    var last = function.new_value(last_type, "parameter")
+    function.value_at(last).name = last_name
+    var last_parameter = Parameter(last_name, last_type, last)
+    function.parameters.append(last_parameter)
+    var described_function = synthetic_description(kind, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    if kind == "item_assign" {
+        reflection.item_assign_body(described, element, function.receiver, index, last)
+    } else {
+        reflection.item_store_body(described, function.receiver, index, last)
+    }
+    finish_body(function, emitter)
+}
+
+func write_enum_reader(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var enum_name = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash enum_name
+    var made = instances.front()
+    var enum_type: Analysis.SpiteType? = null
+    var index = 0
+    while index < made.enums.count() {
+        var candidate = made.enums[index]
+        if candidate.c_name == enum_name {
+            enum_type = Analysis.Types.EnumType(candidate.c_name, candidate.values)
+        }
+        index = index + 1
+    }
+    crash enum_type
+    var enumerated = types.as_enum(enum_type)
+    crash enumerated
+    var text_type = instances.typed_string()
+    var maybe_enum = instances.nullable_of(enum_type)
+    var function = synthetic_function(name, "from_text", described)
+    function.made_for = "from_text"
+    function.answer = maybe_enum
+    var text = function.new_value(text_type, "parameter")
+    function.value_at(text).name = "text"
+    var text_parameter = Parameter("text", text_type, text)
+    function.parameters.append(text_parameter)
+    var described_function = synthetic_description("from_text", name, maybe_enum)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var whole: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("text")
+    var value_index = 0
+    while value_index < enumerated.values.count() {
+        var value = enumerated.values[value_index]
+        var spelled = expressions.text_constant(value)
+        var same = expressions.compare_values('equal', text, spelled, whole)
+        var hit = emitter.new_block()
+        var next = emitter.new_block()
+        emitter.branch(same, hit, next)
+        emitter.enter_block(hit)
+        var constant = emitter.constant(enum_type, value)
+        var wrapped = emitter.emit_call_one("Nullable.wrap", constant, maybe_enum)
+        emitter.wrapped_values[wrapped] = true
+        emitter.returns(wrapped)
+        emitter.enter_block(next)
+        value_index = value_index + 1
+    }
+    var absent = emitter.constant(maybe_enum, "null")
+    emitter.returns(absent)
+    finish_body(function, emitter)
+}
+
+# ../../../docs/optimizations.md#a-function-value-describes-its-arguments-when-asked
+func write_arguments(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var called = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash called
+    var made = instances.front()
+    var found: Analysis.FunctionInfo? = null
+    var index = 0
+    while index < described.declared_functions.count() {
+        var candidate = described.declared_functions[index]
+        if candidate.c_name == called {
+            found = candidate
+        }
+        index = index + 1
+    }
+    crash found
+    var function_class = made.find_class_by_c_name("Spite_Function")
+    var argument_class = made.find_class_by_c_name("Spite_Argument")
+    crash function_class
+    crash argument_class
+    var function = synthetic_function(name, "arguments", described)
+    function.made_for = "arguments"
+    var function_type = instances.class_type(function_class)
+    var value = function.new_value(function_type, "parameter")
+    var parameter = Parameter("described", function_type, value)
+    function.parameters.append(parameter)
+    var nothing = instances.typed_nothing()
+    var described_function = synthetic_description("arguments", name, nothing)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    reflection.describe_arguments(described, found, value, argument_class)
+    emitter.returns(-1)
+    finish_body(function, emitter)
+}
+
+func write_copy(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    crash name
+    crash described
+    var function = synthetic_function(name, "copy", described)
+    function.made_for = "copy"
+    var owner_type = instances.class_type(described)
+    function.answer = owner_type
+    function.receiver = function.new_value(owner_type, "receiver")
+    var described_function = synthetic_description("copy", name, owner_type)
+    var emitter = start_body(function, described, described_function, instances)
+    if described.c_name == "Spite_Function" {
+        var described_arguments = [function.receiver]
+        emitter.call_operation("Function.describe_arguments", described_arguments, null)
+    }
+    var made_object = emitter.make_object(described.c_name, owner_type)
+    var index = 0
+    while index < described.fields.count() {
+        var field = described.fields[index]
+        var held = emitter.load_field(function.receiver, field.name, field.type)
+        emitter.store_field(made_object, field.name, held)
+        index = index + 1
+    }
+    emitter.returns(made_object)
+    finish_body(function, emitter)
+}
+
+func write_deep_copy(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    crash name
+    crash described
+    var function = synthetic_function(name, "deep_copy", described)
+    function.made_for = "deep_copy"
+    var owner_type = instances.class_type(described)
+    function.answer = owner_type
+    function.receiver = function.new_value(owner_type, "receiver")
+    var described_function = synthetic_description("deep_copy", name, owner_type)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var copying = DeepCopying(expressions)
+    var copied = -1
+    if described.qualified_dotted == "List" {
+        copied = copying.list_body(described, function.receiver)
+    } else if described.qualified_dotted == "Dictionary" {
+        copied = copying.dictionary_body(described, function.receiver)
+    } else {
+        copied = copying.class_body(described, function.receiver, owner_type)
+    }
+    emitter.returns(copied)
+    finish_body(function, emitter)
+}
+
+func write_container_attributes(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var kind = instances.accessed_kinds[position]
+    crash name
+    crash described
+    crash kind
+    var made = instances.front()
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var function = synthetic_function(name, kind, described)
+    function.made_for = kind
+    var attribute_element = instances.class_type(attribute_class)
+    var answer = made.list_type_of(attribute_element)
+    function.answer = answer
+    var owner_type = instances.class_type(described)
+    function.receiver = function.new_value(owner_type, "receiver")
+    var described_function = synthetic_description(kind, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    var listed = -1
+    if kind == "list_attributes" {
+        var element = described.codegen_types[0]
+        crash element
+        listed = reflection.items_attributes(function.receiver, -1, element, null)
+    } else {
+        var key_type = described.codegen_types[0]
+        var value_type = described.codegen_types[1]
+        crash key_type
+        crash value_type
+        var key_list_type = made.list_type_of(key_type)
+        var value_list_type = made.list_type_of(value_type)
+        var keys = emitter.load_field(function.receiver, "entry_keys", key_list_type)
+        var values = emitter.load_field(function.receiver, "entry_values", value_list_type)
+        listed = reflection.items_attributes(values, keys, value_type, key_type)
+    }
+    emitter.returns(listed)
+    finish_body(function, emitter)
+}
+
+func write_text_call(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var written = instances.accessed_texts[position]
+    crash name
+    crash described
+    crash written
+    var made = instances.front()
+    var found = described.find_function(written)
+    crash found
+    var attribute_class = made.find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var function = synthetic_function(name, "text_call", described)
+    function.made_for = "text_call"
+    var attribute_type = instances.class_type(attribute_class)
+    var maybe_attribute = instances.nullable_of(attribute_type)
+    function.answer = maybe_attribute
+    var receiver_type = instances.receiver_type(described)
+    function.receiver = function.new_value(receiver_type, "receiver")
+    var text_type = instances.typed_string()
+    var list_type = made.list_type_of(text_type)
+    var arguments = function.new_value(list_type, "parameter")
+    function.value_at(arguments).name = "arguments"
+    var argument_parameter = Parameter("arguments", list_type, arguments)
+    function.parameters.append(argument_parameter)
+    var described_function = synthetic_description("text_call", name, maybe_attribute)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, function.receiver)
+    var reflection = ReflectionLowering(expressions)
+    reflection.text_call_body(described, found, function.receiver, arguments)
+    finish_body(function, emitter)
+}
+
+func write_described(instances: Instances, position: Integer) {
+    var name = instances.accessed_names[position]
+    var described = instances.accessed_classes[position]
+    var written = instances.accessed_texts[position]
+    var kind = instances.accessed_kinds[position]
+    crash name
+    crash described
+    crash written
+    crash kind
+    var made = instances.front()
+    var function = synthetic_function(name, kind, described)
+    function.made_for = kind
+    var parameter_class = made.find_class_by_c_name("Spite_Function")
+    if kind == "functions" or kind == "attributes" {
+        parameter_class = made.find_class_by_c_name("Spite_Class")
+    }
+    crash parameter_class
+    var function_type = instances.class_type(parameter_class)
+    var value = function.new_value(function_type, "parameter")
+    var parameter = Parameter("described", function_type, value)
+    function.parameters.append(parameter)
+    var nothing = instances.typed_nothing()
+    var described_function = synthetic_description(kind, name, nothing)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var reflection = ReflectionLowering(expressions)
+    if kind == "attributes" {
+        if instances.reached_functions.has("Spite_Class_get_attributes") {
+            reflection.fill_attributes(described, value)
+        }
+    } else if kind == "functions" {
+        var readers = [
+            "Spite_Class_get_functions"
+            "Spite_Class_has_function"
+            "Spite_Class_function_waits"
+            "Spite_Class_argument_count"
+        ]
+        var read = false
+        var reader_index = 0
+        while reader_index < readers.count() {
+            if instances.reached_functions.has(readers[reader_index]) {
+                read = true
+            }
+            reader_index = reader_index + 1
+        }
+        if read {
+            reflection.fill_functions(described, value)
+        }
+    } else if instances.reached_functions.has("Spite_Function_get_accesses") {
+        var found = described.find_function(written)
+        crash found
+        reflection.fill_accesses(described, found, value)
+    }
+    emitter.returns(-1)
+    finish_body(function, emitter)
+}
+
+func write_shape_caller(instances: Instances, name: String, described: Analysis.ClassInfo, called: String) {
+    var made = instances.front()
+    var pieces = called.split(" ")
+    var union_name = pieces[0]
+    crash union_name
+    var member_name = pieces[1]
+    crash member_name
+    var described_union = made.find_union_by_c_name(union_name)
+    crash described_union
+    var wanted = made.find_required_function(described_union, member_name)
+    crash wanted
+    var function = synthetic_function(name, member_name, described)
+    var parameter_types = made.required_parameter_types(described_union, wanted)
+    var answer = made.required_return_type(described_union, wanted)
+    function.answer = answer
+    var union_type = made.union_type_of(described_union)
+    var owner = function.new_value(union_type, "parameter")
+    function.value_at(owner).name = "owner"
+    var owner_parameter = Parameter("owner", union_type, owner)
+    function.parameters.append(owner_parameter)
+    var values = List<Integer>()
+    var index = 0
+    while index < parameter_types.count() {
+        var parameter_name = "argument_{index}"
+        var value = function.new_value(parameter_types[index], "parameter")
+        function.value_at(value).name = parameter_name
+        var parameter = Parameter(parameter_name, parameter_types[index], value)
+        function.parameters.append(parameter)
+        values.append(value)
+        index = index + 1
+    }
+    var described_function = synthetic_description(member_name, name, answer)
+    var emitter = start_body(function, described, described_function, instances)
+    var expressions = ExpressionLowering(emitter, instances, described, described_function, -1)
+    var result = expressions.dispatched(described_union, member_name, true, owner, values, answer)
+    emitter.returns(result)
+    finish_body(function, emitter)
+}
+
 func write_class_maker(instances: Instances, name: String, described: Analysis.ClassInfo) {
     var function = synthetic_function(name, "make", described)
     var made_type = instances.class_type(described)
@@ -516,7 +1183,7 @@ func write_class_maker(instances: Instances, name: String, described: Analysis.C
     finish_body(function, emitter)
 }
 
-func reach_supplied_makers(instances: Instances, body: String) {
+func reach_supplied_makers(instances: Instances, body: String, function: Function) {
     var made = instances.front()
     var pieces = body.split("___make(")
     var index = 0
@@ -532,6 +1199,7 @@ func reach_supplied_makers(instances: Instances, body: String) {
         if described and not described.is_value_class {
             instances.reach_layout(described)
             instances.reflection_maker("{c_name}___make", "class_maker", described, "")
+            function.reaches.append("{c_name}___make")
         }
         index = index + 1
     }

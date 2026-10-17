@@ -25,16 +25,36 @@ func decide(reach: Facts.ThreadReach) {
         }
         index = index + 1
     }
+    crash kinds
+    var function_value: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Function")
+    if not everything and kinds.layout_of(function_value) {
+        note_type(function_value, 0)
+    }
     var layouts = lowered.layouts
     index = 0
     while index < layouts.count() {
         var layout = layouts[index]
-        layout.atomic_counts = everything or atomic.has(layout.c_name)
+        layout.atomic_counts = everything or atomic.has(layout.c_name) or layout.c_name == "ThreadPoolJob"
         index = index + 1
     }
 }
 
 func note_function(function: Function) {
+    crash kinds
+    if function.receiver >= 0 {
+        var receiver_type = function.value_at(function.receiver).spite_type
+        if kinds.is_counted(receiver_type) {
+            note_type(receiver_type, 0)
+        }
+    }
+    var parameter_index = 0
+    while parameter_index < function.parameters.count() {
+        var parameter_type = function.parameters[parameter_index].spite_type
+        if kinds.is_counted(parameter_type) {
+            note_type(parameter_type, 0)
+        }
+        parameter_index = parameter_index + 1
+    }
     var block_index = 0
     while block_index < function.blocks.count() {
         var block = function.blocks[block_index]

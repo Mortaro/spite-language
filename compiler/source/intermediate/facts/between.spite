@@ -3,19 +3,76 @@ func operations_between(function: Function, flow: Flow, from: Place, to: Place):
     var found = List<Operation>()
     var start = from.first_operation_after()
     var end = to.last_operation_before()
-    if from.before(to) {
-        add_range(function, from.block, start, end, found)
-        return found
+    var forward = reached_all(flow, from.block, true)
+    var backward = reached_all(flow, to.block, false)
+    var from_again = forward.contains(from.block) and backward.contains(from.block)
+    var to_again = forward.contains(to.block) and backward.contains(to.block)
+    if from.block == to.block {
+        if from.before(to) {
+            add_same_block(function, from, to, false, found)
+            return found
+        }
+        add_same_block(function, from, to, from_again, found)
+        return found_with_middle(function, from, to, forward, backward, found)
     }
-    add_range(function, from.block, start, 1000000000, found)
-    add_range(function, to.block, 0, end, found)
-    var middle = blocks_between(flow, from.block, to.block)
+    var from_start = start
+    if from_again {
+        from_start = 0
+    }
+    add_range(function, from.block, from_start, 1000000000, found)
+    var to_end = end
+    if to_again {
+        to_end = 1000000000
+    }
+    add_range(function, to.block, 0, to_end, found)
+    return found_with_middle(function, from, to, forward, backward, found)
+}
+
+func add_same_block(function: Function, from: Place, to: Place, again: Boolean, found: List<Operation>) {
+    if again {
+        add_range(function, from.block, 0, 1000000000, found)
+        return
+    }
+    assert from.before(to)
+    var start = from.first_operation_after()
+    var end = to.last_operation_before()
+    add_range(function, from.block, start, end, found)
+}
+
+func found_with_middle(
+    function: Function,
+    from: Place,
+    to: Place,
+    forward: List<Integer>,
+    backward: List<Integer>,
+    found: List<Operation>,
+): List<Operation> {
     var index = 0
-    while index < middle.count() {
-        add_range(function, middle[index], 0, 1000000000, found)
+    while index < forward.count() {
+        var block = forward[index]
+        if backward.contains(block) and block != from.block and block != to.block {
+            add_range(function, block, 0, 1000000000, found)
+        }
         index = index + 1
     }
     return found
+}
+
+func reached_all(flow: Flow, start: Integer, going_forward: Boolean): List<Integer> {
+    var seen = List<Integer>()
+    var waiting = List<Integer>()
+    var first = neighbours(flow, start, going_forward)
+    first.each(waiting.append)
+    while not waiting.is_empty() {
+        var taken = waiting.remove_last()
+        crash taken
+        if not seen.contains(taken) {
+            seen.append(taken)
+            var next = neighbours(flow, taken, going_forward)
+            next.each(waiting.append)
+        }
+    }
+    return seen
 }
 
 func add_range(function: Function, block_number: Integer, start: Integer, end: Integer, found: List<Operation>) {
@@ -28,38 +85,6 @@ func add_range(function: Function, block_number: Integer, start: Integer, end: I
         found.append(block.operations[index])
         index = index + 1
     }
-}
-
-func blocks_between(flow: Flow, from: Integer, to: Integer): List<Integer> {
-    var forward = reached(flow, from, to, true)
-    var backward = reached(flow, to, from, false)
-    var middle = List<Integer>()
-    var index = 0
-    while index < forward.count() {
-        var block = forward[index]
-        if backward.contains(block) and block != from and block != to {
-            middle.append(block)
-        }
-        index = index + 1
-    }
-    return middle
-}
-
-func reached(flow: Flow, start: Integer, stop: Integer, going_forward: Boolean): List<Integer> {
-    var seen = List<Integer>()
-    var waiting = List<Integer>()
-    var first = neighbours(flow, start, going_forward)
-    first.each(waiting.append)
-    while not waiting.is_empty() {
-        var taken = waiting.remove_last()
-        crash taken
-        if not seen.contains(taken) and taken != start and taken != stop {
-            seen.append(taken)
-            var next = neighbours(flow, taken, going_forward)
-            next.each(waiting.append)
-        }
-    }
-    return seen
 }
 
 func neighbours(flow: Flow, block: Integer, going_forward: Boolean): List<Integer> {

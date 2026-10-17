@@ -8,6 +8,7 @@ var machines = Machines()
 var hot = Hot()
 var machine = false
 var resume_count = 0
+var release_temporaries = 0
 var placements = Dictionary<Integer, Integer>()
 var current_block = Block(0)
 var shape = Analysis.TypeShape()
@@ -18,6 +19,7 @@ var parameter_names = Dictionary<Integer, String>()
 var string_constants = Dictionary<Integer, String>()
 var tag_sources = Dictionary<Integer, String>()
 var tag_constants = Dictionary<Integer, String>()
+var restores = Dictionary<Integer, String>()
 var frame_lists = Dictionary<Integer, String>()
 var frame_buffers = Dictionary<Integer, String>()
 var fixed_buffers = Dictionary<Integer, Boolean>()
@@ -32,6 +34,7 @@ func print(printed: Function) {
     string_constants = Dictionary<Integer, String>()
     tag_sources = Dictionary<Integer, String>()
     tag_constants = Dictionary<Integer, String>()
+    restores = Dictionary<Integer, String>()
     frame_lists = Dictionary<Integer, String>()
     frame_buffers = Dictionary<Integer, String>()
     fixed_buffers = Dictionary<Integer, Boolean>()
@@ -55,6 +58,10 @@ func print(printed: Function) {
         print_locked()
         return
     }
+    if waits_as_primitive(printed) {
+        print_waiting_lowered()
+        return
+    }
     if printed.slotted {
         print_slotted()
         return
@@ -63,6 +70,21 @@ func print(printed: Function) {
     if printed.resumable {
         print_machine()
     }
+}
+
+# ../../../../docs/optimizations.md#hidden-asyncawait-as-compile-time-state-machines
+func waits_as_primitive(printed: Function): Boolean {
+    var kind = printed.waiting_kind
+    return not kind.is_empty() and kind != "join" and lowered.makes_concurrents and machines.scheduler_present()
+}
+
+func print_waiting_lowered() {
+    output.need("machines")
+    print_lowered("{function.c_name}___waiting", "")
+    var wrapped = signature(function.c_name)
+    output.prototypes.append("{wrapped};")
+    machines.waiting_wrapper(function, function.waiting_kind, wrapped)
+    note_place(function.c_name)
 }
 
 # ../../../../docs/repl.md#live-reload---hot-reload
@@ -79,6 +101,7 @@ func print_machine() {
     string_constants = Dictionary<Integer, String>()
     tag_sources = Dictionary<Integer, String>()
     tag_constants = Dictionary<Integer, String>()
+    restores = Dictionary<Integer, String>()
     frame_lists = Dictionary<Integer, String>()
     frame_buffers = Dictionary<Integer, String>()
     fixed_buffers = Dictionary<Integer, Boolean>()
@@ -116,6 +139,7 @@ func print_machine() {
     machines.frame_type(function, fields)
     var begun = machines.begin_text(function)
     output.body(begun)
+    output.name_piece("{function.c_name}___begin")
     var defines = List<String>()
     var undefines = List<String>()
     index = 0
@@ -156,14 +180,18 @@ func declared_name(declared: String): String {
 }
 
 func print_wait_call(operation: Operation, callee: Function) {
+    var arguments = call_arguments(operation)
+    print_wait_through(operation.result, callee, arguments)
+}
+
+func print_wait_through(result: Integer, callee: Function, arguments: String) {
     resume_count = resume_count + 1
     var point = resume_count
     var slot = "spite_frame->spite_wait_{point}"
-    var arguments = call_arguments(operation)
     lines.append("{slot} = {callee.c_name}___begin({arguments});")
     lines.append("spite_resume_{point}: if (!{callee.c_name}___step({slot})) SPITE_SUSPEND({point});")
-    if is_declared(operation.result) {
-        assign(operation.result, "(({callee.c_name}___frame*){slot})->spite_result")
+    if is_declared(result) {
+        assign(result, "(({callee.c_name}___frame*){slot})->spite_result")
     }
     lines.append("SPITE_FREE({slot});")
 }
@@ -175,10 +203,13 @@ func waits_in_machine(callee: Function): Boolean {
     if callee.resumable and not callee.blocks.is_empty() and callee.locking.is_empty() and callee.singleton_of.is_empty() {
         return true
     }
-    if callee.intrinsic != "supplied" {
+    var kind = callee.waiting_kind
+    if callee.intrinsic != "supplied" and kind.is_empty() {
         return false
     }
-    var kind = machines.waiting_kind(callee)
+    if kind.is_empty() {
+        kind = machines.waiting_kind(callee)
+    }
     if kind.is_empty() or kind == "yield" {
         return false
     }
@@ -325,11 +356,14 @@ func print_singleton_maker() {
     var ending = "{name}___release(object);"
     var found = "found"
     var cached = "{getter}_cache"
+    var handed = "made"
     if layout.is_singleton {
         ending = "{name}___destroy(object);"
     } else {
         found = "{name}___retain(found)"
         cached = "{name}___retain({getter}_cache)"
+        handed = "{name}___retain(made)"
+        shown = getter
     }
     var getter_lines = [
         "static {answered} {getter}_cache = 0;"
@@ -358,6 +392,18 @@ func print_singleton_maker() {
         "return {cached};"
         "}"
     ]
+    if not function.filled_by.is_empty() {
+        getter_lines = filled_getter_lines(
+            getter,
+            answered,
+            "{cycle_breaking_lines(layout)}{ending}",
+            found,
+            cached,
+            shown,
+            maker,
+            handed,
+        )
+    }
     output.prototypes.append("{answered} {getter}(void);")
     output.prototypes.append("{answered} {getter}_peek(void);")
     getter_lines.append(
@@ -365,9 +411,66 @@ func print_singleton_maker() {
     )
     var getter_text = getter_lines.join("\n")
     output.body(getter_text)
+    output.impure()
     output.runtime_place("{getter}_teardown")
     output.runtime_place(getter)
     output.runtime_place("{getter}_peek")
+}
+
+# ../../../../docs/memory.md#self-referential-classes-and-unions-just-work
+func filled_getter_lines(
+    getter: String,
+    answered: String,
+    ending: String,
+    found: String,
+    cached: String,
+    shown: String,
+    maker: String,
+    starting_handed: String,
+): List<String> {
+    var handed = starting_handed
+    var filling = lowered.function_named(function.filled_by)
+    if not filling {
+        refuse("it makes '{getter}' and fills it with '{function.filled_by}', which the program does not hold")
+    }
+    if filling and not filling.parameters.is_empty() and filling.parameters[0].ownership != "owned" {
+        handed = "made"
+    }
+    return [
+        "static {answered} {getter}_cache = 0;"
+        "static bool {getter}_ready = false;"
+        "static SPITE_THREAD_LOCAL bool {getter}_filling = false;"
+        "static bool {getter}_destroyed = false;"
+        "static int32_t {getter}_lock = 0;"
+        "static void {getter}_teardown(void) \{"
+        "{answered} object = {getter}_cache;"
+        "{getter}_cache = 0;"
+        "__atomic_store_n(&{getter}_ready, false, __ATOMIC_RELEASE);"
+        "{getter}_destroyed = true;"
+        ending
+        "}"
+        "{answered} {getter}(void) \{"
+        "{answered} found = __atomic_load_n(&{getter}_ready, __ATOMIC_ACQUIRE) ? {getter}_cache : 0;"
+        "if (found != 0) return {found};"
+        "if ({getter}_filling) \{ found = {getter}_cache; return {found}; }"
+        "spite_singleton_check_circle(\"{shown}\");"
+        "SPITE_LOCK({getter}_lock);"
+        "if ({getter}_cache == 0) \{"
+        "if ({getter}_destroyed) spite_singleton_used_after_exit(\"{shown}\");"
+        "spite_singleton_making(\"{shown}\");"
+        "{answered} made = {maker}();"
+        "spite_singleton_made();"
+        "spite_singleton_created({getter}_teardown);"
+        "SPITE_SINGLETON_PUBLISH({getter}_cache, made);"
+        "{getter}_filling = true;"
+        "{function.filled_by}({handed});"
+        "{getter}_filling = false;"
+        "__atomic_store_n(&{getter}_ready, true, __ATOMIC_RELEASE);"
+        "}"
+        "SPITE_UNLOCK({getter}_lock);"
+        "return {cached};"
+        "}"
+    ]
 }
 
 func print_static_getter(layout: Layout) {
@@ -429,6 +532,7 @@ func print_supplied() {
         return
     }
     var supplied = function.source.supplied_body
+    output.supplied(supplied)
     if supplied.contains("spite_frame_start") or supplied.contains("SpiteFrame") {
         output.need("machines")
     }
@@ -454,6 +558,8 @@ func print_supplied() {
         var waited = signature("{function.c_name}___waiting")
         output.prototypes.append("{waited};")
         output.body("{waited} \{\n{supplied}\n}")
+        mark_supplied(supplied)
+        output.name_piece("{function.c_name}___waiting")
         var wrapped = signature(function.c_name)
         output.prototypes.append("{wrapped};")
         machines.waiting_wrapper(function, kind, wrapped)
@@ -464,6 +570,7 @@ func print_supplied() {
         var hot_heading = signature("{function.c_name}___hot")
         output.prototypes.append("{hot_heading};")
         output.body("{hot_heading} \{\n{supplied}\n}")
+        mark_supplied(supplied)
         note_place("{function.c_name}___hot")
         var parts = parameter_parts()
         var answered = answer_type()
@@ -473,7 +580,14 @@ func print_supplied() {
     var heading = signature(function.c_name)
     output.prototypes.append("{heading};")
     output.body("{heading} \{\n{supplied}\n}")
+    mark_supplied(supplied)
     note_place(function.c_name)
+}
+
+func mark_supplied(supplied: String) {
+    if supplied.contains("static ") {
+        output.impure()
+    }
 }
 
 func thread_entry() {
@@ -575,6 +689,10 @@ func answers_nothing(): Boolean {
 }
 
 func note_place(c_name: String) {
+    if function.name == "main" and c_name == "spite_main" {
+        output.hidden_place(c_name)
+        return
+    }
     var owner = lowered.layout_named(function.owner)
     if not function.source or not owner {
         output.runtime_place(c_name)
@@ -776,12 +894,33 @@ func print_table(operation: Operation, made: Analysis.SpiteType) {
         refuse("a constant table of a list with no element type")
         return
     }
-    var name = output.table_name(layout.c_name, operation.literal)
+    var literal = operation.literal
+    var enumerated = shape.as_enum(element)
+    if enumerated {
+        literal = enum_table_text(enumerated.c_name, operation.literal)
+    }
+    var name = output.table_name(layout.c_name, literal)
     if name.is_empty() {
         var written = naming.c_type(element)
-        name = output.add_table(layout.c_name, operation.literal, written)
+        name = output.add_table(layout.c_name, literal, written)
     }
     assign(operation.result, "(&{name})")
+}
+
+func enum_table_text(enum_name: String, literal: String): String {
+    var length = literal.length()
+    var inner = literal.slice(1, length - 1)
+    var written = List<String>()
+    if not inner.trim().is_empty() {
+        var pieces = inner.split(",")
+        var index = 0
+        while index < pieces.count() {
+            var piece = pieces[index].trim().replace("'", "")
+            written.append("{enum_name}_{piece}")
+            index = index + 1
+        }
+    }
+    return "[{written.join(", ")}]"
 }
 
 func constant_text(made: Analysis.SpiteType, literal: String): String {
@@ -897,6 +1036,9 @@ func decimal_constant(kind: Analysis.Types.NumericKind, literal: String): String
         "not_a_number": return "__builtin_nan{precision}(\"\")"
         _: {}
     }
+    if is_folded_decimal(literal) {
+        return literal
+    }
     if not is_decimal_literal(literal) {
         refuse("a decimal constant '{literal}' that is not written in digits")
         return "0"
@@ -905,6 +1047,16 @@ func decimal_constant(kind: Analysis.Types.NumericKind, literal: String): String
         return "{literal}{suffix}"
     }
     return "{literal}.0{suffix}"
+}
+
+func is_folded_decimal(literal: String): Boolean {
+    var wrapped = literal.starts_with("(") and literal.ends_with(")")
+    var hexadecimal = literal.contains("0x") and literal.contains("p")
+    var named = literal.contains("__builtin_nan") or literal.contains("__builtin_inf")
+    var literal_length = literal.length()
+    var inside = literal.slice(1, literal_length - 1).replace("f", "")
+    var plain = literal_length > 2 and is_decimal_literal(inside)
+    return wrapped and (hexadecimal or named or plain) and not literal.contains(";")
 }
 
 func is_decimal_literal(literal: String): Boolean {
@@ -930,10 +1082,6 @@ func print_call(operation: Operation) {
     }
     if operation.callee.contains(".") {
         intrinsics.print(this, operation)
-        return
-    }
-    if is_copy_call(operation.callee) {
-        print_plain_call(operation, operation.callee)
         return
     }
     refuse("it calls '{operation.callee}', which the program does not hold")
@@ -970,35 +1118,137 @@ func print_call_value(operation: Operation) {
         returned = naming.c_type(answered)
     }
     var pointer = "(({returned} (*)({pointer_parameters.join(", ")}))({called})->spite_typed_call)"
-    assign(operation.result, "{pointer}({arguments.join(", ")})")
+    var passed_text = arguments.join(", ")
+    var targets = List<Function>()
+    if machine {
+        targets = resumable_value_targets(called_signature, returned)
+    }
+    var index_target = 0
+    while index_target < targets.count() {
+        var target = targets[index_target]
+        index_target = index_target + 1
+        lines.append("if (({called})->spite_typed_call == (void*){target.c_name}) \{")
+        print_wait_through(operation.result, target, passed_text)
+        lines.append("} else")
+    }
+    if targets.is_empty() {
+        assign(operation.result, "{pointer}({passed_text})")
+    } else {
+        lines.append("\{")
+        assign(operation.result, "{pointer}({passed_text})")
+        lines.append("}")
+    }
 }
 
-func is_copy_call(callee: String): Boolean {
-    if not callee.ends_with("_copy") {
+func same_signature(target: Function, called_shape: Analysis.Types.ClassRefType, returned: String): Boolean {
+    if target.parameters.count() != called_shape.arguments.count() {
         return false
     }
-    var callee_length = callee.length()
-    var copied = callee.slice(0, callee_length - 5)
-    var layout = lowered.layout_named(copied)
-    if not layout {
-        return false
+    var index = 0
+    while index < target.parameters.count() {
+        var parameter_type = target.parameters[index].spite_type
+        if not parameter_type or naming.c_type(parameter_type) != naming.c_type(called_shape.arguments[index]) {
+            return false
+        }
+        index = index + 1
     }
-    if not output.copied_layouts.contains(copied) {
-        output.copied_layouts.append(copied)
+    var answered = "void"
+    if target.answer and not shape.is_void(target.answer) {
+        answered = naming.c_type(target.answer)
     }
-    return true
+    return answered == returned
+}
+
+func resumable_value_targets(called_shape: Analysis.Types.ClassRefType, returned: String): List<Function> {
+    var found = List<Function>()
+    var names = List<String>()
+    var index = 0
+    while index < lowered.concrete_functions.count() {
+        var holder = lowered.concrete_functions[index]
+        index = index + 1
+        var block_index = 0
+        while block_index < holder.blocks.count() {
+            var operations = holder.blocks[block_index].operations
+            block_index = block_index + 1
+            var position = 0
+            while position < operations.count() {
+                var operation = operations[position]
+                position = position + 1
+                var named = operation.callee == "Function.bind" or operation.kind == "constant"
+                if named and not operation.literal.is_empty() and not names.contains(operation.literal) {
+                    names.append(operation.literal)
+                    var target = lowered.function_named(operation.literal)
+                    if target and same_signature(target, called_shape, returned) and waits_in_machine(target) {
+                        if target.receiver < 0 {
+                            refuse(
+                                "it calls a function value that may be '{target.c_name}', which waits and has no owner to start it with",
+                            )
+                        } else {
+                            found.append(target)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return found
+}
+
+func print_digits_in_place(operation: Operation) {
+    if operation.operands.count() != 1 or not is_declared(operation.result) {
+        refuse("it writes digits in place for something that is not one number with a result")
+        return
+    }
+    var number_type = operand_type(operation, 0)
+    crash number_type
+    var scalar = shape.as_scalar(number_type)
+    if not scalar or scalar.kind == 'float_kind' or scalar.kind == 'double_kind' or scalar.kind == 'boolean_kind' {
+        refuse("it writes digits in place for a value that is not a whole number")
+        return
+    }
+    var number = operand(operation, 0)
+    var buffer = "spite_digits_{operation.result}"
+    declare("char {buffer}[24];")
+    var writer = "spite_long_digits({buffer}, (int64_t)({number}))"
+    if naming.is_unsigned(scalar.kind) {
+        output.need("unsigned digits")
+        writer = "spite_unsigned_digits({buffer}, (uint64_t)({number}))"
+    }
+    assign(operation.result, "(SpiteString)SPITE_STATIC_STRING({buffer}, {writer})")
 }
 
 func print_known_call(operation: Operation, callee: Function) {
+    if operation.form == "digits_in_place" {
+        print_digits_in_place(operation)
+        return
+    }
     if not callee.intrinsic.is_empty() and callee.intrinsic != "supplied" {
         intrinsics.print(this, operation)
         return
+    }
+    if machine and callee.name == "clear" and operation.operands.count() == 1 {
+        var released = print_waiting_clear(operation)
+        if released {
+            print_plain_call(operation, callee.c_name)
+            return
+        }
     }
     if waits_in_machine(callee) {
         print_wait_call(operation, callee)
         return
     }
-    var forms = ["", "moved", "borrowed", "in_place", "frame", "unguarded", "skipping", "overlap", "started"]
+    var forms = [
+        ""
+        "moved"
+        "borrowed"
+        "in_place"
+        "frame"
+        "unguarded"
+        "skipping"
+        "overlap"
+        "started"
+        "digits_in_place"
+    ]
     if not forms.contains(operation.form) {
         refuse("it calls '{callee.c_name}' in the form '{operation.form}', which the printer does not write yet")
         return
@@ -1312,18 +1562,55 @@ func call_arguments(operation: Operation): String {
     var arguments = List<String>()
     var index = 0
     while index < operation.operands.count() {
-        var argument = operand(operation, index)
+        var argument = argument_text(operation, index)
         arguments.append(argument)
         index = index + 1
     }
     return arguments.join(", ")
 }
 
+func argument_text(operation: Operation, index: Integer): String {
+    var argument = operand(operation, index)
+    var callee = lowered.function_named(operation.callee)
+    if not callee {
+        return argument
+    }
+    var expected = expected_type(callee, index)
+    var given_type = operand_type(operation, index)
+    if expected.is_empty() or not given_type {
+        return argument
+    }
+    var given = naming.c_type(given_type)
+    if given == expected or not expected.ends_with("*") or not given.ends_with("*") {
+        return argument
+    }
+    return "(({expected})({argument}))"
+}
+
+func expected_type(callee: Function, index: Integer): String {
+    var position = index
+    if callee.receiver >= 0 {
+        if index == 0 {
+            if callee.receiver >= callee.values.count() {
+                return ""
+            }
+            var receiver = callee.value_at(callee.receiver)
+            return naming.c_type(receiver.spite_type)
+        }
+        position = index - 1
+    }
+    if position >= callee.parameters.count() {
+        return ""
+    }
+    var parameter = callee.parameters[position]
+    return naming.c_type(parameter.spite_type)
+}
+
 func print_plain_call(operation: Operation, c_name: String) {
     var arguments = List<String>()
     var index = 0
     while index < operation.operands.count() {
-        var argument = operand(operation, index)
+        var argument = argument_text(operation, index)
         arguments.append(argument)
         index = index + 1
     }
@@ -1452,11 +1739,26 @@ func print_plain_store(operation: Operation) {
     if holder_layout {
         row = holder_layout.kind == "row"
     }
-    if counted.is_empty() or row {
+    var stored_layout = naming.layout_of(stored_type)
+    var singleton = false
+    if stored_layout {
+        singleton = stored_layout.is_singleton
+    }
+    if counted.is_empty() or row or singleton {
         lines.append("{place} = {stored};")
         return
     }
     var written = naming.c_type(stored_type)
+    var waiting = List<String>()
+    if machine and reaches_waiting_drop(stored_type, waiting) {
+        var replaced = release_temporary(written)
+        lines.append("{replaced} = {place}; {place} = {stored};")
+        var finished = suspend_release(replaced, stored_type)
+        if not finished {
+            lines.append("{counted}___release({replaced});")
+        }
+        return
+    }
     lines.append("\{ {written} spite_replaced = {place}; {place} = {stored}; {counted}___release(spite_replaced); }")
 }
 
@@ -1482,6 +1784,7 @@ func field_place(operation: Operation): String {
         return "({holder}).{operation.field}_"
     }
     if layout.hot {
+        output.touch(layout.c_name, function.c_name)
         return "{layout.c_name}___fields({holder})->{operation.field}_"
     }
     return "({holder})->{operation.field}_"
@@ -1540,11 +1843,14 @@ func print_placed_make(operation: Operation, layout: Layout) {
 func placement_head(placed: Integer, layout: Layout): String {
     var allocator_number = placements[placed]
     crash allocator_number
-    if position_of(allocator_number) > position_of(placed) {
-        refuse("it places an object in an allocator that is made after it")
-        return ""
-    }
     var allocator = name_of(allocator_number)
+    if position_of(allocator_number) > position_of(placed) {
+        allocator = earlier_allocator(allocator_number, placed)
+        if allocator.is_empty() {
+            refuse("it places an object in an allocator that is made after it")
+            return ""
+        }
+    }
     var allocator_type = type_of(allocator_number)
     var allocator_layout = naming.layout_of(allocator_type)
     if not allocator_layout {
@@ -1576,6 +1882,40 @@ func placement_head(placed: Integer, layout: Layout): String {
     return "{held}, {given}, {address}"
 }
 
+func field_read_of(number: Integer): String {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number and operation.kind == "load" {
+                return field_place(operation)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return ""
+}
+
+func made_in_frame(number: Integer): Boolean {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var operation = block.operations[index]
+            if operation.result == number {
+                return operation.kind == "make" and operation.form == "frame"
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return false
+}
+
 func made_here(number: Integer): Boolean {
     var block_index = 0
     while block_index < function.blocks.count() {
@@ -1591,6 +1931,41 @@ func made_here(number: Integer): Boolean {
         block_index = block_index + 1
     }
     return false
+}
+
+func earlier_allocator(allocator_number: Integer, placed: Integer): String {
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        var index = 0
+        while index < block.operations.count() {
+            var defining = block.operations[index]
+            if defining.result == allocator_number {
+                return reread(defining, placed)
+            }
+            index = index + 1
+        }
+        block_index = block_index + 1
+    }
+    return ""
+}
+
+func reread(defining: Operation, placed: Integer): String {
+    if defining.kind == "load" and defining.operands.count() == 1 {
+        var holder = defining.operands[0]
+        var holder_known = holder == function.receiver or position_of(holder) < position_of(placed)
+        if holder_known {
+            return field_place(defining)
+        }
+    }
+    var getter = lowered.function_named(defining.callee)
+    if defining.kind == "call" and defining.operands.is_empty() and getter and not getter.singleton_of.is_empty() {
+        var made = lowered.layout_named(getter.singleton_of)
+        if made and made.is_singleton {
+            return "{getter.c_name}()"
+        }
+    }
+    return ""
 }
 
 func position_of(number: Integer): Integer {
@@ -1627,6 +2002,9 @@ func allocator_function(allocator_layout: Layout, name: String): String {
 }
 
 func print_framed_make(operation: Operation, layout: Layout) {
+    if layout.hot {
+        output.touch(layout.c_name, function.c_name)
+    }
     var slot = "spite_slot_{operation.result}"
     declarations.append("{layout.c_name} {slot};")
     if not output.framed_layouts.contains(layout.c_name) {
@@ -1713,7 +2091,231 @@ func print_release(operation: Operation) {
         print_unframe(operation, name, held)
         return
     }
-    lines.append("{name}___release({held});")
+    var handled = false
+    if machine {
+        handled = print_waiting_release(counted, name, held)
+    }
+    if not handled {
+        lines.append("{name}___release({held});")
+    }
+}
+
+func print_waiting_release(counted: Analysis.SpiteType?, name: String, held: String): Boolean {
+    var visited = List<String>()
+    if not reaches_waiting_drop(counted, visited) {
+        return false
+    }
+    var finished = suspend_release(held, counted)
+    if not finished {
+        lines.append("{name}___release({held});")
+    }
+    return true
+}
+
+func reaches_waiting_drop(spite_type: Analysis.SpiteType?, visited: List<String>): Boolean {
+    if not spite_type {
+        return false
+    }
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return reaches_waiting_drop(nullable.inner, visited)
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        return reaches_waiting_drop(listed.element, visited)
+    }
+    var dictionary = shape.as_dictionary(spite_type)
+    if dictionary {
+        return reaches_waiting_drop(dictionary.element, visited)
+    }
+    var layout = naming.layout_of(spite_type)
+    if not layout or layout.is_value or visited.contains(layout.c_name) {
+        return false
+    }
+    visited.append(layout.c_name)
+    if own_waiting_drop(layout) {
+        return true
+    }
+    var index = 0
+    while index < layout.members.count() {
+        var member = lowered.layout_named(layout.members[index])
+        if member and member.information {
+            var member_type: Analysis.SpiteType = Analysis.Types.ClassRefType(member.c_name)
+            if reaches_waiting_drop(member_type, visited) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < layout.stored_fields.count() {
+        if reaches_waiting_drop(layout.stored_fields[index].spite_type, visited) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func layout_dropper(layout: Layout): Function? {
+    assert layout.information and layout.information.drop_function
+    return lowered.function_named(layout.information.drop_function.c_name)
+}
+
+func own_waiting_drop(layout: Layout): Boolean {
+    if not drops_waiting(layout) {
+        return false
+    }
+    var dropper = layout_dropper(layout)
+    crash dropper
+    return waits_in_machine(dropper)
+}
+
+func release_temporary(written: String): String {
+    release_temporaries = release_temporaries + 1
+    var name = "spite_release_{release_temporaries}"
+    declare("{written} {name};")
+    return name
+}
+
+func suspend_release(held: String, spite_type: Analysis.SpiteType?): Boolean {
+    crash spite_type
+    var nullable = shape.as_nullable(spite_type)
+    if nullable {
+        return suspend_release(held, nullable.inner)
+    }
+    var listed = shape.as_list(spite_type)
+    if listed {
+        lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+        release_items(held, listed.element)
+        lines.append("}")
+        return false
+    }
+    if shape.as_dictionary(spite_type) {
+        refuse("it releases a dictionary whose values wait when dropped, which the printer does not suspend in yet")
+        return true
+    }
+    var layout = naming.layout_of(spite_type)
+    if not layout or layout.hot or layout.kind != "class" {
+        refuse(
+            "it releases a value that reaches a waiting drop through a union or a hot class, which the printer does not suspend in yet",
+        )
+        return true
+    }
+    var name = layout.c_name
+    if own_waiting_drop(layout) {
+        var dropper = layout_dropper(layout)
+        crash dropper
+        var joiner = drop_joiner(dropper)
+        if joiner {
+            lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+            print_wait_through(-1, joiner, held)
+            release_waiting_fields(layout, held)
+            lines.append("}")
+            return false
+        }
+        var counting = "SPITE_COUNT"
+        if lowered.makes_threads and not layout.atomic_counts {
+            counting = "SPITE_PLAIN_COUNT"
+        }
+        lines.append("if (({held}) != 0 && {counting}_DOWN(({held})->header.ref_count) <= 0) \{")
+        print_wait_through(-1, dropper, held)
+        release_waiting_fields(layout, held)
+        lines.append("{name}___free_after_drop({held});")
+        lines.append("}")
+        return true
+    }
+    lines.append("if (({held}) != 0 && ({held})->header.ref_count == 1) \{")
+    release_waiting_fields(layout, held)
+    lines.append("}")
+    return false
+}
+
+func drop_joiner(dropper: Function): Function? {
+    var found: Function? = null
+    if not dropper.blocks.is_empty() and dropper.receiver >= 0 {
+        var entry = dropper.blocks[0]
+        var index = 0
+        while index < entry.operations.count() and not found {
+            var operation = entry.operations[index]
+            index = index + 1
+            if operation.kind == "call" and operation.operands.count() == 1 and operation.operands[0] == dropper.receiver {
+                var called = lowered.function_named(operation.callee)
+                if called and waits_in_machine(called) {
+                    found = called
+                }
+            }
+        }
+    }
+    return found
+}
+
+func release_waiting_fields(layout: Layout, held: String) {
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        index = index + 1
+        var visited = List<String>()
+        if reaches_waiting_drop(field.spite_type, visited) {
+            crash field.spite_type
+            var written = naming.c_type(field.spite_type)
+            var temporary = release_temporary(written)
+            var member = "{naming.fields_of(layout, held)}->{field.name}_"
+            lines.append("{temporary} = {member}; {member} = 0;")
+            var counted = naming.counted_name(field.spite_type)
+            var finished = suspend_release(temporary, field.spite_type)
+            if not finished {
+                lines.append("{counted}___release({temporary});")
+            }
+        }
+    }
+}
+
+func release_items(held: String, element: Analysis.SpiteType) {
+    var written = naming.c_type(element)
+    var counter = release_temporary("int32_t")
+    var item = release_temporary(written)
+    var counted = naming.counted_name(element)
+    lines.append("{counter} = 0;")
+    lines.append("while ({counter} < ({held})->item_count_) \{")
+    lines.append(
+        "{item} = (({written}*)(intptr_t)({held})->items_)[{counter}]; (({written}*)(intptr_t)({held})->items_)[{counter}] = 0;",
+    )
+    var finished = suspend_release(item, element)
+    if not finished {
+        lines.append("{counted}___release({item});")
+    }
+    lines.append("{counter} = {counter} + 1;")
+    lines.append("}")
+}
+
+func print_waiting_clear(operation: Operation): Boolean {
+    var cleared_type = operand_type(operation, 0)
+    crash cleared_type
+    var listed = shape.as_list(cleared_type)
+    if not listed {
+        return false
+    }
+    var visited = List<String>()
+    if not reaches_waiting_drop(listed.element, visited) {
+        return false
+    }
+    var cleared = operand(operation, 0)
+    lines.append("if (({cleared}) != 0) \{")
+    release_items(cleared, listed.element)
+    lines.append("}")
+    return true
+}
+
+func drops_waiting(layout: Layout): Boolean {
+    if layout.hot or not layout.information or not layout.information.drop_function {
+        return false
+    }
+    var dropper = lowered.function_named(layout.information.drop_function.c_name)
+    if not dropper {
+        return false
+    }
+    return dropper.resumable or not dropper.waiting_kind.is_empty()
 }
 
 func print_unframe(operation: Operation, name: String, held: String) {
@@ -1834,7 +2436,13 @@ func print_branch(terminator: Terminator) {
     if tested_type {
         var nullable = shape.as_nullable(tested_type)
         if nullable {
-            tested = intrinsics.presence(tested, nullable.inner)
+            var present = intrinsics.presence(tested, nullable.inner)
+            tested = present
+            if holds_boolean(nullable.inner) {
+                tested = "({present} && ({tested}).value)"
+            }
+        } else if shape.as_string(tested_type) or shape.is_symbol(tested_type) or naming.is_tagged(tested_type) {
+            tested = intrinsics.presence(tested, tested_type)
         }
     }
     var first = transfer(taken)
@@ -1890,6 +2498,18 @@ func case_label(tag: String, switched_type: Analysis.SpiteType?): String {
     return tag
 }
 
+func holds_boolean(inner: Analysis.SpiteType): Boolean {
+    var nested = shape.as_nullable(inner)
+    if nested {
+        return holds_boolean(nested.inner)
+    }
+    var scalar = shape.as_scalar(inner)
+    if scalar {
+        return scalar.kind == 'boolean_kind'
+    }
+    return false
+}
+
 func transfer(target: Target): String {
     if target.block < 0 or target.block >= function.blocks.count() {
         refuse("a jump to block {target.block}, which it does not have")
@@ -1921,8 +2541,20 @@ func transfer(target: Target): String {
     return "\{ {held.join(" ")} {moved.join(" ")} } goto block_{target.block};"
 }
 
+func in_library_file(): Boolean {
+    var path = ""
+    if function.source {
+        path = function.source.source_path
+    }
+    var owner = lowered.layout_named(function.owner)
+    if path.is_empty() and owner and owner.information {
+        path = owner.information.source_path
+    }
+    return path.starts_with("library/")
+}
+
 func print_return(terminator: Terminator) {
-    if terminator.site >= 0 {
+    if terminator.site >= 0 and not in_library_file() {
         var answered = assert_answer()
         output.need("assert trace")
         lines.append("SPITE_TRACE_ASSERT({sites.assert_line(terminator.site, answered)});")
@@ -2014,6 +2646,7 @@ func report_text(reported: Analysis.SpiteType, written: String): String {
     }
     var enumerated = shape.as_enum(reported)
     if enumerated {
+        output.use("{enumerated.c_name}___name(")
         return "fputs({enumerated.c_name}___name({written}), stderr);"
     }
     var kind = naming.kind_of(reported)
@@ -2035,4 +2668,24 @@ func scalar_report(kind: Analysis.Types.NumericKind, written: String): String {
         return "fprintf(stderr, \"%llu\", (unsigned long long){written});"
     }
     return "fprintf(stderr, \"%lld\", (long long){written});"
+}
+
+# ../../../../docs/memory.md#self-referential-classes-and-unions-just-work
+func cycle_breaking_lines(layout: Layout): String {
+    var text = ""
+    var index = 0
+    while index < layout.stored_fields.count() {
+        var field = layout.stored_fields[index]
+        index = index + 1
+        var counted = ""
+        if field.spite_type {
+            counted = naming.counted_name(field.spite_type)
+        }
+        var held = lowered.layout_named(counted)
+        if counted != "SpiteString" and held and not held.is_value and held.kind != "union" and held.kind != "tagged union" {
+            var member = "{naming.fields_of(layout, "object")}->{field.name}_"
+            text = "{text}{counted}___release({member}); {member} = 0;\n"
+        }
+    }
+    return text
 }

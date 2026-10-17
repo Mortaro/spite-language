@@ -384,6 +384,10 @@ it copies once, with room to grow, so the other holder still sees the text it ha
 the variable itself. Not for attributes (a call among the pieces could replace the attribute mid-append), and not
 when a piece mentions the variable again (`"{text}{text}"`); those compile as an ordinary join.
 
+A text literal is never counted, so a variable that starts as a literal (`var text = ""`) and is handed on to the loop's next pass takes no count either.
+
+Empty pieces of the join (the empty text before `{text}` in `"{text}item"`) are dropped first, so they do not stop the append.
+
 **Example.** Text stays immutable as observed: `kept` still holds the text it was given.
 
 ```gdscript title=text_append/text_append.spite entry
@@ -567,10 +571,9 @@ type, and `Build`, whose attributes are all settings folded into the program) is
 allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
 fewer for each.
 
-**When.** Production builds only. In an inspectable build (`--repl`, `--repl-port`, `--hot-reload` or
-`--development`) each is an ordinary singleton: allocated at first use, one of
-its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
-destroyed after it asks for it at exit, so the order of teardown never matters for it.
+**When.** Every build: the object is static and never destroyed, so the order of teardown never matters for it.
+In an inspectable build (`--repl`, `--repl-port`, `--hot-reload` or `--development`) `.instances` lists it; in a
+production build `.instances` does not.
 
 **Example.** The same program in both kinds of build: the production build has no `Memory.Heap` object to list.
 
@@ -2352,6 +2355,33 @@ engine's stress tick takes 17.2 ms instead of 20.2 as one C file (21.5 instead o
 of everything a program can see and what it prints are the same. Compiling takes longer for a program with many
 candidate calls, since each is followed through its callers.
 
+### A borrowed item is counted only where it is kept
+
+**What it does.** An item read from a list and then handed to a call that keeps it (`kept.append(point)`) is counted
+once, at the call, instead of once when it is read and again when the name ends. The item is still read without a count,
+so a loop that only keeps some of the items it walks counts those and nothing else.
+
+**When.** The item has no use between its read and the call that a call or a write to memory could disturb: the call
+that keeps it does not count as a disturbance, because the count is made before it runs. A read used after such a call
+is counted when read, as before. A call that only writes the memory of lists of other classes (an `append` to the inner list
+read out of a list of lists) leaves a borrowed item valid; only a write to lists of the same item class, a write
+through an address, or a call the compiler cannot follow disturbs it.
+
+**What you notice.** Fewer counts, and `--debug-memory` shows the same allocations and frees.
+
+### An object wrapped and read back is the object
+
+**What it does.** A `switch` over a union or a shape reads the member back out of the value it was just put into:
+`Union.value(Union.wrap(x))` is `x`. When a small function a program calls with a wrapped object (the per-attribute
+helpers of a row walk) is inlined into the caller, the read-back is replaced by the object itself, so the object is
+seen to stay in the function and is placed in the frame instead of on the heap.
+
+**When.** The wrapped value and the member read back are the same class. Small functions that the compiler made from
+a generic function for one symbol or class (their name carries the symbol) are inlined like the library's.
+
+**What you notice.** Fewer allocations (`--debug-memory`), and a crash report that lists one frame fewer for an
+inlined helper.
+
 ### An item a name holds from its list is not counted
 
 **The case:** [benchmarks/an_item_a_name_holds_from_its_list_is_not_counted](../benchmarks/an_item_a_name_holds_from_its_list_is_not_counted/).
@@ -3646,6 +3676,18 @@ and a list do. Four places use it:
   passing it to a function that keeps it, to a `Parallel` or a `Concurrent` (their constructors keep it), as a
   function value (`name.update`, which holds the object), to a variadic list (`console.print(name)`), or naming it
   in a text's hole other than as `{name.attribute}`.
+- **A wrapped row.** A row (a system's row for `each`, whose free releases nothing) put into a union stays in the frame
+  when the wrapped value goes only to calls that keep nothing; storing, returning or handing it to a keeper still moves it to the heap,
+  and so does any other object put into a union or a nullable.
+- **Items of a row.** An object stored into a row (a system's row, whose items are borrowed and uncounted) that itself
+  stays in the frame is framed too, as long as nothing else lets it go.
+- **An object a framed object holds.** An object stored into another object that lives in the frame (the empty list of
+  arguments inside a function value) is framed too when nothing else lets it go, the container has no `drop`, and the
+  container is released on every path after the held object is made; the held object is let go of just before its
+  container.
+- **A function value.** `apply(scorer.score, value)` builds one `Spite.Function` holding the object and its function; when the
+  callee only calls it (`change(value)`) and keeps it nowhere, the function value itself lives in the frame
+  instead of on the heap (its list of arguments is still made).
 - **A result, into the caller's slot.** A function whose every `return` gives a fresh object (`return
   Vector3(...)`, a local that lives in the frame, or another such call; a generic class's constructor whose
   codegen values are inferred counts, both where its arguments' types are known in the caller and in a `return`

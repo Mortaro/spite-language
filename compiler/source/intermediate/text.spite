@@ -11,6 +11,12 @@ func layout_text(lowered: Lowered, layout: Layout): String {
         kind = "singleton"
     }
     lines.append("{kind} {layout.c_name} ({layout.qualified}), arranged as {layout.arrangement}")
+    if layout.kind == "row" {
+        lines.append("    row: its items are borrowed, uncounted, and its free releases nothing")
+    }
+    if not layout.escape_reason.is_empty() {
+        lines.append("    class, made from a row because it escapes: {layout.escape_reason}")
+    }
     var index = 0
     while index < layout.stored_fields.count() {
         var field = layout.stored_fields[index]
@@ -59,6 +65,12 @@ func function_text(function: Function): String {
     }
     if not function.not_lowered.is_empty() {
         lines.append("    ({function.not_lowered})")
+    }
+    if function.waits {
+        lines.append("    waits")
+    }
+    if function.resumable {
+        lines.append("    resumable")
     }
     index = 0
     while index < function.blocks.count() {

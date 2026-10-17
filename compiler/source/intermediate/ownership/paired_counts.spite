@@ -1,0 +1,84 @@
+# ../../../../docs/optimizations.md#an-item-passed-to-a-call-that-cannot-change-its-list-is-not-counted
+var cancelled_count = 0
+
+func cancel(function: Function) {
+    var uses = Facts.Uses(function)
+    var block_index = 0
+    while block_index < function.blocks.count() {
+        var block = function.blocks[block_index]
+        cancel_in(block, uses)
+        block_index = block_index + 1
+    }
+}
+
+func cancel_in(block: Block, uses: Facts.Uses) {
+    var dropped = Dictionary<Integer, Boolean>()
+    var index = 0
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        if operation.kind == "retain" and not dropped.has(index) {
+            var later = matching_release(block, uses, index, dropped)
+            if later >= 0 {
+                dropped[index] = true
+                dropped[later] = true
+                cancelled_count = cancelled_count + 1
+            }
+        }
+        index = index + 1
+    }
+    assert dropped.count() > 0
+    var kept = List<Operation>()
+    index = 0
+    while index < block.operations.count() {
+        if not dropped.has(index) {
+            kept.append(block.operations[index])
+        }
+        index = index + 1
+    }
+    block.operations = kept
+}
+
+func matching_release(
+    block: Block,
+    uses: Facts.Uses,
+    retained_at: Integer,
+    dropped: Dictionary<Integer, Boolean>,
+): Integer {
+    var retain = block.operations[retained_at]
+    crash retain
+    var retained = retain.operands.first()
+    crash retained
+    var holder = holder_of(uses, retained)
+    var index = retained_at + 1
+    while index < block.operations.count() {
+        var operation = block.operations[index]
+        var counts = operation.kind == "retain" or operation.kind == "release"
+        if counts and not dropped.has(index) {
+            var counted = operation.operands.first()
+            if operation.kind == "release" and (counted == holder or counted == retained) {
+                return index
+            }
+            if counted == holder or counted == retained {
+                return -1
+            }
+        }
+        if not counts and (operation.operands.contains(holder) or operation.operands.contains(retained)) {
+            return -1
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func holder_of(uses: Facts.Uses, value: Integer): Integer {
+    var defining = uses.definition_of(value)
+    if not defining {
+        return value
+    }
+    if defining.kind != "call" or defining.callee != "Nullable.value" {
+        return value
+    }
+    var holder = defining.operands.first()
+    crash holder
+    return holder
+}

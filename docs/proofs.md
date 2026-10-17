@@ -231,7 +231,8 @@ A short guide by task. Find what you are writing; the entries below say the rest
   from declared types, the class a constructor makes, the class a called function returns (a local made by a call,
   `var here = loop()`, has that class too), a `[]` read's element class and an attribute's declared class; `List`, `Dictionary` and `String` reach only their own functions. Growing
   a list keeps an index proof. A `return`'s own calls undo nothing. Locals and parameters are never changed by a
-  call.
+  call. A value read and used again in one pass of a loop is judged by what lies between the read and the use in
+  that pass only, never by the rest of the loop body.
 - **Buys.** No re-check after a call that provably cannot change the value.
 - **Falls back.** A call on a value whose class cannot be told (a `type`, a type parameter) is followed into every
   function of that name; a call through a function value undoes every proof about attributes and lists; a `clear` or
@@ -243,6 +244,18 @@ A short guide by task. Find what you are writing; the entries below say the rest
   [optimizations.md: Proofs that survive a call](optimizations.md#proofs-that-survive-a-call);
   `diagnostics/call_undoes_proof`, `diagnostics/receiver_call_undoes_proof`, `diagnostics/branch_undoes_proof`,
   `conformance/stage6/receiver_call_effects`, `conformance/stage6/same_name_call_effects`.
+
+### An address keeps its owner alive
+
+- **Proves.** A `Memory.Address` read out of an object (a text's bytes, a list's items) is only used while the object
+  lives, so no read ever lands in freed memory.
+- **Rule.** The compiler counts an address as a use of the object it was read from, and of the objects an address
+  computed from other addresses was read from: the object is released after the last use of the address, not after the
+  last use of the object's own name. This matters once a function is inlined, where a text compared with `bytes.compare_bytes`
+  is a temporary whose last named use comes before the comparison.
+- **Buys.** No read of freed memory; a text or list of any size is safe to compare or copy.
+- **Falls back.** Nothing: an address is never allowed to outlive its owner.
+- **See.** [An item used at once is not counted](#an-item-used-at-once-is-not-counted).
 
 ### Proving what is proven is an error
 
@@ -427,6 +440,20 @@ A short guide by task. Find what you are writing; the entries below say the rest
   list, undoes the guard; assigning `row` or `column` inside the inner loop is the error for a proof the loop read.
 - **See.** [the rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_byte_numbers`.
 
+### An index offset by a base is proven by one guard
+
+- **Proves.** `list[base + counter]` is inside the list at both ends.
+- **Rule.** A guard `base + bound <= list.count()` (or `list.count() >= base + bound`) where the read can see it; the
+  read inside `while counter < bound`; `base` and `counter` never negative (as above), named bare; either order
+  (`base + counter` or `counter + base`). A read of a width reaching `k` bytes past the index needs
+  `base + bound + k <= list.count()`.
+- **Buys.** The read needs no narrowing and its position no test of its low end: one compare and the load, as above,
+  for a window or block that starts at a base (a block of a hash, a row of a table starting at an offset).
+- **Falls back.** An index kept in a `var` first, a `base` that may be negative, or a guard written about another list
+  is not traced: narrow the read, or write the index inline. Assigning `base`, `bound` or the list after the guard, or
+  shrinking the list, undoes the guard.
+- **See.** [the rules](../specs/failure.md#reading-with--answers-t); `conformance/stage6/list_base_counter`.
+
 ### A counted loop reads its items unchecked
 
 - **Proves.** Inside `while index < values.count()`, the counter is at least 0 and below the count, and the list's
@@ -587,8 +614,10 @@ A short guide by task. Find what you are writing; the entries below say the rest
 
 - **Proves.** A function can or cannot reach a wait (a sleep, a read of a console, file or socket, a scheduler
   join).
-- **Rule.** Waiting spreads from those library functions through calls by name, function values and dispatch
-  through a union or `type`, to a fixed point. `$T.functions['update_each'].is_resumable` folds to the answer; an answer that
+- **Rule.** Waiting spreads from those library functions through calls by name, function values (to every function
+  taken as a value with the same arguments and answer) and dispatch through a union or `type`, to a fixed point.
+  Letting go of a `Concurrent` joins it, so a function that lets one go waits: a local or an attribute assigned again,
+  an object or a list holding one dropped at the end of its scope, a list cleared. `$T.functions['update_each'].is_resumable` folds to the answer; an answer that
   would change once the asking function is compiled is an error. Joining a `Parallel` is not a wait, nor is
   `finished`.
 - **Buys.** An engine runs a system on a `Concurrent` only where it waits.

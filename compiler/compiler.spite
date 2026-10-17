@@ -452,8 +452,13 @@ func generator_pass(
 func write_from_intermediate(generator: Generation.Generator) {
     var pipeline = Intermediate.Pipeline(generator)
     pipeline.optimized = is_on("optimized")
+    pipeline.lowers_only = is_on("check") and option("high_ir").is_empty() and not is_on("c_source")
     var written = pipeline.run()
     if pipeline.has_error() {
+        var refused_ir_folder = option("high_ir")
+        if not refused_ir_folder.is_empty() {
+            wrote_lowered_ir(pipeline.lowered, refused_ir_folder)
+        }
         console.error(pipeline.error_message)
         program.exit(1)
         return
@@ -797,7 +802,7 @@ func wrote_final_classes(
     return wrote_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
 }
 
-# ../design/backend_high_level_ir.md#what-the-comparison-checks
+# source/intermediate/README.md#what-the-comparison-checks
 func wrote_high_level_report(generator: Generation.Generator, report_path: String): Boolean {
     var folder = directory_of(report_path)
     create_folder(folder)
@@ -825,13 +830,18 @@ func wrote_high_level_report(generator: Generation.Generator, report_path: Strin
 # ../design/proposals/desugared_high_ir.md#reading-the-high-ir
 func wrote_high_ir(generator: Generation.Generator, output_directory: String): Boolean {
     create_folder(output_directory)
-    var lowering = Intermediate.Lowering(generator)
-    var lowered = lowering.lower()
+    var pipeline = Intermediate.Pipeline(generator)
+    pipeline.prepare()
+    return wrote_lowered_ir(pipeline.lowered, output_directory)
+}
+
+func wrote_lowered_ir(lowered: Intermediate.Lowered, output_directory: String): Boolean {
     var text = Intermediate.Text()
+    create_folder(output_directory)
     var index = 0
     while index < lowered.layouts.count() {
         var layout = lowered.layouts[index]
-        var path = "{output_directory}/{final_class_file_name(layout.qualified)}.ir"
+        var path = "{output_directory}/{layout.c_name}.ir"
         var written = text.layout_text(lowered, layout)
         if not File(path).write(written) {
             console.error("error: could not write '{path}'")
@@ -1201,6 +1211,7 @@ func append_code_settings(process_arguments: List<String>, c_compiler: String, s
         process_arguments.append("-O0")
         append_machine_tuning(process_arguments, c_compiler)
     }
+    process_arguments.append("-ffp-contract=off")
     process_arguments.append("-Wno-parentheses-equality")
     process_arguments.append("-I.")
 }
@@ -1766,6 +1777,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
         process_arguments.append("-O0")
         append_machine_tuning(process_arguments, c_compiler)
     }
+    process_arguments.append("-ffp-contract=off")
     process_arguments.append("-w")
     if option("target_operating_system") == "windows" {
         append_shared_runtime(process_arguments, c_compiler)
