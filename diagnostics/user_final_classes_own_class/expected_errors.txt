@@ -1,0 +1,1 @@
+diagnostics/user_final_classes_own_class/user_final_classes_own_class.spite:4: error: Spite.Internal.Lock is internal to Spite and cannot be used outside the standard library: read bytes with Buffer or BinaryReader, describe foreign data with a plain type, and leave threads to the compiler

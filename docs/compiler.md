@@ -416,6 +416,9 @@ program's own file, a file it loads, the reopening that replaced it, or the comp
 (`compiler/source/generation/prelude.spite`) for a body the compiler supplies, as a path relative to the printed
 file. The folder holds a `.final-classes` file, which is what lets a comment there link a `.spite` file
 ([style.md](style.md#comments-are-links)), so the printed program compiles with its links checked like any other.
+A printed class of the standard library keeps what only the library may name, such as `Spite.Internal.Lock`, since it
+is a copy of library code; a printed class of your own is your own code and may not
+([packages.md](packages.md#packages-namespaces-and-loading)).
 
 What is written is what the program **ends up with**, not what was written down: the classes come from the
 generator after it has run, so a class the generator never made is not there, a generic template is not there,

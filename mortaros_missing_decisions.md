@@ -45,6 +45,16 @@ D374 (2026-10-01); 264 by D378 and 250 by D379, 252 by D380, 254 by D381, 256 by
   let programs inside the repository's `conformance/`, `diagnostics/` and `benchmarks/` name `Spite.Internal`, which a
   user's program still cannot; (c) a mix: (a) wherever a plain form exists, (b) for the rest until it does. Chosen:
   (c), so the move can start; easy to change, since it only decides which folders may name the namespace.
+- **D625, a `--final-classes` folder and `Spite.Internal` (decided by Space Bunny Free under D509).** Printing a
+  program whose classes name `Spite.Internal.Lock` (any program that makes a `Parallel`) writes copies of library
+  code, and those copies have to keep compiling, or `--final-classes` output stops being a program. D601 exempted
+  every file under a folder holding a `.final-classes` file, which any project can create, so a user could name the
+  namespace from their own code. Chosen: the exemption follows the class instead of the folder, as the memory
+  primitives already do: a file whose class `library/` declares keeps the library's rights, a file of the program's
+  own class is refused with D568's text wherever it sits (`diagnostics/user_final_classes_own_class`). The other
+  way would be to trust the file the compiler wrote (a marker with a checksum, or a list of the classes printed in
+  it), which is harder to spoof but means a project cannot print anything of its own beside one that was printed.
+  Easy to change: only the check, not the spec's shape.
 - **D598's limits:** a chain through a `T?` counts as missing only inside `==` and `!=` (`made.kind == "make"` is
   `false`, `made.kind != "make"` is `true` when `made` is null); `<`, `<=`, `>` and `>=` still refuse a `T?`, and a
   bare `made.kind` outside a comparison still needs narrowing. Easy to widen.
