@@ -2,6 +2,11 @@
 
 ## `next` is one measurement short of `master` (2026-10-18, by Space Bunny Free)
 
+Everything here is on `origin/next` (ef2b9845) and `bash check.sh --update-seed` ends with `OK` on it: 420 conformance
+programs, 290 documentation programs, 269 diagnostics, 102 benchmark cases, the fixpoint, the fast reloads,
+`--final-classes` and every other system. `TODO.md` still carries the codec line, so the hook is right to refuse a
+push to `master`.
+
 The `--final-classes` line of `TODO.md` is cleared: a printed class keeps the library's rights because of the class
 it holds, not because a folder holds a `.final-classes` file a project can write (D625,
 `diagnostics/user_final_classes_own_class`). The codecs line is not, and the two ways of measuring it both lie:
@@ -21,7 +26,7 @@ The generated C says why: master's codec loops read `Memory.Address` with `read_
 check, while the Buffer form is a call answering a `T?` behind a bounds check, and a library loop over a list pays
 seven overflow-checked index additions and five bounds checks per iteration where a raw address paid none.
 
-Two things are built and neither moved the numbers (measured, same compiler on both sides): a `___held_` copy of a
+Two things were tried and neither moved the numbers (measured, same compiler on both sides): a `___held_` copy of a
 library function whose list parameter is only read, and a value element read without the write-back watch. **The first
 was reverted**: it broke `conformance/stage6/waiting_systems`, which is the evidence the next session needs. A call
 redirected to a `___held_` copy is a call to another function, and the compiler's questions about a call (does it
@@ -37,7 +42,10 @@ study, and anything else asked about a call.
 One fold that did land is in: a name the compiler bound while making a copy of a function is compared with a literal
 while compiling, so the byte order test is gone from every read (`docs/optimizations.md`, "A name known while
 compiling is compared while compiling"). It does not show in the times: the C compiler was folding that comparison
-by itself.
+by itself. What is left for issue 230 is the two causes in the diagnosis: a buffer read of a known byte order inlined
+and proved (one load where the call is now), and `list[base + counter]` proved in bounds. Whoever takes it should
+measure against `D:/Projects/SpiteLanguage`'s compiler and library, never against a master compiler run from this
+worktree.
 
 The rest of this file is from 2026-10-09 and describes the naive-engine programme, which that session found waiting on
 its own work. It is still the context for the engine, not for this branch.
