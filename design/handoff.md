@@ -1,3 +1,36 @@
+# Handoff: where the next agents pick up (2026-10-18)
+
+## `next` is one measurement short of `master` (2026-10-18, by Space Bunny Free)
+
+The `--final-classes` line of `TODO.md` is cleared: a printed class keeps the library's rights because of the class
+it holds, not because a folder holds a `.final-classes` file a project can write (D625,
+`diagnostics/user_final_classes_own_class`). The codecs line is not, and the two ways of measuring it both lie:
+
+- **Never compare two revisions by running one revision's compiler from the other's worktree.** A compiler finds its
+  library in the folders above its own executable, so `.spite/master_compiler.exe` inside this worktree compiles
+  *this* library. That measures two generators on one library, which says next is 9% faster on Sha256, and is wrong.
+  Build the master side in `D:/Projects/SpiteLanguage` (master compiler, master library) and run both binaries
+  anywhere: `bash .spite/codec_perf/measure_revisions.sh` does it.
+- **Never compare one side with `--debug-memory` and the other without.** That is how "23 to 50% slower" and issue
+  230's numbers were made: master's programs printed no allocation line, next's did, and the tracking is worth
+  about 15%. It lands on whichever side allocates differently.
+
+With both right, `next` **is slower than master** on the codecs: Sha256 over 1 MB 15.7 ms against 17.8, Deflate 4.4
+against 7.7, Argon2 191 against 284, and the combined codecs program 1.03x to 2.17x across its phases (issue 230).
+The generated C says why: master's codec loops read `Memory.Address` with `read_unsigned_integer`, one load and no
+check, while the Buffer form is a call answering a `T?` behind a bounds check, and a library loop over a list pays
+seven overflow-checked index additions and five bounds checks per iteration where a raw address paid none.
+
+Two things are built and neither moved the numbers (measured, same compiler on both sides): a `___held_` copy of a
+library function whose list parameter is only read (so `Sha256__compress___held_0_1` exists), and a value element
+read without the write-back watch. What is left is the work issue 230 names: make a buffer read with a known byte
+order inline and proved, and prove `list[base + counter]`. One fold that did help is in: a name the compiler bound
+while making a copy of a function is compared with a literal while compiling, so the byte order test is gone from
+every read (`docs/optimizations.md`, "A name known while compiling is compared while compiling").
+
+The rest of this file is from 2026-10-09 and describes the naive-engine programme, which that session found waiting on
+its own work. It is still the context for the engine, not for this branch.
+
 # Handoff: where the next agents pick up (2026-10-09)
 
 Read this after `AGENTS.md`, `SPITE.md` and `design/naive_programs.md`. It is agent-owned state: rewrite it when you

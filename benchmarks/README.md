@@ -16,13 +16,13 @@ again, so it always shows the latest measurement of every case.
 <!-- summary -->
 | case | Spite µs | naive C µs | expert C µs | Spite / naive C | Spite / expert C |
 |---|---|---|---|---|---|
-| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | 1 162 | 345 955 | 544 | 0.00 | 2.14 |
+| [a_binary_schema_is_a_constant](a_binary_schema_is_a_constant/) | 1 170 | 347 698 | 547 | 0.00 | 2.14 |
 | [a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once](a_counted_loop_of_calls_to_one_singleton_takes_its_lock_once/) | 15 756 | 284 999 | 2 962 | 0.06 | 5.32 |
 | [a_crashs_report_is_kept_out_of_the_way](a_crashs_report_is_kept_out_of_the_way/) | 13 449 | 13 097 | 9 655 | 1.03 | 1.39 |
 | [a_decimal_literal_beside_a_float_is_a_float](a_decimal_literal_beside_a_float_is_a_float/) | 31 528 | 504 044 | 15 874 | 0.06 | 1.99 |
 | [a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one](a_deep_copy_is_written_per_class_with_a_table_only_where_a_graph_needs_one/) | 29 895 | 73 017 | 981 | 0.41 | 30.47 |
-| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 46 240 | 80 303 | 25 360 | 0.58 | 1.82 |
-| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 26 768 | 14 878 | 13 176 | 1.80 | 2.03 |
+| [a_dictionary_hashes_a_key_once_cheaply](a_dictionary_hashes_a_key_once_cheaply/) | 46 437 | 81 092 | 25 086 | 0.57 | 1.85 |
+| [a_dictionary_keyed_by_numbers_hashes_the_numbers](a_dictionary_keyed_by_numbers_hashes_the_numbers/) | 26 907 | 14 972 | 12 766 | 1.80 | 2.11 |
 | [a_dictionary_written_out_and_only_read_by_literal_keys_is_folded](a_dictionary_written_out_and_only_read_by_literal_keys_is_folded/) | 13 027 | 316 565 | 5 538 | 0.04 | 2.35 |
 | [a_foreign_name_is_never_copied](a_foreign_name_is_never_copied/) | not timed | not timed | not timed | | |
 | [a_function_taking_a_type_is_compiled_per_class](a_function_taking_a_type_is_compiled_per_class/) | 50 759 | 50 545 | 50 456 | 1.00 | 1.01 |
@@ -37,9 +37,9 @@ again, so it always shows the latest measurement of every case.
 | [a_loop_whose_passes_write_only_their_own_item_runs_in_bands](a_loop_whose_passes_write_only_their_own_item_runs_in_bands/) | 32 515 | 759 531 | 31 364 | 0.04 | 1.04 |
 | [a_number_joined_into_text_is_written_in_place](a_number_joined_into_text_is_written_in_place/) | 70 870 | 306 942 | 15 066 | 0.23 | 4.70 |
 | [a_number_read_from_bytes_is_one_load](a_number_read_from_bytes_is_one_load/) | 38 328 | 51 900 | 30 936 | 0.74 | 1.24 |
-| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 64 928 | 87 171 | 22 625 | 0.74 | 2.87 |
+| [a_numbers_bits_are_read_in_place](a_numbers_bits_are_read_in_place/) | 66 019 | 87 317 | 23 100 | 0.76 | 2.86 |
 | [a_proven_divisor_is_not_checked](a_proven_divisor_is_not_checked/) | 28 669 | 28 875 | 25 785 | 0.99 | 1.11 |
-| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 32 058 | 6 525 | 6 418 | 4.91 | 5.00 |
+| [a_proven_read_tests_only_its_bounds](a_proven_read_tests_only_its_bounds/) | 32 629 | 6 445 | 6 418 | 5.06 | 5.08 |
 | [a_release_build_is_o3_with_link_time_optimisation](a_release_build_is_o3_with_link_time_optimisation/) | 30 075 | 39 776 | 39 904 | 0.76 | 0.75 |
 | [a_release_is_inlined_in_every_unit](a_release_is_inlined_in_every_unit/) | not timed | not timed | not timed | | |
 | [a_reload_compiles_only_the_classes_that_changed](a_reload_compiles_only_the_classes_that_changed/) | not timed | not timed | not timed | | |
@@ -96,7 +96,7 @@ again, so it always shows the latest measurement of every case.
 | [repl_live_reload_and_debug_machinery_only_in_those_builds](repl_live_reload_and_debug_machinery_only_in_those_builds/) | not timed | not timed | not timed | | |
 | [report_over_records](report_over_records/) | 308 670 | 565 770 | 21 972 | 0.55 | 14.05 |
 | [short_symbols_are_inline_text](short_symbols_are_inline_text/) | not timed | not timed | not timed | | |
-| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 44 894 | 244 734 | 16 767 | 0.18 | 2.68 |
+| [short_text_lives_inside_the_string](short_text_lives_inside_the_string/) | 45 956 | 258 517 | 16 671 | 0.18 | 2.76 |
 | [singletons_a_parallel_reaches_take_a_lock](singletons_a_parallel_reaches_take_a_lock/) | 8 541 | 18 910 | 486 | 0.45 | 17.57 |
 | [singletons_made_on_first_use_never_counted](singletons_made_on_first_use_never_counted/) | 15 947 | 212 008 | 5 547 | 0.08 | 2.87 |
 | [singletons_that_hold_nothing_are_static_objects](singletons_that_hold_nothing_are_static_objects/) | not timed | not timed | not timed | | |

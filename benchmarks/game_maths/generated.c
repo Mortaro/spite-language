@@ -377,8 +377,8 @@ int64_t input_;
 };
 static SpiteString spite_lit_5 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_6 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_7 = SPITE_STATIC_STRING(" ", 1);
 #define spite_site_2() "library/console.spite:56 in Console._write_values"
+static SpiteString spite_lit_7 = SPITE_STATIC_STRING(" ", 1);
 #include <math.h>
 struct Duration {
 SpiteHeader header;
@@ -764,13 +764,13 @@ Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
 void Console_error(Console* self, List_Console_Printable* values_);
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void Duration___init(Duration* self);
 Duration* Duration___allocate(void);
@@ -846,10 +846,12 @@ float Naive_matrix_pass(Naive* self);
 float Naive_transform_pass(Naive* self);
 Spite_Function* spite_function_value_Naive_all_passes(Naive* owner);
 Vector3__Float* Vector3__Float_scaled___into(Vector3__Float* self, float factor_, Vector3__Float* restrict spite_result);
+void Quaternion__Float_set_axis_angle___held_0(Quaternion__Float* self, Vector3__Float* axis_, float angle_);
 static Matrix4__Float* Matrix4__Float___framed(Matrix4__Float* self);
 static void Matrix4__Float___copy_fields(Matrix4__Float* target, Matrix4__Float* source);
 static Matrix4__Float* Matrix4__Float___make_into(Matrix4__Float* self);
 Matrix4__Float* Matrix4__Float_multiply___into(Matrix4__Float* self, Matrix4__Float* other_, Matrix4__Float* restrict spite_result);
+void Matrix4__Float_set_translation___held_0(Matrix4__Float* self, Vector3__Float* offset_);
 static inline void List_String___release(List_String* self);
 void List_String___free(List_String* self);
 void List_String_drop(List_String* self);
@@ -875,10 +877,10 @@ static inline void Matrix4__Float___release(Matrix4__Float* self);
 void Matrix4__Float___free(Matrix4__Float* self);
 void Matrix4__Float_Matrix4(Matrix4__Float* self);
 void Matrix4__Float_set_identity(Matrix4__Float* self);
-void Matrix4__Float_set_translation(Matrix4__Float* self, Vector3__Float* offset_);
 void Matrix4__Float_set_rotation(Matrix4__Float* self, Quaternion__Float* rotation_);
 Vector3__Float* Matrix4__Float_transform_point___into(Matrix4__Float* self, Vector3__Float* point_, Vector3__Float* restrict spite_result);
 Matrix4__Float* Matrix4__Float_multiply___into(Matrix4__Float* self, Matrix4__Float* other_, Matrix4__Float* restrict spite_result);
+void Matrix4__Float_set_translation___held_0(Matrix4__Float* self, Vector3__Float* offset_);
 void Quaternion__Float___init(Quaternion__Float* self);
 Quaternion__Float* Quaternion__Float___allocate(void);
 Quaternion__Float* Quaternion__Float___make(void);
@@ -886,8 +888,8 @@ static inline Quaternion__Float* Quaternion__Float___retain(Quaternion__Float* s
 static inline void Quaternion__Float___release(Quaternion__Float* self);
 void Quaternion__Float___free(Quaternion__Float* self);
 void Quaternion__Float_Quaternion(Quaternion__Float* self);
-void Quaternion__Float_set_axis_angle(Quaternion__Float* self, Vector3__Float* axis_, float angle_);
 Matrix4__Float* Quaternion__Float_to_matrix(Quaternion__Float* self);
+void Quaternion__Float_set_axis_angle___held_0(Quaternion__Float* self, Vector3__Float* axis_, float angle_);
 void List_Spite_AttributeDeclaration___init(List_Spite_AttributeDeclaration* self);
 List_Spite_AttributeDeclaration* List_Spite_AttributeDeclaration___allocate(void);
 List_Spite_AttributeDeclaration* List_Spite_AttributeDeclaration___make(void);
@@ -933,7 +935,6 @@ void List_Spite_Namespace_drop(List_Spite_Namespace* self);
 void TypedMemory__Spite_Namespace___release(TypedMemory__Spite_Namespace* self);
 void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* self, int64_t address_, int32_t index_);
 void List_Console_Printable___init(List_Console_Printable* self);
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -2180,10 +2181,6 @@ self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
 }
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
-return self;
-}
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2463,29 +2460,16 @@ int64_t spite_temp_7 = ({ int64_t spite_temp_8 = ({ int64_t spite_temp_9 = ({ in
 return spite_temp_7;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
+Console__write_values___held_0(self, values_, Console_Stream_output);
 Console__write_output(self, spite_lit_5);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
+Console__write_values___held_0(self, values_, Console_Stream_error);
 Console__write_error(self, spite_lit_6);
 Console__flush(self);
-List_Console_Printable___release(values_);
-}
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_7, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -2520,6 +2504,18 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
+}
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_7, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 }
 void Duration_Duration(Duration* self, int64_t amount_, Duration_Unit unit_) {
 int64_t per_second_ = Duration__units_per_second(self, unit_);
@@ -2749,7 +2745,7 @@ float Naive_matrix_pass(Naive* self) {
 Quaternion__Float* turn_ = Quaternion__Float___make();
 Vector3__Float spite_slot_5;
 Vector3__Float* axis_ = Vector3__Float___make_into(&spite_slot_5, 0.0, 1.0, 0.0);
-Quaternion__Float_set_axis_angle(turn_, Vector3__Float___retain(axis_), 0.001);
+Quaternion__Float_set_axis_angle___held_0(turn_, axis_, 0.001);
 Matrix4__Float* step_matrix_ = Quaternion__Float_to_matrix(turn_);
 Matrix4__Float spite_slot_6;
 Matrix4__Float* accumulated_ = Matrix4__Float___make_into(&spite_slot_6);
@@ -2768,7 +2764,7 @@ return spite_temp_97;
 float Naive_transform_pass(Naive* self) {
 Matrix4__Float* model_ = Matrix4__Float___make();
 Vector3__Float* place_ = Vector3__Float___make(1.0, 2.0, 3.0);
-Matrix4__Float_set_translation(model_, Vector3__Float___retain(place_));
+Matrix4__Float_set_translation___held_0(model_, place_);
 Vector3__Float spite_slot_8;
 Vector3__Float* point_ = Vector3__Float___make_into(&spite_slot_8, 0.5, 0.5, 0.5);
 float total_ = 0.0;
@@ -2830,13 +2826,6 @@ return spite_temp_104;
 }
 void Matrix4__Float_Matrix4(Matrix4__Float* self) {
 }
-void Matrix4__Float_set_translation(Matrix4__Float* self, Vector3__Float* offset_) {
-Matrix4__Float___init(self);
-self->column_3_row_0_ = (offset_)->x_;
-self->column_3_row_1_ = (offset_)->y_;
-self->column_3_row_2_ = (offset_)->z_;
-Vector3__Float___release(offset_);
-}
 Vector3__Float* Matrix4__Float_transform_point___into(Matrix4__Float* self, Vector3__Float* point_, Vector3__Float* restrict spite_result) {
 float x_part_ = ((((self->column_0_row_0_ * (point_)->x_) + (self->column_1_row_0_ * (point_)->y_)) + (self->column_2_row_0_ * (point_)->z_)) + self->column_3_row_0_);
 float y_part_ = ((((self->column_0_row_1_ * (point_)->x_) + (self->column_1_row_1_ * (point_)->y_)) + (self->column_2_row_1_ * (point_)->z_)) + self->column_3_row_1_);
@@ -2866,9 +2855,22 @@ Matrix4__Float* product_ = Matrix4__Float___make_into(spite_result);
 Matrix4__Float___release(other_);
 return spite_result;
 }
+void Matrix4__Float_set_translation___held_0(Matrix4__Float* self, Vector3__Float* offset_) {
+Matrix4__Float___init(self);
+self->column_3_row_0_ = (offset_)->x_;
+self->column_3_row_1_ = (offset_)->y_;
+self->column_3_row_2_ = (offset_)->z_;
+}
 void Quaternion__Float_Quaternion(Quaternion__Float* self) {
 }
-void Quaternion__Float_set_axis_angle(Quaternion__Float* self, Vector3__Float* axis_, float angle_) {
+Matrix4__Float* Quaternion__Float_to_matrix(Quaternion__Float* self) {
+Matrix4__Float* matrix_ = Matrix4__Float___make();
+Matrix4__Float_set_rotation(matrix_, Quaternion__Float___retain(self));
+Matrix4__Float* spite_temp_106 = Matrix4__Float___retain(matrix_);
+Matrix4__Float___release(matrix_);
+return spite_temp_106;
+}
+void Quaternion__Float_set_axis_angle___held_0(Quaternion__Float* self, Vector3__Float* axis_, float angle_) {
 Vector3__Float spite_slot_10;
 Vector3__Float* unit_ = Vector3__Float_normalized___into(axis_, &spite_slot_10);
 float half_angle_ = (angle_ * 0.5f);
@@ -2877,14 +2879,6 @@ self->x_ = ((unit_)->x_ * half_sine_);
 self->y_ = ((unit_)->y_ * half_sine_);
 self->z_ = ((unit_)->z_ * half_sine_);
 self->w_ = SpiteFloat_cosine(half_angle_);
-Vector3__Float___release(axis_);
-}
-Matrix4__Float* Quaternion__Float_to_matrix(Quaternion__Float* self) {
-Matrix4__Float* matrix_ = Matrix4__Float___make();
-Matrix4__Float_set_rotation(matrix_, Quaternion__Float___retain(self));
-Matrix4__Float* spite_temp_106 = Matrix4__Float___retain(matrix_);
-Matrix4__Float___release(matrix_);
-return spite_temp_106;
 }
 void List_Spite_AttributeDeclaration_drop(List_Spite_AttributeDeclaration* self) {
 List_Spite_AttributeDeclaration_clear(self);
@@ -3213,7 +3207,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Namespace___release, "-\t-", "List_Spite_Namespace___release", 0},
 {(const void*)&List_Spite_Namespace___free, "-\t-", "List_Spite_Namespace___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
-{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&List_Symbol___release, "-\t-", "List_Symbol___release", 0},
@@ -3241,11 +3234,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
-{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
+{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},
@@ -3277,12 +3270,12 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Vector3__Float_normalized___into, "library/vector3.spite\tVector3", "normalized", 58},
 {(const void*)&Vector3__Float_scaled___into, "library/vector3.spite\tVector3", "scaled", 37},
 {(const void*)&Matrix4__Float_Matrix4, "library/matrix4.spite\tMatrix4", "Matrix4", 20},
-{(const void*)&Matrix4__Float_set_translation, "library/matrix4.spite\tMatrix4", "set_translation", 174},
 {(const void*)&Matrix4__Float_transform_point___into, "library/matrix4.spite\tMatrix4", "transform_point", 150},
 {(const void*)&Matrix4__Float_multiply___into, "library/matrix4.spite\tMatrix4", "multiply", 43},
+{(const void*)&Matrix4__Float_set_translation___held_0, "library/matrix4.spite\tMatrix4", "set_translation", 174},
 {(const void*)&Quaternion__Float_Quaternion, "library/quaternion.spite\tQuaternion", "Quaternion", 17},
-{(const void*)&Quaternion__Float_set_axis_angle, "library/quaternion.spite\tQuaternion", "set_axis_angle", 35},
 {(const void*)&Quaternion__Float_to_matrix, "library/quaternion.spite\tQuaternion", "to_matrix", 233},
+{(const void*)&Quaternion__Float_set_axis_angle___held_0, "library/quaternion.spite\tQuaternion", "set_axis_angle", 35},
 {(const void*)&List_Spite_AttributeDeclaration_drop, "library/list.spite\tList", "drop", 422},
 {(const void*)&List_Spite_Function_drop, "library/list.spite\tList", "drop", 422},
 {(const void*)&List_Spite_Argument_drop, "library/list.spite\tList", "drop", 422},

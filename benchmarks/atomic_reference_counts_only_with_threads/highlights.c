@@ -27,7 +27,7 @@ int64_t Naive_count_near___held_0(Naive* self, List_Point* points_) {
         while (((index_ < spite_folded_List_Point_count(points_)))) {
             Point* point_ = ({ List_Point* spite_temp_1 = points_; int32_t spite_temp_2 = index_; if (__builtin_expect(spite_temp_2 < 0 || spite_temp_2 >= (spite_temp_1)->item_count_, 0)) spite_outside_list("points[index]", spite_site_1()); ((Point**)(intptr_t)(spite_temp_1)->items_)[spite_temp_2]; });
             if (((({ int32_t spite_temp_3 = (point_)->across_; int32_t spite_temp_4 = (point_)->down_; int32_t spite_temp_5; if (__builtin_expect(__builtin_add_overflow(spite_temp_3, spite_temp_4, &spite_temp_5), 0)) spite_overflowed("point.across + point.down", "an Integer", "+", (int64_t)spite_temp_3, (int64_t)spite_temp_4, spite_site_2()); spite_temp_5; }) > (round_ * 80)))) {
-                List_Point_append(kept_, Point___retain(point_));
+                List_Point_append___held_0(kept_, point_);
             }
             index_ = (index_ + 1);
         }

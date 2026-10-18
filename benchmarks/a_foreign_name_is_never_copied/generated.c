@@ -336,8 +336,8 @@ DynamicLibrary* library_;
 int64_t input_;
 };
 static SpiteString spite_lit_2 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_3 = SPITE_STATIC_STRING(" ", 1);
 #define spite_site_1() "library/console.spite:56 in Console._write_values"
+static SpiteString spite_lit_3 = SPITE_STATIC_STRING(" ", 1);
 
 struct DynamicLibrary {
 SpiteHeader header;
@@ -480,13 +480,13 @@ Console* Console___allocate(void);
 Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void DynamicLibrary___init(DynamicLibrary* self);
 DynamicLibrary* DynamicLibrary___allocate(void);
@@ -535,7 +535,6 @@ void Naive_Naive(Naive* self);
 void Naive_count_once(Naive* self);
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value);
 void List_Console_Printable___init(List_Console_Printable* self);
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -939,10 +938,6 @@ self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
 }
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
-return self;
-}
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -1141,22 +1136,9 @@ void Launcher_Launcher(Launcher* self) {
 ({ Naive* spite_entry_instance = Naive___allocate(); Naive_Naive(spite_entry_instance); Naive___release(spite_entry_instance); (void)0; });
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
+Console__write_values___held_0(self, values_, Console_Stream_output);
 Console__write_output(self, spite_lit_2);
 Console__flush(self);
-List_Console_Printable___release(values_);
-}
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_3, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_1 = ({ Console_Printable spite_temp_2 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_2)), 0)) spite_outside_list("values[index]", spite_site_1()); spite_temp_2; }); SpiteString spite_temp_3 = Console_Printable___call_to_string(spite_temp_1); Console_Printable___release(spite_temp_1); spite_temp_3; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -1191,6 +1173,18 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
+}
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_3, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_1 = ({ Console_Printable spite_temp_2 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_2)), 0)) spite_outside_list("values[index]", spite_site_1()); spite_temp_2; }); SpiteString spite_temp_3 = Console_Printable___call_to_string(spite_temp_1); Console_Printable___release(spite_temp_1); spite_temp_3; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 }
 void DynamicLibrary_DynamicLibrary(DynamicLibrary* self, SpiteString file_, SpiteString _naming_, SpiteString _header_) {
 SpiteString spite_temp_4 = SpiteString___retain(file_);
@@ -1427,7 +1421,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Naive___free, "-\t-", "Naive___free", 0},
 {(const void*)&spite_tagged_SpiteInteger, "-\t-", "spite_tagged_SpiteInteger", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
-{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&Console_Printable___release, "-\t-", "Console_Printable___release", 0},
@@ -1444,11 +1437,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_singletons_destroy, "-\t-", "spite_singletons_destroy", 0},
 {(const void*)&Launcher_Launcher, "launcher/launcher.spite\tLauncher", "Launcher", 3},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
-{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
+{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&DynamicLibrary_DynamicLibrary, "library/dynamic_library.spite\tDynamicLibrary", "DynamicLibrary", 6},
 {(const void*)&DynamicLibrary_drop, "library/dynamic_library.spite\tDynamicLibrary", "drop", 11},
 {(const void*)&DynamicLibrary_open_library, "compiler/source/generation/prelude.spite\tDynamicLibrary", "open_library", 1},

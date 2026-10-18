@@ -32,6 +32,9 @@ func holds_counted(generator: Generator, information: Analysis.ClassInfo): Boole
 }
 
 func frames_as_local(generator: Generator, information: Analysis.ClassInfo): Boolean {
+    if information.qualified_dotted == "Buffer" {
+        return not generator.is_hot_class(information)
+    }
     if not plain_class(generator, information) {
         return false
     }

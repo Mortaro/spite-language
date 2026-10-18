@@ -49,11 +49,11 @@ than the count), nor have `round % 3 + 1` and the `Long` `total + windows + rise
 <!-- timings -->
 | form | best µs | executable bytes |
 |---|---|---|
-| Spite: `naive/`, `--optimized` | 32 058 | 200 192 |
-| naive C: `naive.c`, `clang -O2` | 6 525 | 139 776 |
+| Spite: `naive/`, `--optimized` | 32 629 | 200 192 |
+| naive C: `naive.c`, `clang -O2` | 6 445 | 139 776 |
 | expert C: `expert.c`, `clang -O2` | 6 418 | 140 288 |
 
-Spite takes 4.91 times naive C's time and 5.00 times expert C's (lower is faster).
-Best of seven interleaved runs, 2026-10-10, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
-<!-- measured spite=32058 naive=6525 expert=6418 -->
+Spite takes 5.06 times naive C's time and 5.08 times expert C's (lower is faster).
+Best of seven interleaved runs, 2026-10-18, Windows, AMD Ryzen 9 5950X 16-Core Processor, 32 logical processors, clang version 19.1.5.
+<!-- measured spite=32629 naive=6445 expert=6418 -->
 <!-- /timings -->

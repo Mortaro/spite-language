@@ -28,7 +28,7 @@ int32_t Naive_keep_every_other___held_0_1(Naive* self, List_Mover* movers_, List
     while (((position_ < spite_folded_List_Mover_count(movers_)))) {
         Mover* mover_ = ({ List_Mover* spite_temp_1 = movers_; int32_t spite_temp_2 = position_; if (__builtin_expect(spite_temp_2 < 0 || spite_temp_2 >= (spite_temp_1)->item_count_, 0)) spite_outside_list("movers[position]", spite_site_1()); ((Mover**)(intptr_t)(spite_temp_1)->items_)[spite_temp_2]; });
         total_ = ({ int32_t spite_temp_3 = total_; int32_t spite_temp_4 = (mover_)->speed_; int32_t spite_temp_5; if (__builtin_expect(__builtin_add_overflow(spite_temp_3, spite_temp_4, &spite_temp_5), 0)) spite_overflowed("total + mover.speed", "an Integer", "+", (int64_t)spite_temp_3, (int64_t)spite_temp_4, spite_site_2()); spite_temp_5; });
-        List_Mover_append(every_other_, Mover___retain(mover_));
+        List_Mover_append___held_0(every_other_, mover_);
         position_ = ({ int32_t spite_temp_6 = position_; int32_t spite_temp_7 = 2; int32_t spite_temp_8; if (__builtin_expect(__builtin_add_overflow(spite_temp_6, spite_temp_7, &spite_temp_8), 0)) spite_overflowed("position + 2", "an Integer", "+", (int64_t)spite_temp_6, (int64_t)spite_temp_7, spite_site_3()); spite_temp_8; });
     }
     int32_t spite_temp_9 = total_;

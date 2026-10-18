@@ -53,7 +53,7 @@ int32_t Naive_nap_all(Naive* self, int32_t count_) {
     while (((index_ < count_))) {
         Napper* napper_ = Napper___make(index_);
         Concurrent__Integer* napping_ = Concurrent__Integer___make(spite_function_value_Napper_nap(napper_));
-        List_Concurrent__Integer_append(nappings_, Concurrent__Integer___retain(napping_));
+        List_Concurrent__Integer_append___held_0(nappings_, napping_);
         index_ = (index_ + 1);
         Concurrent__Integer___release(napping_);
         Napper___release(napper_);

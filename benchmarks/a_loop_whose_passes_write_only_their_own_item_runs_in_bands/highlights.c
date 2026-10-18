@@ -52,7 +52,7 @@ void ThreadPool_run_bands(ThreadPool* self, Spite_Function* piece_, int32_t coun
     while (((index_ < bands_))) {
         int32_t first_ = ThreadPool_piece_start(self, index_, base_, extra_);
         int32_t end_ = ThreadPool_piece_start(self, (index_ + 1), base_, extra_);
-        ThreadPool_submit(self, Spite_Function___retain(piece_), first_, end_, (block_ + ((int64_t)(({ int32_t spite_temp_13 = index_; int32_t spite_temp_14 = 8; int32_t spite_temp_15; if (__builtin_expect(__builtin_mul_overflow(spite_temp_13, spite_temp_14, &spite_temp_15), 0)) spite_overflowed("index * 8", "an Integer", "*", (int64_t)spite_temp_13, (int64_t)spite_temp_14, spite_site_5()); spite_temp_15; })))));
+        ThreadPool_submit___held_0(self, piece_, first_, end_, (block_ + ((int64_t)(({ int32_t spite_temp_13 = index_; int32_t spite_temp_14 = 8; int32_t spite_temp_15; if (__builtin_expect(__builtin_mul_overflow(spite_temp_13, spite_temp_14, &spite_temp_15), 0)) spite_overflowed("index * 8", "an Integer", "*", (int64_t)spite_temp_13, (int64_t)spite_temp_14, spite_site_5()); spite_temp_15; })))));
         index_ = (index_ + 1);
     }
     int32_t first_end_ = ThreadPool_piece_start(self, 1, base_, extra_);

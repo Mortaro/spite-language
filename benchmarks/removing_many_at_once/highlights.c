@@ -29,7 +29,7 @@ void Naive_fill(Naive* self) {
         bool despawned_now_ = Despawns_marked(self->despawns_, entity_);
         Velocity spite_slot_1;
         Velocity* velocity_ = Velocity___make_into(&spite_slot_1, entity_, (1.0 * SpiteInteger_to_float(entity_)), despawned_now_);
-        Items__Velocity_append(self->velocities_, Velocity___retain(velocity_));
+        Items__Velocity_append___held_0(self->velocities_, velocity_);
         List_Integer_append(self->entities_, entity_);
         entity_ = (entity_ + 1);
     }
@@ -86,10 +86,10 @@ int64_t Naive_kept_sum(Naive* self) {
         if (!(((List_Integer_get_at(self->entities_, row_)).has_value))) {
             spite_failed_1(row_, self, sum_);
         }
-        int32_t entity_ = (List_Integer_get_at(self->entities_, row_)).value;
-        sum_ = ({ int64_t spite_temp_6 = ({ int64_t spite_temp_7 = sum_; int64_t spite_temp_8 = SpiteInteger_to_long((velocity_)->entity_); int64_t spite_temp_9; if (__builtin_expect(__builtin_add_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("sum + velocity.entity", "a Long", "+", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_3()); spite_temp_9; }); int64_t spite_temp_10 = SpiteInteger_to_long(entity_); int64_t spite_temp_11; if (__builtin_expect(__builtin_add_overflow(spite_temp_6, spite_temp_10, &spite_temp_11), 0)) spite_overflowed("sum + velocity.entity + entity", "a Long", "+", (int64_t)spite_temp_6, (int64_t)spite_temp_10, spite_site_3()); spite_temp_11; });
+        int32_t entity_ = ({ List_Integer* spite_temp_6 = self->entities_; int32_t spite_temp_7 = row_; if (__builtin_expect(spite_temp_7 < 0 || spite_temp_7 >= (spite_temp_6)->item_count_, 0)) spite_outside_list("entities[row]", spite_site_3()); ((int32_t*)(intptr_t)(spite_temp_6)->items_)[spite_temp_7]; });
+        sum_ = ({ int64_t spite_temp_8 = ({ int64_t spite_temp_9 = sum_; int64_t spite_temp_10 = SpiteInteger_to_long((velocity_)->entity_); int64_t spite_temp_11; if (__builtin_expect(__builtin_add_overflow(spite_temp_9, spite_temp_10, &spite_temp_11), 0)) spite_overflowed("sum + velocity.entity", "a Long", "+", (int64_t)spite_temp_9, (int64_t)spite_temp_10, spite_site_4()); spite_temp_11; }); int64_t spite_temp_12 = SpiteInteger_to_long(entity_); int64_t spite_temp_13; if (__builtin_expect(__builtin_add_overflow(spite_temp_8, spite_temp_12, &spite_temp_13), 0)) spite_overflowed("sum + velocity.entity + entity", "a Long", "+", (int64_t)spite_temp_8, (int64_t)spite_temp_12, spite_site_4()); spite_temp_13; });
         row_ = (row_ + 1);
     }
-    int64_t spite_temp_12 = sum_;
-    return spite_temp_12;
+    int64_t spite_temp_14 = sum_;
+    return spite_temp_14;
 }

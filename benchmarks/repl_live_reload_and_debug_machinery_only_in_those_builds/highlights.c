@@ -7,7 +7,7 @@ void Naive_Naive(Naive* self) {
     int32_t index_ = 0;
     while (((index_ < 1000))) {
         Monster* monster_ = Monster___make((index_ % 50));
-        List_Monster_append(monsters_, Monster___retain(monster_));
+        List_Monster_append___held_0(monsters_, monster_);
         index_ = (index_ + 1);
         Monster___release(monster_);
     }

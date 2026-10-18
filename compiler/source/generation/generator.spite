@@ -10690,6 +10690,58 @@ func becomes_text(value_type: Analysis.SpiteType, expected_type: Analysis.SpiteT
     return true
 }
 
+# ../../../docs/optimizations.md#a-name-known-while-compiling-is-compared-while-compiling
+func folds_a_text_comparison(
+    operator: Syntax.Expressions.BinaryOperator,
+    left_text: String,
+    right_text: String,
+): Boolean {
+    if operator != 'equal' and operator != 'not_equal' {
+        return false
+    }
+    if left_text.is_empty() or right_text.is_empty() {
+        return false
+    }
+    return true
+}
+
+func folded_text_comparison(
+    operator: Syntax.Expressions.BinaryOperator,
+    left_text: String,
+    right_text: String,
+): ExpressionResult {
+    crash folds_a_text_comparison(operator, left_text, right_text)
+    var same = left_text == right_text
+    if operator == 'not_equal' {
+        same = not same
+    }
+    var answer_type = boolean_type()
+    var answer = "false"
+    if same {
+        answer = "true"
+    }
+    var folded = ExpressionResult(answer, answer_type)
+    folded.constant_text = "b:{answer}"
+    return folded
+}
+
+func text_known_while_compiling(text_ast: Syntax.Expressions.Expression, result: ExpressionResult): String {
+    var folded = result.constant_text
+    if folded.starts_with("s:") {
+        var folded_length = folded.length()
+        return folded.slice(2, folded_length)
+    }
+    if constant_texts.has(result.code) {
+        crash constant_texts[result.code]
+        return constant_texts[result.code]
+    }
+    var literal = shape.as_string_literal(text_ast)
+    if not literal or literal.value.contains("\{") {
+        return ""
+    }
+    return literal.value
+}
+
 func generate_string_binary(
     operator: Syntax.Expressions.BinaryOperator,
     left_result: ExpressionResult,
@@ -10699,6 +10751,11 @@ func generate_string_binary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var right_result = generate_joined(right_ast, scope, class_information)
+    var left_text = text_known_while_compiling(left_ast, left_result)
+    var right_text = text_known_while_compiling(right_ast, right_result)
+    if folds_a_text_comparison(operator, left_text, right_text) {
+        return folded_text_comparison(operator, left_text, right_text)
+    }
     var right_became_text = false
     if operator == 'add' {
         var right_value_type = right_result.type
@@ -15256,6 +15313,9 @@ func frames_local_object(
         }
     }
     var returning = current_return_c_name == made.c_name
+    if made.qualified_dotted == "Buffer" and returning {
+        return false
+    }
     var follower = object_study(scope, class_information)
     follower.counted_allowed = true
     follower.follow_local(declaration.name, made, returning)
@@ -15285,7 +15345,11 @@ func frames_local_object(
     crash owned_local
     owned_local.framed = true
     owned_local.framed_object = true
-    if object_frames.holds_counted(this, made) and not in_result {
+    if made.qualified_dotted == "Buffer" and not in_result {
+        var drop = made.find_function("drop")
+        crash drop
+        owned_local.framed_cleanup = "{drop.c_name}({c_value_name(declaration.name)})"
+    } else if object_frames.holds_counted(this, made) and not in_result {
         owned_local.framed_cleanup = "{made.c_name}___unframe({c_value_name(declaration.name)})"
     }
     scope.check_last(current_line)
@@ -17409,7 +17473,7 @@ func held_variant_name(
     if not owner {
         return function_c_name
     }
-    if owner.source_path.starts_with("library/") or is_hot_class(owner) {
+    if is_hot_class(owner) {
         return function_c_name
     }
     var original = function_by_c_name(owner, function_c_name)
@@ -17418,6 +17482,11 @@ func held_variant_name(
     }
     if original.is_constructor or not original.has_body or original.result_slot {
         return function_c_name
+    }
+    var library_function = original.source_path.starts_with("library/")
+    var read_lists_before = placement.read_lists
+    if library_function {
+        use_class_read_lists(owner)
     }
     var positions = List<String>()
     var framed = List<String>()
@@ -17435,6 +17504,10 @@ func held_variant_name(
         var parameter_name = original.parameters[position].name
         var position_text = position.to_string()
         var fits = not assigns_name(original.body, parameter_name) and not original.lent_parameters.contains(parameter_name)
+        if fits and library_function {
+            var parameter_type = original.parameters[position].type
+            fits = type_shape.as_list(parameter_type) and placement.read_lists.contains("{original.name}#{position}")
+        }
         crash expected_types[position]
         var shaped_type = type_shape.as_union(expected_types[position])
         if fits and shaped_type {
@@ -17462,6 +17535,7 @@ func held_variant_name(
         }
         candidate_index = candidate_index + 1
     }
+    placement.read_lists = read_lists_before
     if positions.is_empty() {
         return function_c_name
     }
@@ -34450,14 +34524,15 @@ func uncounted_slot_read(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
-    if declaration.type_reference or not slot_proofs_allowed(class_information) {
+    if declaration.type_reference or hot_reload or read_evaluate_print_loop or remote_loop_port != 0 or keeps_internals or resumable_mode {
         return ""
     }
     if scope.entry_names.contains(declaration.name) or not declares_here(declaration) {
         return ""
     }
     crash declaration.value
-    var read = shape.as_index(declaration.value)
+    var read_value = declaration.value
+    var read = shape.as_index(read_value)
     if not read {
         return ""
     }
@@ -34467,33 +34542,43 @@ func uncounted_slot_read(
     if not holder {
         return ""
     }
-    var watch = slot_watch_for(declaration.name, read, declaration.value, scope, class_information)
-    if not watch {
-        return ""
-    }
     var element = slot_element_type(read, scope, class_information)
     if not element {
         return ""
     }
+    var declared_type = infer_declared_type(null, read_value, scope, class_information)
     var class_reference = type_shape.as_class_ref(element)
-    if not class_reference or class_reference.has_signature {
+    var plain = type_shape.as_scalar(element) or type_shape.as_enum(element)
+    if is_library_class(class_information) and not plain {
         return ""
     }
-    watch.uncounted = true
-    watch.write_back_allowed = true
-    watch.guarded = watch.list_text.split(".")
-    crash declaration.value
-    var declared_type = infer_declared_type(null, declaration.value, scope, class_information)
-    var lookahead = Scope(scope)
-    lookahead.declare(declaration.name, declared_type)
-    var statements = borrow_statements
-    var start = borrow_index + 1
-    var end = statements.count()
-    if not slot_window_holds(watch, statements, start, end, lookahead, class_information) {
-        return ""
+    if not plain {
+        if not class_reference {
+            return ""
+        }
+        if class_reference.has_signature {
+            return ""
+        }
     }
-    if not slot_watch_settles(watch) {
-        return ""
+    if not plain {
+        var watch = slot_watch_for(declaration.name, read, read_value, scope, class_information)
+        if not watch {
+            return ""
+        }
+        watch.uncounted = true
+        watch.write_back_allowed = true
+        watch.guarded = watch.list_text.split(".")
+        var lookahead = Scope(scope)
+        lookahead.declare(declaration.name, declared_type)
+        var statements = borrow_statements
+        var start = borrow_index + 1
+        var end = statements.count()
+        if not slot_window_holds(watch, statements, start, end, lookahead, class_information) {
+            return ""
+        }
+        if not slot_watch_settles(watch) {
+            return ""
+        }
     }
     crash read.object
     var list_type = receiver_type_of(read.object, scope, class_information)
@@ -34509,12 +34594,15 @@ func uncounted_slot_read(
     var outside = "{index_temporary} < 0 || {index_temporary} >= ({list_temporary})->item_count_"
     var opening = "(\{ {c_type_name(list_type)} {list_temporary} = {list_code.code}; int32_t {index_temporary} = {index_code};"
     if type_shape.as_nullable(declared_type) {
-        return "{opening} ({outside}) ? 0 : {item}; })"
+        var maybe_type = nullable_type_of(element)
+        var item_value = ExpressionResult(item, element)
+        var absent = chain_absent(maybe_type)
+        var present = chain_present(item_value, maybe_type)
+        return "{opening} ({outside}) ? {absent} : {present}; })"
     }
     ensure_index_check()
     var printer = Syntax.SourcePrinter()
-    crash declaration.value
-    var read_source = printer.source_expression(declaration.value)
+    var read_source = printer.source_expression(read_value)
     var read_text = escape_c_string(read_source)
     var where = located(current_path, current_line, current_owner, current_function)
     return "{opening} if (__builtin_expect({outside}, 0)) spite_outside_list(\"{read_text}\", {where}); {item}; })"

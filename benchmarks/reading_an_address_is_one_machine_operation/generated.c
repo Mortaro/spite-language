@@ -361,8 +361,8 @@ Build* build_;
 typedef struct List_Console_Printable List_Console_Printable;
 typedef struct TypedMemory__Console_Printable TypedMemory__Console_Printable;
 typedef struct SpiteBox_SpiteLong { SpiteHeader header; int64_t value; } SpiteBox_SpiteLong;
-typedef struct { bool has_value; uint8_t value; } Nullable_Byte;
 #define SPITE_FRAMED_COUNT 1073741824
+typedef struct { bool has_value; uint8_t value; } Nullable_Byte;
 struct Base64 {
 SpiteHeader header;
 SpiteString _alphabet_;
@@ -436,8 +436,8 @@ int64_t input_;
 };
 static SpiteString spite_lit_10 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_11 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_12 = SPITE_STATIC_STRING(" ", 1);
 #define spite_site_18() "library/console.spite:56 in Console._write_values"
+static SpiteString spite_lit_12 = SPITE_STATIC_STRING(" ", 1);
 
 struct Duration {
 SpiteHeader header;
@@ -766,23 +766,25 @@ static inline SpiteTagged spite_tagged_SpiteLong(int64_t value);
 static void spite_narrowed(int64_t value, const char* from, const char* to, const char* where) __attribute__((noreturn, cold));
 static void spite_divided_by_zero(const char* operation, const char* where);
 static void spite_outside_list(const char* read, const char* where) __attribute__((noreturn, cold));
+static Buffer* Buffer___framed(Buffer* self);
+static Buffer* Buffer___make_into(Buffer* self, int32_t size_);
+SpiteString Base64_encode___held_0(Base64* self, Buffer* bytes_);
 void Base64___init(Base64* self);
 Base64* Base64___allocate(void);
 Base64* Base64___make(void);
 void Base64___release(Base64* self);
-SpiteString Base64_encode(Base64* self, Buffer* bytes_);
-SpiteString Base64__encoded(Base64* self, Buffer* bytes_, SpiteString alphabet_, bool padded_);
-uint8_t Base64__byte(Base64* self, Buffer* bytes_, int32_t index_);
-void Base64__write_digit(Base64* self, Buffer* written_, SpiteString alphabet_, int32_t group_, int32_t shift_);
+SpiteString Base64_encode___held_0(Base64* self, Buffer* bytes_);
 void Base64___destroy(Base64* self);
 void Base64___discard(Base64* self);
+SpiteString Base64__encoded___held_0(Base64* self, Buffer* bytes_, SpiteString alphabet_, bool padded_);
+uint8_t Base64__byte___held_0(Base64* self, Buffer* bytes_, int32_t index_);
+void Base64__write_digit___held_0(Base64* self, Buffer* written_, SpiteString alphabet_, int32_t group_, int32_t shift_);
 static SPITE_CRASH_REPORT void spite_failed_1(SpiteString alphabet_, bool padded_, int32_t count_, int32_t index_, Base64* self);
 static SPITE_CRASH_REPORT void spite_failed_2(int32_t index_, Base64* self);
 SpiteString SpiteBoolean_to_string(bool self);
 void Buffer___init(Buffer* self);
 Buffer* Buffer___allocate(void);
 Buffer* Buffer___make(int32_t size_);
-static inline Buffer* Buffer___retain(Buffer* self);
 static inline void Buffer___release(Buffer* self);
 void Buffer___free(Buffer* self);
 void Buffer_drop(Buffer* self);
@@ -821,13 +823,13 @@ Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
 void Console_error(Console* self, List_Console_Printable* values_);
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void Duration___init(Duration* self);
 Duration* Duration___allocate(void);
@@ -957,7 +959,6 @@ void List_Spite_Namespace_drop(List_Spite_Namespace* self);
 void TypedMemory__Spite_Namespace___release(TypedMemory__Spite_Namespace* self);
 void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* self, int64_t address_, int32_t index_);
 void List_Console_Printable___init(List_Console_Printable* self);
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -1340,6 +1341,17 @@ fflush(stdout);
 fprintf(stderr, "spite: '%s' is outside its list: a bound proves only the top of an index, and this one is below 0 or the list changed, at %s\n", read, where);
 exit(1);
 }
+static Buffer* Buffer___framed(Buffer* self) {
+self->header.ref_count = SPITE_FRAMED_COUNT;
+self->header.class_id = 12;
+return self;
+}
+static Buffer* Buffer___make_into(Buffer* self, int32_t size_) {
+Buffer___framed(self);
+Buffer___init(self);
+Buffer_Buffer(self, size_);
+return self;
+}
 void Base64___init(Base64* self) {
 self->_alphabet_ = spite_lit_1;
 self->_url_alphabet_ = spite_lit_2;
@@ -1395,10 +1407,6 @@ return self;
 Buffer* Buffer___make(int32_t size_) {
 Buffer* self = Buffer___allocate();
 Buffer_Buffer(self, size_);
-return self;
-}
-static inline Buffer* Buffer___retain(Buffer* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
 }
 static inline void Buffer___release(Buffer* self) {
@@ -2007,10 +2015,6 @@ self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
 }
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
-return self;
-}
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2269,32 +2273,32 @@ void Launcher_Launcher(Launcher* self) {
 (void)0;
 ({ Naive* spite_entry_instance = Naive___allocate(); Naive_Naive(spite_entry_instance); Naive___release(spite_entry_instance); (void)0; });
 }
-SpiteString Base64_encode(Base64* self, Buffer* bytes_) {
-SpiteString spite_temp_1 = Base64__encoded(self, Buffer___retain(bytes_), SpiteString___retain(self->_alphabet_), true);
-Buffer___release(bytes_);
+SpiteString Base64_encode___held_0(Base64* self, Buffer* bytes_) {
+SpiteString spite_temp_1 = Base64__encoded___held_0(self, bytes_, SpiteString___retain(self->_alphabet_), true);
 return spite_temp_1;
 }
-SpiteString Base64__encoded(Base64* self, Buffer* bytes_, SpiteString alphabet_, bool padded_) {
+SpiteString Base64__encoded___held_0(Base64* self, Buffer* bytes_, SpiteString alphabet_, bool padded_) {
 int32_t count_ = Buffer_count(bytes_);
-Buffer* written_ = Buffer___make(({ int32_t spite_temp_2 = (({ int32_t spite_temp_3 = count_; int32_t spite_temp_4 = 2; int32_t spite_temp_5; if (__builtin_expect(__builtin_add_overflow(spite_temp_3, spite_temp_4, &spite_temp_5), 0)) spite_overflowed("count + 2", "an Integer", "+", (int64_t)spite_temp_3, (int64_t)spite_temp_4, spite_site_1()); spite_temp_5; }) / 3); int32_t spite_temp_6 = 4; int32_t spite_temp_7; if (__builtin_expect(__builtin_mul_overflow(spite_temp_2, spite_temp_6, &spite_temp_7), 0)) spite_overflowed("(count + 2) / 3 * 4", "an Integer", "*", (int64_t)spite_temp_2, (int64_t)spite_temp_6, spite_site_1()); spite_temp_7; }));
+Buffer spite_slot_1;
+Buffer* written_ = Buffer___make_into(&spite_slot_1, ({ int32_t spite_temp_2 = (({ int32_t spite_temp_3 = count_; int32_t spite_temp_4 = 2; int32_t spite_temp_5; if (__builtin_expect(__builtin_add_overflow(spite_temp_3, spite_temp_4, &spite_temp_5), 0)) spite_overflowed("count + 2", "an Integer", "+", (int64_t)spite_temp_3, (int64_t)spite_temp_4, spite_site_1()); spite_temp_5; }) / 3); int32_t spite_temp_6 = 4; int32_t spite_temp_7; if (__builtin_expect(__builtin_mul_overflow(spite_temp_2, spite_temp_6, &spite_temp_7), 0)) spite_overflowed("(count + 2) / 3 * 4", "an Integer", "*", (int64_t)spite_temp_2, (int64_t)spite_temp_6, spite_site_1()); spite_temp_7; }));
 int32_t index_ = 0;
 while (((index_ < count_))) {
-int32_t first_ = SpiteByte_to_integer(Base64__byte(self, Buffer___retain(bytes_), index_));
+int32_t first_ = SpiteByte_to_integer(Base64__byte___held_0(self, bytes_, index_));
 int32_t group_ = SpiteInteger_shifted_left(first_, 16);
 int32_t present_ = (count_ - index_);
 if (((present_ > 1))) {
-int32_t second_ = SpiteByte_to_integer(Base64__byte(self, Buffer___retain(bytes_), (index_ + 1)));
+int32_t second_ = SpiteByte_to_integer(Base64__byte___held_0(self, bytes_, (index_ + 1)));
 int32_t shifted_ = SpiteInteger_shifted_left(second_, 8);
 group_ = SpiteInteger_bits_or(group_, shifted_);
 }
 if (((present_ > 2))) {
-int32_t third_ = SpiteByte_to_integer(Base64__byte(self, Buffer___retain(bytes_), ({ int32_t spite_temp_8 = index_; int32_t spite_temp_9 = 2; int32_t spite_temp_10; if (__builtin_expect(__builtin_add_overflow(spite_temp_8, spite_temp_9, &spite_temp_10), 0)) spite_overflowed("index + 2", "an Integer", "+", (int64_t)spite_temp_8, (int64_t)spite_temp_9, spite_site_2()); spite_temp_10; })));
+int32_t third_ = SpiteByte_to_integer(Base64__byte___held_0(self, bytes_, ({ int32_t spite_temp_8 = index_; int32_t spite_temp_9 = 2; int32_t spite_temp_10; if (__builtin_expect(__builtin_add_overflow(spite_temp_8, spite_temp_9, &spite_temp_10), 0)) spite_overflowed("index + 2", "an Integer", "+", (int64_t)spite_temp_8, (int64_t)spite_temp_9, spite_site_2()); spite_temp_10; })));
 group_ = SpiteInteger_bits_or(group_, third_);
 }
-Base64__write_digit(self, Buffer___retain(written_), SpiteString___retain(alphabet_), group_, 18);
-Base64__write_digit(self, Buffer___retain(written_), SpiteString___retain(alphabet_), group_, 12);
+Base64__write_digit___held_0(self, written_, SpiteString___retain(alphabet_), group_, 18);
+Base64__write_digit___held_0(self, written_, SpiteString___retain(alphabet_), group_, 12);
 if (((present_ > 1))) {
-Base64__write_digit(self, Buffer___retain(written_), SpiteString___retain(alphabet_), group_, 6);
+Base64__write_digit___held_0(self, written_, SpiteString___retain(alphabet_), group_, 6);
 }
 else {
 if ((padded_)) {
@@ -2302,7 +2306,7 @@ Buffer_append(written_, SpiteInteger_to_byte(61));
 }
 }
 if (((present_ > 2))) {
-Base64__write_digit(self, Buffer___retain(written_), SpiteString___retain(alphabet_), group_, 0);
+Base64__write_digit___held_0(self, written_, SpiteString___retain(alphabet_), group_, 0);
 }
 else {
 if ((padded_)) {
@@ -2317,9 +2321,8 @@ spite_failed_1(alphabet_, padded_, count_, index_, self);
 }
 SpiteString spite_temp_14 = SpiteString___retain(text_);
 SpiteString___release(text_);
-Buffer___release(written_);
+Buffer_drop(written_);
 SpiteString___release(alphabet_);
-Buffer___release(bytes_);
 return spite_temp_14;
 }
 static SPITE_CRASH_REPORT void spite_failed_1(SpiteString alphabet_, bool padded_, int32_t count_, int32_t index_, Base64* self) {
@@ -2343,13 +2346,12 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-uint8_t Base64__byte(Base64* self, Buffer* bytes_, int32_t index_) {
+uint8_t Base64__byte___held_0(Base64* self, Buffer* bytes_, int32_t index_) {
 Nullable_Byte value_ = Buffer_get_at(bytes_, index_);
 if (!((value_).has_value)) {
 spite_failed_2(index_, self);
 }
 uint8_t spite_temp_21 = (value_).value;
-Buffer___release(bytes_);
 return spite_temp_21;
 }
 static SPITE_CRASH_REPORT void spite_failed_2(int32_t index_, Base64* self) {
@@ -2367,12 +2369,11 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-void Base64__write_digit(Base64* self, Buffer* written_, SpiteString alphabet_, int32_t group_, int32_t shift_) {
+void Base64__write_digit___held_0(Base64* self, Buffer* written_, SpiteString alphabet_, int32_t group_, int32_t shift_) {
 int32_t value_ = SpiteInteger_bits_and(SpiteInteger_shifted_right(group_, shift_), 63);
 uint8_t digit_ = ({ int32_t spite_temp_25 = SpiteString_code_at(alphabet_, value_); if (__builtin_expect(spite_temp_25 < 0 || spite_temp_25 > UINT8_MAX, 0)) spite_narrowed((int64_t)spite_temp_25, "an Integer", "a Byte", spite_site_6()); (uint8_t)spite_temp_25; });
 Buffer_append(written_, digit_);
 SpiteString___release(alphabet_);
-Buffer___release(written_);
 }
 SpiteString SpiteBoolean_to_string(bool self) {
 if ((self)) {
@@ -2633,29 +2634,16 @@ int64_t spite_temp_106 = ({ int64_t spite_temp_107 = ({ int64_t spite_temp_108 =
 return spite_temp_106;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
+Console__write_values___held_0(self, values_, Console_Stream_output);
 Console__write_output(self, spite_lit_10);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
+Console__write_values___held_0(self, values_, Console_Stream_error);
 Console__write_error(self, spite_lit_11);
 Console__flush(self);
-List_Console_Printable___release(values_);
-}
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_12, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_124 = ({ Console_Printable spite_temp_125 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_125)), 0)) spite_outside_list("values[index]", spite_site_18()); spite_temp_125; }); SpiteString spite_temp_126 = Console_Printable___call_to_string(spite_temp_124); Console_Printable___release(spite_temp_124); spite_temp_126; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -2690,6 +2678,18 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
+}
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_12, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_124 = ({ Console_Printable spite_temp_125 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_125)), 0)) spite_outside_list("values[index]", spite_site_18()); spite_temp_125; }); SpiteString spite_temp_126 = Console_Printable___call_to_string(spite_temp_124); Console_Printable___release(spite_temp_124); spite_temp_126; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 }
 void Duration_Duration(Duration* self, int64_t amount_, Duration_Unit unit_) {
 int64_t per_second_ = Duration__units_per_second(self, unit_);
@@ -2965,7 +2965,7 @@ int32_t round_ = 0;
 while (((round_ < 100))) {
 uint8_t changed_ = ({ int32_t spite_temp_212 = round_; if (__builtin_expect(spite_temp_212 < 0 || spite_temp_212 > UINT8_MAX, 0)) spite_narrowed((int64_t)spite_temp_212, "an Integer", "a Byte", spite_site_33()); (uint8_t)spite_temp_212; });
 Buffer_set_at(bytes_, round_, changed_);
-SpiteString encoded_ = Base64_encode(self->base64_, Buffer___retain(bytes_));
+SpiteString encoded_ = Base64_encode___held_0(self->base64_, bytes_);
 total_ = ({ int64_t spite_temp_213 = ({ int64_t spite_temp_214 = total_; int64_t spite_temp_215 = SpiteInteger_to_long(SpiteString_length(encoded_)); int64_t spite_temp_216; if (__builtin_expect(__builtin_add_overflow(spite_temp_214, spite_temp_215, &spite_temp_216), 0)) spite_overflowed("total + encoded.length()", "a Long", "+", (int64_t)spite_temp_214, (int64_t)spite_temp_215, spite_site_34()); spite_temp_216; }); int64_t spite_temp_217 = SpiteInteger_to_long(SpiteString_code_at(encoded_, round_)); int64_t spite_temp_218; if (__builtin_expect(__builtin_add_overflow(spite_temp_213, spite_temp_217, &spite_temp_218), 0)) spite_overflowed("total + encoded.length() + encoded.code_at(round)", "a Long", "+", (int64_t)spite_temp_213, (int64_t)spite_temp_217, spite_site_34()); spite_temp_218; });
 round_ = (round_ + 1);
 SpiteString___release(encoded_);
@@ -3177,6 +3177,8 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_narrowed, "-\t-", "spite_narrowed", 0},
 {(const void*)&spite_divided_by_zero, "-\t-", "spite_divided_by_zero", 0},
 {(const void*)&spite_outside_list, "-\t-", "spite_outside_list", 0},
+{(const void*)&Buffer___framed, "-\t-", "Buffer___framed", 0},
+{(const void*)&Buffer___make_into, "-\t-", "Buffer___make_into", 0},
 {(const void*)&Base64___init, "-\t-", "Base64___init", 0},
 {(const void*)&Base64___allocate, "-\t-", "Base64___allocate", 0},
 {(const void*)&Base64___make, "-\t-", "Base64___make", 0},
@@ -3185,7 +3187,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Buffer___init, "-\t-", "Buffer___init", 0},
 {(const void*)&Buffer___allocate, "-\t-", "Buffer___allocate", 0},
 {(const void*)&Buffer___make, "-\t-", "Buffer___make", 0},
-{(const void*)&Buffer___retain, "-\t-", "Buffer___retain", 0},
 {(const void*)&Buffer___release, "-\t-", "Buffer___release", 0},
 {(const void*)&Buffer___free, "-\t-", "Buffer___free", 0},
 {(const void*)&Clock___init, "-\t-", "Clock___init", 0},
@@ -3261,7 +3262,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Namespace___release, "-\t-", "List_Spite_Namespace___release", 0},
 {(const void*)&List_Spite_Namespace___free, "-\t-", "List_Spite_Namespace___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
-{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&List_Symbol___release, "-\t-", "List_Symbol___release", 0},
@@ -3285,12 +3285,12 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&spite_singleton_free_later, "-\t-", "spite_singleton_free_later", 0},
 {(const void*)&spite_singletons_destroy, "-\t-", "spite_singletons_destroy", 0},
 {(const void*)&Launcher_Launcher, "launcher/launcher.spite\tLauncher", "Launcher", 3},
-{(const void*)&Base64_encode, "library/base64.spite\tBase64", "encode", 6},
-{(const void*)&Base64__encoded, "library/base64.spite\tBase64", "_encoded", 22},
+{(const void*)&Base64_encode___held_0, "library/base64.spite\tBase64", "encode", 6},
+{(const void*)&Base64__encoded___held_0, "library/base64.spite\tBase64", "_encoded", 22},
 {(const void*)&spite_failed_1, "-\t-", "spite_failed_1", 0},
-{(const void*)&Base64__byte, "library/base64.spite\tBase64", "_byte", 58},
+{(const void*)&Base64__byte___held_0, "library/base64.spite\tBase64", "_byte", 58},
 {(const void*)&spite_failed_2, "-\t-", "spite_failed_2", 0},
-{(const void*)&Base64__write_digit, "library/base64.spite\tBase64", "_write_digit", 64},
+{(const void*)&Base64__write_digit___held_0, "library/base64.spite\tBase64", "_write_digit", 64},
 {(const void*)&SpiteBoolean_to_string, "library/boolean.spite\tBoolean", "to_string", 3},
 {(const void*)&Buffer_Buffer, "library/buffer.spite\tBuffer", "Buffer", 12},
 {(const void*)&spite_failed_3, "-\t-", "spite_failed_3", 0},
@@ -3316,11 +3316,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
-{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
+{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},

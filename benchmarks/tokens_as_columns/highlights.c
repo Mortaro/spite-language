@@ -35,7 +35,7 @@ List_Token* Naive_tokenized(Naive* self, SpiteString source_) {
                         position_ = (position_ + 1);
                     }
                     Token* identifier_ = Token___make(Token_TokenKind_identifier, first_, ({ int32_t spite_temp_7 = position_; int32_t spite_temp_8 = first_; int32_t spite_temp_9; if (__builtin_expect(__builtin_sub_overflow(spite_temp_7, spite_temp_8, &spite_temp_9), 0)) spite_overflowed("position - first", "an Integer", "-", (int64_t)spite_temp_7, (int64_t)spite_temp_8, spite_site_3()); spite_temp_9; }), line_, hash_);
-                    List_Token_append(tokens_, Token___retain(identifier_));
+                    List_Token_append___held_0(tokens_, identifier_);
                     Token___release(identifier_);
                 }
                 else {
@@ -46,13 +46,13 @@ List_Token* Naive_tokenized(Naive* self, SpiteString source_) {
                             position_ = (position_ + 1);
                         }
                         Token* digits_ = Token___make(Token_TokenKind_number, first_, ({ int32_t spite_temp_19 = position_; int32_t spite_temp_20 = first_; int32_t spite_temp_21; if (__builtin_expect(__builtin_sub_overflow(spite_temp_19, spite_temp_20, &spite_temp_21), 0)) spite_overflowed("position - first", "an Integer", "-", (int64_t)spite_temp_19, (int64_t)spite_temp_20, spite_site_5()); spite_temp_21; }), line_, number_);
-                        List_Token_append(tokens_, Token___retain(digits_));
+                        List_Token_append___held_0(tokens_, digits_);
                         Token___release(digits_);
                     }
                     else {
                         position_ = ({ int32_t spite_temp_22 = position_; int32_t spite_temp_23 = 1; int32_t spite_temp_24; if (__builtin_expect(__builtin_add_overflow(spite_temp_22, spite_temp_23, &spite_temp_24), 0)) spite_overflowed("position + 1", "an Integer", "+", (int64_t)spite_temp_22, (int64_t)spite_temp_23, spite_site_6()); spite_temp_24; });
                         Token* symbol_ = Token___make(Token_TokenKind_symbol, first_, 1, line_, SpiteInteger_to_long(code_));
-                        List_Token_append(tokens_, Token___retain(symbol_));
+                        List_Token_append___held_0(tokens_, symbol_);
                         Token___release(symbol_);
                     }
                 }

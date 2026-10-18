@@ -10,6 +10,4 @@ push to `master` while a line is left (D624). What is decided and not built belo
 
 ## Missing
 
-- Buffer Part 2 codec performance is unverified against master: measure codecs and hashes with compilers built from both revisions, then fix any slowdown in read-only list arguments, frame-local `Buffer(n)`, or `list[base + counter]` bounds proofs (D590, issue 230)
-- Regenerate the 102 benchmark C snapshots that the current compiler writes differently before the full check can pass
-- Fix hot-reload and final-classes source tracking so recompiled standard-library code keeps access to Spite.Internal.Lock and ThreadLocal under D601
+- Buffer Part 2's codecs and hashes are slower than `master`: measured with each revision's compiler against its own library (`--optimized`, no `--debug-memory`, best of nine runs on a quiet machine), Sha256 over 1 MB is 15.7 ms against 17.8, Deflate 4.4 against 7.7, Argon2 191 against 284, and the combined codecs program is 1.03 to 2.17 times slower in its phases (D590, issue 230). A buffer read with a known byte order is a call answering a `T?` behind a bounds check where master's raw memory was one load, and `list[base + counter]` in a library loop is checked on every access. Two attempts are in and did not move it: a `___held_` copy of a library function whose list parameter is only read, and reading a value element without the write-back watch.

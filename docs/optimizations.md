@@ -292,6 +292,24 @@ reads `health` directly. A local that holds a constant is not made at all when n
 **When.** Every build. **What you notice.** Fewer allocations under `--debug-memory` than the same walk over a
 run-time list, and one copy per element in `--final-classes`.
 
+### A name known while compiling is compared while compiling
+
+**What it does.** A function handed a `Spite.AttributeDeclaration` is compiled once for the declaration it is handed
+([above](#reflection-on-constants-folds-and-unrolls)), so the name of that declaration is a constant inside it. A test
+of that name against a literal is therefore answered while compiling, and what the test decided is what the copy
+reads: `Buffer.read_unsigned_integer_little_endian_at(at)` is written by the library as
+`read_unsigned_integer_order_at(order, at)`, and the copy made for `little_endian` holds `false` where it asks
+`order.name == "big_endian"`, with no text built, compared or freed in any build, in any program.
+
+**When.** Every build, for a `==` or `!=` of two texts the compiler knows while compiling: a literal, the name of an
+attribute it bound, or a name read from reflection. Nothing else: a comparison with a text the compiler does not
+know is the ordinary one, and a program with no such comparison carries none of this.
+
+**What you notice.** Nothing you would measure: the C compiler folds the comparison of two constant texts by
+itself, so folding it here changes the C and not the time (Sha256 over 1 MB is 17.2 ms either way, best of nine
+runs). What it buys is that the standard library's own C says what it means, and a read of a known order is small
+enough to be inlined. The answer, the allocations and the balance are the same.
+
 ### Template chains run as one loop
 
 **The case:** [benchmarks/template_chains_run_as_one_loop](../benchmarks/template_chains_run_as_one_loop/).
@@ -1548,10 +1566,14 @@ passes them as they are. A game engine's `run_positions(..., rows)` calling
 counts nothing per entity: each is a `___held_` copy passing its own parameter on to the next.
 
 **When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
-function a `Concurrent` runs, for a call written by name to a program's own function (not the library's), at a place
+function a `Concurrent` runs, for a call written by name to a program's own function, at a place
 whose parameter is a class, list or dictionary (not text, a union or a variadic list), when the callee never assigns
 that parameter itself; not for a constructor, and not where the call's result is made in the caller's frame (the
-frame-made result keeps the ordinary function). Keeping the parameter needs nothing extra: storing it, returning it or
+frame-made result keeps the ordinary function). A function of the standard library is made a `___held_` copy too, when
+the parameter is a list and nothing in the whole body does more than read it, which is the same proof that lets a
+local list live in the frame
+([below](#a-local-list-of-known-size-lives-in-the-frame)): a codec's `_compress(state, block)` is handed the lists
+it reads and makes no copy for the call. Keeping the parameter needs nothing extra: storing it, returning it or
 passing it to a function that keeps it counts it there, as storing any name does.
 
 **What you notice.** Speed:
@@ -2457,7 +2479,10 @@ a local naming it) that writes into what it is handed, and a generic class writi
 which could be any class. So does keeping the name: assigning it, returning it, or naming it in another `var`.
 
 **When.** Every build but `--hot-reload`, `--repl`, `--repl-port` and `--development`, in the program's own
-classes, for a `List` of a class read with `[]` into a `var`.
+classes, for a `List` of a class read with `[]` into a `var`. A `List` of a number or an enum is read the same way
+in the standard library's classes too: a value has no count to save and no slot to write back, so the read is the
+item itself, behind the bounds check `get_at` would have done (and "nothing" instead of a fault when the name is a
+`T?` and the index is out of the list, which is what `get_at` answers).
 
 **What you notice.** Speed: the naive engine's stress test, whose matcher and row filler hold a column's header
 from a list while they look an entity up, ticks in 41.2 ms instead of 43.6 (38.1 instead of 40.0 as one C file).
@@ -3712,7 +3737,9 @@ and a list do. Four places use it:
 **Which objects.** An instance of a class whose attributes are all numbers, `Boolean`s, enum values or singletons (a
 singleton is bound as an attribute and is never counted), such as `Vector3<Float>`, `Matrix4`, `Quaternion`, a
 program's own `Velocity` or a game engine's `Math.Matrix4`, with no `drop()`, that is not a singleton and whose constructor keeps
-nothing, and whose class is not read with `.instances` anywhere in the program. What "keeps nothing" means is proven
+nothing, and whose class is not read with `.instances` anywhere in the program. A `Buffer` joins them: its attributes
+are numbers and an address, and its `drop()` frees those bytes where the local's scope ends, so the frame slot is all
+it saves and the bytes it holds are freed exactly as before. What "keeps nothing" means is proven
 from the source of each function, parameter by parameter and for the object it is called on: a parameter kept nowhere
 in the body (not stored, returned, captured, named in another variable, or passed on to a function that keeps it) is
 lent. A function without a body the compiler reads (a foreign or built-in one) and a recursive call are assumed to

@@ -18,7 +18,7 @@ void Naive_simulate(Naive* self) {
     while (((index_ < 100000))) {
         Particle spite_slot_1;
         Particle* particle_ = Particle___make_into(&spite_slot_1, index_);
-        Vector__Particle_append(particles_, Particle___retain(particle_));
+        Vector__Particle_append___held_0(particles_, particle_);
         index_ = (index_ + 1);
     }
     int32_t tick_ = 0;

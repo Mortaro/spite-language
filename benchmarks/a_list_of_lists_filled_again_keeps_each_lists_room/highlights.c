@@ -60,7 +60,7 @@ void Naive_group(Naive* self, int32_t round_) {
     int32_t made_ = 0;
     while (((made_ < 32768))) {
         List_Order* bucket_ = List_Order___make();
-        List_List_Order_append(self->buckets_, List_Order___retain(bucket_));
+        List_List_Order_append___held_0(self->buckets_, bucket_);
         made_ = (made_ + 1);
         List_Order___release(bucket_);
     }
@@ -71,7 +71,7 @@ void Naive_group(Naive* self, int32_t round_) {
         if (!(({ List_Order* spite_temp_16 = List_List_Order_get_at(self->buckets_, customer_); int path_narrowed = ((spite_temp_16) != 0); List_Order___release(spite_temp_16); path_narrowed; }))) {
             spite_failed_1(customer_, self, round_, made_, index_);
         }
-        ({ List_Order* spite_temp_17 = List_List_Order_get_at(self->buckets_, customer_); List_Order_append(spite_temp_17, Order___retain(order_)); List_Order___release(spite_temp_17); });
+        ({ List_Order* spite_temp_17 = List_List_Order_get_at(self->buckets_, customer_); List_Order_append___held_0(spite_temp_17, order_); List_Order___release(spite_temp_17); });
         index_ = (index_ + 1);
         Order___release(order_);
     }

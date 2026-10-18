@@ -43,7 +43,7 @@ void ThreadPool_submit(ThreadPool* self, Spite_Function* job_, int32_t first_, i
     (queued_)->state_ = state_;
     ThreadPool__task_begun(self);
     ThreadPool_lock_queue(self);
-    List_ThreadPoolJob_append(self->jobs_, ThreadPoolJob___retain(queued_));
+    List_ThreadPoolJob_append___held_0(self->jobs_, queued_);
     ThreadPool_signal_one(self, self->work_ready_);
     ThreadPool_unlock_queue(self);
     ThreadPoolJob___release(queued_);

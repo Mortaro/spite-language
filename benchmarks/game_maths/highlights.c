@@ -25,7 +25,7 @@ float Naive_matrix_pass(Naive* self) {
     Quaternion__Float* turn_ = Quaternion__Float___make();
     Vector3__Float spite_slot_5;
     Vector3__Float* axis_ = Vector3__Float___make_into(&spite_slot_5, 0.0, 1.0, 0.0);
-    Quaternion__Float_set_axis_angle(turn_, Vector3__Float___retain(axis_), 0.001);
+    Quaternion__Float_set_axis_angle___held_0(turn_, axis_, 0.001);
     Matrix4__Float* step_matrix_ = Quaternion__Float_to_matrix(turn_);
     Matrix4__Float spite_slot_6;
     Matrix4__Float* accumulated_ = Matrix4__Float___make_into(&spite_slot_6);
@@ -45,7 +45,7 @@ float Naive_matrix_pass(Naive* self) {
 float Naive_transform_pass(Naive* self) {
     Matrix4__Float* model_ = Matrix4__Float___make();
     Vector3__Float* place_ = Vector3__Float___make(1.0, 2.0, 3.0);
-    Matrix4__Float_set_translation(model_, Vector3__Float___retain(place_));
+    Matrix4__Float_set_translation___held_0(model_, place_);
     Vector3__Float spite_slot_8;
     Vector3__Float* point_ = Vector3__Float___make_into(&spite_slot_8, 0.5, 0.5, 0.5);
     float total_ = 0.0;

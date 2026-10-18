@@ -40,7 +40,7 @@ void ThreadPool_run_marked(ThreadPool* self, Spite_Function* piece_, int32_t cou
     int32_t index_ = 0;
     while (((index_ < count_))) {
         if ((((index_ != last_))) && (((SpiteMemory_Address_read_long(marks_, SpiteInteger_to_long(({ int32_t spite_temp_13 = index_; int32_t spite_temp_14 = 8; int32_t spite_temp_15; if (__builtin_expect(__builtin_mul_overflow(spite_temp_13, spite_temp_14, &spite_temp_15), 0)) spite_overflowed("index * 8", "an Integer", "*", (int64_t)spite_temp_13, (int64_t)spite_temp_14, spite_site_5()); spite_temp_15; }))) != SpiteInteger_to_long(0))))) {
-            ThreadPool_submit(self, Spite_Function___retain(piece_), index_, (index_ + 1), (block_ + ((int64_t)(({ int32_t spite_temp_16 = index_; int32_t spite_temp_17 = 8; int32_t spite_temp_18; if (__builtin_expect(__builtin_mul_overflow(spite_temp_16, spite_temp_17, &spite_temp_18), 0)) spite_overflowed("index * 8", "an Integer", "*", (int64_t)spite_temp_16, (int64_t)spite_temp_17, spite_site_6()); spite_temp_18; })))));
+            ThreadPool_submit___held_0(self, piece_, index_, (index_ + 1), (block_ + ((int64_t)(({ int32_t spite_temp_16 = index_; int32_t spite_temp_17 = 8; int32_t spite_temp_18; if (__builtin_expect(__builtin_mul_overflow(spite_temp_16, spite_temp_17, &spite_temp_18), 0)) spite_overflowed("index * 8", "an Integer", "*", (int64_t)spite_temp_16, (int64_t)spite_temp_17, spite_site_6()); spite_temp_18; })))));
         }
         else {
             ({ Spite_Function* spite_temp_19 = piece_; ((void (*)(void*, int32_t, int32_t))spite_temp_19->spite_typed_call)(spite_temp_19->spite_owner, index_, (index_ + 1)); });

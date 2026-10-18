@@ -375,8 +375,8 @@ int64_t input_;
 };
 static SpiteString spite_lit_5 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_6 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_7 = SPITE_STATIC_STRING(" ", 1);
 #define spite_site_2() "library/console.spite:56 in Console._write_values"
+static SpiteString spite_lit_7 = SPITE_STATIC_STRING(" ", 1);
 #include <math.h>
 struct Duration {
 SpiteHeader header;
@@ -728,13 +728,13 @@ Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
 void Console_error(Console* self, List_Console_Printable* values_);
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void Duration___init(Duration* self);
 Duration* Duration___allocate(void);
@@ -767,6 +767,7 @@ Nothing* Nothing___default(void);
 static inline void Nothing___release(Nothing* self);
 void Nothing___free(Nothing* self);
 Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result);
+float Vector3__Float_dot___held_0(Vector3__Float* self, Vector3__Float* other_);
 Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result);
 SpiteString SpiteString_to_string(SpiteString self);
 SpiteString SpiteString___retain(SpiteString self);
@@ -820,11 +821,11 @@ static inline Vector3__Float* Vector3__Float___retain(Vector3__Float* self);
 static inline void Vector3__Float___release(Vector3__Float* self);
 void Vector3__Float___free(Vector3__Float* self);
 void Vector3__Float_Vector3(Vector3__Float* self, float starting_x_, float starting_y_, float starting_z_);
-float Vector3__Float_dot(Vector3__Float* self, Vector3__Float* other_);
 float Vector3__Float_length(Vector3__Float* self);
 float Vector3__Float__square_root(Vector3__Float* self, float squared_);
 Vector3__Float* Vector3__Float_sum___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result);
 Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result);
+float Vector3__Float_dot___held_0(Vector3__Float* self, Vector3__Float* other_);
 Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result);
 Vector3__Float* Vector3__Float_scaled___into(Vector3__Float* self, float factor_, Vector3__Float* restrict spite_result);
 void List_Spite_AttributeDeclaration___init(List_Spite_AttributeDeclaration* self);
@@ -872,7 +873,6 @@ void List_Spite_Namespace_drop(List_Spite_Namespace* self);
 void TypedMemory__Spite_Namespace___release(TypedMemory__Spite_Namespace* self);
 void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* self, int64_t address_, int32_t index_);
 void List_Console_Printable___init(List_Console_Printable* self);
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -1914,10 +1914,6 @@ self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
 }
-static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
-if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
-return self;
-}
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2197,29 +2193,16 @@ int64_t spite_temp_7 = ({ int64_t spite_temp_8 = ({ int64_t spite_temp_9 = ({ in
 return spite_temp_7;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
+Console__write_values___held_0(self, values_, Console_Stream_output);
 Console__write_output(self, spite_lit_5);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
-Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
+Console__write_values___held_0(self, values_, Console_Stream_error);
 Console__write_error(self, spite_lit_6);
 Console__flush(self);
-List_Console_Printable___release(values_);
-}
-void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_7, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -2254,6 +2237,18 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
+}
+void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_7, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 }
 void Duration_Duration(Duration* self, int64_t amount_, Duration_Unit unit_) {
 int64_t per_second_ = Duration__units_per_second(self, unit_);
@@ -2472,7 +2467,7 @@ Vector3__Float* nudged_ = Vector3__Float_sum___into(velocity_, Vector3__Float_sc
 Vector3__Float spite_slot_9;
 Vector3__Float* spite_temp_89 = Vector3__Float_normalized___into(nudged_, &spite_slot_9);
 Vector3__Float___copy_fields(velocity_, spite_temp_89);
-total_ = (total_ + Vector3__Float_dot(position_, Vector3__Float___retain(velocity_)));
+total_ = (total_ + Vector3__Float_dot___held_0(position_, velocity_));
 step_ = (step_ + 1);
 }
 self->checksum_ = ({ float spite_temp_90 = total_; if (__builtin_expect(!((double)spite_temp_90 >= -9223372036854775808.0 && (double)spite_temp_90 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_90, "a Float", "a Long", spite_site_10()); (int64_t)spite_temp_90; });
@@ -2500,39 +2495,38 @@ self->x_ = starting_x_;
 self->y_ = starting_y_;
 self->z_ = starting_z_;
 }
-float Vector3__Float_dot(Vector3__Float* self, Vector3__Float* other_) {
-float spite_temp_94 = (((self->x_ * (other_)->x_) + (self->y_ * (other_)->y_)) + (self->z_ * (other_)->z_));
-Vector3__Float___release(other_);
-return spite_temp_94;
-}
 float Vector3__Float_length(Vector3__Float* self) {
 float squared_ = (((self->x_ * self->x_) + (self->y_ * self->y_)) + (self->z_ * self->z_));
-float spite_temp_95 = Vector3__Float__square_root(self, squared_);
-return spite_temp_95;
+float spite_temp_94 = Vector3__Float__square_root(self, squared_);
+return spite_temp_94;
 }
 float Vector3__Float__square_root(Vector3__Float* self, float squared_) {
 {
-float spite_temp_96 = SpiteFloat_square_root(squared_);
-return spite_temp_96;
+float spite_temp_95 = SpiteFloat_square_root(squared_);
+return spite_temp_95;
 }
 }
 Vector3__Float* Vector3__Float_sum___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result) {
-Vector3__Float* spite_temp_97 = Vector3__Float___make_into(spite_result, (self->x_ + (other_)->x_), (self->y_ + (other_)->y_), (self->z_ + (other_)->z_));
+Vector3__Float* spite_temp_96 = Vector3__Float___make_into(spite_result, (self->x_ + (other_)->x_), (self->y_ + (other_)->y_), (self->z_ + (other_)->z_));
 Vector3__Float___release(other_);
-return spite_temp_97;
+return spite_temp_96;
 }
 Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__Float* restrict spite_result) {
 float squared_ = (((self->x_ * self->x_) + (self->y_ * self->y_)) + (self->z_ * self->z_));
 if (((squared_ == SpiteInteger_to_float(0)))) {
-Vector3__Float* spite_temp_98 = Vector3__Float___make_into(spite_result, SpiteInteger_to_float(0), SpiteInteger_to_float(0), SpiteInteger_to_float(0));
-return spite_temp_98;
+Vector3__Float* spite_temp_97 = Vector3__Float___make_into(spite_result, SpiteInteger_to_float(0), SpiteInteger_to_float(0), SpiteInteger_to_float(0));
+return spite_temp_97;
 }
 {
 float one_ = SpiteInteger_to_float(1);
 float inverse_length_ = (one_ / SpiteFloat_square_root(squared_));
-Vector3__Float* spite_temp_99 = Vector3__Float___make_into(spite_result, (self->x_ * inverse_length_), (self->y_ * inverse_length_), (self->z_ * inverse_length_));
-return spite_temp_99;
+Vector3__Float* spite_temp_98 = Vector3__Float___make_into(spite_result, (self->x_ * inverse_length_), (self->y_ * inverse_length_), (self->z_ * inverse_length_));
+return spite_temp_98;
 }
+}
+float Vector3__Float_dot___held_0(Vector3__Float* self, Vector3__Float* other_) {
+float spite_temp_99 = (((self->x_ * (other_)->x_) + (self->y_ * (other_)->y_)) + (self->z_ * (other_)->z_));
+return spite_temp_99;
 }
 Vector3__Float* Vector3__Float_cross___into(Vector3__Float* self, Vector3__Float* other_, Vector3__Float* restrict spite_result) {
 Vector3__Float* spite_temp_100 = Vector3__Float___make_into(spite_result, ((self->y_ * (other_)->z_) - (self->z_ * (other_)->y_)), ((self->z_ * (other_)->x_) - (self->x_ * (other_)->z_)), ((self->x_ * (other_)->y_) - (self->y_ * (other_)->x_)));
@@ -2814,7 +2808,6 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Namespace___release, "-\t-", "List_Spite_Namespace___release", 0},
 {(const void*)&List_Spite_Namespace___free, "-\t-", "List_Spite_Namespace___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
-{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&List_Symbol___release, "-\t-", "List_Symbol___release", 0},
@@ -2842,11 +2835,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
-{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
+{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},
@@ -2871,11 +2864,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_String_drop, "library/list.spite\tList", "drop", 422},
 {(const void*)&TypedMemory__String_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&Vector3__Float_Vector3, "library/vector3.spite\tVector3", "Vector3", 7},
-{(const void*)&Vector3__Float_dot, "library/vector3.spite\tVector3", "dot", 41},
 {(const void*)&Vector3__Float_length, "library/vector3.spite\tVector3", "length", 53},
 {(const void*)&Vector3__Float__square_root, "library/vector3.spite\tVector3", "_square_root", 112},
 {(const void*)&Vector3__Float_sum___into, "library/vector3.spite\tVector3", "sum", 13},
 {(const void*)&Vector3__Float_normalized___into, "library/vector3.spite\tVector3", "normalized", 58},
+{(const void*)&Vector3__Float_dot___held_0, "library/vector3.spite\tVector3", "dot", 41},
 {(const void*)&Vector3__Float_cross___into, "library/vector3.spite\tVector3", "cross", 45},
 {(const void*)&Vector3__Float_scaled___into, "library/vector3.spite\tVector3", "scaled", 37},
 {(const void*)&List_Spite_AttributeDeclaration_drop, "library/list.spite\tList", "drop", 422},

@@ -1,4 +1,4 @@
 lines #define SpiteMemory_Address_read_byte
 lines #define SpiteMemory_Address_write_byte
-Base64__encoded
-Base64__write_digit
+Base64__encoded___held_0
+Base64__write_digit___held_0
