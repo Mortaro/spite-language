@@ -142,7 +142,7 @@ package/engine/physics/physics.spite     ->  Engine.Physics.Physics()   (no file
     is named `user_...` is the exception, and is refused like any program. A program anywhere else, including one
     in your own folder named `conformance`, is refused.
   - **A file `--final-classes` wrote may name it when the class it holds is the library's.** A printed class is a
-    copy of the standard library's own code, and a copy keeps the rights of what it copies: `Spite/Internal/Lock.spite`
+    copy of the standard library's own code, and a copy keeps the rights of what it copies: `Spite/Internal/lock.spite`
     in the printed folder names `Spite.Internal.Lock`, as `library/spite/internal/lock.spite` does. The
     `.final-classes` file alone buys nothing, since any project may write one of its own, and one `.spite` file is
     exactly one class, named by its file name: a file of a class the library does not declare is a program's own
