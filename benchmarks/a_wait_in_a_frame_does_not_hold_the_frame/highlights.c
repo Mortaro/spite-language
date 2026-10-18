@@ -32,7 +32,7 @@ void WaitsInFlight__Nothing__keep(WaitsInFlight__Nothing* self, Concurrent__Noth
         Concurrent__Nothing___release(started_);
         return;
     }
-    List_Concurrent__Nothing_append___held_0(self->_started_, started_);
+    List_Concurrent__Nothing_append(self->_started_, Concurrent__Nothing___retain(started_));
     List_Integer_append(self->_sites_, site_);
     while (((WaitsInFlight__Nothing__in_flight_at(self, site_) > self->_bound_))) {
         WaitsInFlight__Nothing__wait_for_oldest_at(self, site_);

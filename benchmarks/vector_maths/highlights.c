@@ -25,7 +25,7 @@ void Naive_steps(Naive* self) {
         Vector3__Float spite_slot_9;
         Vector3__Float* spite_temp_2 = Vector3__Float_normalized___into(nudged_, &spite_slot_9);
         Vector3__Float___copy_fields(velocity_, spite_temp_2);
-        total_ = (total_ + Vector3__Float_dot___held_0(position_, velocity_));
+        total_ = (total_ + Vector3__Float_dot(position_, Vector3__Float___retain(velocity_)));
         step_ = (step_ + 1);
     }
     self->checksum_ = ({ float spite_temp_3 = total_; if (__builtin_expect(!((double)spite_temp_3 >= -9223372036854775808.0 && (double)spite_temp_3 < 9223372036854775808.0), 0)) spite_narrowed_decimal((double)spite_temp_3, "a Float", "a Long", spite_site_1()); (int64_t)spite_temp_3; });
@@ -63,7 +63,8 @@ Vector3__Float* Vector3__Float_normalized___into(Vector3__Float* self, Vector3__
     }
 }
 
-float Vector3__Float_dot___held_0(Vector3__Float* self, Vector3__Float* other_) {
+float Vector3__Float_dot(Vector3__Float* self, Vector3__Float* other_) {
     float spite_temp_10 = (((self->x_ * (other_)->x_) + (self->y_ * (other_)->y_)) + (self->z_ * (other_)->z_));
+    Vector3__Float___release(other_);
     return spite_temp_10;
 }

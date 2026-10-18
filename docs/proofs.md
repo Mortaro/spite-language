@@ -108,7 +108,7 @@ A short guide by task. Find what you are writing; the entries below say the rest
 | [A reload reaches every object whose attributes it changes](#a-reload-reaches-every-object-whose-attributes-it-changes) | attributes change live | refused by name |
 | [Buffers in the frame](#a-buffer-freed-in-its-block-lives-in-the-frame) | no allocation | the heap |
 | [Frame objects](#objects-that-never-leave-their-function-live-in-the-frame) | no allocation | the heap |
-| [Local and variadic lists in the frame](#local-and-variadic-lists-in-the-frame) | no allocation, no count into a library call | the heap |
+| [Local and variadic lists in the frame](#local-and-variadic-lists-in-the-frame) | no allocation | the heap |
 | [A function value its callee only calls](#a-function-value-its-callee-only-calls-lives-in-the-frame) | no allocation, a direct call once inlined | the value on the heap |
 | [Borrowed items of a `Vector` or `Items`](#borrowed-items-of-a-vector-or-items) | no count, no copy | refused, naming `copy()` |
 | [No read past a resize](#no-borrowed-read-past-a-resize) | the item cannot move under you | refused |
@@ -808,13 +808,12 @@ A short guide by task. Find what you are writing; the entries below say the rest
   read, lives in the frame (16 items) or in constant data (256). A variadic list whose callee only reads it
   (`count`, `[]`, `get_at`, `first`, `last`, `contains`, `index_of`, `join`, ...), in a call that is a statement of its own,
   the value of a `var` or an assignment (`var biggest = largest(a, b, c)`) or what a `return` answers, lives in the
-  caller's frame. A parameter of the same kind is handed to a function of the standard library without a count as
-  well, since a function of `library/` is ordinary code to the study: the call goes to a `___held_` copy that does not
-  release what it is given.
-- **Buys.** Two allocations fewer per list, and no count up and down around a call into `library/`.
+  caller's frame.
+- **Buys.** Two allocations fewer per list.
 - **Falls back.** The heap, when the list is stored, returned, changed after filling, handed to a template, asked for
-  `.memory`, or in an inspectable build or a function that waits. A library function keeps the ordinary one unless the
-  parameter is a list and nothing in its body does more than read it.
+  `.memory`, or in an inspectable build or a function that waits. A list handed to a function of the standard library
+  is not passed without a count either: the study is the same, but the compiler's other questions about a call do not
+  yet answer for the `___held_` copy it would be redirected to.
 - **See.** [optimizations.md: A local list of known size lives in the
   frame](optimizations.md#a-local-list-of-known-size-lives-in-the-frame),
   [A variadic list the callee only reads](optimizations.md#a-variadic-list-the-callee-only-reads-lives-in-the-callers-frame);
@@ -946,8 +945,9 @@ have moved.
 - **Rule.** The argument is a bare name, the caller's own parameter or a local it owns; the callee is a program
   function with a body, called by name, not a constructor, that never assigns that parameter; the parameter is a
   class, list or dictionary (not text, a union or variadic); the call passes every parameter. A function of the
-  standard library is included when the parameter is a list and nothing in its body does more than read it
-  ([the same study](#local-and-variadic-lists-in-the-frame)). The call goes to
+  standard library keeps the ordinary one: a call redirected to a `___held_` copy would be a call to another
+  function, and the questions asked about a call (does it wait, may it be started here, what does the callee keep)
+  answer for the function the source names. The call goes to
   `<name>___held_<positions>`, which does not let those parameters go.
 - **Buys.** One retain and one release per argument, atomic with threads, and a store of such a name into a list
   item written in place, counted only when the slot held another object
@@ -955,8 +955,8 @@ have moved.
   case](../benchmarks/an_argument_its_caller_holds_is_passed_without_counting/) runs in 13.5 ms against naive C's
   38.2 ms, which counts the list in every function it is handed to.
 - **Falls back.** The counted call: in `--hot-reload`, `--repl`, `--repl-port` and `--development` builds, the
-  resumable copy of a function a `Concurrent` runs, a library function whose parameter is not a list only read, and a
-  call whose result is made in the caller's frame.
+  resumable copy of a function a `Concurrent` runs, a library function, and a call whose result is made in the
+  caller's frame.
 - **See.** [optimizations.md: An argument its caller holds is passed without
   counting](optimizations.md#an-argument-its-caller-holds-is-passed-without-counting);
   `conformance/stage6/held_arguments`.

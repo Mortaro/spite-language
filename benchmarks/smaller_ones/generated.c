@@ -377,8 +377,8 @@ int64_t input_;
 };
 static SpiteString spite_lit_5 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_6 = SPITE_STATIC_STRING("\n", 1);
-#define spite_site_2() "library/console.spite:56 in Console._write_values"
 static SpiteString spite_lit_7 = SPITE_STATIC_STRING(" ", 1);
+#define spite_site_2() "library/console.spite:56 in Console._write_values"
 
 struct Duration {
 SpiteHeader header;
@@ -744,13 +744,13 @@ Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
 void Console_error(Console* self, List_Console_Printable* values_);
+void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
-void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void Duration___init(Duration* self);
 Duration* Duration___allocate(void);
@@ -826,10 +826,11 @@ void Naive_Naive(Naive* self);
 void Naive_count_all(Naive* self);
 Spite_Function* spite_function_value_Naive_count_all(Naive* owner);
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value);
-void List_Integer_each_count_value_for_tally___held_0(List_Integer* self, Tally* owner_);
+void List_Integer_each_count_value_for_tally(List_Integer* self, Tally* owner_);
 void Tally___init(Tally* self);
 Tally* Tally___allocate(void);
 Tally* Tally___make(void);
+static inline Tally* Tally___retain(Tally* self);
 static inline void Tally___release(Tally* self);
 void Tally___free(Tally* self);
 void Tally_count_value(Tally* self, int32_t value_);
@@ -852,7 +853,7 @@ void List_Integer_drop(List_Integer* self);
 void List_Integer_make_room(List_Integer* self);
 void List_Integer__grow(List_Integer* self);
 int64_t List_Integer__resized(List_Integer* self, int64_t old_bytes_, int64_t new_bytes_);
-void List_Integer_each_count_value_for_tally___held_0(List_Integer* self, Tally* owner_);
+void List_Integer_each_count_value_for_tally(List_Integer* self, Tally* owner_);
 void TypedMemory__Integer___release(TypedMemory__Integer* self);
 int32_t TypedMemory__Integer_read_value(TypedMemory__Integer* self, int64_t address_, int32_t index_);
 void TypedMemory__Integer_write_value(TypedMemory__Integer* self, int64_t address_, int32_t index_, int32_t value_);
@@ -903,6 +904,7 @@ void List_Spite_Namespace_drop(List_Spite_Namespace* self);
 void TypedMemory__Spite_Namespace___release(TypedMemory__Spite_Namespace* self);
 void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* self, int64_t address_, int32_t index_);
 void List_Console_Printable___init(List_Console_Printable* self);
+static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -1782,6 +1784,10 @@ Tally* Tally___make(void) {
 Tally* self = Tally___allocate();
 return self;
 }
+static inline Tally* Tally___retain(Tally* self) {
+if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
+return self;
+}
 static inline void Tally___release(Tally* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2005,6 +2011,10 @@ self->values_ = spite_singleton_TypedMemory__Console_Printable();
 self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
+}
+static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
+if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
+return self;
 }
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
@@ -2286,16 +2296,29 @@ int64_t spite_temp_7 = ({ int64_t spite_temp_8 = ({ int64_t spite_temp_9 = ({ in
 return spite_temp_7;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values___held_0(self, values_, Console_Stream_output);
+Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
 Console__write_output(self, spite_lit_5);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
-Console__write_values___held_0(self, values_, Console_Stream_error);
+Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
 Console__write_error(self, spite_lit_6);
 Console__flush(self);
+List_Console_Printable___release(values_);
+}
+void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_7, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -2330,18 +2353,6 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
-}
-void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_7, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_25 = ({ Console_Printable spite_temp_26 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_26)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_26; }); SpiteString spite_temp_27 = Console_Printable___call_to_string(spite_temp_25); Console_Printable___release(spite_temp_25); spite_temp_27; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 }
 void Duration_Duration(Duration* self, int64_t amount_, Duration_Unit unit_) {
 int64_t per_second_ = Duration__units_per_second(self, unit_);
@@ -2576,7 +2587,7 @@ index_ = (index_ + 1);
 Tally* tally_ = Tally___make();
 int32_t round_ = 0;
 while (((round_ < 50))) {
-List_Integer_each_count_value_for_tally___held_0(values_, tally_);
+List_Integer_each_count_value_for_tally(values_, Tally___retain(tally_));
 round_ = (round_ + 1);
 }
 self->total_ = (tally_)->total_;
@@ -2653,13 +2664,14 @@ SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
 int64_t spite_temp_138 = moved_;
 return spite_temp_138;
 }
-void List_Integer_each_count_value_for_tally___held_0(List_Integer* self, Tally* owner_) {
+void List_Integer_each_count_value_for_tally(List_Integer* self, Tally* owner_) {
 int32_t index_ = 0;
 while (((index_ < self->item_count_))) {
 int32_t item_ = TypedMemory__Integer_read_value(self->values_, self->items_, index_);
 Tally_count_value(owner_, item_);
 index_ = (index_ + 1);
 }
+Tally___release(owner_);
 }
 int32_t TypedMemory__Integer_read_value(TypedMemory__Integer* self, int64_t address_, int32_t index_) {
 return ((int32_t*)(intptr_t)address_)[index_];
@@ -2922,6 +2934,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Tally___init, "-\t-", "Tally___init", 0},
 {(const void*)&Tally___allocate, "-\t-", "Tally___allocate", 0},
 {(const void*)&Tally___make, "-\t-", "Tally___make", 0},
+{(const void*)&Tally___retain, "-\t-", "Tally___retain", 0},
 {(const void*)&Tally___release, "-\t-", "Tally___release", 0},
 {(const void*)&Tally___free, "-\t-", "Tally___free", 0},
 {(const void*)&List_String___release, "-\t-", "List_String___release", 0},
@@ -2951,6 +2964,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Namespace___release, "-\t-", "List_Spite_Namespace___release", 0},
 {(const void*)&List_Spite_Namespace___free, "-\t-", "List_Spite_Namespace___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
+{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&List_Symbol___release, "-\t-", "List_Symbol___release", 0},
@@ -2978,11 +2992,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
+{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
-{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},
@@ -3017,7 +3031,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Integer_make_room, "library/list.spite\tList", "make_room", 441},
 {(const void*)&List_Integer__grow, "library/list.spite\tList", "_grow", 447},
 {(const void*)&List_Integer__resized, "library/list.spite\tList", "_resized", 457},
-{(const void*)&List_Integer_each_count_value_for_tally___held_0, "library/list.spite\tList", "each_count_value_for_tally", 0},
+{(const void*)&List_Integer_each_count_value_for_tally, "library/list.spite\tList", "each_count_value_for_tally", 0},
 {(const void*)&TypedMemory__Integer_read_value, "compiler/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
 {(const void*)&TypedMemory__Integer_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
 {(const void*)&TypedMemory__Integer_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},

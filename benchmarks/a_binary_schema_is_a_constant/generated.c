@@ -473,8 +473,8 @@ int64_t input_;
 };
 static SpiteString spite_lit_12 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_13 = SPITE_STATIC_STRING("\n", 1);
-#define spite_site_37() "library/console.spite:56 in Console._write_values"
 static SpiteString spite_lit_14 = SPITE_STATIC_STRING(" ", 1);
+#define spite_site_37() "library/console.spite:56 in Console._write_values"
 
 struct Duration {
 SpiteHeader header;
@@ -815,9 +815,9 @@ Duration* duration_;
 typedef struct BinaryFormat__Integer BinaryFormat__Integer;
 typedef struct BinaryFormat__Float BinaryFormat__Float;
 typedef struct BinaryFormat__String BinaryFormat__String;
-#define BinaryReader__Reading_schema(self) ((void)(self), (int64_t)(4647632506827894408LL)) /* Reading{sensor:Integer;level:Float;label:String} */
 #define spite_site_56() "spite.crash\t5bd6c2fe"
 #define spite_site_57() "spite.crash\t51979e95"
+#define BinaryReader__Reading_schema(self) ((void)(self), (int64_t)(4647632506827894408LL)) /* Reading{sensor:Integer;level:Float;label:String} */
 #define spite_site_58() "library/benchmark.spite:11 in Benchmark.Benchmark"
 struct BinaryFormat__Integer {
 SpiteHeader header;
@@ -886,6 +886,7 @@ static SPITE_CRASH_REPORT void spite_failed_4(BinaryCursor* self);
 void BinaryWriterCursor___init(BinaryWriterCursor* self);
 BinaryWriterCursor* BinaryWriterCursor___allocate(void);
 BinaryWriterCursor* BinaryWriterCursor___make(Buffer* target_);
+static inline BinaryWriterCursor* BinaryWriterCursor___retain(BinaryWriterCursor* self);
 static inline void BinaryWriterCursor___release(BinaryWriterCursor* self);
 void BinaryWriterCursor___free(BinaryWriterCursor* self);
 void BinaryWriterCursor_BinaryWriterCursor(BinaryWriterCursor* self, Buffer* target_);
@@ -944,13 +945,13 @@ Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
 void Console_error(Console* self, List_Console_Printable* values_);
+void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
-void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void Duration___init(Duration* self);
 Duration* Duration___allocate(void);
@@ -1029,8 +1030,6 @@ void Naive_accepted_headers___dropping_call(void* owner);
 Spite_Function* spite_function_value_Naive_accepted_headers(Naive* owner);
 static inline SpiteTagged spite_tagged_SpiteInteger(int32_t value);
 int32_t List_Long_count_is_current_for_naive(List_Long* self, Naive* owner_);
-Buffer* BinaryWriter__Reading_write___held_0(BinaryWriter__Reading* self, Reading* value_);
-Reading* BinaryReader__Reading_read___held_0(BinaryReader__Reading* self, Buffer* bytes_);
 static SPITE_CRASH_REPORT void spite_failed_7(int32_t sensor_);
 void Reading___init(Reading* self);
 Reading* Reading___allocate(void);
@@ -1114,16 +1113,20 @@ BinaryWriter__Reading* BinaryWriter__Reading___allocate(void);
 BinaryWriter__Reading* BinaryWriter__Reading___make(void);
 static inline void BinaryWriter__Reading___release(BinaryWriter__Reading* self);
 void BinaryWriter__Reading___free(BinaryWriter__Reading* self);
-Buffer* BinaryWriter__Reading_write___held_0(BinaryWriter__Reading* self, Reading* value_);
+Buffer* BinaryWriter__Reading_write(BinaryWriter__Reading* self, Reading* value_);
+void BinaryWriter__Reading_append_to(BinaryWriter__Reading* self, Reading* value_, Buffer* bytes_);
 void BinaryFormat__Reading___release(BinaryFormat__Reading* self);
+void BinaryFormat__Reading_write(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
 Reading* BinaryFormat__Reading_read(BinaryFormat__Reading* self, BinaryCursor* input_);
 void BinaryReader__Reading___init(BinaryReader__Reading* self);
 BinaryReader__Reading* BinaryReader__Reading___allocate(void);
 BinaryReader__Reading* BinaryReader__Reading___make(void);
 static inline void BinaryReader__Reading___release(BinaryReader__Reading* self);
 void BinaryReader__Reading___free(BinaryReader__Reading* self);
-Reading* BinaryReader__Reading_read___held_0(BinaryReader__Reading* self, Buffer* bytes_);
+Reading* BinaryReader__Reading_read(BinaryReader__Reading* self, Buffer* bytes_);
+Reading* BinaryReader__Reading_read_from(BinaryReader__Reading* self, Buffer* bytes_, int32_t start_);
 void List_Console_Printable___init(List_Console_Printable* self);
+static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -1147,34 +1150,28 @@ Benchmark__Integer* Benchmark__Integer___make(Spite_Function* work_);
 static inline void Benchmark__Integer___release(Benchmark__Integer* self);
 void Benchmark__Integer___free(Benchmark__Integer* self);
 void Benchmark__Integer_Benchmark(Benchmark__Integer* self, Spite_Function* work_);
-void BinaryWriter__Reading_append_to___held_0_1(BinaryWriter__Reading* self, Reading* value_, Buffer* bytes_);
-void BinaryFormat__Reading_write___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
-void BinaryFormat__Reading_write_attributes___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
-void BinaryFormat__Reading_write_sensor___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
-void BinaryFormat__Reading_write_level___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
-void BinaryFormat__Reading_write_label___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
+void BinaryFormat__Reading_write_attributes(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
+void BinaryFormat__Reading_write_sensor(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
+void BinaryFormat__Reading_write_level(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
+void BinaryFormat__Reading_write_label(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_);
 BinaryFormat__Integer* spite_singleton_BinaryFormat__Integer(void);
-void BinaryFormat__Integer_write___held_1(BinaryFormat__Integer* self, int32_t value_, BinaryWriterCursor* output_);
 BinaryFormat__Float* spite_singleton_BinaryFormat__Float(void);
-void BinaryFormat__Float_write___held_1(BinaryFormat__Float* self, float value_, BinaryWriterCursor* output_);
 BinaryFormat__String* spite_singleton_BinaryFormat__String(void);
-void BinaryFormat__String_write___held_1(BinaryFormat__String* self, SpiteString value_, BinaryWriterCursor* output_);
-Reading* BinaryReader__Reading_read_from___held_0(BinaryReader__Reading* self, Buffer* bytes_, int32_t start_);
 static SPITE_CRASH_REPORT void spite_failed_8(int32_t start_, BinaryReader__Reading* self);
 static SPITE_CRASH_REPORT void spite_failed_9(int32_t start_, bool spite_crash_set_1, int32_t spite_crash_value_1, BinaryReader__Reading* self);
 void BinaryFormat__Integer___release(BinaryFormat__Integer* self);
-void BinaryFormat__Integer_write___held_1(BinaryFormat__Integer* self, int32_t value_, BinaryWriterCursor* output_);
+void BinaryFormat__Integer_write(BinaryFormat__Integer* self, int32_t value_, BinaryWriterCursor* output_);
+int32_t BinaryFormat__Integer_read(BinaryFormat__Integer* self, BinaryCursor* input_);
 void BinaryFormat__Float___release(BinaryFormat__Float* self);
-void BinaryFormat__Float_write___held_1(BinaryFormat__Float* self, float value_, BinaryWriterCursor* output_);
+void BinaryFormat__Float_write(BinaryFormat__Float* self, float value_, BinaryWriterCursor* output_);
+float BinaryFormat__Float_read(BinaryFormat__Float* self, BinaryCursor* input_);
 void BinaryFormat__String___release(BinaryFormat__String* self);
-void BinaryFormat__String_write___held_1(BinaryFormat__String* self, SpiteString value_, BinaryWriterCursor* output_);
-void BinaryFormat__Reading_read_attributes___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
-void BinaryFormat__Reading_read_sensor___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
-void BinaryFormat__Reading_read_level___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
-void BinaryFormat__Reading_read_label___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
-int32_t BinaryFormat__Integer_read___held_0(BinaryFormat__Integer* self, BinaryCursor* input_);
-float BinaryFormat__Float_read___held_0(BinaryFormat__Float* self, BinaryCursor* input_);
-SpiteString BinaryFormat__String_read___held_0(BinaryFormat__String* self, BinaryCursor* input_);
+void BinaryFormat__String_write(BinaryFormat__String* self, SpiteString value_, BinaryWriterCursor* output_);
+SpiteString BinaryFormat__String_read(BinaryFormat__String* self, BinaryCursor* input_);
+void BinaryFormat__Reading_read_attributes(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
+void BinaryFormat__Reading_read_sensor(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
+void BinaryFormat__Reading_read_level(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
+void BinaryFormat__Reading_read_label(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_);
 bool spite_singleton_tracked(void);
 void spite_singleton_created(void (*teardown)(void));
 void spite_singleton_used_after_exit(const char* name);
@@ -1700,6 +1697,10 @@ return self;
 BinaryWriterCursor* BinaryWriterCursor___make(Buffer* target_) {
 BinaryWriterCursor* self = BinaryWriterCursor___allocate();
 BinaryWriterCursor_BinaryWriterCursor(self, target_);
+return self;
+}
+static inline BinaryWriterCursor* BinaryWriterCursor___retain(BinaryWriterCursor* self) {
+if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
 return self;
 }
 static inline void BinaryWriterCursor___release(BinaryWriterCursor* self) {
@@ -2507,6 +2508,10 @@ self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
 }
+static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
+if (self != 0) SPITE_COUNT_UP(self->header.ref_count);
+return self;
+}
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
 if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -3305,16 +3310,29 @@ int64_t spite_temp_202 = ({ int64_t spite_temp_203 = ({ int64_t spite_temp_204 =
 return spite_temp_202;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values___held_0(self, values_, Console_Stream_output);
+Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
 Console__write_output(self, spite_lit_12);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
-Console__write_values___held_0(self, values_, Console_Stream_error);
+Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
 Console__write_error(self, spite_lit_13);
 Console__flush(self);
+List_Console_Printable___release(values_);
+}
+void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_14, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_220 = ({ Console_Printable spite_temp_221 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_221)), 0)) spite_outside_list("values[index]", spite_site_37()); spite_temp_221; }); SpiteString spite_temp_222 = Console_Printable___call_to_string(spite_temp_220); Console_Printable___release(spite_temp_220); spite_temp_222; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -3349,18 +3367,6 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
-}
-void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_14, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_220 = ({ Console_Printable spite_temp_221 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_221)), 0)) spite_outside_list("values[index]", spite_site_37()); spite_temp_221; }); SpiteString spite_temp_222 = Console_Printable___call_to_string(spite_temp_220); Console_Printable___release(spite_temp_220); spite_temp_222; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 }
 void Duration_Duration(Duration* self, int64_t amount_, Duration_Unit unit_) {
 int64_t per_second_ = Duration__units_per_second(self, unit_);
@@ -3636,8 +3642,8 @@ return spite_temp_311;
 int32_t Naive_sent_and_read_back(Naive* self, int32_t sensor_) {
 Reading* reading_ = Reading___make();
 (reading_)->sensor_ = sensor_;
-Buffer* bytes_ = BinaryWriter__Reading_write___held_0(self->writer_, reading_);
-Reading* read_ = BinaryReader__Reading_read___held_0(self->reader_, bytes_);
+Buffer* bytes_ = BinaryWriter__Reading_write(self->writer_, Reading___retain(reading_));
+Reading* read_ = BinaryReader__Reading_read(self->reader_, Buffer___retain(bytes_));
 if (!(((read_) != 0))) {
 spite_failed_7(sensor_);
 }
@@ -3777,19 +3783,22 @@ if (((self->items_ != ((int64_t)(0))))) {
 ({ Spite_Allocator spite_temp_348 = SPITE_ALLOCATOR_List_Spite_Namespace(self, spite_singleton_Memory_Heap); int64_t spite_temp_349 = self->items_; if (((SpiteHeader*)(spite_temp_348))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_348), spite_temp_349); } else if (((SpiteHeader*)(spite_temp_348))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_348), spite_temp_349); } });
 }
 }
-Buffer* BinaryWriter__Reading_write___held_0(BinaryWriter__Reading* self, Reading* value_) {
+Buffer* BinaryWriter__Reading_write(BinaryWriter__Reading* self, Reading* value_) {
 Buffer* bytes_ = Buffer___make(0);
-BinaryWriter__Reading_append_to___held_0_1(self, value_, bytes_);
+BinaryWriter__Reading_append_to(self, Reading___retain(value_), Buffer___retain(bytes_));
 Buffer* spite_temp_350 = Buffer___retain(bytes_);
 Buffer___release(bytes_);
+Reading___release(value_);
 return spite_temp_350;
 }
-void BinaryWriter__Reading_append_to___held_0_1(BinaryWriter__Reading* self, Reading* value_, Buffer* bytes_) {
+void BinaryWriter__Reading_append_to(BinaryWriter__Reading* self, Reading* value_, Buffer* bytes_) {
 BinaryWriterCursor* cursor_ = BinaryWriterCursor___make(Buffer___retain(bytes_));
-BinaryFormat__Reading_write___held_0_1(self->format_, value_, cursor_);
+BinaryFormat__Reading_write(self->format_, Reading___retain(value_), BinaryWriterCursor___retain(cursor_));
 BinaryWriterCursor___release(cursor_);
+Buffer___release(bytes_);
+Reading___release(value_);
 }
-void BinaryFormat__Reading_write___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
+void BinaryFormat__Reading_write(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
 {
 {
 {
@@ -3804,7 +3813,7 @@ void BinaryFormat__Reading_write___held_0_1(BinaryFormat__Reading* self, Reading
 {
 {
 {
-BinaryFormat__Reading_write_attributes___held_0_1(self, value_, output_);
+BinaryFormat__Reading_write_attributes(self, Reading___retain(value_), BinaryWriterCursor___retain(output_));
 }
 }
 }
@@ -3819,44 +3828,56 @@ BinaryFormat__Reading_write_attributes___held_0_1(self, value_, output_);
 }
 }
 }
+BinaryWriterCursor___release(output_);
+Reading___release(value_);
 }
-void BinaryFormat__Reading_write_attributes___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
-BinaryFormat__Reading_write_sensor___held_0_1(self, value_, output_);
-BinaryFormat__Reading_write_level___held_0_1(self, value_, output_);
-BinaryFormat__Reading_write_label___held_0_1(self, value_, output_);
+void BinaryFormat__Reading_write_attributes(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
+BinaryFormat__Reading_write_sensor(self, Reading___retain(value_), BinaryWriterCursor___retain(output_));
+BinaryFormat__Reading_write_level(self, Reading___retain(value_), BinaryWriterCursor___retain(output_));
+BinaryFormat__Reading_write_label(self, Reading___retain(value_), BinaryWriterCursor___retain(output_));
+BinaryWriterCursor___release(output_);
+Reading___release(value_);
 }
-void BinaryFormat__Reading_write_sensor___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
+void BinaryFormat__Reading_write_sensor(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
 {
 BinaryFormat__Integer* format_ = spite_singleton_BinaryFormat__Integer();
-BinaryFormat__Integer_write___held_1(format_, (value_)->sensor_, output_);
+BinaryFormat__Integer_write(format_, (value_)->sensor_, BinaryWriterCursor___retain(output_));
 spite_folded_BinaryFormat__Integer___release(format_);
 }
+BinaryWriterCursor___release(output_);
+Reading___release(value_);
 }
-void BinaryFormat__Reading_write_level___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
+void BinaryFormat__Reading_write_level(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
 {
 BinaryFormat__Float* format_ = spite_singleton_BinaryFormat__Float();
-BinaryFormat__Float_write___held_1(format_, (value_)->level_, output_);
+BinaryFormat__Float_write(format_, (value_)->level_, BinaryWriterCursor___retain(output_));
 spite_folded_BinaryFormat__Float___release(format_);
 }
+BinaryWriterCursor___release(output_);
+Reading___release(value_);
 }
-void BinaryFormat__Reading_write_label___held_0_1(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
+void BinaryFormat__Reading_write_label(BinaryFormat__Reading* self, Reading* value_, BinaryWriterCursor* output_) {
 {
 BinaryFormat__String* format_ = spite_singleton_BinaryFormat__String();
-BinaryFormat__String_write___held_1(format_, SpiteString___retain((value_)->label_), output_);
+BinaryFormat__String_write(format_, SpiteString___retain((value_)->label_), BinaryWriterCursor___retain(output_));
 spite_folded_BinaryFormat__String___release(format_);
 }
+BinaryWriterCursor___release(output_);
+Reading___release(value_);
 }
-Reading* BinaryReader__Reading_read___held_0(BinaryReader__Reading* self, Buffer* bytes_) {
-Reading* read_value_ = BinaryReader__Reading_read_from___held_0(self, bytes_, 0);
+Reading* BinaryReader__Reading_read(BinaryReader__Reading* self, Buffer* bytes_) {
+Reading* read_value_ = BinaryReader__Reading_read_from(self, Buffer___retain(bytes_), 0);
 if (!(((self->position_ == Buffer_count(bytes_))))) {
 Reading___release(read_value_);
+Buffer___release(bytes_);
 return 0;
 }
 Reading* spite_temp_351 = Reading___retain(read_value_);
 Reading___release(read_value_);
+Buffer___release(bytes_);
 return spite_temp_351;
 }
-Reading* BinaryReader__Reading_read_from___held_0(BinaryReader__Reading* self, Buffer* bytes_, int32_t start_) {
+Reading* BinaryReader__Reading_read_from(BinaryReader__Reading* self, Buffer* bytes_, int32_t start_) {
 if (!(((start_ >= 0)))) {
 spite_failed_8(start_, self);
 }
@@ -3875,11 +3896,13 @@ BinaryCursor* spite_temp_355 = self->cursor_;
 Reading* read_value_ = BinaryFormat__Reading_read(self->format_, BinaryCursor___retain(self->cursor_));
 if (!(((!((self->cursor_)->failed_))))) {
 Reading___release(read_value_);
+Buffer___release(bytes_);
 return 0;
 }
 self->position_ = (self->cursor_)->position_;
 Reading* spite_temp_356 = Reading___retain(read_value_);
 Reading___release(read_value_);
+Buffer___release(bytes_);
 return spite_temp_356;
 }
 static SPITE_CRASH_REPORT void spite_failed_8(int32_t start_, BinaryReader__Reading* self) {
@@ -3946,7 +3969,7 @@ Duration___release(self->duration_);
 self->duration_ = spite_temp_371;
 Spite_Function___release(work_);
 }
-void BinaryFormat__Integer_write___held_1(BinaryFormat__Integer* self, int32_t value_, BinaryWriterCursor* output_) {
+void BinaryFormat__Integer_write(BinaryFormat__Integer* self, int32_t value_, BinaryWriterCursor* output_) {
 {
 {
 {
@@ -3958,8 +3981,9 @@ BinaryWriterCursor_write_integer(output_, value_);
 }
 }
 }
+BinaryWriterCursor___release(output_);
 }
-void BinaryFormat__Float_write___held_1(BinaryFormat__Float* self, float value_, BinaryWriterCursor* output_) {
+void BinaryFormat__Float_write(BinaryFormat__Float* self, float value_, BinaryWriterCursor* output_) {
 {
 {
 {
@@ -3979,8 +4003,9 @@ BinaryWriterCursor_write_float(output_, value_);
 }
 }
 }
+BinaryWriterCursor___release(output_);
 }
-void BinaryFormat__String_write___held_1(BinaryFormat__String* self, SpiteString value_, BinaryWriterCursor* output_) {
+void BinaryFormat__String_write(BinaryFormat__String* self, SpiteString value_, BinaryWriterCursor* output_) {
 {
 {
 {
@@ -4004,6 +4029,7 @@ BinaryWriterCursor_write_text(output_, SpiteString___retain(value_));
 }
 }
 }
+BinaryWriterCursor___release(output_);
 SpiteString___release(value_);
 }
 void List_Spite_AttributeDeclaration_clear(List_Spite_AttributeDeclaration* self) {
@@ -4079,7 +4105,7 @@ Reading* BinaryFormat__Reading_read(BinaryFormat__Reading* self, BinaryCursor* i
 {
 {
 Reading* created_ = Reading___default();
-BinaryFormat__Reading_read_attributes___held_0_1(self, created_, input_);
+BinaryFormat__Reading_read_attributes(self, Reading___retain(created_), BinaryCursor___retain(input_));
 Reading* spite_temp_375 = Reading___retain(created_);
 Reading___release(created_);
 BinaryCursor___release(input_);
@@ -4101,33 +4127,41 @@ return spite_temp_375;
 }
 }
 }
-void BinaryFormat__Reading_read_attributes___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
-BinaryFormat__Reading_read_sensor___held_0_1(self, created_, input_);
-BinaryFormat__Reading_read_level___held_0_1(self, created_, input_);
-BinaryFormat__Reading_read_label___held_0_1(self, created_, input_);
+void BinaryFormat__Reading_read_attributes(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
+BinaryFormat__Reading_read_sensor(self, Reading___retain(created_), BinaryCursor___retain(input_));
+BinaryFormat__Reading_read_level(self, Reading___retain(created_), BinaryCursor___retain(input_));
+BinaryFormat__Reading_read_label(self, Reading___retain(created_), BinaryCursor___retain(input_));
+BinaryCursor___release(input_);
+Reading___release(created_);
 }
-void BinaryFormat__Reading_read_sensor___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
+void BinaryFormat__Reading_read_sensor(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
 {
 BinaryFormat__Integer* format_ = spite_singleton_BinaryFormat__Integer();
-(created_)->sensor_ = BinaryFormat__Integer_read___held_0(format_, input_);
+(created_)->sensor_ = BinaryFormat__Integer_read(format_, BinaryCursor___retain(input_));
 spite_folded_BinaryFormat__Integer___release(format_);
 }
+BinaryCursor___release(input_);
+Reading___release(created_);
 }
-void BinaryFormat__Reading_read_level___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
+void BinaryFormat__Reading_read_level(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
 {
 BinaryFormat__Float* format_ = spite_singleton_BinaryFormat__Float();
-(created_)->level_ = BinaryFormat__Float_read___held_0(format_, input_);
+(created_)->level_ = BinaryFormat__Float_read(format_, BinaryCursor___retain(input_));
 spite_folded_BinaryFormat__Float___release(format_);
 }
+BinaryCursor___release(input_);
+Reading___release(created_);
 }
-void BinaryFormat__Reading_read_label___held_0_1(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
+void BinaryFormat__Reading_read_label(BinaryFormat__Reading* self, Reading* created_, BinaryCursor* input_) {
 {
 BinaryFormat__String* format_ = spite_singleton_BinaryFormat__String();
-SpiteString spite_temp_376 = BinaryFormat__String_read___held_0(format_, input_);
+SpiteString spite_temp_376 = BinaryFormat__String_read(format_, BinaryCursor___retain(input_));
 SpiteString___release((created_)->label_);
 (created_)->label_ = spite_temp_376;
 spite_folded_BinaryFormat__String___release(format_);
 }
+BinaryCursor___release(input_);
+Reading___release(created_);
 }
 void List_Console_Printable_clear(List_Console_Printable* self) {
 int32_t index_ = 0;
@@ -4140,7 +4174,7 @@ self->item_count_ = 0;
 void TypedMemory__Console_Printable_release_value(TypedMemory__Console_Printable* self, int64_t address_, int32_t index_) {
 Console_Printable___release(((Console_Printable*)(intptr_t)address_)[index_]);
 }
-int32_t BinaryFormat__Integer_read___held_0(BinaryFormat__Integer* self, BinaryCursor* input_) {
+int32_t BinaryFormat__Integer_read(BinaryFormat__Integer* self, BinaryCursor* input_) {
 {
 {
 {
@@ -4149,6 +4183,7 @@ int32_t BinaryFormat__Integer_read___held_0(BinaryFormat__Integer* self, BinaryC
 {
 {
 int32_t spite_temp_377 = BinaryCursor_read_integer(input_);
+BinaryCursor___release(input_);
 return spite_temp_377;
 }
 }
@@ -4158,7 +4193,7 @@ return spite_temp_377;
 }
 }
 }
-float BinaryFormat__Float_read___held_0(BinaryFormat__Float* self, BinaryCursor* input_) {
+float BinaryFormat__Float_read(BinaryFormat__Float* self, BinaryCursor* input_) {
 {
 {
 {
@@ -4171,6 +4206,7 @@ float BinaryFormat__Float_read___held_0(BinaryFormat__Float* self, BinaryCursor*
 {
 {
 float spite_temp_378 = BinaryCursor_read_float(input_);
+BinaryCursor___release(input_);
 return spite_temp_378;
 }
 }
@@ -4184,7 +4220,7 @@ return spite_temp_378;
 }
 }
 }
-SpiteString BinaryFormat__String_read___held_0(BinaryFormat__String* self, BinaryCursor* input_) {
+SpiteString BinaryFormat__String_read(BinaryFormat__String* self, BinaryCursor* input_) {
 {
 {
 {
@@ -4199,6 +4235,7 @@ SpiteString BinaryFormat__String_read___held_0(BinaryFormat__String* self, Binar
 {
 {
 SpiteString spite_temp_379 = BinaryCursor_read_text(input_);
+BinaryCursor___release(input_);
 return spite_temp_379;
 }
 }
@@ -4293,6 +4330,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&BinaryWriterCursor___init, "-\t-", "BinaryWriterCursor___init", 0},
 {(const void*)&BinaryWriterCursor___allocate, "-\t-", "BinaryWriterCursor___allocate", 0},
 {(const void*)&BinaryWriterCursor___make, "-\t-", "BinaryWriterCursor___make", 0},
+{(const void*)&BinaryWriterCursor___retain, "-\t-", "BinaryWriterCursor___retain", 0},
 {(const void*)&BinaryWriterCursor___release, "-\t-", "BinaryWriterCursor___release", 0},
 {(const void*)&BinaryWriterCursor___free, "-\t-", "BinaryWriterCursor___free", 0},
 {(const void*)&Buffer___init, "-\t-", "Buffer___init", 0},
@@ -4397,6 +4435,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&BinaryReader__Reading___release, "-\t-", "BinaryReader__Reading___release", 0},
 {(const void*)&BinaryReader__Reading___free, "-\t-", "BinaryReader__Reading___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
+{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&List_Symbol___release, "-\t-", "List_Symbol___release", 0},
@@ -4476,11 +4515,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
+{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
-{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},
@@ -4531,15 +4570,15 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Argument_drop, "library/list.spite\tList", "drop", 422},
 {(const void*)&List_Spite_Class_drop, "library/list.spite\tList", "drop", 422},
 {(const void*)&List_Spite_Namespace_drop, "library/list.spite\tList", "drop", 422},
-{(const void*)&BinaryWriter__Reading_write___held_0, "library/binary_writer.spite\tBinaryWriter", "write", 5},
-{(const void*)&BinaryWriter__Reading_append_to___held_0_1, "library/binary_writer.spite\tBinaryWriter", "append_to", 11},
-{(const void*)&BinaryFormat__Reading_write___held_0_1, "library/binary_format.spite\tBinaryFormat", "write", 5},
-{(const void*)&BinaryFormat__Reading_write_attributes___held_0_1, "library/binary_format.spite\tBinaryFormat", "write_attributes", 103},
-{(const void*)&BinaryFormat__Reading_write_sensor___held_0_1, "library/binary_format.spite\tBinaryFormat", "write_sensor", 0},
-{(const void*)&BinaryFormat__Reading_write_level___held_0_1, "library/binary_format.spite\tBinaryFormat", "write_level", 0},
-{(const void*)&BinaryFormat__Reading_write_label___held_0_1, "library/binary_format.spite\tBinaryFormat", "write_label", 0},
-{(const void*)&BinaryReader__Reading_read___held_0, "library/binary_reader.spite\tBinaryReader", "read", 7},
-{(const void*)&BinaryReader__Reading_read_from___held_0, "library/binary_reader.spite\tBinaryReader", "read_from", 13},
+{(const void*)&BinaryWriter__Reading_write, "library/binary_writer.spite\tBinaryWriter", "write", 5},
+{(const void*)&BinaryWriter__Reading_append_to, "library/binary_writer.spite\tBinaryWriter", "append_to", 11},
+{(const void*)&BinaryFormat__Reading_write, "library/binary_format.spite\tBinaryFormat", "write", 5},
+{(const void*)&BinaryFormat__Reading_write_attributes, "library/binary_format.spite\tBinaryFormat", "write_attributes", 103},
+{(const void*)&BinaryFormat__Reading_write_sensor, "library/binary_format.spite\tBinaryFormat", "write_sensor", 0},
+{(const void*)&BinaryFormat__Reading_write_level, "library/binary_format.spite\tBinaryFormat", "write_level", 0},
+{(const void*)&BinaryFormat__Reading_write_label, "library/binary_format.spite\tBinaryFormat", "write_label", 0},
+{(const void*)&BinaryReader__Reading_read, "library/binary_reader.spite\tBinaryReader", "read", 7},
+{(const void*)&BinaryReader__Reading_read_from, "library/binary_reader.spite\tBinaryReader", "read_from", 13},
 {(const void*)&spite_failed_8, "-\t-", "spite_failed_8", 0},
 {(const void*)&spite_failed_9, "-\t-", "spite_failed_9", 0},
 {(const void*)&List_Console_Printable_count, "library/list.spite\tList", "count", 9},
@@ -4548,9 +4587,9 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&TypedMemory__Console_Printable_read_value, "compiler/source/generation/prelude.spite\tTypedMemory", "read_value", 1},
 {(const void*)&List_Symbol_drop, "library/list.spite\tList", "drop", 422},
 {(const void*)&Benchmark__Integer_Benchmark, "library/benchmark.spite\tBenchmark", "Benchmark", 7},
-{(const void*)&BinaryFormat__Integer_write___held_1, "library/binary_format.spite\tBinaryFormat", "write", 5},
-{(const void*)&BinaryFormat__Float_write___held_1, "library/binary_format.spite\tBinaryFormat", "write", 5},
-{(const void*)&BinaryFormat__String_write___held_1, "library/binary_format.spite\tBinaryFormat", "write", 5},
+{(const void*)&BinaryFormat__Integer_write, "library/binary_format.spite\tBinaryFormat", "write", 5},
+{(const void*)&BinaryFormat__Float_write, "library/binary_format.spite\tBinaryFormat", "write", 5},
+{(const void*)&BinaryFormat__String_write, "library/binary_format.spite\tBinaryFormat", "write", 5},
 {(const void*)&List_Spite_AttributeDeclaration_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&TypedMemory__Spite_AttributeDeclaration_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&List_Spite_Function_clear, "library/list.spite\tList", "clear", 124},
@@ -4562,15 +4601,15 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Namespace_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&TypedMemory__Spite_Namespace_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&BinaryFormat__Reading_read, "library/binary_format.spite\tBinaryFormat", "read", 110},
-{(const void*)&BinaryFormat__Reading_read_attributes___held_0_1, "library/binary_format.spite\tBinaryFormat", "read_attributes", 234},
-{(const void*)&BinaryFormat__Reading_read_sensor___held_0_1, "library/binary_format.spite\tBinaryFormat", "read_sensor", 0},
-{(const void*)&BinaryFormat__Reading_read_level___held_0_1, "library/binary_format.spite\tBinaryFormat", "read_level", 0},
-{(const void*)&BinaryFormat__Reading_read_label___held_0_1, "library/binary_format.spite\tBinaryFormat", "read_label", 0},
+{(const void*)&BinaryFormat__Reading_read_attributes, "library/binary_format.spite\tBinaryFormat", "read_attributes", 234},
+{(const void*)&BinaryFormat__Reading_read_sensor, "library/binary_format.spite\tBinaryFormat", "read_sensor", 0},
+{(const void*)&BinaryFormat__Reading_read_level, "library/binary_format.spite\tBinaryFormat", "read_level", 0},
+{(const void*)&BinaryFormat__Reading_read_label, "library/binary_format.spite\tBinaryFormat", "read_label", 0},
 {(const void*)&List_Console_Printable_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&TypedMemory__Console_Printable_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
-{(const void*)&BinaryFormat__Integer_read___held_0, "library/binary_format.spite\tBinaryFormat", "read", 110},
-{(const void*)&BinaryFormat__Float_read___held_0, "library/binary_format.spite\tBinaryFormat", "read", 110},
-{(const void*)&BinaryFormat__String_read___held_0, "library/binary_format.spite\tBinaryFormat", "read", 110},
+{(const void*)&BinaryFormat__Integer_read, "library/binary_format.spite\tBinaryFormat", "read", 110},
+{(const void*)&BinaryFormat__Float_read, "library/binary_format.spite\tBinaryFormat", "read", 110},
+{(const void*)&BinaryFormat__String_read, "library/binary_format.spite\tBinaryFormat", "read", 110},
 {(const void*)&main, "-\t-", "main", 0},
 {0, 0, 0, 0}
 };

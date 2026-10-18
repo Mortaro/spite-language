@@ -1566,15 +1566,16 @@ passes them as they are. A game engine's `run_positions(..., rows)` calling
 counts nothing per entity: each is a `___held_` copy passing its own parameter on to the next.
 
 **When.** Every build but `--hot-reload`, `--repl`, `--repl-port`, `--development` and the resumable copy of a
-function a `Concurrent` runs, for a call written by name to a program's own function, at a place
+function a `Concurrent` runs, for a call written by name to a program's own function (not the library's), at a place
 whose parameter is a class, list or dictionary (not text, a union or a variadic list), when the callee never assigns
 that parameter itself; not for a constructor, and not where the call's result is made in the caller's frame (the
-frame-made result keeps the ordinary function). A function of the standard library is made a `___held_` copy too, when
-the parameter is a list and nothing in the whole body does more than read it, which is the same proof that lets a
-local list live in the frame
-([below](#a-local-list-of-known-size-lives-in-the-frame)): a codec's `_compress(state, block)` is handed the lists
-it reads and makes no copy for the call. Keeping the parameter needs nothing extra: storing it, returning it or
+frame-made result keeps the ordinary function). Keeping the parameter needs nothing extra: storing it, returning it or
 passing it to a function that keeps it counts it there, as storing any name does.
+
+The library is left out on purpose, and not for want of the proof: a call redirected to a `___held_` copy is a call to
+another function, and the compiler's other questions (does this call wait, may this be started here, what does this
+callee keep) answer for the function the code names. Until they answer for the copy, only a program's own functions,
+whose copies are made from the same class the question was asked about, are redirected.
 
 **What you notice.** Speed:
 [its case](../benchmarks/an_argument_its_caller_holds_is_passed_without_counting/), a list passed on through two calls

@@ -18,7 +18,7 @@ int32_t Naive_one_round(Naive* self, int32_t round_) {
     while (((index_ < 10000))) {
         Memory_Arena* spite_temp_2 = Memory_Arena___retain(arena_);
         Particle* particle_ = Particle___make_in(spite_temp_2, spite_give_back_Memory_Arena, Memory_Arena_allocate(spite_temp_2, (int64_t)sizeof(Particle)), ({ int32_t spite_temp_3 = index_; int32_t spite_temp_4 = round_; int32_t spite_temp_5; if (__builtin_expect(__builtin_add_overflow(spite_temp_3, spite_temp_4, &spite_temp_5), 0)) spite_overflowed("index + round", "an Integer", "+", (int64_t)spite_temp_3, (int64_t)spite_temp_4, spite_site_1()); spite_temp_5; }), (index_ % 5));
-        List_Particle_append___held_0(particles_, particle_);
+        List_Particle_append(particles_, Particle___retain(particle_));
         index_ = (index_ + 1);
         Particle___release(particle_);
     }

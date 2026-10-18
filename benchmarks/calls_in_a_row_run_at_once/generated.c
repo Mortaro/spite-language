@@ -410,8 +410,8 @@ int64_t input_;
 };
 static SpiteString spite_lit_7 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_8 = SPITE_STATIC_STRING("\n", 1);
-#define spite_site_2() "library/console.spite:56 in Console._write_values"
 static SpiteString spite_lit_9 = SPITE_STATIC_STRING(" ", 1);
+#define spite_site_2() "library/console.spite:56 in Console._write_values"
 
 struct Duration {
 SpiteHeader header;
@@ -869,13 +869,13 @@ Console* Console___make(void);
 void Console___release(Console* self);
 void Console_print(Console* self, List_Console_Printable* values_);
 void Console_error(Console* self, List_Console_Printable* values_);
+void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_);
 void Console__write_output(Console* self, SpiteString text_);
 void Console__write_error(Console* self, SpiteString text_);
 void Console__flush(Console* self);
 void Console___destroy(Console* self);
 void Console___discard(Console* self);
-void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_);
 SpiteString Console_Printable___call_to_string(Console_Printable self);
 void Duration___init(Duration* self);
 Duration* Duration___allocate(void);
@@ -1029,6 +1029,7 @@ void List_ThreadPoolJob___free(List_ThreadPoolJob* self);
 void List_ThreadPoolJob_drop(List_ThreadPoolJob* self);
 int32_t List_ThreadPoolJob_count(List_ThreadPoolJob* self);
 bool List_ThreadPoolJob_is_empty(List_ThreadPoolJob* self);
+void List_ThreadPoolJob_append(List_ThreadPoolJob* self, ThreadPoolJob* value_);
 ThreadPoolJob* List_ThreadPoolJob_get_at(List_ThreadPoolJob* self, int32_t index_);
 void List_ThreadPoolJob_remove_at(List_ThreadPoolJob* self, int32_t index_);
 void List_ThreadPoolJob_clear(List_ThreadPoolJob* self);
@@ -1093,6 +1094,7 @@ void List_Spite_Namespace_drop(List_Spite_Namespace* self);
 void TypedMemory__Spite_Namespace___release(TypedMemory__Spite_Namespace* self);
 void TypedMemory__Spite_Namespace_release_value(TypedMemory__Spite_Namespace* self, int64_t address_, int32_t index_);
 void List_Console_Printable___init(List_Console_Printable* self);
+static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self);
 static inline void List_Console_Printable___release(List_Console_Printable* self);
 void List_Console_Printable___free(List_Console_Printable* self);
 void List_Console_Printable_drop(List_Console_Printable* self);
@@ -1139,6 +1141,7 @@ List_Nothing* List_Nothing___make(void);
 static inline void List_Nothing___release(List_Nothing* self);
 void List_Nothing___free(List_Nothing* self);
 void List_Nothing_drop(List_Nothing* self);
+void List_Nothing_append(List_Nothing* self, Nothing* value_);
 void List_Nothing_clear(List_Nothing* self);
 void List_Nothing_drop(List_Nothing* self);
 void List_Nothing_make_room(List_Nothing* self);
@@ -1153,8 +1156,6 @@ static SPITE_CRASH_REPORT void spite_failed_5(int32_t index_, List_ThreadPoolJob
 Spite_Class* spite_class_object_Integer(void);
 static void spite_function_value_ParallelCall__Nothing_run___arguments(Spite_Function* described);
 Spite_Function* spite_function_value_ParallelCall__Nothing_run(ParallelCall__Nothing* owner);
-void List_Nothing_append___held_0(List_Nothing* self, Nothing* value_);
-void List_ThreadPoolJob_append___held_0(List_ThreadPoolJob* self, ThreadPoolJob* value_);
 bool spite_singleton_tracked(void);
 void spite_singleton_created(void (*teardown)(void));
 void spite_singleton_used_after_exit(const char* name);
@@ -2301,6 +2302,10 @@ self->items_ = ((int64_t)(0));
 self->item_count_ = 0;
 self->capacity_ = 0;
 }
+static inline List_Console_Printable* List_Console_Printable___retain(List_Console_Printable* self) {
+if (self != 0) SPITE_PLAIN_COUNT_UP(self->header.ref_count);
+return self;
+}
 static inline void List_Console_Printable___release(List_Console_Printable* self) {
 if (self == 0) return;
 if (SPITE_PLAIN_COUNT_DOWN(self->header.ref_count) > 0) return;
@@ -2758,16 +2763,29 @@ int64_t spite_temp_9 = ({ int64_t spite_temp_10 = ({ int64_t spite_temp_11 = ({ 
 return spite_temp_9;
 }
 void Console_print(Console* self, List_Console_Printable* values_) {
-Console__write_values___held_0(self, values_, Console_Stream_output);
+Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_output);
 Console__write_output(self, spite_lit_7);
 Console__flush(self);
 List_Console_Printable___release(values_);
 }
 void Console_error(Console* self, List_Console_Printable* values_) {
 Console__flush(self);
-Console__write_values___held_0(self, values_, Console_Stream_error);
+Console__write_values(self, List_Console_Printable___retain(values_), Console_Stream_error);
 Console__write_error(self, spite_lit_8);
 Console__flush(self);
+List_Console_Printable___release(values_);
+}
+void Console__write_values(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
+int32_t index_ = 0;
+while (((index_ < spite_folded_List_Console_Printable_count(values_)))) {
+if (((index_ > 0))) {
+Console__write_to(self, spite_lit_9, stream_);
+}
+SpiteString text_ = ({ Console_Printable spite_temp_27 = ({ Console_Printable spite_temp_28 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_28)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_28; }); SpiteString spite_temp_29 = Console_Printable___call_to_string(spite_temp_27); Console_Printable___release(spite_temp_27); spite_temp_29; });
+Console__write_to(self, SpiteString___retain(text_), stream_);
+index_ = (index_ + 1);
+SpiteString___release(text_);
+}
 List_Console_Printable___release(values_);
 }
 void Console__write_to(Console* self, SpiteString text_, Console_Stream stream_) {
@@ -2802,18 +2820,6 @@ spite_write_held(&spite_held_error, stderr);
 #endif
 fflush(stdout);
 fflush(stderr);
-}
-void Console__write_values___held_0(Console* self, List_Console_Printable* values_, Console_Stream stream_) {
-int32_t index_ = 0;
-while (((index_ < spite_folded_List_Console_Printable_count(values_)))) {
-if (((index_ > 0))) {
-Console__write_to(self, spite_lit_9, stream_);
-}
-SpiteString text_ = ({ Console_Printable spite_temp_27 = ({ Console_Printable spite_temp_28 = List_Console_Printable_get_at(values_, index_); if (__builtin_expect(!(SPITE_TAGGED_PRESENT(spite_temp_28)), 0)) spite_outside_list("values[index]", spite_site_2()); spite_temp_28; }); SpiteString spite_temp_29 = Console_Printable___call_to_string(spite_temp_27); Console_Printable___release(spite_temp_27); spite_temp_29; });
-Console__write_to(self, SpiteString___retain(text_), stream_);
-index_ = (index_ + 1);
-SpiteString___release(text_);
-}
 }
 void Duration_Duration(Duration* self, int64_t amount_, Duration_Unit unit_) {
 int64_t per_second_ = Duration__units_per_second(self, unit_);
@@ -3537,40 +3543,77 @@ if (!(((self->work_) != 0))) {
 return;
 }
 Nothing* value_ = ({ ({ Spite_Function* spite_temp_257 = self->work_; ((void (*)(void*))spite_temp_257->spite_typed_call)(spite_temp_257->spite_owner); }); Nothing___default(); });
-List_Nothing_append___held_0(self->results_, value_);
+List_Nothing_append(self->results_, Nothing___retain(value_));
+Nothing___release(value_);
+}
+void List_Nothing_append(List_Nothing* self, Nothing* value_) {
+List_Nothing_make_room(self);
+TypedMemory__Nothing_write_value(self->values_, self->items_, self->item_count_, Nothing___retain(value_));
+self->item_count_ = ({ int32_t spite_temp_258 = self->item_count_; int32_t spite_temp_259 = 1; int32_t spite_temp_260; if (__builtin_expect(__builtin_add_overflow(spite_temp_258, spite_temp_259, &spite_temp_260), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_258, (int64_t)spite_temp_259, spite_site_28()); spite_temp_260; });
 Nothing___release(value_);
 }
 void List_Nothing_drop(List_Nothing* self) {
 List_Nothing_clear(self);
 if (((self->items_ != ((int64_t)(0))))) {
-({ Spite_Allocator spite_temp_258 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); int64_t spite_temp_259 = self->items_; if (((SpiteHeader*)(spite_temp_258))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_258), spite_temp_259); } else if (((SpiteHeader*)(spite_temp_258))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_258), spite_temp_259); } });
+({ Spite_Allocator spite_temp_261 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); int64_t spite_temp_262 = self->items_; if (((SpiteHeader*)(spite_temp_261))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_261), spite_temp_262); } else if (((SpiteHeader*)(spite_temp_261))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_261), spite_temp_262); } });
 }
 }
-void List_Nothing_append___held_0(List_Nothing* self, Nothing* value_) {
-List_Nothing_make_room(self);
-TypedMemory__Nothing_write_value(self->values_, self->items_, self->item_count_, Nothing___retain(value_));
-self->item_count_ = ({ int32_t spite_temp_260 = self->item_count_; int32_t spite_temp_261 = 1; int32_t spite_temp_262; if (__builtin_expect(__builtin_add_overflow(spite_temp_260, spite_temp_261, &spite_temp_262), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_260, (int64_t)spite_temp_261, spite_site_28()); spite_temp_262; });
+void List_Nothing_make_room(List_Nothing* self) {
+if (((self->item_count_ == self->capacity_))) {
+List_Nothing__grow(self);
+}
+}
+void List_Nothing__grow(List_Nothing* self) {
+int32_t grown_ = ({ int32_t spite_temp_263 = self->capacity_; int32_t spite_temp_264 = 2; int32_t spite_temp_265; if (__builtin_expect(__builtin_mul_overflow(spite_temp_263, spite_temp_264, &spite_temp_265), 0)) spite_overflowed("capacity * 2", "an Integer", "*", (int64_t)spite_temp_263, (int64_t)spite_temp_264, spite_site_33()); spite_temp_265; });
+if (((self->capacity_ == 0))) {
+grown_ = 4;
+}
+int64_t bytes_ = TypedMemory__Nothing_value_bytes(self->values_);
+self->items_ = List_Nothing__resized(self, ({ int64_t spite_temp_266 = bytes_; int64_t spite_temp_267 = SpiteInteger_to_long(self->capacity_); int64_t spite_temp_268; if (__builtin_expect(__builtin_mul_overflow(spite_temp_266, spite_temp_267, &spite_temp_268), 0)) spite_overflowed("bytes * capacity", "a Long", "*", (int64_t)spite_temp_266, (int64_t)spite_temp_267, spite_site_34()); spite_temp_268; }), ({ int64_t spite_temp_269 = bytes_; int64_t spite_temp_270 = SpiteInteger_to_long(grown_); int64_t spite_temp_271; if (__builtin_expect(__builtin_mul_overflow(spite_temp_269, spite_temp_270, &spite_temp_271), 0)) spite_overflowed("bytes * grown", "a Long", "*", (int64_t)spite_temp_269, (int64_t)spite_temp_270, spite_site_34()); spite_temp_271; }));
+self->capacity_ = grown_;
+}
+int64_t List_Nothing__resized(List_Nothing* self, int64_t old_bytes_, int64_t new_bytes_) {
+if ((({ Spite_Allocator spite_temp_272 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); bool spite_temp_273 = (((SpiteHeader*)(spite_temp_272))->class_id == 93); spite_temp_273; }))) {
+int64_t spite_temp_274 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
+return spite_temp_274;
+}
+int64_t moved_ = ({ Spite_Allocator spite_temp_275 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); int64_t spite_temp_276 = new_bytes_; int64_t spite_temp_277 = 0; if (((SpiteHeader*)(spite_temp_275))->class_id == 92) { spite_temp_277 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_275), spite_temp_276); } else if (((SpiteHeader*)(spite_temp_275))->class_id == 93) { spite_temp_277 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_275), spite_temp_276); } spite_temp_277; });
+if (((self->items_ != ((int64_t)(0))))) {
+SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
+({ Spite_Allocator spite_temp_278 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); int64_t spite_temp_279 = self->items_; if (((SpiteHeader*)(spite_temp_278))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_278), spite_temp_279); } else if (((SpiteHeader*)(spite_temp_278))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_278), spite_temp_279); } });
+}
+int64_t spite_temp_280 = moved_;
+return spite_temp_280;
 }
 void TypedMemory__Nothing_write_value(TypedMemory__Nothing* self, int64_t address_, int32_t index_, Nothing* value_) {
 ((Nothing**)(intptr_t)address_)[index_] = value_;
+}
+int64_t TypedMemory__Nothing_value_bytes(TypedMemory__Nothing* self) {
+return (int64_t)sizeof(Nothing*);
 }
 void ThreadPool_submit(ThreadPool* self, Spite_Function* job_, int32_t first_, int32_t end_, int64_t state_) {
 ThreadPool_start(self);
 SpiteMemory_Address_write_long_atomically(state_, SpiteInteger_to_long(0), SpiteInteger_to_long(0));
 ThreadPoolJob* queued_ = ThreadPoolJob___make();
-Spite_Function* spite_temp_263 = Spite_Function___retain(job_);
+Spite_Function* spite_temp_281 = Spite_Function___retain(job_);
 Spite_Function___release((queued_)->work_);
-(queued_)->work_ = spite_temp_263;
+(queued_)->work_ = spite_temp_281;
 (queued_)->first_ = first_;
 (queued_)->end_ = end_;
 (queued_)->state_ = state_;
 ThreadPool__task_begun(self);
 ThreadPool_lock_queue(self);
-List_ThreadPoolJob_append___held_0(self->jobs_, queued_);
+List_ThreadPoolJob_append(self->jobs_, ThreadPoolJob___retain(queued_));
 ThreadPool_signal_one(self, self->work_ready_);
 ThreadPool_unlock_queue(self);
 ThreadPoolJob___release(queued_);
 Spite_Function___release(job_);
+}
+void List_ThreadPoolJob_append(List_ThreadPoolJob* self, ThreadPoolJob* value_) {
+List_ThreadPoolJob_make_room(self);
+TypedMemory__ThreadPoolJob_write_value(self->values_, self->items_, self->item_count_, ThreadPoolJob___retain(value_));
+self->item_count_ = ({ int32_t spite_temp_282 = self->item_count_; int32_t spite_temp_283 = 1; int32_t spite_temp_284; if (__builtin_expect(__builtin_add_overflow(spite_temp_282, spite_temp_283, &spite_temp_284), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_282, (int64_t)spite_temp_283, spite_site_28()); spite_temp_284; });
+ThreadPoolJob___release(value_);
 }
 void List_ThreadPoolJob_clear(List_ThreadPoolJob* self) {
 int32_t index_ = 0;
@@ -3580,10 +3623,32 @@ index_ = (index_ + 1);
 }
 self->item_count_ = 0;
 }
-void List_ThreadPoolJob_append___held_0(List_ThreadPoolJob* self, ThreadPoolJob* value_) {
-List_ThreadPoolJob_make_room(self);
-TypedMemory__ThreadPoolJob_write_value(self->values_, self->items_, self->item_count_, ThreadPoolJob___retain(value_));
-self->item_count_ = ({ int32_t spite_temp_264 = self->item_count_; int32_t spite_temp_265 = 1; int32_t spite_temp_266; if (__builtin_expect(__builtin_add_overflow(spite_temp_264, spite_temp_265, &spite_temp_266), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_264, (int64_t)spite_temp_265, spite_site_28()); spite_temp_266; });
+void List_ThreadPoolJob_make_room(List_ThreadPoolJob* self) {
+if (((self->item_count_ == self->capacity_))) {
+List_ThreadPoolJob__grow(self);
+}
+}
+void List_ThreadPoolJob__grow(List_ThreadPoolJob* self) {
+int32_t grown_ = ({ int32_t spite_temp_285 = self->capacity_; int32_t spite_temp_286 = 2; int32_t spite_temp_287; if (__builtin_expect(__builtin_mul_overflow(spite_temp_285, spite_temp_286, &spite_temp_287), 0)) spite_overflowed("capacity * 2", "an Integer", "*", (int64_t)spite_temp_285, (int64_t)spite_temp_286, spite_site_33()); spite_temp_287; });
+if (((self->capacity_ == 0))) {
+grown_ = 4;
+}
+int64_t bytes_ = TypedMemory__ThreadPoolJob_value_bytes(self->values_);
+self->items_ = List_ThreadPoolJob__resized(self, ({ int64_t spite_temp_288 = bytes_; int64_t spite_temp_289 = SpiteInteger_to_long(self->capacity_); int64_t spite_temp_290; if (__builtin_expect(__builtin_mul_overflow(spite_temp_288, spite_temp_289, &spite_temp_290), 0)) spite_overflowed("bytes * capacity", "a Long", "*", (int64_t)spite_temp_288, (int64_t)spite_temp_289, spite_site_34()); spite_temp_290; }), ({ int64_t spite_temp_291 = bytes_; int64_t spite_temp_292 = SpiteInteger_to_long(grown_); int64_t spite_temp_293; if (__builtin_expect(__builtin_mul_overflow(spite_temp_291, spite_temp_292, &spite_temp_293), 0)) spite_overflowed("bytes * grown", "a Long", "*", (int64_t)spite_temp_291, (int64_t)spite_temp_292, spite_site_34()); spite_temp_293; }));
+self->capacity_ = grown_;
+}
+int64_t List_ThreadPoolJob__resized(List_ThreadPoolJob* self, int64_t old_bytes_, int64_t new_bytes_) {
+if ((({ Spite_Allocator spite_temp_294 = SPITE_ALLOCATOR_List_ThreadPoolJob(self, spite_singleton_Memory_Heap); bool spite_temp_295 = (((SpiteHeader*)(spite_temp_294))->class_id == 93); spite_temp_295; }))) {
+int64_t spite_temp_296 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
+return spite_temp_296;
+}
+int64_t moved_ = ({ Spite_Allocator spite_temp_297 = SPITE_ALLOCATOR_List_ThreadPoolJob(self, spite_singleton_Memory_Heap); int64_t spite_temp_298 = new_bytes_; int64_t spite_temp_299 = 0; if (((SpiteHeader*)(spite_temp_297))->class_id == 92) { spite_temp_299 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_297), spite_temp_298); } else if (((SpiteHeader*)(spite_temp_297))->class_id == 93) { spite_temp_299 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_297), spite_temp_298); } spite_temp_299; });
+if (((self->items_ != ((int64_t)(0))))) {
+SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
+({ Spite_Allocator spite_temp_300 = SPITE_ALLOCATOR_List_ThreadPoolJob(self, spite_singleton_Memory_Heap); int64_t spite_temp_301 = self->items_; if (((SpiteHeader*)(spite_temp_300))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_300), spite_temp_301); } else if (((SpiteHeader*)(spite_temp_300))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_300), spite_temp_301); } });
+}
+int64_t spite_temp_302 = moved_;
+return spite_temp_302;
 }
 void TypedMemory__ThreadPoolJob_write_value(TypedMemory__ThreadPoolJob* self, int64_t address_, int32_t index_, ThreadPoolJob* value_) {
 ((ThreadPoolJob**)(intptr_t)address_)[index_] = value_;
@@ -3613,7 +3678,7 @@ Spite_Function___release(((Spite_Function**)(intptr_t)address_)[index_]);
 void List_Spite_Argument_append(List_Spite_Argument* self, Spite_Argument* value_) {
 List_Spite_Argument_make_room(self);
 TypedMemory__Spite_Argument_write_value(self->values_, self->items_, self->item_count_, Spite_Argument___retain(value_));
-self->item_count_ = ({ int32_t spite_temp_267 = self->item_count_; int32_t spite_temp_268 = 1; int32_t spite_temp_269; if (__builtin_expect(__builtin_add_overflow(spite_temp_267, spite_temp_268, &spite_temp_269), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_267, (int64_t)spite_temp_268, spite_site_28()); spite_temp_269; });
+self->item_count_ = ({ int32_t spite_temp_303 = self->item_count_; int32_t spite_temp_304 = 1; int32_t spite_temp_305; if (__builtin_expect(__builtin_add_overflow(spite_temp_303, spite_temp_304, &spite_temp_305), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_303, (int64_t)spite_temp_304, spite_site_28()); spite_temp_305; });
 Spite_Argument___release(value_);
 }
 void List_Spite_Argument_clear(List_Spite_Argument* self) {
@@ -3630,26 +3695,26 @@ List_Spite_Argument__grow(self);
 }
 }
 void List_Spite_Argument__grow(List_Spite_Argument* self) {
-int32_t grown_ = ({ int32_t spite_temp_270 = self->capacity_; int32_t spite_temp_271 = 2; int32_t spite_temp_272; if (__builtin_expect(__builtin_mul_overflow(spite_temp_270, spite_temp_271, &spite_temp_272), 0)) spite_overflowed("capacity * 2", "an Integer", "*", (int64_t)spite_temp_270, (int64_t)spite_temp_271, spite_site_33()); spite_temp_272; });
+int32_t grown_ = ({ int32_t spite_temp_306 = self->capacity_; int32_t spite_temp_307 = 2; int32_t spite_temp_308; if (__builtin_expect(__builtin_mul_overflow(spite_temp_306, spite_temp_307, &spite_temp_308), 0)) spite_overflowed("capacity * 2", "an Integer", "*", (int64_t)spite_temp_306, (int64_t)spite_temp_307, spite_site_33()); spite_temp_308; });
 if (((self->capacity_ == 0))) {
 grown_ = 4;
 }
 int64_t bytes_ = TypedMemory__Spite_Argument_value_bytes(self->values_);
-self->items_ = List_Spite_Argument__resized(self, ({ int64_t spite_temp_273 = bytes_; int64_t spite_temp_274 = SpiteInteger_to_long(self->capacity_); int64_t spite_temp_275; if (__builtin_expect(__builtin_mul_overflow(spite_temp_273, spite_temp_274, &spite_temp_275), 0)) spite_overflowed("bytes * capacity", "a Long", "*", (int64_t)spite_temp_273, (int64_t)spite_temp_274, spite_site_34()); spite_temp_275; }), ({ int64_t spite_temp_276 = bytes_; int64_t spite_temp_277 = SpiteInteger_to_long(grown_); int64_t spite_temp_278; if (__builtin_expect(__builtin_mul_overflow(spite_temp_276, spite_temp_277, &spite_temp_278), 0)) spite_overflowed("bytes * grown", "a Long", "*", (int64_t)spite_temp_276, (int64_t)spite_temp_277, spite_site_34()); spite_temp_278; }));
+self->items_ = List_Spite_Argument__resized(self, ({ int64_t spite_temp_309 = bytes_; int64_t spite_temp_310 = SpiteInteger_to_long(self->capacity_); int64_t spite_temp_311; if (__builtin_expect(__builtin_mul_overflow(spite_temp_309, spite_temp_310, &spite_temp_311), 0)) spite_overflowed("bytes * capacity", "a Long", "*", (int64_t)spite_temp_309, (int64_t)spite_temp_310, spite_site_34()); spite_temp_311; }), ({ int64_t spite_temp_312 = bytes_; int64_t spite_temp_313 = SpiteInteger_to_long(grown_); int64_t spite_temp_314; if (__builtin_expect(__builtin_mul_overflow(spite_temp_312, spite_temp_313, &spite_temp_314), 0)) spite_overflowed("bytes * grown", "a Long", "*", (int64_t)spite_temp_312, (int64_t)spite_temp_313, spite_site_34()); spite_temp_314; }));
 self->capacity_ = grown_;
 }
 int64_t List_Spite_Argument__resized(List_Spite_Argument* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_279 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); bool spite_temp_280 = (((SpiteHeader*)(spite_temp_279))->class_id == 93); spite_temp_280; }))) {
-int64_t spite_temp_281 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
-return spite_temp_281;
+if ((({ Spite_Allocator spite_temp_315 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); bool spite_temp_316 = (((SpiteHeader*)(spite_temp_315))->class_id == 93); spite_temp_316; }))) {
+int64_t spite_temp_317 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
+return spite_temp_317;
 }
-int64_t moved_ = ({ Spite_Allocator spite_temp_282 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); int64_t spite_temp_283 = new_bytes_; int64_t spite_temp_284 = 0; if (((SpiteHeader*)(spite_temp_282))->class_id == 92) { spite_temp_284 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_282), spite_temp_283); } else if (((SpiteHeader*)(spite_temp_282))->class_id == 93) { spite_temp_284 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_282), spite_temp_283); } spite_temp_284; });
+int64_t moved_ = ({ Spite_Allocator spite_temp_318 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); int64_t spite_temp_319 = new_bytes_; int64_t spite_temp_320 = 0; if (((SpiteHeader*)(spite_temp_318))->class_id == 92) { spite_temp_320 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_318), spite_temp_319); } else if (((SpiteHeader*)(spite_temp_318))->class_id == 93) { spite_temp_320 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_318), spite_temp_319); } spite_temp_320; });
 if (((self->items_ != ((int64_t)(0))))) {
 SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_285 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); int64_t spite_temp_286 = self->items_; if (((SpiteHeader*)(spite_temp_285))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_285), spite_temp_286); } else if (((SpiteHeader*)(spite_temp_285))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_285), spite_temp_286); } });
+({ Spite_Allocator spite_temp_321 = SPITE_ALLOCATOR_List_Spite_Argument(self, spite_singleton_Memory_Heap); int64_t spite_temp_322 = self->items_; if (((SpiteHeader*)(spite_temp_321))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_321), spite_temp_322); } else if (((SpiteHeader*)(spite_temp_321))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_321), spite_temp_322); } });
 }
-int64_t spite_temp_287 = moved_;
-return spite_temp_287;
+int64_t spite_temp_323 = moved_;
+return spite_temp_323;
 }
 void TypedMemory__Spite_Argument_write_value(TypedMemory__Spite_Argument* self, int64_t address_, int32_t index_, Spite_Argument* value_) {
 ((Spite_Argument**)(intptr_t)address_)[index_] = value_;
@@ -3694,8 +3759,8 @@ void TypedMemory__Console_Printable_release_value(TypedMemory__Console_Printable
 Console_Printable___release(((Console_Printable*)(intptr_t)address_)[index_]);
 }
 bool Parallel__Nothing_get_finished(Parallel__Nothing* self) {
-bool spite_temp_288 = (((self->_state_ == ((int64_t)(0)))) || ((SpiteMemory_Address_read_long_atomically(self->_state_, SpiteInteger_to_long(0)) == SpiteInteger_to_long(2))));
-return spite_temp_288;
+bool spite_temp_324 = (((self->_state_ == ((int64_t)(0)))) || ((SpiteMemory_Address_read_long_atomically(self->_state_, SpiteInteger_to_long(0)) == SpiteInteger_to_long(2))));
+return spite_temp_324;
 }
 void List_Nothing_clear(List_Nothing* self) {
 int32_t index_ = 0;
@@ -3705,65 +3770,8 @@ index_ = (index_ + 1);
 }
 self->item_count_ = 0;
 }
-void List_Nothing_make_room(List_Nothing* self) {
-if (((self->item_count_ == self->capacity_))) {
-List_Nothing__grow(self);
-}
-}
-void List_Nothing__grow(List_Nothing* self) {
-int32_t grown_ = ({ int32_t spite_temp_289 = self->capacity_; int32_t spite_temp_290 = 2; int32_t spite_temp_291; if (__builtin_expect(__builtin_mul_overflow(spite_temp_289, spite_temp_290, &spite_temp_291), 0)) spite_overflowed("capacity * 2", "an Integer", "*", (int64_t)spite_temp_289, (int64_t)spite_temp_290, spite_site_33()); spite_temp_291; });
-if (((self->capacity_ == 0))) {
-grown_ = 4;
-}
-int64_t bytes_ = TypedMemory__Nothing_value_bytes(self->values_);
-self->items_ = List_Nothing__resized(self, ({ int64_t spite_temp_292 = bytes_; int64_t spite_temp_293 = SpiteInteger_to_long(self->capacity_); int64_t spite_temp_294; if (__builtin_expect(__builtin_mul_overflow(spite_temp_292, spite_temp_293, &spite_temp_294), 0)) spite_overflowed("bytes * capacity", "a Long", "*", (int64_t)spite_temp_292, (int64_t)spite_temp_293, spite_site_34()); spite_temp_294; }), ({ int64_t spite_temp_295 = bytes_; int64_t spite_temp_296 = SpiteInteger_to_long(grown_); int64_t spite_temp_297; if (__builtin_expect(__builtin_mul_overflow(spite_temp_295, spite_temp_296, &spite_temp_297), 0)) spite_overflowed("bytes * grown", "a Long", "*", (int64_t)spite_temp_295, (int64_t)spite_temp_296, spite_site_34()); spite_temp_297; }));
-self->capacity_ = grown_;
-}
-int64_t List_Nothing__resized(List_Nothing* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_298 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); bool spite_temp_299 = (((SpiteHeader*)(spite_temp_298))->class_id == 93); spite_temp_299; }))) {
-int64_t spite_temp_300 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
-return spite_temp_300;
-}
-int64_t moved_ = ({ Spite_Allocator spite_temp_301 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); int64_t spite_temp_302 = new_bytes_; int64_t spite_temp_303 = 0; if (((SpiteHeader*)(spite_temp_301))->class_id == 92) { spite_temp_303 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_301), spite_temp_302); } else if (((SpiteHeader*)(spite_temp_301))->class_id == 93) { spite_temp_303 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_301), spite_temp_302); } spite_temp_303; });
-if (((self->items_ != ((int64_t)(0))))) {
-SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_304 = SPITE_ALLOCATOR_List_Nothing(self, spite_singleton_Memory_Heap); int64_t spite_temp_305 = self->items_; if (((SpiteHeader*)(spite_temp_304))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_304), spite_temp_305); } else if (((SpiteHeader*)(spite_temp_304))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_304), spite_temp_305); } });
-}
-int64_t spite_temp_306 = moved_;
-return spite_temp_306;
-}
 void TypedMemory__Nothing_release_value(TypedMemory__Nothing* self, int64_t address_, int32_t index_) {
 Nothing___release(((Nothing**)(intptr_t)address_)[index_]);
-}
-int64_t TypedMemory__Nothing_value_bytes(TypedMemory__Nothing* self) {
-return (int64_t)sizeof(Nothing*);
-}
-void List_ThreadPoolJob_make_room(List_ThreadPoolJob* self) {
-if (((self->item_count_ == self->capacity_))) {
-List_ThreadPoolJob__grow(self);
-}
-}
-void List_ThreadPoolJob__grow(List_ThreadPoolJob* self) {
-int32_t grown_ = ({ int32_t spite_temp_307 = self->capacity_; int32_t spite_temp_308 = 2; int32_t spite_temp_309; if (__builtin_expect(__builtin_mul_overflow(spite_temp_307, spite_temp_308, &spite_temp_309), 0)) spite_overflowed("capacity * 2", "an Integer", "*", (int64_t)spite_temp_307, (int64_t)spite_temp_308, spite_site_33()); spite_temp_309; });
-if (((self->capacity_ == 0))) {
-grown_ = 4;
-}
-int64_t bytes_ = TypedMemory__ThreadPoolJob_value_bytes(self->values_);
-self->items_ = List_ThreadPoolJob__resized(self, ({ int64_t spite_temp_310 = bytes_; int64_t spite_temp_311 = SpiteInteger_to_long(self->capacity_); int64_t spite_temp_312; if (__builtin_expect(__builtin_mul_overflow(spite_temp_310, spite_temp_311, &spite_temp_312), 0)) spite_overflowed("bytes * capacity", "a Long", "*", (int64_t)spite_temp_310, (int64_t)spite_temp_311, spite_site_34()); spite_temp_312; }), ({ int64_t spite_temp_313 = bytes_; int64_t spite_temp_314 = SpiteInteger_to_long(grown_); int64_t spite_temp_315; if (__builtin_expect(__builtin_mul_overflow(spite_temp_313, spite_temp_314, &spite_temp_315), 0)) spite_overflowed("bytes * grown", "a Long", "*", (int64_t)spite_temp_313, (int64_t)spite_temp_314, spite_site_34()); spite_temp_315; }));
-self->capacity_ = grown_;
-}
-int64_t List_ThreadPoolJob__resized(List_ThreadPoolJob* self, int64_t old_bytes_, int64_t new_bytes_) {
-if ((({ Spite_Allocator spite_temp_316 = SPITE_ALLOCATOR_List_ThreadPoolJob(self, spite_singleton_Memory_Heap); bool spite_temp_317 = (((SpiteHeader*)(spite_temp_316))->class_id == 93); spite_temp_317; }))) {
-int64_t spite_temp_318 = Memory_Heap_resize(self->heap_, self->items_, new_bytes_);
-return spite_temp_318;
-}
-int64_t moved_ = ({ Spite_Allocator spite_temp_319 = SPITE_ALLOCATOR_List_ThreadPoolJob(self, spite_singleton_Memory_Heap); int64_t spite_temp_320 = new_bytes_; int64_t spite_temp_321 = 0; if (((SpiteHeader*)(spite_temp_319))->class_id == 92) { spite_temp_321 = Memory_Arena_allocate(((Memory_Arena*)spite_temp_319), spite_temp_320); } else if (((SpiteHeader*)(spite_temp_319))->class_id == 93) { spite_temp_321 = Memory_Heap_allocate(((Memory_Heap*)spite_temp_319), spite_temp_320); } spite_temp_321; });
-if (((self->items_ != ((int64_t)(0))))) {
-SpiteMemory_Address_copy_to(self->items_, moved_, old_bytes_);
-({ Spite_Allocator spite_temp_322 = SPITE_ALLOCATOR_List_ThreadPoolJob(self, spite_singleton_Memory_Heap); int64_t spite_temp_323 = self->items_; if (((SpiteHeader*)(spite_temp_322))->class_id == 92) { Memory_Arena_free(((Memory_Arena*)spite_temp_322), spite_temp_323); } else if (((SpiteHeader*)(spite_temp_322))->class_id == 93) { Memory_Heap_free(((Memory_Heap*)spite_temp_322), spite_temp_323); } });
-}
-int64_t spite_temp_324 = moved_;
-return spite_temp_324;
 }
 typedef struct SpiteFunctionPlace { const void* start; const char* owner; const char* name; int32_t line; } SpiteFunctionPlace;
 int main(int argument_count, char** argument_values);
@@ -3922,6 +3930,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&List_Spite_Namespace___release, "-\t-", "List_Spite_Namespace___release", 0},
 {(const void*)&List_Spite_Namespace___free, "-\t-", "List_Spite_Namespace___free", 0},
 {(const void*)&List_Console_Printable___init, "-\t-", "List_Console_Printable___init", 0},
+{(const void*)&List_Console_Printable___retain, "-\t-", "List_Console_Printable___retain", 0},
 {(const void*)&List_Console_Printable___release, "-\t-", "List_Console_Printable___release", 0},
 {(const void*)&List_Console_Printable___free, "-\t-", "List_Console_Printable___free", 0},
 {(const void*)&List_Symbol___release, "-\t-", "List_Symbol___release", 0},
@@ -3972,11 +3981,11 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Clock_elapsed_nanoseconds, "library/windows/clock.spite\tClock", "elapsed_nanoseconds", 11},
 {(const void*)&Console_print, "library/console.spite\tConsole", "print", 18},
 {(const void*)&Console_error, "library/console.spite\tConsole", "error", 29},
+{(const void*)&Console__write_values, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Console__write_to, "library/console.spite\tConsole", "_write_to", 62},
 {(const void*)&Console__write_output, "compiler/source/generation/prelude.spite\tConsole", "_write_output", 1},
 {(const void*)&Console__write_error, "compiler/source/generation/prelude.spite\tConsole", "_write_error", 2},
 {(const void*)&Console__flush, "compiler/source/generation/prelude.spite\tConsole", "_flush", 4},
-{(const void*)&Console__write_values___held_0, "library/console.spite\tConsole", "_write_values", 50},
 {(const void*)&Duration_Duration, "library/duration.spite\tDuration", "Duration", 14},
 {(const void*)&Duration_total, "library/duration.spite\tDuration", "total", 22},
 {(const void*)&Duration__units_per_second, "library/duration.spite\tDuration", "_units_per_second", 124},
@@ -4058,12 +4067,19 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&Parallel__Nothing__join, "library/parallel.spite\tParallel", "_join", 41},
 {(const void*)&Parallel__Nothing_drop, "library/parallel.spite\tParallel", "drop", 47},
 {(const void*)&ParallelCall__Nothing_run, "library/parallel_call.spite\tParallelCall", "run", 6},
+{(const void*)&List_Nothing_append, "library/list.spite\tList", "append", 17},
 {(const void*)&List_Nothing_drop, "library/list.spite\tList", "drop", 422},
-{(const void*)&List_Nothing_append___held_0, "library/list.spite\tList", "append", 17},
+{(const void*)&List_Nothing_make_room, "library/list.spite\tList", "make_room", 441},
+{(const void*)&List_Nothing__grow, "library/list.spite\tList", "_grow", 447},
+{(const void*)&List_Nothing__resized, "library/list.spite\tList", "_resized", 457},
 {(const void*)&TypedMemory__Nothing_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
+{(const void*)&TypedMemory__Nothing_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
 {(const void*)&ThreadPool_submit, "library/thread_pool.spite\tThreadPool", "submit", 33},
+{(const void*)&List_ThreadPoolJob_append, "library/list.spite\tList", "append", 17},
 {(const void*)&List_ThreadPoolJob_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&List_ThreadPoolJob_append___held_0, "library/list.spite\tList", "append", 17},
+{(const void*)&List_ThreadPoolJob_make_room, "library/list.spite\tList", "make_room", 441},
+{(const void*)&List_ThreadPoolJob__grow, "library/list.spite\tList", "_grow", 447},
+{(const void*)&List_ThreadPoolJob__resized, "library/list.spite\tList", "_resized", 457},
 {(const void*)&TypedMemory__ThreadPoolJob_write_value, "compiler/source/generation/prelude.spite\tTypedMemory", "write_value", 2},
 {(const void*)&List_Spite_AttributeDeclaration_clear, "library/list.spite\tList", "clear", 124},
 {(const void*)&TypedMemory__Spite_AttributeDeclaration_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
@@ -4085,14 +4101,7 @@ static const SpiteFunctionPlace spite_function_places[] = {
 {(const void*)&TypedMemory__Console_Printable_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
 {(const void*)&Parallel__Nothing_get_finished, "library/parallel.spite\tParallel", "get_finished", 14},
 {(const void*)&List_Nothing_clear, "library/list.spite\tList", "clear", 124},
-{(const void*)&List_Nothing_make_room, "library/list.spite\tList", "make_room", 441},
-{(const void*)&List_Nothing__grow, "library/list.spite\tList", "_grow", 447},
-{(const void*)&List_Nothing__resized, "library/list.spite\tList", "_resized", 457},
 {(const void*)&TypedMemory__Nothing_release_value, "compiler/source/generation/prelude.spite\tTypedMemory", "release_value", 3},
-{(const void*)&TypedMemory__Nothing_value_bytes, "compiler/source/generation/prelude.spite\tTypedMemory", "value_bytes", 4},
-{(const void*)&List_ThreadPoolJob_make_room, "library/list.spite\tList", "make_room", 441},
-{(const void*)&List_ThreadPoolJob__grow, "library/list.spite\tList", "_grow", 447},
-{(const void*)&List_ThreadPoolJob__resized, "library/list.spite\tList", "_resized", 457},
 {(const void*)&main, "-\t-", "main", 0},
 {0, 0, 0, 0}
 };

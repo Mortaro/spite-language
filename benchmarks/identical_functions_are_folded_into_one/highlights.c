@@ -20,9 +20,9 @@ void Naive_Naive(Naive* self) {
     int32_t index_ = 0;
     while (((index_ < 1000))) {
         Position* position_ = Position___make(index_, (index_ * 2));
-        List_Position_append___held_0(positions_, position_);
+        List_Position_append(positions_, Position___retain(position_));
         Velocity* velocity_ = Velocity___make((index_ % 7), (index_ % 5));
-        List_Velocity_append___held_0(velocities_, velocity_);
+        List_Velocity_append(velocities_, Velocity___retain(velocity_));
         index_ = (index_ + 1);
         Velocity___release(velocity_);
         Position___release(position_);

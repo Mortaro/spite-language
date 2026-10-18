@@ -8,7 +8,7 @@ void Naive_Naive(Naive* self) {
     while (((index_ < 1000))) {
         Velocity spite_slot_1;
         Velocity* made_ = Velocity___make_into(&spite_slot_1, (index_ % 7), (index_ % 5));
-        Vector__Velocity_append___held_0(velocities_, made_);
+        Vector__Velocity_append(velocities_, Velocity___retain(made_));
         index_ = (index_ + 1);
     }
     int32_t across_ = Vector__Velocity_sum_across(velocities_);
@@ -19,8 +19,9 @@ void Naive_Naive(Naive* self) {
     Vector__Velocity___release(velocities_);
 }
 
-void Vector__Velocity_append___held_0(Vector__Velocity* self, Velocity* value_) {
+void Vector__Velocity_append(Vector__Velocity* self, Velocity* value_) {
     Vector__Velocity_make_room(self);
     InlineMemory__Velocity_write_item(self->values_, self->items_, self->item_count_, Velocity___retain(value_));
     self->item_count_ = ({ int32_t spite_temp_1 = self->item_count_; int32_t spite_temp_2 = 1; int32_t spite_temp_3; if (__builtin_expect(__builtin_add_overflow(spite_temp_1, spite_temp_2, &spite_temp_3), 0)) spite_overflowed("item_count + 1", "an Integer", "+", (int64_t)spite_temp_1, (int64_t)spite_temp_2, spite_site_1()); spite_temp_3; });
+    Velocity___release(value_);
 }

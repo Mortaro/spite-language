@@ -17473,7 +17473,7 @@ func held_variant_name(
     if not owner {
         return function_c_name
     }
-    if is_hot_class(owner) {
+    if owner.source_path.starts_with("library/") or is_hot_class(owner) {
         return function_c_name
     }
     var original = function_by_c_name(owner, function_c_name)
@@ -17482,11 +17482,6 @@ func held_variant_name(
     }
     if original.is_constructor or not original.has_body or original.result_slot {
         return function_c_name
-    }
-    var library_function = original.source_path.starts_with("library/")
-    var read_lists_before = placement.read_lists
-    if library_function {
-        use_class_read_lists(owner)
     }
     var positions = List<String>()
     var framed = List<String>()
@@ -17504,10 +17499,6 @@ func held_variant_name(
         var parameter_name = original.parameters[position].name
         var position_text = position.to_string()
         var fits = not assigns_name(original.body, parameter_name) and not original.lent_parameters.contains(parameter_name)
-        if fits and library_function {
-            var parameter_type = original.parameters[position].type
-            fits = type_shape.as_list(parameter_type) and placement.read_lists.contains("{original.name}#{position}")
-        }
         crash expected_types[position]
         var shaped_type = type_shape.as_union(expected_types[position])
         if fits and shaped_type {
@@ -17535,7 +17526,6 @@ func held_variant_name(
         }
         candidate_index = candidate_index + 1
     }
-    placement.read_lists = read_lists_before
     if positions.is_empty() {
         return function_c_name
     }

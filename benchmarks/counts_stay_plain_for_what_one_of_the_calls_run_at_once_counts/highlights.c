@@ -25,7 +25,7 @@ void Archive_sort(Archive* self) {
         while (((index_ < spite_folded_List_Letter_count(self->letters_)))) {
             Letter* letter_ = ({ List_Letter* spite_temp_1 = self->letters_; int32_t spite_temp_2 = index_; if (__builtin_expect(spite_temp_2 < 0 || spite_temp_2 >= (spite_temp_1)->item_count_, 0)) spite_outside_list("letters[index]", spite_site_1()); ((Letter**)(intptr_t)(spite_temp_1)->items_)[spite_temp_2]; });
             if (((((letter_)->words_ % 3) == (round_ % 3)))) {
-                List_Letter_append___held_0(kept_, letter_);
+                List_Letter_append(kept_, Letter___retain(letter_));
             }
             index_ = (index_ + 1);
         }

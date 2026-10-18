@@ -22,11 +22,22 @@ check, while the Buffer form is a call answering a `T?` behind a bounds check, a
 seven overflow-checked index additions and five bounds checks per iteration where a raw address paid none.
 
 Two things are built and neither moved the numbers (measured, same compiler on both sides): a `___held_` copy of a
-library function whose list parameter is only read (so `Sha256__compress___held_0_1` exists), and a value element
-read without the write-back watch. What is left is the work issue 230 names: make a buffer read with a known byte
-order inline and proved, and prove `list[base + counter]`. One fold that did help is in: a name the compiler bound
-while making a copy of a function is compared with a literal while compiling, so the byte order test is gone from
-every read (`docs/optimizations.md`, "A name known while compiling is compared while compiling").
+library function whose list parameter is only read, and a value element read without the write-back watch. **The first
+was reverted**: it broke `conformance/stage6/waiting_systems`, which is the evidence the next session needs. A call
+redirected to a `___held_` copy is a call to another function, and the compiler's questions about a call (does it
+wait, may it be started here, what does the callee keep) answer for the function the source names. So
+`System_Ticker.update_each`, which calls the library's `Spite.Internal.Lock.while_locked`, stopped being resumable: its
+`___step` state machine lost the wait, the ticker ran inside its `Concurrent` before the caller's own print, and
+`running.finished` answered `true` where the program expects `false`. The function value argument went with it (a
+stack literal instead of `spite_function_value_System_Ticker_tick`). Nothing about the wait analysis has to change for
+a program's own functions, whose copies come from the class the question was asked about, which is why the corpus
+never caught this. Whatever makes the library case safe has to answer for the copy: the wait graph, the placement
+study, and anything else asked about a call.
+
+One fold that did land is in: a name the compiler bound while making a copy of a function is compared with a literal
+while compiling, so the byte order test is gone from every read (`docs/optimizations.md`, "A name known while
+compiling is compared while compiling"). It does not show in the times: the C compiler was folding that comparison
+by itself.
 
 The rest of this file is from 2026-10-09 and describes the naive-engine programme, which that session found waiting on
 its own work. It is still the context for the engine, not for this branch.

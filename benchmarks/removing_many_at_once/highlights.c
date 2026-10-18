@@ -29,7 +29,7 @@ void Naive_fill(Naive* self) {
         bool despawned_now_ = Despawns_marked(self->despawns_, entity_);
         Velocity spite_slot_1;
         Velocity* velocity_ = Velocity___make_into(&spite_slot_1, entity_, (1.0 * SpiteInteger_to_float(entity_)), despawned_now_);
-        Items__Velocity_append___held_0(self->velocities_, velocity_);
+        Items__Velocity_append(self->velocities_, Velocity___retain(velocity_));
         List_Integer_append(self->entities_, entity_);
         entity_ = (entity_ + 1);
     }
