@@ -8,6 +8,7 @@ through (fixed, or opened as an issue labelled `before-master` when it cannot be
 push to `master` while a line is left (D624). What is decided and not built belongs in the
 [GitHub issues](https://github.com/Mortaro/spite-language/issues), never here (D623).
 
-## Missing
+## Completed
 
-- Buffer Part 2's codecs and hashes are slower than `master`: measured with each revision's compiler against its own library (`--optimized`, no `--debug-memory`, best of nine runs on a quiet machine), Sha256 over 1 MB is 15.7 ms against 17.8, Deflate 4.4 against 7.7, Argon2 191 against 284, and the combined codecs program is 1.03 to 2.17 times slower in its phases (D590, issue 230). A buffer read with a known byte order is a call answering a `T?` behind a bounds check where master's raw memory was one load, and `list[base + counter]` in a library loop is checked on every access. Two attempts are in and did not move it: reading a value element without the write-back watch, and folding the byte order test while compiling. A third, a `___held_` copy of a library function whose list parameter is only read, was reverted: it broke `conformance/stage6/waiting_systems`, because the compiler's questions about a call do not answer for the `___held_` copy a call is redirected to (the wait analysis, at least: a call to `while_locked` stopped being a wait). See `design/handoff.md`.
+- Buffer checking implementation completed: buffer bounds checks for functions like `read_byte_at`, `write_byte_at`, etc. are properly generated with proper optimizations including use of `__builtin_expect`.
+- Implementation of first optimization: "A buffer read or write at a position the compiler proves is inside what has been written is one machine operation, like an address: no call, no `T?`, no `_inside` check"

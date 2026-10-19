@@ -25756,6 +25756,30 @@ func proven_buffer_access(
         var counted_type = buffer_number_return_type(word)
         return ExpressionResult(read, counted_type)
     }
+    
+    # Optimization: Check if we can prove the access is inside what has been written
+    # and non-negative. If so, generate one machine operation instead of bounds check.
+    var proven_inside = byte_range_proven(list_text, position_ast, width, scope)
+    var non_negative = never_below_zero(position_ast, scope)
+    if proven_inside and non_negative {
+        # Direct memory access - safe to generate without bounds checking
+        var integer_spite_type = integer_type()
+        var position = coerce_for_store(position_ast, integer_spite_type, scope, class_information)
+        var held = next_temporary()
+        var read_type = buffer_number_return_type(word)
+        var block = "({object_result.code})->items_"
+        if writing {
+            var written_ast = arguments_ast[1]
+            crash written_ast
+            var value = _buffer_value(word, written_ast, scope, class_information)
+            var stored = _buffer_operation(word, true, block, held, order, value)
+            return ExpressionResult(stored, void_type())
+        }
+        var read = _buffer_operation(word, false, block, held, order, "")
+        return ExpressionResult(read, read_type)
+    }
+    
+    # Fall back to normal bounds checking
     var integer_spite_type = integer_type()
     var position = coerce_for_store(position_ast, integer_spite_type, scope, class_information)
     var held = next_temporary()
